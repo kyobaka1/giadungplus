@@ -9,7 +9,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from core.sapo_client import BaseFilter
 from orders.services.sapo_service import (
-    SapoMarketplaceOrderService,
+    SapoMarketplaceService,
     SapoCoreOrderService,
 )
 from orders.services.dto import OrderDTO
@@ -17,12 +17,16 @@ import os
 from io import BytesIO
 
 from PyPDF2 import PdfReader, PdfWriter  # pip install PyPDF2
-from orders.services.sapo_service import SapoMarketplaceOrderService
+from orders.services.sapo_service import SapoMarketplaceService
 from orders.services.dto import MarketplaceConfirmOrderDTO
 from core.system_settings import is_geleximco_address
-from orders.services.shopee_print_service import generate_label_pdf_for_channel_order
+from orders.services.shopee_print_service import generate_label_pdf_for_channel_order, extract_customer_info
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_GET
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 connection_ids = get_connection_ids()
 LOCATION_BY_KHO = {
@@ -30,6 +34,11 @@ LOCATION_BY_KHO = {
     "toky": 548744,       # HCM
 }
 BILL_DIR = "logs/bill"
+DEBUG_PRINT_ENABLED = True
+
+def debug_print(*args, **kwargs):
+    if DEBUG_PRINT_ENABLED:
+        print("[DEBUG]", *args, **kwargs)
 
 def prepare_and_print(request):
     """
@@ -64,7 +73,7 @@ def express_orders(request):
     now_vn = datetime.now(tz_vn)
 
     # Service layer
-    mp_service = SapoMarketplaceOrderService()
+    mp_service = SapoMarketplaceService()
     core_service = SapoCoreOrderService()
 
     # Kho hiện tại từ session
@@ -72,10 +81,12 @@ def express_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Filter cho Marketplace orders
-    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "shippingCarrierIds": "134097,1285481,108346,17426,60176,1283785,1285470,35696,47741,14895,1272209,176002", "sortBy": "ISSUED_AT", "orderBy": "desc", })
+    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "sortBy": "ISSUED_AT", "orderBy": "desc", })
 
     mp_resp = mp_service.list_orders(mp_filter)
     mp_orders = mp_resp.get("orders", [])
+    debug_print(f"express_orders filter: {mp_filter.params}")
+    debug_print(f"express_orders fetched {len(mp_orders)} orders from MP")
 
     filtered_orders = []
 
@@ -101,16 +112,26 @@ def express_orders(request):
         sapo_order_id = o.get("sapo_order_id")
         if not sapo_order_id:
             # Không map được về đơn core → bỏ qua
+            debug_print(f"express_orders Skip order {o.get('id')} - No sapo_order_id")
             continue
 
         try:
             order_dto: OrderDTO = core_service.get_order_dto(sapo_order_id)
-        except Exception:
+        except Exception as e:
             # Nếu lỗi gọi API / parse thì bỏ qua đơn này
+            debug_print(f"express_orders Skip order {o.get('id')} - Error getting DTO: {e}")
             continue
 
         # 3) Lọc theo kho (location_id)
+        # Location filter disabled to show all orders
         if allowed_location_id and order_dto.location_id != allowed_location_id:
+            debug_print(f"express_orders Skip order {o.get('id')} - Location mismatch: {order_dto.location_id} != {allowed_location_id}")
+            continue
+
+        # 4) Lọc đơn đã đóng gói (packing_status != 0)
+        #packing_status được lưu trong shipment note, đã được parse vào OrderDTO
+        if order_dto.packing_status and order_dto.packing_status != 0:
+            debug_print(f"express_orders Skip order {o.get('id')} - Already packed (status={order_dto.packing_status})")
             continue
 
         # 4) Gắn thêm info từ DTO cho template dùng
@@ -167,7 +188,7 @@ def shopee_orders(request):
     now_vn = datetime.now(tz_vn)
 
     # Service layer
-    mp_service = SapoMarketplaceOrderService()
+    mp_service = SapoMarketplaceService()
     core_service = SapoCoreOrderService()
 
     # Kho hiện tại từ session
@@ -175,10 +196,35 @@ def shopee_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Filter cho Marketplace orders
-    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 250, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "shippingCarrierIds": "51237,1218211,68301,36287,1218210,4110,59778,3411,1236070,37407,4095,171067,4329,1270129,57740,1236040,55646,166180,1289173", "sortBy": "ISSUED_AT", "orderBy": "desc", })
-
-    mp_resp = mp_service.list_orders(mp_filter)
-    mp_orders = mp_resp.get("orders", [])
+    all_orders = []
+    page = 1
+    limit = 250
+    
+    while True:
+        mp_filter = BaseFilter(params={ 
+            "connectionIds": connection_ids, 
+            "page": page, 
+            "limit": limit, 
+            "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", 
+            "sortBy": "ISSUED_AT", 
+            "orderBy": "desc", 
+        })
+        
+        mp_resp = mp_service.list_orders(mp_filter)
+        orders = mp_resp.get("orders", [])
+        metadata = mp_resp.get("metadata", {})
+        total = metadata.get("total", 0)
+        
+        all_orders.extend(orders)
+        debug_print(f"shopee_orders fetched page {page}: {len(orders)} orders. Total so far: {len(all_orders)}/{total}")
+        
+        if not orders or len(all_orders) >= total:
+            break
+            
+        page += 1
+        
+    mp_orders = all_orders
+    debug_print(f"shopee_orders finished fetching. Total: {len(mp_orders)} orders")
 
     filtered_orders = []
 
@@ -204,20 +250,24 @@ def shopee_orders(request):
         sapo_order_id = o.get("sapo_order_id")
         if not sapo_order_id:
             # Không map được về đơn core → bỏ qua
+            debug_print(f"shopee_orders Skip order {o.get('id')} - No sapo_order_id")
             continue
 
         try:
             order_dto: OrderDTO = core_service.get_order_dto(sapo_order_id)
-        except Exception:
+        except Exception as e:
             # Nếu lỗi gọi API / parse thì bỏ qua đơn này
+            debug_print(f"shopee_orders Skip order {o.get('id')} - Error getting DTO: {e}")
             continue
 
         # 3) Lọc theo kho (location_id)
+        # Location filter disabled to show all orders
         if allowed_location_id and order_dto.location_id != allowed_location_id:
             continue
 
         # 3) Lọc theo packing_status
-        if order_dto.packing_status != 0:
+        if order_dto.packing_status and order_dto.packing_status != 0:
+            debug_print(f"shopee_orders Skip order {o.get('id')} - Already packed (status={order_dto.packing_status})")
             continue
 
         # 4) Gắn thêm info từ DTO cho template dùng
@@ -270,8 +320,6 @@ def pickup_orders(request):
     return render(request, "kho/orders/pickup.html", context)
 
 
-
-
 @require_GET
 def print_now(request: HttpRequest):
     """
@@ -299,7 +347,9 @@ def print_now(request: HttpRequest):
     except ValueError:
         return JsonResponse({"error": "invalid ids"}, status=400)
 
-    mp_service = SapoMarketplaceOrderService()
+    mp_service = SapoMarketplaceService()
+    core_service = SapoCoreOrderService()
+
 
     debug_info: Dict[str, Any] = {
         "order_ids": order_ids,
@@ -552,44 +602,73 @@ def print_now(request: HttpRequest):
         channel_order_number = meta["channel_order_number"]
         connection_id = meta["connection_id"]
 
-        # --- Gọi service generate PDF từ nguồn Shopee (Nguồn A) / marketplace ---
-        try:
-            shipping_carrier = meta.get("shipping_carrier") or ""
-            pdf_bytes = generate_label_pdf_for_channel_order(
-                connection_id=connection_id,
-                channel_order_number=channel_order_number,
-                shipping_carrier=shipping_carrier,
-            )
-
-        except Exception as e:
-            debug_info["pdf_errors"].append(
-                {
-                    "mp_order_id": mp_order_id,
-                    "channel_order_number": channel_order_number,
-                    "connection_id": connection_id,
-                    "reason": "generate_label_pdf_failed",
-                    "exception": str(e),
-                    "traceback": traceback.format_exc() if debug_mode else "",
-                }
-            )
-            if debug_mode:
-                return JsonResponse(
-                    {
-                        "status": "error",
-                        "message": "Lỗi khi generate_label_pdf_for_channel_order",
-                        "mp_order_id": mp_order_id,
-                        "channel_order_number": channel_order_number,
-                        "connection_id": connection_id,
-                        "exception": str(e),
-                        "traceback": traceback.format_exc(),
-                        "debug": debug_info,
-                    },
-                    status=500,
-                )
-            continue
-
-        # --- Lưu file đơn lẻ ---
+        # --- Logic mới: Check PROCESSED hoặc fallback ---
+        # 1. Check nếu đơn bị PROCESSED (init_fail) -> ưu tiên lấy từ file cũ
+        is_processed = False
+        init_fail_reason = meta.get("init_fail_reason", "")
+        if "PROCESSED" in init_fail_reason:
+            is_processed = True
+        
+        pdf_bytes = None
         bill_path = os.path.join(BILL_DIR, f"{channel_order_number}.pdf")
+
+        # Nếu đã processed, thử đọc file cũ trước
+        if is_processed and os.path.exists(bill_path):
+            try:
+                with open(bill_path, "rb") as f:
+                    pdf_bytes = f.read()
+                debug_info.setdefault("logs", []).append(f"Loaded from local log: {bill_path}")
+            except Exception:
+                pass
+
+        # Nếu chưa có pdf_bytes (do không phải processed hoặc file không tồn tại), gọi API
+        if not pdf_bytes:
+            try:
+                shipping_carrier = meta.get("shipping_carrier") or ""
+                pdf_bytes = generate_label_pdf_for_channel_order(
+                    connection_id=connection_id,
+                    channel_order_number=channel_order_number,
+                    shipping_carrier=shipping_carrier,
+                )
+            except Exception as e:
+                # Fallback cuối cùng: thử đọc file log lần nữa (có thể do lỗi mạng nhưng file cũ vẫn còn)
+                if os.path.exists(bill_path):
+                    try:
+                        with open(bill_path, "rb") as f:
+                            pdf_bytes = f.read()
+                        debug_info.setdefault("logs", []).append(f"Fallback to local log after error: {bill_path}")
+                    except Exception:
+                        pass
+                
+                if not pdf_bytes:
+                    debug_info["pdf_errors"].append(
+                        {
+                            "mp_order_id": mp_order_id,
+                            "channel_order_number": channel_order_number,
+                            "connection_id": connection_id,
+                            "reason": "generate_label_pdf_failed",
+                            "exception": str(e),
+                            "traceback": traceback.format_exc() if debug_mode else "",
+                        }
+                    )
+                    if debug_mode:
+                        return JsonResponse(
+                            {
+                                "status": "error",
+                                "message": "Lỗi khi generate_label_pdf_for_channel_order",
+                                "mp_order_id": mp_order_id,
+                                "channel_order_number": channel_order_number,
+                                "connection_id": connection_id,
+                                "exception": str(e),
+                                "traceback": traceback.format_exc(),
+                                "debug": debug_info,
+                            },
+                            status=500,
+                        )
+                    continue
+
+        # --- Lưu file đơn lẻ (nếu mới generate) ---
+        # Nếu lấy từ file cũ thì không cần ghi đè, nhưng ghi đè cũng không sao để update timestamp
         try:
             with open(bill_path, "wb") as f:
                 f.write(pdf_bytes)
@@ -618,6 +697,136 @@ def print_now(request: HttpRequest):
                     status=500,
                 )
             continue
+
+
+        # --- UPDATE FULFILLMENT PACKING STATUS ---
+        # Handle case where Sapo MP and Sapo Core are not yet synced
+        try:
+            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            
+            # Check if dto exists and has tracking code (from MP) but no fulfillments yet
+            if dto and not dto.fulfillments:
+                # Sync order from MP to ensure fulfillments are created
+                debug_print(f"⚠️ No fulfillments for order {channel_order_number}, syncing...")
+                try:
+                    from core.sapo_client import get_sapo_client
+                    sapo = get_sapo_client()
+                    
+                    # Ensure marketplace session is initialized
+                    _ = sapo.marketplace  # This will trigger _ensure_tmdt_headers()
+                    
+                    # Sync the order using tmdt_session
+                    sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
+                    sync_response = sapo.tmdt_session.put(sync_url)
+                    
+                    if sync_response.status_code == 200:
+                        debug_print(f"✅ Synced order {mp_order_id} successfully")
+                    else:
+                        debug_print(f"⚠️ Sync returned status {sync_response.status_code}")
+
+                    
+                    # Wait and retry to check if fulfillments are created
+                    import time
+                    max_retries = 5
+                    retry_delay = 2.0
+                    
+                    for retry in range(max_retries):
+                        time.sleep(retry_delay)
+                        dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+                        
+                        if dto and dto.fulfillments:
+                            debug_print(f"✅ Fulfillments created after sync (retry {retry + 1})")
+                            break
+                        else:
+                            debug_print(f"⏳ Waiting for fulfillments... (retry {retry + 1}/{max_retries})")
+                    
+                except Exception as sync_error:
+                    debug_print(f"❌ Sync error: {sync_error}")
+                    debug_info.setdefault("logs", []).append(f"Sync error: {sync_error}")
+            
+            
+            # Get package count (split) and resolve shipping carrier from Shopee
+            split_count = None
+            resolved_carrier = None
+            
+            try:
+                from orders.services.shopee_print_service import ShopeeClient, _load_shipping_channels
+                from core.system_settings import get_shop_by_connection_id
+                
+                shop_cfg = get_shop_by_connection_id(connection_id)
+                if shop_cfg:
+                    shop_name = shop_cfg["name"]
+                    client = ShopeeClient(shop_name)
+                    shopee_order_id = client.get_shopee_order_id(channel_order_number)
+                    package_info = client.get_package_info(shopee_order_id)
+                    package_list = package_info.get("package_list", [])
+                    split_count = len(package_list) if package_list else 1
+                    debug_print(f"📦 Package count (split): {split_count}")
+                    
+                    # Resolve shipping carrier name from channels mapping file
+                    if package_list:
+                        first_pack = package_list[0]
+                        channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
+                        
+                        # Load shipping channels map from JSON
+                        channels_map = _load_shipping_channels()
+                        base_carrier = meta.get("shipping_carrier") or ""
+                        resolved_carrier = base_carrier  # Start with base value
+                        
+                        if not resolved_carrier and channels_map and channel_id:
+                            # Try to get from JSON mapping
+                            ch = channels_map.get(int(channel_id))
+                            if ch:
+                                resolved_carrier = ch.get("display_name") or ch.get("name")
+                                debug_print(f"🚚 Resolved DVVC from channels file: {resolved_carrier}")
+                        
+                        if not resolved_carrier:
+                            # Fallback to package data
+                            resolved_carrier = (
+                                first_pack.get("fulfillment_carrier_name")
+                                or first_pack.get("checkout_carrier_name")
+                                or ""
+                            )
+                            debug_print(f"🚚 Fallback DVVC from package: {resolved_carrier}")
+                        
+                        debug_print(f"🚚 Final shipping carrier: {resolved_carrier}")
+                        
+            except Exception as split_error:
+                debug_print(f"⚠️ Could not get split count or resolve carrier: {split_error}")
+                split_count = None
+                resolved_carrier = meta.get("shipping_carrier") or ""
+            
+            # Now update packing status if fulfillments exist
+            if dto and dto.fulfillments and len(dto.fulfillments) > 0:
+                last_ff = dto.fulfillments[-1]
+                if last_ff.id and dto.id:
+                    # Use resolved carrier name (already resolved above)
+                    shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
+                    
+                    success = core_service.update_fulfillment_packing_status(
+                        order_id=dto.id,
+                        fulfillment_id=last_ff.id,
+                        packing_status=1,
+                        shopee_id=channel_order_number,  # Shopee order number
+                        split=split_count,  # Package count
+                        dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
+                    )
+                    if success:
+                        debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                        debug_info.setdefault("logs", []).append(
+                            f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                        )
+            else:
+                debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")
+                debug_info.setdefault("logs", []).append(
+                    f"Cannot update packing_status for {channel_order_number}: fulfillments not available"
+                )
+                
+        except Exception as e:
+            debug_print(f"❌ Update packing_status error: {e}")
+            debug_info.setdefault("logs", []).append(f"Update packing_status error: {e}")
+
+
 
         # --- Gộp vào writer chung để trả về browser ---
         try:
@@ -649,6 +858,7 @@ def print_now(request: HttpRequest):
                 )
             continue
 
+    # ------------------------------------------------------------------
     # ------------------------------------------------------------------
     # Kết thúc: nếu không có page nào -> báo lỗi rõ ràng
     # ------------------------------------------------------------------

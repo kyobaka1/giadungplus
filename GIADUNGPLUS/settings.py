@@ -43,7 +43,6 @@ INSTALLED_APPS = [
     "kho",
     "cskh",
     "marketing",
-    "quantri",
     "service",
     "core",
     "orders",

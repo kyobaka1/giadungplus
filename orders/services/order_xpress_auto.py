@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from core.sapo_client import BaseFilter
 from core import shopee_client
 from orders.services.sapo_service import (
-    SapoMarketplaceOrderService,
+    SapoMarketplaceService,
     SapoCoreOrderService,
 )
 from core.system_settings import get_connection_ids
@@ -40,7 +40,7 @@ def auto_prepare_express_orders(limit=50):
     tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
 
     # Service layer
-    mp_service = SapoMarketplaceOrderService()
+    mp_service = SapoMarketplaceService()
     core_service = SapoCoreOrderService()
 
     # Filter cho Marketplace orders

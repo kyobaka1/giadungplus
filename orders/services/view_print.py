@@ -4,7 +4,7 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from core.sapo_client import BaseFilter
-from .sapo_service import SapoMarketplaceOrderService, SapoCoreOrderService
+from .sapo_service import SapoMarketplaceService, SapoCoreOrderService
 from .order_builder import build_express_order
 from .dto import Order
 
@@ -22,7 +22,7 @@ CONNECTION_IDS = "155938,155687,155174,134366,10925"
 
 class ExpressOrderService:
     def __init__(self):
-        self._mp = SapoMarketplaceOrderService()
+        self._mp = SapoMarketplaceService()
         self._core = SapoCoreOrderService()
 
     def list_express_orders(

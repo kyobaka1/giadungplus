@@ -1,85 +1,241 @@
 # orders/services/sapo_service.py
 from typing import Dict, Any, List, Optional
+import datetime
+import json
+import time
+import requests
 
 from core.sapo_client import get_sapo_client, BaseFilter
 from orders.services.dto import OrderDTO, MarketplaceConfirmOrderDTO
 from orders.services.order_builder import build_order_from_sapo
-import datetime
 
 SAPO_ACCOUNT_ID = 319911
+DEBUG_PRINT = True
+
+def debug_print(*args, **kwargs):
+    if DEBUG_PRINT:
+        print("[DEBUG]", *args, **kwargs)
+
+def gopnhan_gon(json_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Compress keys to save space (160 char limit)"""
+    key_mapping = {
+        "packing_status": "pks", "nguoi_goi": "human", "time_packing": "tgoi",
+        "dvvc": "vc", "shopee_id": "spid", "time_print": "tin",
+        "split": "sp", "time_chia": "tc", "shipdate": "sd", "nguoi_chia": "nc"
+    }
+    return {key_mapping.get(k, k): v for k, v in json_data.items()}
+
+def mo_rong_gon(json_string: str) -> Dict[str, Any]:
+    """Expand compressed keys"""
+    try:
+        data = json.loads(json_string)
+    except:
+        return {}
+    reverse_mapping = {
+        "pks": "packing_status", "human": "nguoi_goi", "tgoi": "time_packing",
+        "vc": "dvvc", "spid": "shopee_id", "tin": "time_print",
+        "sp": "split", "sd": "shipdate", "tc": "time_chia", "nc": "nguoi_chia"
+    }
+    return {reverse_mapping.get(k, k): v for k, v in data.items()}
+
+
 class SapoCoreOrderService:
-    """
-    Service cho Sapo CORE (MAIN_URL) – /orders.json, /orders/{id}.json
-    """
     def __init__(self):
         sapo = get_sapo_client()
-        self._core_api = sapo.core_api
+        self._core_api = sapo.core
+        self._sapo = sapo
 
     def _parse_sapo_time(self, s: str) -> datetime.datetime:
-        # "2025-11-18T09:16:23Z" -> datetime UTC
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
 
-
     def get_order_dto(self, order_id: int) -> OrderDTO:
-        payload = self._core_api.get_order(order_id)  # JSON /orders/{id}.json
+        payload = self._core_api.get_order_raw(order_id)
         return build_order_from_sapo(payload)
 
-    def get_order_dto_from_shopee_sn(self, shopee_sn: str) -> OrderDTO:
-        payload = self._core_api.get_order_from_shopee_sn(shopee_sn)  # JSON /orders/{id}.json
+    def get_order_dto_from_shopee_sn(self, shopee_sn: str) -> Optional[OrderDTO]:
+        payload = self._core_api.get_order_by_reference_number(shopee_sn)
+        if not payload:
+            return None
         return build_order_from_sapo(payload)
 
     def list_orders(self, flt: BaseFilter) -> Dict[str, Any]:
-        return self._core_api.list_orders(flt)
+        return self._core_api.list_orders_raw(**flt.to_params())
+
+    def update_fulfillment_packing_status(
+        self, 
+        order_id: int, 
+        fulfillment_id: int, 
+        packing_status: int,
+        shopee_id: Optional[int] = None,
+        split: Optional[int] = None,
+        dvvc: Optional[str] = None,
+        max_retries: int = 3, 
+        retry_delay: float = 2.0
+    ) -> bool:
+        """
+        Update packing_status and other order info in fulfillment shipment note.
+        
+        Args:
+            order_id: Sapo order ID
+            fulfillment_id: Fulfillment ID
+            packing_status: Packing status to update
+            shopee_id: Optional Shopee order ID
+            split: Optional number of packages (split count)
+            dvvc: Optional shipping carrier name
+            max_retries: Maximum retry attempts
+            retry_delay: Delay between retries in seconds
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        for attempt in range(max_retries):
+            try:
+                debug_print(f"[Attempt {attempt + 1}/{max_retries}] Update fulfillment {fulfillment_id}")
+                
+                # Get current fulfillment
+                # User suggested endpoint: shipments/{fulfillment_id}.json
+                url_get = f"shipments/{fulfillment_id}.json"
+                debug_print(f"⬇️ Fetching fulfillment from {url_get}")
+                result = self._sapo.core.get(url_get)
+                
+                if not result or "fulfillment" not in result:
+                    debug_print(f"❌ Fulfillment not found in response")
+                    # Try checking if it returned 'shipment' instead
+                    if result and "shipment" in result:
+                         debug_print(f"⚠️ Response contains 'shipment' but not 'fulfillment'. Adjusting logic might be needed.")
+                    
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                fulfillment = result["fulfillment"]
+                shipment = fulfillment.get("shipment")
+                
+                if not shipment:
+                    debug_print(f"⚠️ Shipment null, waiting...")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                # Parse existing note
+                note_data = {}
+                if shipment.get("note") and "{" in shipment.get("note", ""):
+                    note_data = mo_rong_gon(shipment["note"])
+                    debug_print(f"📖 Existing note: {note_data}")
+                
+                # Update packing_status (always)
+                note_data["packing_status"] = packing_status
+                
+                # Update optional fields if provided
+                if shopee_id is not None:
+                    note_data["shopee_id"] = shopee_id
+                    debug_print(f"✏️ Set shopee_id = {shopee_id}")
+                
+                if split is not None:
+                    note_data["split"] = split
+                    debug_print(f"✏️ Set split = {split}")
+                
+                if dvvc is not None:
+                    note_data["dvvc"] = dvvc
+                    debug_print(f"✏️ Set dvvc = {dvvc}")
+                
+                # Compress and create JSON
+                compressed = gopnhan_gon(note_data)
+                new_note = json.dumps(compressed, ensure_ascii=False, separators=(',', ':'))
+                
+                debug_print(f"💾 New note: {new_note} ({len(new_note)} chars)")
+                
+                # FULL PAYLOAD
+                # Update note in the original fulfillment object
+                fulfillment["shipment"]["note"] = new_note
+                
+                full_payload = {
+                    "fulfillment": fulfillment
+                }
+                
+                url_put = f"orders/{order_id}/fulfillments/{fulfillment_id}.json"
+                debug_print(f"📦 Sending full payload to {url_put}")
+                debug_print(f"🔑 Headers: {self._sapo.core_session.headers}")
+                debug_print(f"📄 Payload: {json.dumps(full_payload, ensure_ascii=False)}")
+                
+                # PUT update
+                update_result = self._sapo.core.put(
+                    url_put,
+                    json=full_payload
+                )
+                
+                if update_result:
+                    debug_print(f"✅ Updated fulfillment successfully")
+                    return True
+                else:
+                    debug_print(f"❌ PUT failed")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                    return False
+                    
+            except requests.exceptions.HTTPError as e:
+                debug_print(f"❌ HTTP Error: {e}")
+                if e.response is not None:
+                    debug_print(f"📜 Response Text: {e.response.text}")
+                    debug_print(f"🔑 Response Headers: {e.response.headers}")
+                
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    debug_print(f"❌ All retries exhausted")
+                    return False
+                    
+            except Exception as e:
+                debug_print(f"❌ Error: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    debug_print(f"❌ All retries exhausted")
+                    return False
+        
+        return False
 
 
-class SapoMarketplaceOrderService:
-    """
-    Service cho Marketplace (market-place.sapoapps.vn/v2/orders)
-    """
+class SapoMarketplaceService:
     def __init__(self):
         sapo = get_sapo_client()
-        self._mp_api = sapo.marketplace_api
+        self._mp_api = sapo.marketplace
 
     def list_orders(self, flt: BaseFilter) -> Dict[str, Any]:
-        return self._mp_api.list_orders(flt)
+        p = flt.to_params().copy()
+        connection_ids = p.pop("connectionIds", "")
+        return self._mp_api.list_orders_raw(
+            connection_ids=connection_ids,
+            account_id=SAPO_ACCOUNT_ID,
+            **p
+        )
 
-    # ---------- NEW: dùng API init_confirm trong SapoMarketplaceAPI ---------- #
     def init_confirm(self, order_ids: List[int]) -> Dict[str, Any]:
-        return self._mp_api.init_confirm(order_ids, account_id=SAPO_ACCOUNT_ID)
+        return self._mp_api.init_confirm_raw(order_ids, account_id=SAPO_ACCOUNT_ID)
 
     def confirm_orders(self, items: List[MarketplaceConfirmOrderDTO]) -> Dict[str, Any]:
-        """
-        Group DTO thành payload confirm_order_request_model rồi gọi Marketplace API.
-        """
         grouped: Dict[tuple, List[Dict[str, Any]]] = {}
-
         for dto in items:
             key = (dto.connection_id, dto.pick_up_type, dto.address_id)
-
-            order_model: Dict[str, Any] = {
-                "order_id": dto.order_id,
-            }
-            # CHỈ gửi pickup_time_id khi có time slot hợp lệ
+            order_model: Dict[str, Any] = {"order_id": dto.order_id}
             if dto.pickup_time_id not in (None, "", 0, "0"):
                 order_model["pickup_time_id"] = str(dto.pickup_time_id)
-
             grouped.setdefault(key, []).append(order_model)
 
         confirm_order_request_model: List[Dict[str, Any]] = []
-
         for (connection_id, pick_up_type, address_id), order_models in grouped.items():
-            confirm_order_request_model.append(
-                {
-                    "connection_id": connection_id,
-                    "order_models": order_models,
-                    "shopee_logistic": {
-                        "pick_up_type": pick_up_type,
-                        "address_id": address_id,
-                    },
-                }
-            )
-
-        return self._mp_api.confirm_orders(
-            confirm_order_request_model=confirm_order_request_model,
+            confirm_order_request_model.append({
+                "connection_id": connection_id,
+                "order_models": order_models,
+                "shopee_logistic": {
+                    "pick_up_type": pick_up_type,
+                    "address_id": address_id,
+                },
+            })
+        return self._mp_api.confirm_orders_raw(
+            confirm_payload=confirm_order_request_model,
             account_id=SAPO_ACCOUNT_ID,
         )
+

@@ -1,7 +1,13 @@
 # core/sapo_client/client.py
+"""
+Sapo Client - Main client để authenticate và access Sapo APIs.
+Quản lý 2 sessions riêng cho Core API và Marketplace API.
+"""
+
 import json
 import time
 from typing import Dict, Any, Optional
+import logging
 
 import requests
 from django.utils import timezone
@@ -11,86 +17,142 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from core.models import SapoToken
-from core.system_settings import (
-    SAPO_BASIC,
-    SAPO_TMDT,
-    HOME_PARAM,
-    HOATOC_HN_ON,
-    HOATOC_HCM_ON,
-)
+from core.system_settings import SAPO_BASIC, SAPO_TMDT
 
-from .core_api import SapoCoreAPI
-from .marketplace_api import SapoMarketplaceAPI
+from .repositories import SapoCoreRepository, SapoMarketplaceRepository
 
-
-SAPO_DEBUG = False
-
-
-def debug(*args, **kwargs):
-    if SAPO_DEBUG:
-        print(*args, **kwargs)
+logger = logging.getLogger(__name__)
 
 
 class SapoClient:
     """
-    Client nói chuyện với Sapo (MAIN_URL) và Marketplace.
-    - core_session: dùng cho MAIN_URL (admin)
-    - tmdt_session: dùng cho market-place.sapoapps.vn
+    Main Sapo client để authenticate và truy cập Sapo APIs.
+    
+    Quản lý 2 sessions:
+    - core_session: Cho Sapo Core API (sisapsan.mysapogo.com/admin)
+    - tmdt_session: Cho Sapo Marketplace API (market-place.sapoapps.vn)
+    
+    Usage:
+        sapo = SapoClient()
+        
+        # Access Core API
+        orders = sapo.core.list_orders_raw(limit=50, location_id=241737)
+        
+        # Access Marketplace API
+        mp_orders = sapo.marketplace.list_orders_raw(
+            connection_ids="10925,155174",
+            account_id=319911
+        )
     """
-
+    
     def __init__(self):
+        """Initialize Sapo client với 2 sessions."""
         self.core_session = requests.Session()
         self.tmdt_session = requests.Session()
-
+        
+        # Add default headers cho core session (cần thiết cho API calls)
+        self.core_session.headers.update({
+            "x-sapo-client": "sapo-frontend-v3",
+            "x-sapo-serviceid": "sapo-frontend-v3",
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json;charset=UTF-8"
+        })
+        
+        # State tracking
         self.core_initialized = False
         self.core_valid = False
-
-        self.tmdt_loaded = False     # đã load TMDT headers từ DB chưa
-        self.tmdt_valid = False      # headers TMDT còn sống không
-
-        self._tmdt_headers: Dict[str, Any] = {}
-
-        debug("[SAPO] SapoClient initialized")
-
-    # -------------------------------------------------------
-    # LOAD TOKEN TỪ DB
-    # -------------------------------------------------------
+        self.tmdt_loaded = False
+        self.tmdt_valid = False
+        
+        # Repositories (lazy init)
+        self._core_repo: Optional[SapoCoreRepository] = None
+        self._marketplace_repo: Optional[SapoMarketplaceRepository] = None
+        
+        logger.debug("[SapoClient] Initialized with default headers")
+    
+    # ========================= TOKEN MANAGEMENT (CORE) =========================
+    
     def _load_token_from_db(self) -> Optional[Dict[str, Any]]:
-        debug("[SAPO::TOKEN] Loading core token from DB...")
-
+        """Load core token từ database."""
+        logger.debug("[SapoClient] Loading core token from DB...")
+        
         try:
             token = SapoToken.objects.get(key="loginss")
         except SapoToken.DoesNotExist:
-            debug("[SAPO::TOKEN] No core token in DB")
+            logger.debug("[SapoClient] No core token in DB")
             return None
-
+        
         if not token.is_valid():
-            debug("[SAPO::TOKEN] Core token found but EXPIRED")
+            logger.debug("[SapoClient] Core token expired")
             return None
-
-        debug(f"[SAPO::TOKEN] Core token OK, expires at {token.expires_at}")
-        self.core_session.headers.update(token.headers)
+        
+        logger.debug(f"[SapoClient] Core token OK, expires at {token.expires_at}")
+        # Extract cookies from headers if present
+        headers = dict(token.headers)
+        cookie_header = headers.pop("cookie", None) or headers.pop("Cookie", None)
+        
+        self.core_session.headers.update(headers)
+        
+        if cookie_header:
+            cookies = {}
+            for kv in cookie_header.split("; "):
+                if "=" in kv:
+                    k, v = kv.split("=", 1)
+                    cookies[k] = v
+            self.core_session.cookies.update(cookies)
+        
+        # Đảm bảo x-sapo-client luôn có (không bị ghi đè bởi token.headers)
+        self.core_session.headers.update({
+            "x-sapo-client": "sapo-frontend-v3",
+            "x-sapo-serviceid": "sapo-frontend-v3",
+        })
+        
         return token.headers
-
+    
     def _save_token_to_db(self, headers: Dict[str, Any], lifetime_hours: int = 6):
-        debug(f"[SAPO::TOKEN] Saving core token (valid {lifetime_hours}h)")
-
+        """Save core token vào database."""
+        logger.info("[SapoClient] Saving core token to DB")
+        
         expires_at = timezone.now() + timezone.timedelta(hours=lifetime_hours)
+        
+        # Đảm bảo x-sapo-client luôn có trong headers trước khi save
+        headers_with_sapo = dict(headers)
+        headers_with_sapo.update({
+            "x-sapo-client": "sapo-frontend-v3",
+            "x-sapo-serviceid": "sapo-frontend-v3",
+        })
+        
         SapoToken.objects.update_or_create(
             key="loginss",
             defaults={
-                "headers": headers,
+                "headers": headers_with_sapo,
                 "expires_at": expires_at,
             },
         )
-        self.core_session.headers.update(headers)
-
-        debug(f"[SAPO::TOKEN] Core token saved, expires at {expires_at}")
-
-    # -------------------------------------------------------
-    # TMDT TOKEN (MARKETPLACE)
-    # -------------------------------------------------------
+        self.core_session.headers.update(headers_with_sapo)
+        logger.debug(f"[SapoClient] Core token saved with x-sapo-client, expires at {expires_at}")
+    
+    # ========================= TOKEN MANAGEMENT (MARKETPLACE) =========================
+    
+    def _load_tmdt_token(self) -> Optional[Dict[str, Any]]:
+        """Load marketplace token từ database."""
+        try:
+            token = SapoToken.objects.get(key="tmdt")
+        except SapoToken.DoesNotExist:
+            logger.debug("[SapoClient] No marketplace token in DB")
+            return None
+        
+        if not token.is_valid():
+            logger.debug("[SapoClient] Marketplace token expired")
+            return None
+        
+        logger.debug(f"[SapoClient] Marketplace token OK, expires at {token.expires_at}")
+        return token.headers
+    
     def _save_tmdt_token(self, headers: Dict[str, Any], lifetime_hours: int = 6):
+        """Save marketplace token vào database."""
+        logger.info("[SapoClient] Saving marketplace token to DB")
+        
         expires_at = timezone.now() + timezone.timedelta(hours=lifetime_hours)
         SapoToken.objects.update_or_create(
             key="tmdt",
@@ -99,39 +161,24 @@ class SapoClient:
                 "expires_at": expires_at,
             },
         )
-        debug(f"[SAPO::TMDT] TMDT token saved, expires at {expires_at}")
-
-    def _load_tmdt_token(self) -> Optional[Dict[str, Any]]:
-        try:
-            token = SapoToken.objects.get(key="tmdt")
-        except SapoToken.DoesNotExist:
-            debug("[SAPO::TMDT] No TMDT token in DB")
-            return None
-
-        if not token.is_valid():
-            debug("[SAPO::TMDT] TMDT token expired")
-            return None
-
-        debug(f"[SAPO::TMDT] TMDT token OK, expires at {token.expires_at}")
-        return token.headers
-
+        logger.debug(f"[SapoClient] Marketplace token saved, expires at {expires_at}")
+    
     def _apply_tmdt_headers_to_session(self, headers: Dict[str, Any]):
         """
-        Nhận full headers đã capture từ Selenium và apply vào tmdt_session:
-        - Tách cookie, cho vào session.cookies
-        - Bỏ host (requests tự set)
-        - Còn lại set vào session.headers
+        Apply marketplace headers vào tmdt_session.
+        Tách cookie ra và apply riêng.
         """
         h = dict(headers)  # copy
-
+        
+        # Extract và apply cookies
         raw_cookie = h.pop("cookie", None)
-        h.pop("host", None)
-
-        # apply headers
+        h.pop("host", None)  # requests tự set
+        
+        # Apply headers
         self.tmdt_session.headers.clear()
         self.tmdt_session.headers.update(h)
-
-        # apply cookies nếu có
+        
+        # Apply cookies
         if raw_cookie:
             cookies = {}
             for kv in raw_cookie.split("; "):
@@ -139,238 +186,281 @@ class SapoClient:
                     k, v = kv.split("=", 1)
                     cookies[k] = v
             self.tmdt_session.cookies.update(cookies)
-
-        self._tmdt_headers = h  # lưu lại nếu cần debug
-        debug("[SAPO::TMDT] Applied TMDT headers + cookies to tmdt_session ✓")
-
-    # -------------------------------------------------------
-    # KIỂM TRA TOKEN CÓ DÙNG ĐƯỢC KHÔNG
-    # -------------------------------------------------------
+        
+        logger.debug("[SapoClient] Applied marketplace headers to session")
+    
+    # ========================= TOKEN VALIDATION =========================
+    
     def _check_token_valid_remote(self) -> bool:
-        debug("[SAPO::CHECK] Testing core token with /orders.json ...")
+        """Test core token bằng cách gọi /orders.json."""
+        logger.debug("[SapoClient] Testing core token...")
+        
         try:
             url_orders = f"{SAPO_BASIC.MAIN_URL}/orders.json"
-            res = self.core_session.get(url_orders, timeout=10)
+            res = self.core_session.get(url_orders, params={"limit": 1}, timeout=10)
+            
             if res.status_code != 200:
-                debug(f"[SAPO::CHECK] Invalid status {res.status_code}")
+                logger.warning(f"[SapoClient] Invalid status {res.status_code}")
                 return False
-            if len(res.text) < 500:
-                debug("[SAPO::CHECK] Response too short, maybe login failed")
+            
+            if len(res.text) < 200:
+                logger.warning("[SapoClient] Response too short, possible auth failure")
                 return False
-            debug("[SAPO::CHECK] Core token is VALID ✓")
+            
+            logger.debug("[SapoClient] Core token is valid ✓")
             return True
+            
         except Exception as e:
-            debug(f"[SAPO::CHECK] EXCEPTION: {e}")
+            logger.error(f"[SapoClient] Token validation error: {e}")
             return False
-
+    
+    def _check_tmdt_valid_remote(self, headers: Dict[str, Any]) -> bool:
+        """Test marketplace token bằng cách gọi scopes API."""
+        try:
+            url = f"{SAPO_TMDT.SCOPES_URL}/api/staffs/{SAPO_TMDT.STAFF_ID}/scopes"
+            res = requests.get(url, headers=headers, timeout=10)
+            
+            if res.status_code != 200:
+                logger.warning(f"[SapoClient] Marketplace token invalid status {res.status_code}")
+                return False
+            
+            data = res.json()
+            if "sapo_account_id" not in data:
+                logger.warning("[SapoClient] Missing sapo_account_id in scopes response")
+                return False
+            
+            logger.debug("[SapoClient] Marketplace token is valid ✓")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[SapoClient] Marketplace token validation error: {e}")
+            return False
+    
+    # ========================= ENSURE AUTHENTICATION =========================
+    
     def _ensure_logged_in(self):
-        debug("[SAPO] Ensuring core login...")
-
+        """Đảm bảo core session đã authenticated."""
         if self.core_valid:
-            debug("[SAPO] Core session already valid, skip login ✓")
+            logger.debug("[SapoClient] Core session already valid")
             return
-
+        
         if not self.core_initialized:
-            debug("[SAPO] First-time init → load core token from DB")
+            logger.debug("[SapoClient] First-time init, loading core token from DB")
             headers = self._load_token_from_db()
             self.core_initialized = True
-
-            if headers:
-                debug("[SAPO] Core token loaded → checking valid...")
-                if self._check_token_valid_remote():
-                    debug("[SAPO] Ready ✓ (use DB core token)")
-                    self.core_valid = True
-                    return
-                else:
-                    debug("[SAPO] Core token invalid → need new login")
-
-        # Chưa có token hợp lệ → login bằng browser
-        debug("[SAPO] Core login via browser required → start")
+            
+            if headers and self._check_token_valid_remote():
+                logger.info("[SapoClient] Core session ready (from DB)")
+                self.core_valid = True
+                return
+        
+        # Need new login
+        logger.info("[SapoClient] Core login via browser required")
         core_headers = self._login_via_browser()
         self._save_token_to_db(core_headers)
         self.core_valid = True
-        debug("[SAPO] Core login done ✓ (browser)")
-
-    # -------------------------------------------------------
-    # LOGIN SELENIUM – LẤY CẢ CORE + MARKETPLACE TOKEN
-    # -------------------------------------------------------
+        logger.info("[SapoClient] Core login complete ✓")
+    
+    def _ensure_tmdt_headers(self):
+        """Đảm bảo marketplace session đã authenticated."""
+        if self.tmdt_valid:
+            logger.debug("[SapoClient] Marketplace session already valid")
+            return
+        
+        headers = self._load_tmdt_token()
+        
+        if headers and self._check_tmdt_valid_remote(headers):
+            logger.info("[SapoClient] Marketplace session ready (from DB)")
+            self._apply_tmdt_headers_to_session(headers)
+            self.tmdt_valid = True
+            return
+        
+        # Need refresh
+        logger.info("[SapoClient] Marketplace token refresh required")
+        
+        # Reset core để force browser login (sẽ capture cả marketplace token)
+        self.core_valid = False
+        self.core_initialized = False
+        
+        core_headers = self._login_via_browser()
+        self._save_token_to_db(core_headers)
+        
+        # Load marketplace token vừa capture được
+        headers = self._load_tmdt_token()
+        if not headers or not self._check_tmdt_valid_remote(headers):
+            raise RuntimeError("Failed to get marketplace token after browser login")
+        
+        self._apply_tmdt_headers_to_session(headers)
+        self.tmdt_valid = True
+        logger.info("[SapoClient] Marketplace session ready ✓")
+    
+    # ========================= BROWSER LOGIN (SELENIUM) =========================
+    
     def _login_via_browser(self) -> Dict[str, Any]:
-        debug("[SAPO::LOGIN] Starting browser login (Chrome headless)...")
-
+        """
+        Login via Selenium Wire để capture headers cho cả Core và Marketplace.
+        
+        Returns:
+            Core API headers
+            
+        Side effect:
+            Lưu marketplace headers vào DB
+        """
+        logger.info("[SapoClient] Starting browser login (Selenium Wire)...")
+        
         chrome_options = webdriver.ChromeOptions()
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")  # Run in background
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("executable_path=chromedriver.exe")
-
-        DRIVER_CR = webdriver.Chrome(options=chrome_options)
+        
+        driver = webdriver.Chrome(options=chrome_options)
         captured_core_headers: Dict[str, str] = {}
-
+        
         try:
-            debug("[SAPO::LOGIN] Opening login page...")
-            DRIVER_CR.get(f"{SAPO_BASIC.MAIN_URL}/authorization/login")
-
-            login = WebDriverWait(DRIVER_CR, 50).until(
+            # === LOGIN ===
+            logger.debug("[SapoClient] Opening login page...")
+            driver.get(f"{SAPO_BASIC.MAIN_URL}/authorization/login")
+            
+            # Wait for form elements
+            login_field = WebDriverWait(driver, 50).until(
                 EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
             )
-            password = WebDriverWait(DRIVER_CR, 50).until(
+            password_field = WebDriverWait(driver, 50).until(
                 EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
             )
-            login_button = WebDriverWait(DRIVER_CR, 50).until(
+            login_button = WebDriverWait(driver, 50).until(
                 EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
             )
-
-            debug("[SAPO::LOGIN] Sending credentials...")
-            login.send_keys(SAPO_BASIC.USERNAME)
-            password.send_keys(SAPO_BASIC.PASSWORD)
+            
+            # Submit credentials
+            logger.debug("[SapoClient] Submitting login...")
+            login_field.send_keys(SAPO_BASIC.USERNAME)
+            password_field.send_keys(SAPO_BASIC.PASSWORD)
             time.sleep(2)
             login_button.click()
-
-            debug("[SAPO::LOGIN] Waiting for dashboard...")
+            
+            # Wait for dashboard
+            logger.debug("[SapoClient] Waiting for dashboard...")
             time.sleep(5)
-            DRIVER_CR.get(f"{SAPO_BASIC.MAIN_URL}/dashboard")
+            driver.get(f"{SAPO_BASIC.MAIN_URL}/dashboard")
             time.sleep(10)
-
-            # CORE HEADERS
-            debug("[SAPO::LOGIN] Capturing headers (core)...")
-            for request in DRIVER_CR.requests:
+            
+            # === CAPTURE CORE HEADERS ===
+            logger.debug("[SapoClient] Capturing core headers...")
+            for request in driver.requests:
                 if "delivery_service_providers.json" in request.url:
-                    debug(f"[SAPO::LOGIN] Found target core request: {request.url}")
+                    logger.debug(f"[SapoClient] Found core request: {request.url}")
                     captured_core_headers = dict(request.headers)
                     break
-
-            # ====== TMDT LOGIN (MARKETPLACE) ======
-            debug("[SAPO::TMDT] Getting marketplace token...")
-
-            DRIVER_CR.get(f"{SAPO_BASIC.MAIN_URL}/apps/market-place/home/overview")
+            
+            # === CAPTURE MARKETPLACE HEADERS ===
+            logger.debug("[SapoClient] Navigating to marketplace...")
+            driver.get(f"{SAPO_BASIC.MAIN_URL}/apps/market-place/home/overview")
             time.sleep(30)
-
+            
             tmdt_headers = None
-
-            # Ưu tiên bắt /v2/orders, nếu không thì fallback /scopes
-            for req in DRIVER_CR.requests:
+            
+            # Try to find /v2/orders request
+            for req in driver.requests:
                 if "/v2/orders" in req.url:
-                    debug(f"[SAPO::TMDT] Found /v2/orders request: {req.url}")
+                    logger.debug(f"[SapoClient] Found marketplace request: {req.url}")
                     tmdt_headers = dict(req.headers)
                     break
-
+            
+            # Fallback to scopes
             if not tmdt_headers:
-                for req in DRIVER_CR.requests:
+                for req in driver.requests:
                     if "/api/staffs/" in req.url and "/scopes" in req.url:
-                        debug(f"[SAPO::TMDT] Fallback scopes request: {req.url}")
+                        logger.debug(f"[SapoClient] Fallback to scopes: {req.url}")
                         tmdt_headers = dict(req.headers)
                         break
-
+            
             if tmdt_headers:
                 self._save_tmdt_token(tmdt_headers)
-                debug("[SAPO::TMDT] TMDT headers (FULL) saved ✓")
+                logger.info("[SapoClient] Marketplace headers captured ✓")
             else:
-                debug("[SAPO::TMDT] ERROR: Cannot capture any marketplace headers")
-
+                logger.warning("[SapoClient] Failed to capture marketplace headers")
+        
         finally:
-            DRIVER_CR.quit()
-
+            driver.quit()
+        
         if not captured_core_headers:
-            debug("[SAPO::LOGIN] ERROR: No core headers captured")
-            raise RuntimeError("Không lấy được headers login Sapo")
-
-        debug("[SAPO::LOGIN] Captured core headers OK ✓")
+            raise RuntimeError("Failed to capture core headers from browser session")
+        
+        logger.info("[SapoClient] Browser login complete ✓")
         return captured_core_headers
-
-    def _check_tmdt_valid_remote(self, headers: Dict[str, Any]) -> bool:
+    
+    # ========================= REPOSITORY ACCESS =========================
+    
+    def _ensure_sapo_headers(self):
         """
-        Gọi đến SCOPES_URL để xem TMDT token còn sống không.
+        Đảm bảo core_session luôn có x-sapo-client headers.
+        
+        Gọi method này trước mỗi API call để đảm bảo headers không bị mất
+        do token cũ trong DB không có x-sapo-client.
         """
-        try:
-            url = f"{SAPO_TMDT.SCOPES_URL}/api/staffs/319911/scopes"
-            res = requests.get(url, headers=headers, timeout=10)
-            if res.status_code != 200:
-                debug(f"[SAPO::TMDT] Invalid status {res.status_code}")
-                return False
-
-            data = res.json()
-            if "sapo_account_id" not in data:
-                debug("[SAPO::TMDT] No sapo_account_id in response")
-                return False
-
-            debug("[SAPO::TMDT] TMDT token is VALID ✓")
-            return True
-        except Exception as e:
-            debug(f"[SAPO::TMDT] EXCEPTION: {e}")
-            return False
-
-    def _ensure_tmdt_headers(self):
-        """
-        Đảm bảo đã có session cho Marketplace:
-          1. Đọc full headers từ DB.
-          2. Check còn sống (scopes).
-          3. Nếu không → gọi _login_via_browser (sẽ lưu lại tmdt token mới).
-        """
-        if self.tmdt_valid:
-            return
-
-        headers = self._load_tmdt_token()
-
-        if headers and self._check_tmdt_valid_remote(headers):
-            debug("[SAPO::TMDT] Using existing TMDT token from DB ✓")
-            self._apply_tmdt_headers_to_session(headers)
-            self.tmdt_valid = True
-            return
-
-        debug("[SAPO::TMDT] Need refresh TMDT token → force browser login")
-
-        # Reset core state cho chắc, để _login_via_browser chạy lại
-        self.core_valid = False
-        self.core_initialized = False
-
-        core_headers = self._login_via_browser()
-        self._save_token_to_db(core_headers)
-
-        headers = self._load_tmdt_token()
-        if not headers or not self._check_tmdt_valid_remote(headers):
-            raise RuntimeError("Không lấy được TMDT token sau khi login")
-
-        self._apply_tmdt_headers_to_session(headers)
-        self.tmdt_valid = True
-        debug("[SAPO::TMDT] TMDT headers ready ✓")
-
-    # -------------------------------------------------------
-    # PUBLIC HTTP METHODS (CORE)
-    # -------------------------------------------------------
-    def get(self, path: str, **kwargs) -> requests.Response:
-        debug(f"[SAPO::REQ] CORE GET {path}")
-        self._ensure_logged_in()
-        url = SAPO_BASIC.MAIN_URL.rstrip("/") + "/" + path.lstrip("/")
-        return self.core_session.get(url, **kwargs)
-
-    def post(self, path: str, **kwargs) -> requests.Response:
-        debug(f"[SAPO::REQ] CORE POST {path}")
-        self._ensure_logged_in()
-        url = SAPO_BASIC.MAIN_URL.rstrip("/") + "/" + path.lstrip("/")
-        return self.core_session.post(url, **kwargs)
-
-    def put(self, path: str, **kwargs) -> requests.Response:
-        debug(f"[SAPO::REQ] CORE PUT {path}")
-        self._ensure_logged_in()
-        url = SAPO_BASIC.MAIN_URL.rstrip("/") + "/" + path.lstrip("/")
-        return self.core_session.put(url, **kwargs)
-
-    # -------------------------------------------------------
-    # EXPOSE API CLIENTS
-    # -------------------------------------------------------
+        current_headers = self.core_session.headers
+        
+        # Kiểm tra nếu thiếu x-sapo-client thì thêm vào
+        if "x-sapo-client" not in current_headers:
+            logger.warning("[SapoClient] x-sapo-client missing in session, adding now...")
+            self.core_session.headers.update({
+                "x-sapo-client": "sapo-frontend-v3",
+                "x-sapo-serviceid": "sapo-frontend-v3",
+                "accept": "application/json, text/plain, */*",
+                "content-type": "application/json;charset=UTF-8",
+            })
+            logger.info("[SapoClient] x-sapo-client headers restored ✓")
+    
     @property
-    def core_api(self) -> SapoCoreAPI:
-        """API cho kênh CORE (https://.../admin/orders.json, customers.json...)"""
+    def core(self) -> SapoCoreRepository:
+        """
+        Access Sapo Core API Repository.
+        
+        Returns:
+            SapoCoreRepository instance
+        """
         self._ensure_logged_in()
-        return SapoCoreAPI(base_url=SAPO_BASIC.MAIN_URL, session=self.core_session)
-
+        
+        # Đảm bảo x-sapo-client luôn có (fix token cũ trong DB)
+        self._ensure_sapo_headers()
+        
+        if not self._core_repo:
+            self._core_repo = SapoCoreRepository(
+                session=self.core_session,
+                base_url=SAPO_BASIC.MAIN_URL
+            )
+        
+        return self._core_repo
+    
     @property
-    def marketplace_api(self) -> SapoMarketplaceAPI:
-        """API cho Marketplace (https://market-place.sapoapps.vn/v2)"""
+    def marketplace(self) -> SapoMarketplaceRepository:
+        """
+        Access Sapo Marketplace API Repository.
+        
+        Returns:
+            SapoMarketplaceRepository instance
+        """
         self._ensure_tmdt_headers()
-        return SapoMarketplaceAPI(
-            base_url="https://market-place.sapoapps.vn",
-            session=self.tmdt_session,
-        )
+        
+        if not self._marketplace_repo:
+            self._marketplace_repo = SapoMarketplaceRepository(
+                session=self.tmdt_session,
+                base_url=SAPO_TMDT.SCOPES_URL
+            )
+        
+        return self._marketplace_repo
+    
+    # ========================= DEPRECATED (backward compatibility) =========================
+    
+    def core_api(self):
+        """Deprecated: Use .core property instead."""
+        logger.warning("[SapoClient] core_api() is deprecated, use .core property")
+        return self.core
+    
+    def marketplace_api(self):
+        """Deprecated: Use .marketplace property instead."""
+        logger.warning("[SapoClient] marketplace_api() is deprecated, use .marketplace property")
+        return self.marketplace

@@ -5,8 +5,11 @@ import time
 from io import BytesIO
 from typing import Any, Dict, List
 from pathlib import Path
+import os
+from django.conf import settings
 
 import PyPDF2
+import pdfplumber
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
@@ -16,10 +19,9 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 from core.system_settings import get_shop_by_connection_id
-from core import shopee_client
-from core.sapo_client.core_api import SapoCoreAPI
+from core.shopee_client import ShopeeClient
 from orders.services.sapo_service import (
-    SapoMarketplaceOrderService,
+    SapoMarketplaceService,
     SapoCoreOrderService,
 )
 from orders.services.dto import OrderDTO
@@ -121,14 +123,17 @@ def _build_mvd_overlay_page(channel_order_number: str, shipping_carrier_name: st
     debug("→ Build MVD overlay:", channel_order_number)
 
     # Đăng ký font (lý tưởng là làm 1 lần global, nhưng tạm giữ như mày)
-    pdfmetrics.registerFont(TTFont('UTM Avo', 'assets/font/micross.ttf'))
-    pdfmetrics.registerFont(TTFont('UTM Avo Bold', 'assets/font/UTM_AvoBold.ttf'))
-    pdfmetrics.registerFont(TTFont('Arial', 'assets/font/arial.ttf'))
-    pdfmetrics.registerFont(TTFont('ArialI', 'assets/font/ariali.ttf'))
+    font_dir = os.path.join(settings.BASE_DIR, 'assets', 'font')
+    
+    pdfmetrics.registerFont(TTFont('UTM Avo', os.path.join(font_dir, 'UTM_Avo.ttf')))
+    pdfmetrics.registerFont(TTFont('UTM Avo Bold', os.path.join(font_dir, 'UTM_AvoBold.ttf')))
+    pdfmetrics.registerFont(TTFont('Arial', os.path.join(font_dir, 'arial.ttf')))
+    pdfmetrics.registerFont(TTFont('ArialI', os.path.join(font_dir, 'ariali.ttf')))
 
     # Chỉ cần 1 buffer
     buf = BytesIO()
     c = canvas.Canvas(buf)
+
     c.setPageSize((4.1 * inch, 5.8 * inch))
     c.translate(inch, inch)
 
@@ -154,6 +159,56 @@ def _build_mvd_overlay_page(channel_order_number: str, shipping_carrier_name: st
         raise ValueError("[MVD] Overlay PDF không có trang nào")
 
     return reader.pages[0]
+
+
+def extract_customer_info(pdf_bytes: bytes) -> Dict[str, str]:
+    """
+    Trích xuất thông tin khách hàng từ file PDF phiếu gửi hàng.
+    Logic dựa trên code cũ: Dòng thứ 3 thường là tên khách hàng.
+    
+    Args:
+        pdf_bytes: Nội dung file PDF
+        
+    Returns:
+        Dict chứa "name" và có thể các thông tin khác
+    """
+    try:
+        with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+            if not pdf.pages:
+                return {}
+                
+            page = pdf.pages[0]
+            text = page.extract_text()
+            if not text:
+                return {}
+                
+            lines = text.split("\n")
+            if len(lines) < 4:
+                return {}
+                
+            # Logic cũ: Dòng 3 là tên khách hàng, cần replace các prefix của shop
+            raw_name = lines[3]
+            
+            # List các prefix cần xóa (từ code cũ)
+            prefixes = [
+                "Gia Dụng Plus +", "Gia Dụng Plus Store ", "Gia Dụng Plus Official ",
+                "Phaledo Official ", "Gia Dụng Plus HCM ", "Gia Dụng Plus HN ",
+                "Gia Dụng Plus ", "Phaledo Offcial ", "lteng_vn ",
+                "LTENG VIETNAM ", "PHALEDO ® ", "LTENG ", "LTENG HCM "
+            ]
+            
+            clean_name = raw_name
+            for p in prefixes:
+                clean_name = clean_name.replace(p, "")
+                
+            clean_name = clean_name.strip()
+            
+            # logger.info(f"[ShopeePrintService] Extracted customer name: {clean_name}")
+            return {"name": clean_name}
+            
+    except Exception as e:
+        # logger.error(f"[ShopeePrintService] Failed to extract customer info: {e}")
+        return {}
 
 
 # ===================================================================
@@ -339,16 +394,23 @@ def generate_label_pdf_for_channel_order(
     seller_shop_id = int(shop_cfg["seller_shop_id"])
     debug("→ Shop name:", shop_name)
     debug("→ seller_shop_id:", seller_shop_id)
-    client = shopee_client.ShopeeClient(shop_name)
-    # ----------------------------------------------------------
-    # 3. GET order_id qua hint API
-    # ----------------------------------------------------------
-    SHOPEE_ID = client._get_shopee_order_id(channel_order_number)
+    
+    # Initialize Shopee client
+    client = ShopeeClient(shop_name)
+    
+    # Get Shopee order_id from channel order number
+    SHOPEE_ID = client.get_shopee_order_id(channel_order_number)
     debug("→ SHOPEE_ID:", SHOPEE_ID)
-    # ----------------------------------------------------------
-    # 4. GET PACKAGE LIST (kèm fulfillment_channel_id)
-    # ----------------------------------------------------------
-    channel_id = client._get_packed_list()
+    
+    # Get package info
+    package_info = client.get_package_info(SHOPEE_ID)
+    package_list = package_info.get("package_list", [])
+    
+    if not package_list:
+        raise RuntimeError(f"No packages found for order {SHOPEE_ID}")
+    
+    first_pack = package_list[0]
+    channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
     # ----------------------------------------------------------
     # 4.1 LOAD FILE KÊNH & MAP channel_id -> carrier_name
     # ----------------------------------------------------------
@@ -368,8 +430,8 @@ def generate_label_pdf_for_channel_order(
         else:
             # fallback: lấy text ngay trong package
             resolved_carrier = (
-                client.first_pack.get("fulfillment_carrier_name")
-                or client.first_pack.get("checkout_carrier_name")
+                first_pack.get("fulfillment_carrier_name")
+                or first_pack.get("checkout_carrier_name")
             )
             debug("→ Fallback DVVC từ package:", resolved_carrier)
 
@@ -399,7 +461,7 @@ def generate_label_pdf_for_channel_order(
     # ----------------------------------------------------------
     final_writer = PyPDF2.PdfWriter()
 
-    for pack in client.package_list:
+    for pack in package_list:
         package_number = pack["package_number"]
         debug("----- PACKAGE:", package_number, "-----")
 
@@ -430,7 +492,7 @@ def generate_label_pdf_for_channel_order(
         }
 
         debug("→ POST create_sd_jobs")
-        resp = client._post(create_job_url, json=json_body)
+        resp = client.session.post(create_job_url, json=json_body)
         debug("→ Status create_sd_jobs:", resp.status_code)
         resp.raise_for_status()
 
@@ -452,7 +514,7 @@ def generate_label_pdf_for_channel_order(
 
         pdf_bytes = None
         for i in range(10):
-            dl_resp = client._get(dl_url)
+            dl_resp = client.session.get(dl_url)
             debug("→ dl status:", dl_resp.status_code, "len:", len(dl_resp.content))
             if dl_resp.status_code == 200 and len(dl_resp.content) > 1000:
                 pdf_bytes = dl_resp.content

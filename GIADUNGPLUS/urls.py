@@ -20,6 +20,5 @@ urlpatterns = [
     path("kho/", include("kho.urls")),
     path("cskh/", include("cskh.urls")),
     path("marketing/", include("marketing.urls")),
-    path("quantri/", include("quantri.urls")),
     path("service/", include("service.urls")),
 ]
