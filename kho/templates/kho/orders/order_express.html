@@ -311,12 +311,12 @@
                                     {# Nút Tìm ship #}
                                     <button
                                         class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="timShip('{{ order.id }}')">
+                                        onclick="return timShip(\'{{ order.id }}\', event);">
                                         Tìm ship
                                     </button>
                                     <button
                                         class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="inDon('{{ order.id }}')">
+                                        onclick="return inDon(\'{{ order.id }}\', event);">
                                         In Đơn
                                     </button>
                                 </div>
@@ -332,7 +332,7 @@
                                 </span>
                                 <button
                                     class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                    onclick="inDon('{{ order.id }}')">
+                                    onclick="return inDon(\'{{ order.id }}\', event);">
                                     In Đơn
                                 </button>
 
@@ -405,13 +405,20 @@
         }, 3000);
     }
 
-    function timShip(mp_order_id) {
+    function timShip(mp_order_id, event) {
+        // Ngăn chặn hành vi mặc định
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        
         if (!mp_order_id) return;
 
         const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=no`;
+        const btn = event ? event.target : null;
 
         // Disable button to prevent double click
-        const btn = event.target;
+        if (btn) {
         btn.disabled = true;
         btn.textContent = 'Đang xử lý...';
 
@@ -439,9 +446,13 @@
             .catch(err => {
                 showToast('❌ Lỗi hệ thống', 'error');
                 console.error(err);
-                btn.disabled = false;
-                btn.textContent = 'Tìm ship';
+                    btn.disabled = false;
+                    btn.textContent = 'Tìm ship';
+                }
             });
+        
+        // Return false để ngăn reload
+        return false;
     }
 </script>
 <script>
