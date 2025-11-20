@@ -1,0 +1,36 @@
+accept
+application/json, text/plain, */*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9,vi;q=0.8
+cache-control
+no-cache
+cookie
+_fbp=fb.1.1700489523640.1798445263; fulfillment-language=vi; _hjSessionUser_868286=eyJpZCI6Ijg0NGQwYTVmLTRhNDQtNTE4MS05NTk5LTc2MGM1OWY1ZjM0NCIsImNyZWF0ZWQiOjE3MDM3NDY2Nzk3NjUsImV4aXN0aW5nIjp0cnVlfQ==; __stripe_mid=01e43552-05c4-4864-89f5-34e6d11529cc265662; REC7iLP4Q=80b5d10f-d55d-4c30-9b8b-a0d7ff7acd8e; SPC_F=wjPPDANeLTZAgemVrbZdHhJkGQzxmNEb; SC_DFP=dgdNkIfztSFEqTkAgYNFJhbyyJvNLkkm; REC_T_ID=c04f88eb-c340-11ef-94ee-0aba9acbf78f; SPC_CLIENTID=d2pQUERBTmVMVFpBhffgqhrthsxkgcyw; _QPWSDCXHZQA=e33482a2-b7ea-4615-e8c4-ea48bbac6428; _gcl_au=1.1.1854851949.1756097631; _ga_V5F62RCCZ6=GS2.1.s1758793655$o1$g1$t1758793723$j60$l0$h0; _ga_QLZF8ZGF0S=GS2.1.s1762156488$o1$g0$t1762156993$j60$l0$h0; _med=notification; _ga_3XVGTY3603=GS2.1.s1762430681$o9$g1$t1762430730$j11$l0$h0; SPC_SI=DOztaAAAAAB5dkFiMGdxNIX8yCIAAAAAS2FicjBjUXg=; SPC_ST=.MmdtYk82d3dpeWR2RnZxRS2KoREXqg7E0VcN8P9rzwp2rVGa91276XQVPxSJk+jPBYJfy3uOVBAA/IOuRmSg4caz4Kyn/MrpT9ANh8pNf6RbVUcie9sE/Zf0H0bOqaqc7g4MmLvh1jFSyxNQE3MbbJq/ZWjxCffLHs3Umf+lXi/mLejrFrcoOas+kYRBsJvjhrffuq+sKIArYCPCyKoBqo+Y7h/OQbCE9lsYpM/4iE0DkdJ8uGml90oMz9ZhlSoJiXaJgvU//tmdaWlRx4fGlA==; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_SC_SESSION=gR6P6xoGqeCGIcWAdXPiAyY1hVCADfebBUlc+mNQHgQvePOmKx72H4Mew+5eC7oUoxwm8kmUMKSmMB74HW39gbk45OPbD+RtHxEX+ouFA6ZWweqpisSjQ0Jg8ilGR+gIFoL0X5Z6ojB+wliof8/bMkatap2ab9ATiA9Ttk2WP/XemJ9fJIMqe1dgAkvVechge23rOg+Fk5oZ2Ih5PuBGHssRqs/Gz0eQRcOoubYENW3OsqETGibaYaOExnp0Pk/fgBRImehZau9unVM+0eEt6/Q==_1_1009212076; SPC_STK=mLhHDhNucUkSM8PhW8HkocZ9WIBLtXR1bmWFnCJ1FlmJkEqSl+V2edPeUxAjXk/LOVjEyIkfxBEZVyL8J90JWdgR4SWYwVK4WWBbZdxE6lzbU7jp5O+3LtZ98RkVeuj3owxfE+5q8xcIh/hPphV7beF/SUjMcvlE3eSGiC55KXF+zEeRb9PGQ21NEywSJzD2xqTJ6BXmONHV+Kx0KA88mFV3ii9RfNp/UhaxQN+xC1GPM4zAKMfKHwccly1KpOtWlcp8ypep9FKku1IquDkSDDz2Hj70S2lZ+vvUqPVqhBvgyhwEjPw69MndHyondHiYooq74htzNTu4YioKT4uwk5haAxIUPiHsHANWkcICk4ZV/HUmYAzHwGuwvASF3IG1eGdGFRFsHd1tnLKacJlrnOJIbWHI7Ibyix3A95ef3bA5dzCcZH3WethQ+cG0K/ynZCeGJZ9Slzn5jSp5XKc2IixRrVwtNvT5LChtPy88dxBhEl8TLFSNOhBdj8KkvPC4VhCdiTjs73xfZ5K3aUDVDA==; SPC_U=1009212076; SPC_R_T_ID=w6bQAp3mnQr0qgyhVY8UVusi+zF/10FQOxTMkWfZKW1waV+xOpbMm57wGpos1iMY6yXNd4zIVTlhJcdVCjsIFkctrcf4D2mOgLN6UH8DwVBv2xh7T7eMmrqRym+pQmElGP4pWEC1sy6duqEoR/MAjdPGveyeB3UqQUHkOsXDqKE=; SPC_R_T_IV=UXd2Z2NJTEdCVTZmTGZZMg==; SPC_T_ID=w6bQAp3mnQr0qgyhVY8UVusi+zF/10FQOxTMkWfZKW1waV+xOpbMm57wGpos1iMY6yXNd4zIVTlhJcdVCjsIFkctrcf4D2mOgLN6UH8DwVBv2xh7T7eMmrqRym+pQmElGP4pWEC1sy6duqEoR/MAjdPGveyeB3UqQUHkOsXDqKE=; SPC_T_IV=UXd2Z2NJTEdCVTZmTGZZMg==; SPC_SI=DOztaAAAAAB5dkFiMGdxNIX8yCIAAAAAS2FicjBjUXg=; SPC_SEC_SI=v1-WWNuSVlkSVJ5dkpHQllBaNqFWBHBQjjt3jjdN13b9SWHK7B2NV/EvdQIjIuGHBgwx3UR75LSyAB/15w2ZB/g1Mf1I2VTYiSZDwOJ7Ucy+SE=; csrftoken=3eWhiGcraAZrB2guaOWWUJCaUO7VZrIU; AMP_TOKEN=%24NOT_FOUND; _ga=GA1.2.1006142831.1700489524; _gid=GA1.2.1560853648.1763518884; _dc_gtm_UA-61914164-6=1; SPC_CDS_CHAT=837fe03e-8337-47e6-9527-aed7460c7b89; _hjSession_868286=eyJpZCI6IjQyY2UyZjkyLTY3YmUtNDllMy1hZDU0LWYwYjM1YjVjNWEyYiIsImMiOjE3NjM1MTg4ODYzMTEsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowLCJzcCI6MH0=; _ga_4GPP1ZXG63=GS2.1.s1763518883$o566$g1$t1763518888$j55$l1$h2043133054; SPC_CDS=ce6f9df3-5797-45a2-bbae-575ec7fc8b7a; _sapid=3a9b494e3a36972b62189b902f88e5809fbe02f5ba17c1c6f2e3e856; shopee_webUnique_ccd=fC5hJmRASPDofdFswk1UZw%3D%3D%7CKRJKm4ztjG9xAn3eLZ3gZnVhALjSEzGDY0uBI28aDMRgCFBx1siGxr%2FjaYENaHusgNXwkszMQ3w%3D%7Cu9ZyAzdwzzgpaYWQ%7C08%7C3; ds=bc36b1dd8f967e886d5b76883897d634; SPC_EC=.elRlQ3FVYWlDbWF3Q3VYcyrmQ+RtNNFXz/2wTZOqvNhDb59vpovF2IZykCrWcCuvHJIto5cPIU29XFZMwN7gN+BwVNoovZxYb9Eq644di2zDQe3P1AlJoFVvrurKl0JaWQxHZCan2sKXPjai4G+PBmCOZePMVo8ZvcpRdwxujqqXU50ucne7VgVrZ71ZPuppE4s11xcSckhxa/CqeVu1wtno0U5X97XkWO1DMzrxpr++Spmy6pQNiUIQT4h4hxDHfd5s1g+fZ+F/tyMSnWDjyg==; CTOKEN=gFUS6sTuEfCgAw5l45ljbQ%3D%3D
+locale
+vi
+pragma
+no-cache
+priority
+u=1, i
+referer
+https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2
+sc-fe-session
+4EBF6717A4344DA2
+sc-fe-ver
+21.125709
+sec-ch-ua
+"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36

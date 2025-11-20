@@ -1,0 +1,32 @@
+accept
+application/json, text/plain, */*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5
+cookie
+REC_T_ID=775bfb5e-a8b4-11f0-a2be-36dea8f9216d; SPC_F=O3Ocyk7YI9Unab1GPwdGr3Hnr9TJkyIz; _gcl_au=1.1.820000139.1760415348; _fbp=fb.1.1760415348506.901338573532678587; SPC_CLIENTID=TzNPY3lrN1lJOVVuchgzsxagniclslsa; SC_DFP=NMpVbrxgfwJQJfVaDksyZUwCdmAEJrTZ; _QPWSDCXHZQA=17adb70d-a10c-4ed9-f6c0-20a866d90c9e; REC7iLP4Q=1bb5c955-74aa-4348-9559-617f6b1c2018; _hjSessionUser_868286=eyJpZCI6IjA3ODg0NjM2LWExMDAtNTY1NS1hNWFhLWRkMjdkY2EyOTgzYiIsImNyZWF0ZWQiOjE3NjA0Mjk5MzU4MzgsImV4aXN0aW5nIjp0cnVlfQ==; fulfillment-language=vi; __stripe_mid=c0759728-4fc5-4173-bf84-73ffe33536a668b935; _ga_3XVGTY3603=GS2.1.s1761535126$o1$g1$t1761535169$j17$l0$h0; SPC_SI=hOrtaAAAAABJV29oamNpSlsbWiMAAAAANmh3ZWJlY1Q=; SPC_SEC_SI=v1-WEFjWXoyakllWDJiY1RLZJej4dg0S71DVHFHsLJBJNbzemX5HLGQKmZ+8/jODqnVWRqRQXgpif4O3geVsCOsPKeDEZ6F1fiqCo4RCImQfMg=; _gid=GA1.2.1238855787.1763343070; SPC_ST=.VHhsRlJoSVg3eGhqTlJjbXrNyZHr1mBCe+G/wCvS/JiVjRZwniSwD3RQUvw+6U6qGsJqiL7USQTG/GuP4uAj4bsn1GPjijdSrWUKB5Wr3Y0b4boim9bXGN0vN8HcVSdFVOdT/QFK8stHrXbgpYOe5jeKWeRBRpjf340iuuaiCYZwsCVgfNMTl4aZvgbu6aTn68kvRZv24V19WEtgk6kaGKQCKUXa3QuJ4zT0mexXz6ksMiD8zYVuWdwYNzLAbdpOjnAT+Ti9LgRE6fZwIm1pvw==; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_SC_SESSION=geeoKLwhIz+Qwhj6RsGHdvFgDRcTki3tRSYOTkxgAJtxhKRE/bcpnJh/6LnAvbVwrtgaCtF8O0zivo54OpywlqFqTZ5ashY/+S9y7V5xPzAcynrhYh5NTbYR9Bed6ZEpJkER+PAPwozbDMnohH4IiL7Wu1XusWtNJMgsJwZRuocmaIwhSjb+aC0Ei7XZfjISmGCrvcbtsoz6m5GnaMgh74MKgvBDlk+0c0BekI9VMtlLNe/Bcqy+B3HAD8ZN/2y7scSTaVp2RN+IQhLhHFF9S5w==_1_1613181007; SPC_STK=YzOqVLsM1e7TxYm3Nct64MqYJKPByR3n/t4ov8dwt3tyfCyGKMCjvpYkTZ4beS4l9qRt3jlnf6hWYtZaZzRmySKefqVFd+PBygGlOsWNQjw1EyXi3MTvR5lbvhq++UYljpEVVVvw5xL7fOd2E9K07DjzzuJ/AUV6Fz5WmaCXU+d9hqoTNWHurnjL/LfaVFtH+sn0RSeQ35kYb4xEpHNg3vnDhs3RzC6dGA6H9/2lREGsyVFtgWdesTHP+wNAiB5RJhCXtPz/NxYUmMoycuQHS1L4UrKTAE0LglH9B92Fr21W+c755ECQPzKGnKDBrTYXmZOGaUuGX8J3rOpedt6D05jc5am3lXIT7fazKoZjcAE1t1ZOPMbZInTEIcl+ry0s89KoPeKV81fISCywU4Z+icVRvVbwro25L0ZFaORMNQJ3awUWrqtpxpmbac8wMoQpinS4fAfPCdyqpJPfEn53VrcUMgf0d6DBTLOqdf3zYMmboEIP01w/1/ng+ombSs60; SPC_U=1613181007; SPC_R_T_IV=dEVnZlFuQXNya3RNb0hsTg==; SPC_T_ID=4b/jPyI+FrqFltkPzd8g+966NTXPeuhz9eyH+DPIkbJNbXecvSyB6AhXc0rm4UDy3rjGOcmrHreCgse7OWcZptUuZxKT5y2svZizI62KWs2Dg+Nn3RHVfVWMZYY91IZ4IDOq1QRaLFbrsxGlXLz0CV+y+fKYVNHIMqYZwaMN45w=; SPC_T_IV=dEVnZlFuQXNya3RNb0hsTg==; SPC_R_T_ID=4b/jPyI+FrqFltkPzd8g+966NTXPeuhz9eyH+DPIkbJNbXecvSyB6AhXc0rm4UDy3rjGOcmrHreCgse7OWcZptUuZxKT5y2svZizI62KWs2Dg+Nn3RHVfVWMZYY91IZ4IDOq1QRaLFbrsxGlXLz0CV+y+fKYVNHIMqYZwaMN45w=; _med=affiliates; _ga=GA1.2.1163157460.1760415349; _ga_4GPP1ZXG63=GS2.1.s1763362013$o20$g1$t1763363002$j54$l1$h43381253; ca_gen_id=155463060; SPC_SI=hOrtaAAAAABJV29oamNpSlsbWiMAAAAANmh3ZWJlY1Q=; SPC_CDS=cba6ea3c-e254-4732-a470-88c71ea59efd; CTOKEN=UwwdysPUEfCL8RqLQcPV9A%3D%3D; SPC_CDS_CHAT=88fbeebf-a1c0-438a-b0d9-5d3471ac1919; shopee_webUnique_ccd=CspxBMf75pb0W1XtBrtxuQ%3D%3D%7CPEeEdimyl5jV7ONbPE%2FUuXtLWb9Uwm454atrvtR6nXd%2FHPLj961Rnq%2Fc3Fdjp7E1Bp2bRe3Twis%3D%7CVGkpg2smPSd7kkaV%7C08%7C3; ds=fdd16928abacce4ad9efa99039b6530a; _sapid=650de984fdc304ec60502586eca28f046432a900dd4d4fd104801e0b; SPC_EC=.TUF6aURublZmY3JJZlhheV3ptKR0mVOGz9ucESfXM8f+XysuSM+PpR8rTIy0yD6eXUrHKVozZ4pVsTdqjIlmfJEwJj1DOdubHgDdSaVXKj7ewLlQ60ExHECJCKjVQBoFEbY4fnXI1JN7yEsVxPmaE1n5kL1tKus1Z+w4kdHCgq6iwxyKwBj8EvR7qSfm32lFqeGsf1QLBl5k/LDnVYuRQVzU09yMT4VxYHp0Sp5veJL5UeKaEMHxu9rm2ThggRuyLcWeSxavP4TMUJqT6JK6eQ==
+locale
+vi
+priority
+u=1, i
+referer
+https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2
+sc-fe-session
+E203C2497BB8A347
+sc-fe-ver
+21.125603
+sec-ch-ua
+"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36

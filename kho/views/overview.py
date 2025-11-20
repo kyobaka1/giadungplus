@@ -1,8 +1,7 @@
 from django.shortcuts import render
 from kho.utils import group_required
-from core.system_settings import get_connection_ids
-from core.sapo_client import get_sapo_client, BaseFilter
-import core.shopee_client
+from core.system_settings import get_connection_ids, SAPO_TMDT
+from core.sapo_client import get_sapo_client
 
 connection_ids = get_connection_ids()
 
@@ -32,18 +31,18 @@ def dashboard(request):
         # Quay về trang trước, nếu không có thì về trang chủ
         next_url = request.META.get("HTTP_REFERER", "/")
 
+    # New API - use repository directly
     sapo = get_sapo_client()
-    sapo_mp = sapo.marketplace_api
-
-    mp_filter = BaseFilter(params={
-        "connectionIds": connection_ids,
-        "page": 1,
-        "limit": 50,
-        "sortBy": "ISSUED_AT",
-        "orderBy": "desc",
-    })
-    mp_orders = sapo_mp.list_orders(mp_filter)  # => dict JSON
-
-    print(mp_orders)
+    
+    # Get marketplace orders
+    mp_orders = sapo.marketplace.list_orders_raw(
+        connection_ids=connection_ids,
+        account_id=int(SAPO_TMDT.STAFF_ID),
+        page=1,
+        limit=50,
+        sortBy="ISSUED_AT",
+        orderBy="desc"
+    )
 
     return render(request, "kho/overview.html", context)
+

@@ -1,16 +1,24 @@
 # core/sapo_client/__init__.py
+"""
+Sapo Client package.
+Provides SapoClient for accessing Sapo Core and Marketplace APIs.
+"""
+
 from typing import Optional
 from .client import SapoClient
 from .filters import BaseFilter
-from .core_api import SapoCoreAPI
-from .marketplace_api import SapoMarketplaceAPI
+from .repositories import SapoCoreRepository, SapoMarketplaceRepository
 
+# Singleton instance
 _sapo_client: Optional[SapoClient] = None
 
 
 def get_sapo_client() -> SapoClient:
     """
-    Singleton SapoClient dùng chung toàn project.
+    Get singleton SapoClient instance (dùng chung toàn project).
+    
+    Returns:
+        SapoClient instance
     """
     global _sapo_client
     if _sapo_client is None:
@@ -21,7 +29,7 @@ def get_sapo_client() -> SapoClient:
 __all__ = [
     "SapoClient",
     "BaseFilter",
-    "SapoCoreAPI",
-    "SapoMarketplaceAPI",
+    "SapoCoreRepository",
+    "SapoMarketplaceRepository",
     "get_sapo_client",
 ]

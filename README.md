@@ -1,10 +1,49 @@
-# 📦 GIA DỤNG PLUS - HỆ THỐNG QUẢN LÝ BÁN HÀNG & KHO
+# 📦 GIA DỤNG PLUS TOOLS - HỆ THỐNG QUẢN LÝ BÁN HÀNG & KHO
 
 > **Hệ thống quản lý tích hợp E-commerce, Kho vận, và Chăm sóc khách hàng**
 
 ## 🏗️ Tổng quan kiến trúc
 
-**Gia Dụng Plus** là một hệ thống Django hoàn chỉnh được thiết kế để quản lý toàn bộ quy trình bán hàng từ A-Z, từ nhập kho, quản lý sản phẩm, đến đơn hàng trên các sàn TMĐT (Shopee, Lazada, Tiki, TikTok) và chăm sóc khách hàng.
+**Gia Dụng Plus Tools** là một hệ thống Django/Python hoàn chỉnh được thiết kế để bổ trợ các công việc, xây dựng qui trình từ A-Z, từ nhập kho, quản lý sản phẩm, đến đơn hàng trên các sàn TMĐT (Shopee, Lazada, Tiki, TikTok) và chăm sóc khách hàng.
+
+### Nền tảng liên quan
+
+- Lấy thông tin đơn hàng, khách hàng, sản phẩm, giao hàng chính từ Sapo API:
+   + Sapo: Kết nối thông qua cookie được lấy từ đăng nhập bằng Selenium Wire và lưu lại để dùng.
+   + Sapo MarketPlace: Cũng là của Sapo nhưng nơi để kết nối và lấy dữ liệu từ các shop trên sàn thương mại điện tử. Đồng bộ trạng thái đơn hàng, các action tới đơn hàng trên các sàn thương mại như Shopee,Lazada, Tiktok tới các đơn hàng trên Sapo.
+
+- Shopee Kênh Người Bán (Shopee KNB): Được kết nối thông qua việc lấy cookie từ Shopee KNB và lưu lại để dùng. Bổ trợ thêm các thông tin Sapo MP lấy nhưng chưa đầy đủ, cũng như một số tính năng Sapo MP chưa hỗ trợ với các thao tác như trên Shopee KNB thông qua các API của nó.
+   + Các shop liên kết trên Sapo MP được định danh bằng connection_id -> Tất cả được lưu trữ tại logs/shopee_shops.json
+   + Đang làm việc với shop nào thì đọc và thay đổi cookie headers sang shop đó.
+
+### Giải thích thêm về Sapo ERP
+
+- Hiện tại trang chính của chúng tôi là URL: https://sisapsan.mysapogo.com/ -> Nên lưu vào cấu hình ở đâu đó, có thể thay đổi nếu có sự thay đổi sau này, không nên fix cứng.
+
+- Đơn hàng:
+   + API danh sách đơn hàng với bộ lọc:
+      - https://sisapsan.mysapogo.com/admin/orders.json?status=draft%2Cfinalized%2Ccompleted%2Ccancelled&created_on_max=2025-11-30T16%3A59%3A59Z&created_on_min=2025-10-31T17%3A00%3A00Z&limit=100&assignee_ids=713355&payment_status=unpaid%2Cpartial%2Cpaid&packed_status=unpacked%2Cprocessing%2Cpacked&fulfillment_status=unshipped%2Cshipped&composite_fulfillment_status=wait_to_pack%2Cpacked_processing%2Cpacked%2Cretry_delivery%2Cfulfilled%2Creceived%2Cpacked_cancelled_client%2Cfulfilled_cancelling%2Cfulfilled_cancelled&return_status=unreturned%2Cpartial%2Creturned&list_process_status_id=0%2C17238%2C17097%2C17065%2C17010%2C17009%2C16698%2C16697%2C15224%2C15223&print_status=true%2Cfalse&payment_method_ids=947048%2C947047%2C947046%2C947045%2C2772998%2C2185953%2C2079908%2C1995772%2C1013621&variant_ids=390928169&tags=Tiktok_Phaledo+Glassware&reason_cancel_ids=4443592%2C4443591%2C4443590%2C4443589%2C4443588%2C4443587%2C4443586%2C4443585&source_id=8761694%2C7239422%2C6510687%2C5483992%2C4917102%2C4893087%2C4864539%2C4557803%2C4394223%2C4339892&location_ids=241737&delivery_type=pickup%2Ccourier&is_cod=true%2Cfalse
+   
+   + API lấy thông tin 1 đơn duy nhất: https://sisapsan.mysapogo.com/admin/orders/956072999.json
+   + Thông tin JSON trả về cho đơn hàng sẽ có dạng:
+   `{"order":{"id":956026778,"tenant_id":236571,"location_id":241737,"code":"SON609184","created_on":"2025-11-20T06:37:13Z","modified_on":"2025-11-20T08:03:49Z","issued_on":"2025-11-20T06:37:06Z","ship_on":null,"ship_on_min":null,"ship_on_max":null,"account_id":319911,"assignee_id":319911,"customer_id":845703825,"customer_data":{"id":845703825,"tenant_id":236571,"default_location_id":null,"created_on":"2025-11-20T06:37:12Z","modified_on":"2025-11-20T08:03:45Z","code":"CUZN453439","name":"Lương Ngọc Khánh","dob":null,"sex":null,"description":null,"email":null,"fax":null,"phone_number":null,"tax_number":null,"website":null,"customer_group_id":963454,"group_name":"Bán lẻ","assignee_id":319911,"default_payment_term_id":null,"default_payment_method_id":null,"default_tax_type_id":null,"default_discount_rate":null,"default_price_list_id":null,"tags":["Shopee","lteng_vn"],"addresses":[{"id":792562929,"created_on":"2025-11-20T06:37:12Z","modified_on":"2025-11-20T06:37:12Z","country":"Việt Nam","city":"Phú Thọ","district":"Huyện Thanh Ba","ward":"Thị Trấn Thanh Ba","address1":"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ","address2":null,"zip_code":null,"email":null,"first_name":null,"last_name":null,"full_name":"L******h","label":null,"phone_number":null,"status":"active"}],"contacts":[],"notes":[],"customer_group":{"id":963454,"tenant_id":236571,"created_on":"2020-03-03T02:35:42Z","modified_on":"2020-03-03T02:35:42Z","name":"RETAIL","name_translate":"Bán lẻ","status":"active","is_default":true,"default_payment_term_id":null,"default_payment_method_id":null,"default_tax_type_id":null,"default_discount_rate":null,"default_price_list_id":null,"note":null,"code":"BANLE"},"status":"active","is_default":false,"debt":0,"apply_incentives":null,"total_expense":null,"loyalty_customer":null,"sale_order":null,"social_customers":[]},"contact_id":null,"billing_address":{"id":1878415759,"label":null,"first_name":null,"last_name":null,"full_name":"L******h","address1":"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ","address2":null,"email":null,"phone_number":"******83","country":"Vietnam","city":"Phú Thọ","district":"Huyện Thanh Ba","ward":"Thị trấn Thanh Ba","zip_code":"","full_address":null,"address_level":"3level"},"shipping_address":{"id":1878415760,"label":null,"first_name":null,"last_name":null,"full_name":"L******h","address1":"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ","address2":null,"email":null,"phone_number":"******83","country":"Vietnam","city":"Phú Thọ","district":"Huyện Thanh Ba","ward":"Thị trấn Thanh Ba","zip_code":"","full_address":null,"address_level":"3level"},"email":null,"phone_number":"******83","reference_number":"25112099T2CASS","price_list_id":717399,"tax_treatment":"inclusive","status":"finalized","print_status":false,"packed_status":"packed","fulfillment_status":"unshipped","received_status":"unreceived","payment_status":"unpaid","return_status":"unreturned","source_id":1880152,"total":218500,"order_discount_rate":0.00,"order_discount_value":11500.0000,"order_discount_amount":11500.0000,"discount_reason":null,"total_discount":151500,"total_tax":0,"note":"","tags":["Shopee","Shopee_lteng_vn"],"delivery_fee":null,"discount_items":[{"source":"manual","rate":0.000,"value":11500.0000,"amount":11500.0000,"reason":"voucher seller: [LTEN17111]","promotion_redemption_id":null,"promotion_condition_item_id":null}],"order_line_items":[{"id":-2041176062,"created_on":"2025-11-20T06:37:13Z","modified_on":"2025-11-20T06:37:13Z","variant_id":284812386,"product_id":176169188,"product_name":"Kệ để khăn dày,xịn ERMO/ dán tường đa năng nhôm không gian ERMO","variant_name":"Kệ để khăn dày,xịn ERMO/ dán tường đa năng nhôm không gian ERMO - 50cm / Xám Đôi","tax_type_id":null,"tax_included":true,"tax_rate_override":0.000,"tax_rate":0.000,"tax_amount":0E-10,"discount_rate":0.00,"discount_value":140000.0000,"discount_reason":null,"discount_amount":140000.0000000000,"note":null,"price":370000,"quantity":1.000,"is_freeform":false,"is_composite":false,"is_packsize":false,"pack_size_quantity":null,"pack_size_root_id":null,"line_amount":230000.0000000000,"discount_items":[{"source":"manual","rate":0.000,"value":140000.0000,"amount":140000,"reason":"Promotion","promotion_redemption_id":null,"promotion_condition_item_id":null}],"composite_item_domains":[],"height_text_term_compo":0,"sku":"ER-0779-5XD","barcode":"077908","unit":"chiếc","variant_options":"50cm / Xám Đôi","serials":null,"lots_dates":[],"product_type":"normal","lots_number_code1":null,"lots_number_code2":null,"lots_number_code3":null,"lots_number_code4":null,"line_promotion_type":null,"warranty":null,"distributed_discount_amount":11500.00000000000000}],"prepayments":[],"fulfillments":[{"id":-2042892256,"tenant_id":236571,"stock_location_id":241737,"code":"FUN592880","order_id":956026778,"account_id":319911,"assignee_id":319911,"partner_id":845703825,"billing_address":{"id":1878519936,"label":null,"first_name":null,"last_name":null,"full_name":"L******h","address1":"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ","address2":null,"email":null,"phone_number":"******83","country":"Vietnam","city":"Phú Thọ","district":"Huyện Thanh Ba","ward":"Thị trấn Thanh Ba","zip_code":"","full_address":null,"address_level":"3level"},"shipping_address":null,"delivery_type":"courier","tax_treatment":"inclusive","discount_rate":0.000,"discount_value":11500.0000,"discount_amount":11500.0000,"total":218500.0000,"total_tax":0.0000,"total_discount":151500.0000,"notes":null,"packed_on":"2025-11-20T07:38:20Z","received_on":null,"shipped_on":null,"cancel_date":null,"cancel_account_id":null,"created_on":"2025-11-20T07:38:20Z","modified_on":"2025-11-20T08:03:49Z","status":"packed","print_status":false,"composite_fulfillment_status":"packed","payment_status":"unpaid","stock_out_account_id":null,"receive_account_id":null,"receive_cancellation_account_id":null,"receive_cancellation_on":null,"fulfillment_line_items":[{"id":-1694172506,"created_on":"2025-11-20T07:38:20Z","modified_on":"2025-11-20T07:38:20Z","order_line_item_id":-2041176062,"product_id":176169188,"product_name":"Kệ để khăn dày,xịn ERMO/ dán tường đa năng nhôm không gian ERMO","variant_id":284812386,"variant_name":"Kệ để khăn dày,xịn ERMO/ dán tường đa năng nhôm không gian ERMO - 50cm / Xám Đôi","order_line_item_note":null,"is_freeform":false,"is_composite":false,"is_packsize":false,"base_price":370000.0000,"quantity":1.000,"tax_type_id":null,"tax_rate_override":0,"tax_rate":0.00,"line_amount":230000.0000,"line_tax_amount":0.0000,"line_discount_amount":140000.0000,"discount_value":140000.0000,"discount_rate":0.000,"variant":null,"sku":"ER-0779-5XD","barcode":"077908","unit":"chiếc","variant_options":"50cm / Xám Đôi","serials":null,"lots_dates":null,"product_type":"normal","distributed_discount_value":11500.0000,"distributed_discount_amount":11500.0000,"lots_number_code1":null,"lots_number_code2":null,"lots_number_code3":null,"lots_number_code4":null,"sub_variants":[]}],"shipment":{"id":362183437,"delivery_service_provider_id":128394,"service_name":"Giao Hàng Nhanh","cod_amount":218500.0000,"freight_amount":0.0000,"freight_amount_detail":null,"delivery_fee":0.0000,"tracking_code":"GYN3FA6V","tracking_url":null,"created_on":"2025-11-20T07:38:20Z","modified_on":"2025-11-20T08:03:49Z","sender_address":null,"shipping_address":{"id":1878519937,"label":null,"first_name":"L******h","last_name":null,"full_name":"L******h","address1":"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ","address2":null,"email":null,"phone_number":"******83","country":"Vietnam","city":"Phú Thọ","district":"Huyện Thanh Ba","ward":null,"zip_code":null,"full_address":null,"address_level":null},"shipper_deposits":[],"detail":"{\"note\":\"\",\"source_location_id\":241737,\"destination_country_id\":0,\"destination_province_id\":0,\"destination_district_id\":0,\"destination_address\":\"******Khu 4, Thị Trấn Thanh Ba, Huyện Thanh Ba, Phú Thọ\",\"delivery_fee\":0,\"cod_amount\":218500,\"delivery_service_provider_id\":128394,\"receiver_name\":\"L******h\",\"receiver_phone\":\"******83\",\"destination_country\":\"Vietnam\",\"destination_province\":\"Phú Thọ\",\"destination_district\":\"Huyện Thanh Ba\",\"destination_ward\":null}","note":"{\"vc\": \"Giao H\\u00e0ng Nhanh\", \"spid\": 217319776238393, \"sp\": 1, \"sd\": \"20/11\", \"pks\": 3}","pushing_status":null,"reference_status":null,"reference_status_explanation":null,"pushing_note":null,"collation_status":"unresolved","delivery_service_provider":null,"partner_order_id":null,"freight_payer":"shop","estimated_delivery_time":null,"route_code_se":null,"sorting_code":null,"is_multiple_drop_off":false,"weight":null,"length":null,"height":null,"width":null,"partial_tracking_code":null,"partial_tracking_url":null,"shipping_account_id":null},"payments":[],"total_quantity":1.000,"reason_cancel_id":null,"pushing_status":"pushed","bill_of_lading_on":"2025-11-20T07:38:20Z","packed_processing_account_id":null,"bill_of_lading_account_id":null,"late_pickup_date":null,"late_delivery_date":null}],"order_returns":[],"business_version":3,"expected_payment_method_id":null,"expected_delivery_type":null,"expected_delivery_provider_id":null,"process_status_id":null,"reason_cancel_id":null,"finalized_on":"2025-11-20T06:37:13Z","finished_on":null,"completed_on":null,"channel":"Sàn TMĐT - Shopee","cancelled_on":null,"promotion_redemptions":[],"create_invoice":false,"reference_url":"https://banhang.shopee.vn/portal/sale?search=25112099T2CASS","from_order_return_id":null,"order_return_exchange":null,"total_order_exchange_amount":null,"allow_no_refund_order_exchange_amount":false,"order_coupon_code":null,"interconnection_status":null,"einvoice_status":"uncreated"}}`
+
+   - Phần note trong fullillment -> Đang dùng làm nơi lưu dữ liệu packing_status.
+
+- Về vận chuyển (shipments thì tương tự như đơn hàng) nhưng thay đổi sang /shipments
+   - URL kèm bộc lọc như sau: https://sisapsan.mysapogo.com/admin/shipments.json?limit=100&packed_on_max=2025-11-07T16%3A59%3A59Z&packed_on_min=2025-09-30T17%3A00%3A00Z&shipped_on_max=2025-11-28T16%3A59%3A59Z&shipped_on_min=2025-10-28T17%3A00%3A00Z&received_on_max=2025-11-28T16%3A59%3A59Z&received_on_min=2025-10-27T17%3A00%3A00Z&composite_fulfillment_statuses=fulfilled%2Cpacked%2Cretry_delivery%2Creceived%2Cpacked_cancelled%2Cfulfilled_cancelling%2Cfulfilled_cancelled&delivery_types=pickup%2Ccourier&account_ids=1267402%2C1261422%2C1258457%2C1257270%2C1253758%2C1253617%2C1249189%2C1249012%2C1246072%2C1214421&collation_statuses=unresolved%2Ccollating%2Ccollated
+
+   - JSON trả về cho từng shipment như sau:
+   `{"fulfillment":{"id":-2048812599,"tenant_id":236571,"stock_location_id":548744,"code":"FUN579357","order_id":949381566,"order":{"id":949381566,"tenant_id":236571,"location_id":548744,"code":"SON596424","created_on":"2025-11-07T04:07:51Z","modified_on":"2025-11-11T04:40:30Z","issued_on":"2025-11-07T04:07:51Z","ship_on":null,"ship_on_min":null,"ship_on_max":null,"account_id":1249012,"assignee_id":1249012,"customer_id":832887227,"customer_data":null,"contact_id":null,"billing_address":{"id":1861195826,"label":null,"first_name":"","last_name":"","full_name":"******","address1":"******","address2":"******","email":"hoangquyenvo@gmail.com","phone_number":"","country":null,"city":null,"district":null,"ward":null,"zip_code":null,"full_address":null,"address_level":null},"shipping_address":{"id":1861195827,"label":null,"first_name":null,"last_name":null,"full_name":"Quyen Vo","address1":"49c Đường Lê Quang Kim","address2":null,"email":null,"phone_number":"0909001607","country":"Việt Nam","city":"TP Hồ Chí Minh","district":"Quận 8","ward":"Phường 1","zip_code":"","full_address":null,"address_level":"3level"},"email":null,"phone_number":null,"reference_number":"25110507524KQ1","price_list_id":717399,"tax_treatment":"inclusive","status":"completed","print_status":false,"packed_status":"packed","fulfillment_status":"shipped","received_status":"received","payment_status":"paid","return_status":"unreturned","source_id":1880152,"total":290000,"order_discount_rate":0.00,"order_discount_value":0.0000,"order_discount_amount":0,"discount_reason":null,"total_discount":0,"total_tax":0,"note":"GH1P-ĐƠN GIAO SAI\nĐơn gốc: 25110507524KQ1\nSản phẩm thu: LG-0250-2A5\nSản phẩm đổi: LG-0252-2B5\nNguồn: TOKY\nCOD: 0đ","tags":[],"delivery_fee":null,"discount_items":[],"order_line_items":[{"id":-2054026052,"created_on":"2025-11-07T04:07:51Z","modified_on":"2025-11-07T04:09:18Z","variant_id":174797320,"product_id":113112454,"product_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox)","variant_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox) - 50x50 (Viền Inox)","tax_type_id":null,"tax_included":false,"tax_rate_override":0.000,"tax_rate":0.000,"tax_amount":0E-10,"discount_rate":0.00,"discount_value":0.0000,"discount_reason":null,"discount_amount":0E-10,"note":"","price":290000,"quantity":1.000,"is_freeform":false,"is_composite":false,"is_packsize":false,"pack_size_quantity":null,"pack_size_root_id":null,"line_amount":290000.0000000000,"discount_items":[],"composite_item_domains":[],"height_text_term_compo":0,"sku":"LG-0252-2B5","barcode":"02523","unit":"chiếc","variant_options":"50x50 (Viền Inox)","serials":null,"lots_dates":[],"product_type":"normal","lots_number_code1":null,"lots_number_code2":null,"lots_number_code3":null,"lots_number_code4":null,"line_promotion_type":null,"warranty":null,"distributed_discount_amount":0E-14}],"prepayments":[],"fulfillments":[{"id":-2048812599,"tenant_id":236571,"stock_location_id":548744,"code":"FUN579357","order_id":949381566,"account_id":1249012,"assignee_id":1249012,"partner_id":832887227,"billing_address":{"id":1861197506,"label":null,"first_name":"","last_name":"","full_name":"******","address1":"******","address2":"******","email":"hoangquyenvo@gmail.com","phone_number":"","country":null,"city":null,"district":null,"ward":null,"zip_code":null,"full_address":null,"address_level":null},"shipping_address":null,"delivery_type":"courier","tax_treatment":"inclusive","discount_rate":0.000,"discount_value":0.0000,"discount_amount":0.0000,"total":290000.0000,"total_tax":0.0000,"total_discount":0.0000,"notes":null,"packed_on":"2025-11-07T09:30:58Z","received_on":"2025-11-11T04:40:30Z","shipped_on":"2025-11-10T10:09:16Z","cancel_date":null,"cancel_account_id":null,"created_on":"2025-11-07T04:09:21Z","modified_on":"2025-11-11T04:40:30Z","status":"received","print_status":true,"composite_fulfillment_status":"received","payment_status":"unpaid","stock_out_account_id":0,"receive_account_id":0,"receive_cancellation_account_id":null,"receive_cancellation_on":null,"fulfillment_line_items":[{"id":-1705943451,"created_on":"2025-11-07T04:09:21Z","modified_on":"2025-11-07T04:09:21Z","order_line_item_id":-2054026052,"product_id":113112454,"product_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox)","variant_id":174797320,"variant_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox) - 50x50 (Viền Inox)","order_line_item_note":"","is_freeform":false,"is_composite":false,"is_packsize":false,"base_price":290000.0000,"quantity":1.000,"tax_type_id":null,"tax_rate_override":0,"tax_rate":0.00,"line_amount":290000.0000,"line_tax_amount":0.0000,"line_discount_amount":0.0000,"discount_value":0.0000,"discount_rate":0.000,"variant":null,"sku":"LG-0252-2B5","barcode":"02523","unit":"chiếc","variant_options":"50x50 (Viền Inox)","serials":null,"lots_dates":null,"product_type":"normal","distributed_discount_value":0.0000,"distributed_discount_amount":0.0000,"lots_number_code1":null,"lots_number_code2":null,"lots_number_code3":null,"lots_number_code4":null,"sub_variants":[]}],"shipment":{"id":359236435,"delivery_service_provider_id":67310,"service_name":"(GHN Express - Chuẩn)","cod_amount":0.0000,"freight_amount":16500.0000,"freight_amount_detail":null,"delivery_fee":0.0000,"tracking_code":"GYNLBTKV","tracking_url":"https://donhang.ghn.vn/?order_code=GYNLBTKV","created_on":"2025-11-10T07:47:24Z","modified_on":"2025-11-11T04:40:30Z","sender_address":null,"shipping_address":{"id":1864896118,"label":null,"first_name":"Quyen Vo","last_name":null,"full_name":"Quyen Vo","address1":"49c Đường Lê Quang Kim","address2":null,"email":"","phone_number":"0909001607","country":null,"city":"TP Hồ Chí Minh","district":"Quận 8","ward":"Phường 1","zip_code":null,"full_address":null,"address_level":"3level"},"shipper_deposits":[],"detail":"{\"pickup_city\":\"TP Hồ Chí Minh\",\"pickup_address1\":\"B76a Tô Ký, Đông Hưng Thuận, Quận 12\",\"pickup_district\":\"Quận 12\",\"pickup_ward\":\"Phường Đông Hưng Thuận\",\"pickup_work_shift\":null,\"pickup_contact_name\":\"giadungplus_official\",\"pickup_phone_number\":\"0971729917\",\"pickup_email\":null,\"shipping_work_shift\":null,\"shipping_note\":\"GH1P-ĐƠN GIAO SAI\\nĐơn gốc: 25110507524KQ1\\nSản phẩm thu: LG-0250-2A5\\nSản phẩm đổi: LG-0252-2B5\\nNguồn: TOKY\\nCOD: 0đ\",\"weight\":2500,\"height\":10,\"width\":10,\"length\":30,\"cod\":0,\"pickup_latitude\":0,\"pickup_longitude\":0,\"shipping_latitude\":0,\"pickup_note\":\"GH1P-ĐƠN GIAO SAI\\nĐơn gốc: 25110507524KQ1\\nSản phẩm thu: LG-0250-2A5\\nSản phẩm đổi: LG-0252-2B5\\nNguồn: TOKY\\nCOD: 0đ\",\"discount_code\":\"\",\"charge_type\":\"SENDER\",\"pick_shifts\":[{\"id\":2,\"title\":\"Ca lấy 10-11-2025 (12h00 - 18h00)\"}],\"pickup_type\":\"post_man\",\"partial_return\":true,\"shipping_contact_name\":\"Quyen Vo\",\"shipping_phone_number\":\"0909001607\",\"shipping_email\":\"\",\"shipping_address1\":\"49c Đường Lê Quang Kim\",\"shipping_city\":\"TP Hồ Chí Minh\",\"shipping_ward\":\"Phường 1\",\"shipping_district\":\"Quận 8\",\"converted_weight\":0,\"fixed_note\":\"Cho xem không cho thử\",\"insurance\":0,\"shipping_provider\":\"GHN Express\",\"shipping_service_title\":\"(GHN Express - Chuẩn)\",\"shipping_service_code\":\"53320\",\"estimated_fee\":16500}","note":"Cho xem không cho thử | GH1P-ĐƠN GIAO SAI\nĐơn gốc: 25110507524KQ1\nSản phẩm thu: LG-0250-2A5\nSản phẩm đổi: LG-0252-2B5\nNguồn: TOKY\nCOD: 0đ","pushing_status":"completed","reference_status":"DELIVERED","reference_status_explanation":"Giao thành công","pushing_note":"","collation_status":"unresolved","delivery_service_provider":null,"partner_order_id":"0097a7c1-5ef2-42dc-97b2-89ed1280c56a","freight_payer":"shop","estimated_delivery_time":"Trước 20h ngày 10/11/2025","route_code_se":"50-G-46-A4","sorting_code":"50-G-46-A4","is_multiple_drop_off":false,"weight":2500.000,"length":30.000,"height":10.000,"width":10.000,"partial_tracking_code":"GYNLBTKV_PR","partial_tracking_url":"https://donhang.ghn.vn/?order_code=GYNLBTKV_PR","shipping_account_id":null},"payments":[],"total_quantity":1.000,"reason_cancel_id":null,"pushing_status":"pushed","bill_of_lading_on":"2025-11-10T07:47:24Z","packed_processing_account_id":1052457,"bill_of_lading_account_id":1052457,"late_pickup_date":null,"late_delivery_date":null}],"order_returns":[],"business_version":3,"expected_payment_method_id":null,"expected_delivery_type":null,"expected_delivery_provider_id":null,"process_status_id":null,"reason_cancel_id":null,"finalized_on":"2025-11-07T04:09:19Z","finished_on":null,"completed_on":"2025-11-11T04:40:30Z","channel":null,"cancelled_on":null,"promotion_redemptions":[],"create_invoice":false,"reference_url":"","from_order_return_id":8361878,"order_return_exchange":{"id":8361878,"tenant_id":236571,"location_id":548744,"code":"SRN03482","account_id":1249012,"customer_id":832887227,"contact_id":null,"reference":"","note":"","status":"returning","refund_status":"paid","total_amount":290000.00,"issued_on":"2025-11-07T04:07:51Z","received_on":null,"created_on":"2025-11-07T04:07:51Z","modified_on":"2025-11-11T04:40:30Z","line_items":[{"id":13902340,"order_line_item_id":-2055931600,"product_id":113112454,"product_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox)","variant_id":174797320,"variant_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox) - 50x50 (Viền Inox)","note":null,"quantity":1.000,"price":290000.00,"is_composite":false,"is_freeform":false,"line_amount":290000.00,"created_on":"2025-11-07T04:07:51Z","modified_on":"2025-11-07T04:07:51Z","sku":"LG-0252-2B5","barcode":"02523","unit":"chiếc","variant_options":"50x50 (Viền Inox)","serials":null,"lots_dates":null,"product_type":"normal"}],"refunds":[],"reason_id":4443603,"other_location_order_return":false,"exchange":null,"order_exchange_id":949381566,"interconnection_status":null},"total_order_exchange_amount":0.00,"allow_no_refund_order_exchange_amount":false,"order_coupon_code":null,"interconnection_status":null,"einvoice_status":"uncreated"},"account_id":1249012,"assignee_id":1249012,"partner_id":832887227,"customer":{"id":832887227,"code":"CUZN442828","name":"Quyen Vo","email":null,"phone_number":null},"billing_address":{"id":1861197506,"label":null,"first_name":"","last_name":"","full_name":"******","address1":"******","address2":"******","email":"hoangquyenvo@gmail.com","phone_number":"","country":null,"city":null,"district":null,"ward":null,"zip_code":null,"full_address":null,"address_level":null},"shipping_address":null,"delivery_type":"courier","tax_treatment":"inclusive","discount_rate":0.000,"discount_value":0.0000,"discount_amount":0.0000,"total":290000.0000,"total_tax":0.0000,"total_discount":0.0000,"notes":null,"packed_on":"2025-11-07T09:30:58Z","received_on":"2025-11-11T04:40:30Z","shipped_on":"2025-11-10T10:09:16Z","cancel_date":null,"cancel_account_id":null,"created_on":"2025-11-07T04:09:21Z","modified_on":"2025-11-11T04:40:30Z","status":"received","print_status":true,"composite_fulfillment_status":"received","payment_status":"unpaid","stock_out_account_id":0,"receive_account_id":0,"receive_cancellation_account_id":null,"receive_cancellation_on":null,"fulfillment_line_items":[{"id":-1705943451,"created_on":"2025-11-07T04:09:21Z","modified_on":"2025-11-07T04:09:21Z","order_line_item_id":-2054026052,"product_id":113112454,"product_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox)","variant_id":174797320,"variant_name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox) - 50x50 (Viền Inox)","order_line_item_note":"","is_freeform":false,"is_composite":false,"is_packsize":false,"base_price":290000.0000,"quantity":1.000,"tax_type_id":null,"tax_rate_override":0,"tax_rate":0.00,"line_amount":290000.0000,"line_tax_amount":0.0000,"line_discount_amount":0.0000,"discount_value":0.0000,"discount_rate":0.000,"variant":{"sku":"LG-0252-2B5","name":"Tấm chắn dầu mỡ VIỀN INOX/ ăn, cách nhiệt bằng inox cao cấp (viền inox) - 50x50 (Viền Inox)","barcode":"02523","unit":"chiếc"},"sku":"LG-0252-2B5","barcode":"02523","unit":"chiếc","variant_options":"50x50 (Viền Inox)","serials":null,"lots_dates":null,"product_type":"normal","distributed_discount_value":0.0000,"distributed_discount_amount":0.0000,"lots_number_code1":null,"lots_number_code2":null,"lots_number_code3":null,"lots_number_code4":null,"sub_variants":[]}],"shipment":{"id":359236435,"delivery_service_provider_id":67310,"service_name":"(GHN Express - Chuẩn)","cod_amount":0.0000,"freight_amount":16500.0000,"freight_amount_detail":null,"delivery_fee":0.0000,"tracking_code":"GYNLBTKV","tracking_url":"https://donhang.ghn.vn/?order_code=GYNLBTKV","created_on":"2025-11-10T07:47:24Z","modified_on":"2025-11-11T04:40:30Z","sender_address":null,"shipping_address":{"id":1864896118,"label":null,"first_name":"Quyen Vo","last_name":null,"full_name":"Quyen Vo","address1":"49c Đường Lê Quang Kim","address2":null,"email":"","phone_number":"0909001607","country":null,"city":"TP Hồ Chí Minh","district":"Quận 8","ward":"Phường 1","zip_code":null,"full_address":null,"address_level":"3level"},"shipper_deposits":[],"detail":"{\"pickup_city\":\"TP Hồ Chí Minh\",\"pickup_address1\":\"B76a Tô Ký, Đông Hưng Thuận, Quận 12\",\"pickup_district\":\"Quận 12\",\"pickup_ward\":\"Phường Đông Hưng Thuận\",\"pickup_work_shift\":null,\"pickup_contact_name\":\"giadungplus_official\",\"pickup_phone_number\":\"0971729917\",\"pickup_email\":null,\"shipping_work_shift\":null,\"shipping_note\":\"GH1P-ĐƠN GIAO SAI\\nĐơn gốc: 25110507524KQ1\\nSản phẩm thu: LG-0250-2A5\\nSản phẩm đổi: LG-0252-2B5\\nNguồn: TOKY\\nCOD: 0đ\",\"weight\":2500,\"height\":10,\"width\":10,\"length\":30,\"cod\":0,\"pickup_latitude\":0,\"pickup_longitude\":0,\"shipping_latitude\":0,\"pickup_note\":\"GH1P-ĐƠN GIAO SAI\\nĐơn gốc: 25110507524KQ1\\nSản phẩm thu: LG-0250-2A5\\nSản phẩm đổi: LG-0252-2B5\\nNguồn: TOKY\\nCOD: 0đ\",\"discount_code\":\"\",\"charge_type\":\"SENDER\",\"pick_shifts\":[{\"id\":2,\"title\":\"Ca lấy 10-11-2025 (12h00 - 18h00)\"}],\"pickup_type\":\"post_man\",\"partial_return\":true,\"shipping_contact_name\":\"Quyen Vo\",\"shipping_phone_number\":\"0909001607\",\"shipping_email\":\"\",\"shipping_address1\":\"49c Đường Lê Quang Kim\",\"shipping_city\":\"TP Hồ Chí Minh\",\"shipping_ward\":\"Phường 1\",\"shipping_district\":\"Quận 8\",\"converted_weight\":0,\"fixed_note\":\"Cho xem không cho thử\",\"insurance\":0,\"shipping_provider\":\"GHN Express\",\"shipping_service_title\":\"(GHN Express - Chuẩn)\",\"shipping_service_code\":\"53320\",\"estimated_fee\":16500}","note":"Cho xem không cho thử | GH1P-ĐƠN GIAO SAI\nĐơn gốc: 25110507524KQ1\nSản phẩm thu: LG-0250-2A5\nSản phẩm đổi: LG-0252-2B5\nNguồn: TOKY\nCOD: 0đ","pushing_status":"completed","reference_status":"DELIVERED","reference_status_explanation":"Giao thành công","pushing_note":"","collation_status":"unresolved","delivery_service_provider":{"code":"SAPOEXPRESS","name":"Sapo Express","type":"external_service","init":true},"partner_order_id":"0097a7c1-5ef2-42dc-97b2-89ed1280c56a","freight_payer":"shop","estimated_delivery_time":"Trước 20h ngày 10/11/2025","route_code_se":"50-G-46-A4","sorting_code":"50-G-46-A4","is_multiple_drop_off":false,"weight":2500.000,"length":30.000,"height":10.000,"width":10.000,"partial_tracking_code":"GYNLBTKV_PR","partial_tracking_url":"https://donhang.ghn.vn/?order_code=GYNLBTKV_PR","shipping_account_id":null},"payments":[],"total_quantity":1.000,"reason_cancel_id":null,"pushing_status":"pushed","bill_of_lading_on":"2025-11-10T07:47:24Z","packed_processing_account_id":1052457,"bill_of_lading_account_id":1052457,"late_pickup_date":null,"late_delivery_date":null}}`
+
+- Khách hàng tương tự - /customers
+   - JSON trả về và dữ liệu lưu trữ được định dạng như sau:
+   `{"customer":{"id":845774467,"tenant_id":236571,"default_location_id":null,"created_on":"2025-11-20T08:23:39Z","modified_on":"2025-11-20T08:23:39Z","code":"CUZN453503","name":"P******o","dob":null,"sex":null,"description":null,"email":null,"fax":null,"phone_number":null,"tax_number":null,"website":null,"customer_group_id":963454,"group_id":963454,"group_ids":[963454],"group_name":"Bán lẻ","assignee_id":319911,"default_payment_term_id":null,"default_payment_method_id":null,"default_tax_type_id":null,"default_discount_rate":null,"default_price_list_id":null,"tags":["Shopee","lteng_vn"],"addresses":[{"id":792631827,"created_on":"2025-11-20T08:23:39Z","modified_on":"2025-11-20T08:23:39Z","country":"Việt Nam","city":"Hà Nội","district":"Quận Tây Hồ","ward":"Phường Bưởi","address1":"******Thuỵ Khuê, Phường Bưởi, Quận Tây Hồ, Hà Nội","address2":null,"zip_code":null,"email":null,"first_name":null,"last_name":null,"full_name":"P******o","label":null,"phone_number":null,"status":"active"}],"contacts":[],"notes":[],"customer_group":{"id":963454,"tenant_id":236571,"created_on":"2020-03-03T02:35:42Z","modified_on":"2020-03-03T02:35:42Z","name":"RETAIL","name_translate":"Bán lẻ","status":"active","is_default":true,"default_payment_term_id":null,"default_payment_method_id":null,"default_tax_type_id":null,"default_discount_rate":null,"default_price_list_id":null,"note":null,"code":"BANLE","count_customer":null,"type":"customer","group_type":null,"condition_type":null,"conditions":null},"status":"active","is_default":false,"debt":0,"apply_incentives":null,"total_expense":null,"loyalty_customer":null,"sale_order":null,"social_customers":[]}}`
+
+- Sản phẩm thì có 2 cơ cấu là /products (sản phẩm) và /variants (phân loại):
+   + JSON trả về với dữ liệu /products như sau:
+   `{"product":{"id":222550352,"tenant_id":236571,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","status":"active","brand_id":1713440,"brand":"HOUDE","description":null,"image_path":null,"image_name":null,"name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre","opt1":"Kích thước","opt2":null,"opt3":null,"category_id":3050385,"category":"Thuỷ tinh","category_code":"02TT","tags":"","medicine":false,"product_type":"normal","variants":[{"id":390928166,"tenant_id":236571,"location_id":241737,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","category_id":3050385,"brand_id":1713440,"product_id":222550352,"composite":false,"init_price":0.000,"init_stock":0.000,"variant_retail_price":285000.0000,"variant_whole_price":190000.0000,"variant_import_price":0.0000,"cost_price":null,"image_id":144290607,"description":null,"name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre - 15*15 cm","opt1":"15*15 cm","opt2":null,"opt3":null,"product_name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre","product_status":null,"status":"active","sellable":true,"sku":"HD-0375-115","barcode":"03751","taxable":false,"weight_value":0.000,"weight_unit":"g","unit":"chiếc","packsize":false,"packsize_quantity":null,"packsize_root_id":null,"packsize_root_sku":null,"packsize_root_name":null,"tax_included":false,"input_vat_id":0,"output_vat_id":0,"input_vat_rate":null,"output_vat_rate":null,"product_type":"normal","variant_prices":[{"id":871821831,"value":285000.0000,"included_tax_price":285000.0000,"name":"Giá bán lẻ","price_list_id":717399,"price_list":{"id":717399,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANLE","currency_id":236570,"name":"Giá bán lẻ","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}},{"id":871821832,"value":190000.0000,"included_tax_price":190000.0000,"name":"Giá MIN","price_list_id":717397,"price_list":{"id":717397,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANBUON","currency_id":236570,"name":"Giá MIN","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":true}},{"id":871821833,"value":520000.0000,"included_tax_price":520000.0000,"name":"Giá niêm yết","price_list_id":2361334,"price_list":{"id":2361334,"tenant_id":236571,"created_on":"2025-07-30T08:01:48Z","modified_on":"2025-07-30T08:01:48Z","code":"NIEMYET","currency_id":236570,"name":"Giá niêm yết","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":false}},{"id":871821834,"value":0.0000,"included_tax_price":0.0000,"name":"Giá nhập","price_list_id":717398,"price_list":{"id":717398,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"GIANHAP","currency_id":236570,"name":"Giá nhập","is_cost":true,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}}],"inventories":[{"location_id":241737,"variant_id":390928166,"mac":93600.0000,"amount":0,"on_hand":72.0000,"available":72.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null},{"location_id":548744,"variant_id":390928166,"mac":0.0000,"amount":0,"on_hand":0.0000,"available":0.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null}],"images":[{"id":144290607,"size":124623.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","file_name":"o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","is_default":true,"position":2}],"composite_items":null,"warranty":false,"warranty_term_id":null,"expiration_alert_time":null},{"id":390928167,"tenant_id":236571,"location_id":241737,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","category_id":3050385,"brand_id":1713440,"product_id":222550352,"composite":false,"init_price":0.000,"init_stock":0.000,"variant_retail_price":325000.0000,"variant_whole_price":215000.0000,"variant_import_price":0.0000,"cost_price":null,"image_id":144290608,"description":null,"name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre - 15*20 cm","opt1":"15*20 cm","opt2":null,"opt3":null,"product_name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre","product_status":null,"status":"active","sellable":true,"sku":"HD-0375-120","barcode":"03752","taxable":false,"weight_value":0.000,"weight_unit":"g","unit":"chiếc","packsize":false,"packsize_quantity":null,"packsize_root_id":null,"packsize_root_sku":null,"packsize_root_name":null,"tax_included":false,"input_vat_id":0,"output_vat_id":0,"input_vat_rate":null,"output_vat_rate":null,"product_type":"normal","variant_prices":[{"id":871821835,"value":325000.0000,"included_tax_price":325000.0000,"name":"Giá bán lẻ","price_list_id":717399,"price_list":{"id":717399,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANLE","currency_id":236570,"name":"Giá bán lẻ","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}},{"id":871821836,"value":215000.0000,"included_tax_price":215000.0000,"name":"Giá MIN","price_list_id":717397,"price_list":{"id":717397,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANBUON","currency_id":236570,"name":"Giá MIN","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":true}},{"id":871821837,"value":585000.0000,"included_tax_price":585000.0000,"name":"Giá niêm yết","price_list_id":2361334,"price_list":{"id":2361334,"tenant_id":236571,"created_on":"2025-07-30T08:01:48Z","modified_on":"2025-07-30T08:01:48Z","code":"NIEMYET","currency_id":236570,"name":"Giá niêm yết","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":false}},{"id":871821838,"value":0.0000,"included_tax_price":0.0000,"name":"Giá nhập","price_list_id":717398,"price_list":{"id":717398,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"GIANHAP","currency_id":236570,"name":"Giá nhập","is_cost":true,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}}],"inventories":[{"location_id":241737,"variant_id":390928167,"mac":104400.0000,"amount":0,"on_hand":48.0000,"available":48.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null},{"location_id":548744,"variant_id":390928167,"mac":0.0000,"amount":0,"on_hand":0.0000,"available":0.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null}],"images":[{"id":144290608,"size":126739.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","file_name":"o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","is_default":true,"position":3}],"composite_items":null,"warranty":false,"warranty_term_id":null,"expiration_alert_time":null},{"id":390928168,"tenant_id":236571,"location_id":241737,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","category_id":3050385,"brand_id":1713440,"product_id":222550352,"composite":false,"init_price":0.000,"init_stock":0.000,"variant_retail_price":360000.0000,"variant_whole_price":240000.0000,"variant_import_price":0.0000,"cost_price":null,"image_id":144290609,"description":null,"name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre - 15*25 cm","opt1":"15*25 cm","opt2":null,"opt3":null,"product_name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre","product_status":null,"status":"active","sellable":true,"sku":"HD-0375-125","barcode":"03753","taxable":false,"weight_value":0.000,"weight_unit":"g","unit":"chiếc","packsize":false,"packsize_quantity":null,"packsize_root_id":null,"packsize_root_sku":null,"packsize_root_name":null,"tax_included":false,"input_vat_id":0,"output_vat_id":0,"input_vat_rate":null,"output_vat_rate":null,"product_type":"normal","variant_prices":[{"id":871821839,"value":360000.0000,"included_tax_price":360000.0000,"name":"Giá bán lẻ","price_list_id":717399,"price_list":{"id":717399,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANLE","currency_id":236570,"name":"Giá bán lẻ","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}},{"id":871821840,"value":240000.0000,"included_tax_price":240000.0000,"name":"Giá MIN","price_list_id":717397,"price_list":{"id":717397,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANBUON","currency_id":236570,"name":"Giá MIN","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":true}},{"id":871821841,"value":650000.0000,"included_tax_price":650000.0000,"name":"Giá niêm yết","price_list_id":2361334,"price_list":{"id":2361334,"tenant_id":236571,"created_on":"2025-07-30T08:01:48Z","modified_on":"2025-07-30T08:01:48Z","code":"NIEMYET","currency_id":236570,"name":"Giá niêm yết","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":false}},{"id":871821842,"value":0.0000,"included_tax_price":0.0000,"name":"Giá nhập","price_list_id":717398,"price_list":{"id":717398,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"GIANHAP","currency_id":236570,"name":"Giá nhập","is_cost":true,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}}],"inventories":[{"location_id":241737,"variant_id":390928168,"mac":115200.0000,"amount":0,"on_hand":48.0000,"available":48.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null},{"location_id":548744,"variant_id":390928168,"mac":0.0000,"amount":0,"on_hand":0.0000,"available":0.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null}],"images":[{"id":144290609,"size":103276.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","file_name":"o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","is_default":true,"position":4}],"composite_items":null,"warranty":false,"warranty_term_id":null,"expiration_alert_time":null},{"id":390928169,"tenant_id":236571,"location_id":241737,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","category_id":3050385,"brand_id":1713440,"product_id":222550352,"composite":false,"init_price":0.000,"init_stock":0.000,"variant_retail_price":415000.0000,"variant_whole_price":275000.0000,"variant_import_price":0.0000,"cost_price":null,"image_id":144290610,"description":null,"name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre - 15*30 cm","opt1":"15*30 cm","opt2":null,"opt3":null,"product_name":"Hũ thuỷ tinh đựng ngũ cốc dày | borosilicate, nắp gỗ tre","product_status":null,"status":"active","sellable":true,"sku":"HD-0375-130","barcode":"03754","taxable":false,"weight_value":0.000,"weight_unit":"g","unit":"chiếc","packsize":false,"packsize_quantity":null,"packsize_root_id":null,"packsize_root_sku":null,"packsize_root_name":null,"tax_included":false,"input_vat_id":0,"output_vat_id":0,"input_vat_rate":null,"output_vat_rate":null,"product_type":"normal","variant_prices":[{"id":871821843,"value":415000.0000,"included_tax_price":415000.0000,"name":"Giá bán lẻ","price_list_id":717399,"price_list":{"id":717399,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANLE","currency_id":236570,"name":"Giá bán lẻ","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}},{"id":871821844,"value":275000.0000,"included_tax_price":275000.0000,"name":"Giá MIN","price_list_id":717397,"price_list":{"id":717397,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"BANBUON","currency_id":236570,"name":"Giá MIN","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":true}},{"id":871821845,"value":750000.0000,"included_tax_price":750000.0000,"name":"Giá niêm yết","price_list_id":2361334,"price_list":{"id":2361334,"tenant_id":236571,"created_on":"2025-07-30T08:01:48Z","modified_on":"2025-07-30T08:01:48Z","code":"NIEMYET","currency_id":236570,"name":"Giá niêm yết","is_cost":false,"currency_symbol":"đ","currency_iso":"VND","status":"active","init":false}},{"id":871821846,"value":0.0000,"included_tax_price":0.0000,"name":"Giá nhập","price_list_id":717398,"price_list":{"id":717398,"tenant_id":236571,"created_on":"2020-03-03T02:35:41Z","modified_on":"2020-03-03T02:35:41Z","code":"GIANHAP","currency_id":236570,"name":"Giá nhập","is_cost":true,"currency_symbol":"đ","currency_iso":"VND","status":"default","init":true}}],"inventories":[{"location_id":241737,"variant_id":390928169,"mac":133200.0000,"amount":0,"on_hand":48.0000,"available":48.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null},{"location_id":548744,"variant_id":390928169,"mac":0.0000,"amount":0,"on_hand":0.0000,"available":0.0000,"committed":0.0000,"incoming":0.0000,"onway":0.0000,"min_value":null,"max_value":null,"bin_location":null,"wait_to_pack":0.0000,"modified_on":null}],"images":[{"id":144290610,"size":104773.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","file_name":"o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","is_default":true,"position":5}],"composite_items":null,"warranty":false,"warranty_term_id":null,"expiration_alert_time":null}],"options":[{"id":201354259,"name":"Kích thước","position":1,"values":["15*15 cm","15*20 cm","15*25 cm","15*30 cm"]}],"images":[{"id":144290606,"size":258383.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn010tplad2klplcvmo2f_2211360639541-0-cib-1758533711905.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn010tplad2klplcvmo2f_2211360639541-0-cib-1758533711905.jpg","file_name":"o1cn010tplad2klplcvmo2f_2211360639541-0-cib-1758533711905.jpg","position":1},{"id":144290607,"size":124623.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","file_name":"o1cn01ssjyta2klplwroyap_2211360639541-0-cib-1758533711906.jpg","position":2},{"id":144290608,"size":126739.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","file_name":"o1cn01vp6iyn2klplczxtgc_2211360639541-0-cib-1758533711908.jpg","position":3},{"id":144290609,"size":103276.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","file_name":"o1cn01hpfixm2klplcvljxq_2211360639541-0-cib-1758533711909.jpg","position":4},{"id":144290610,"size":104773.0,"created_on":"2025-09-22T09:35:12Z","modified_on":"2025-09-22T09:35:12Z","path":"100/236/571/variants/o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","full_path":"https://sapo.dktcdn.net/100/236/571/variants/o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","file_name":"o1cn016wl1wi2klplshbehb_2211360639541-0-cib-1758533711910.jpg","position":5}],"product_medicines":null}}`
+
 
 ### 📊 Công nghệ sử dụng
 
@@ -22,7 +61,7 @@
 ## 🗂️ Cấu trúc thư mục
 
 ```
-d:\APP\
+giadungplus/
 ├── GIADUNGPLUS/          # Django project settings
 │   ├── settings.py       # Cấu hình chính
 │   ├── urls.py          # URL routing chính
@@ -42,13 +81,6 @@ d:\APP\
 │   ├── templates/kho/   # Templates cho kho
 │   ├── views/          # Views xử lý kho
 │   └── middleware.py    # Kho switcher middleware (HN/HCM)
-│
-├── quantri/             # Quản trị & Kinh doanh
-│   ├── models.py        # Models: Order, Product, Purchase_Order, etc.
-│   └── templates/       # 80+ templates cho quản trị
-│       ├── kd_*.html    # Templates kinh doanh
-│       ├── kho_*.html   # Templates kho
-│       └── mkt_*.html   # Templates marketing
 │
 ├── marketing/           # Marketing & Content
 │   └── views.py
@@ -73,33 +105,7 @@ d:\APP\
 
 ## 📱 Modules chính
 
-### 1. 🛒 **CORE** - Tích hợp & Cấu hình hệ thống
-
-**Chức năng:**
-- Tích hợp Shopee API (lấy đơn, in vận đơn, tìm vị trí hàng)
-- Tích hợp Sapo ERP (quản lý đơn hàng, khách hàng, sản phẩm)
-- Quản lý cấu hình hệ thống (kho, shop, địa chỉ lấy hàng)
-
-**File quan trọng:**
-- `shopee_client.py`: ShopeeClient class - Xử lý tất cả API Shopee
-  - Switch shop động
-  - Load headers từ cookie file
-  - Tìm vị trí hàng (pickup), in bill, restart shipment
-- `system_settings.py`: Cấu hình SAPO, Shopee shops, warehouse location IDs
-
-**Shopee Integration:**
-```python
-# Khởi tạo client theo shop
-client = ShopeeClient("giadungplus_official")  # hoặc connection_id
-
-# Đổi shop
-client.switch_shop("phaledo")
-
-# Get order ID từ order serial number
-shopee_order_id = client._get_shopee_order_id("210707ABC123")
-```
-
-### 2. 📦 **KHO** - Quản lý kho vận
+### 1. 📦 **KHO** - Quản lý kho vận
 
 **Chức năng:**
 - Quản lý 2 kho: **KHO_GELEXIMCO** (Hà Nội - ID: 241737) & **KHO_TOKY** (HCM - ID: 548744)
@@ -120,202 +126,6 @@ shopee_order_id = client._get_shopee_order_id("210707ABC123")
 **Middleware:**
 - `KhoSwitcherMiddleware` - Tự động chuyển kho theo HOME_PARAM (HN/HCM)
 
-### 3. 🛍️ **QUANTRI** - Quản trị & Kinh doanh
-
-**Chức năng:**
-- Quản lý sản phẩm, giá vốn, thông tin nhập khẩu
-- Quản lý đơn nhập hàng từ Trung Quốc
-- Xử lý đánh giá sản phẩm (Review automation với AI)
-- Quản lý Q&A, nội dung sản phẩm
-- Bảng báo giá, giá sỉ, giá lẻ
-
-**Models quan trọng:**
-
-**Templates đặc biệt:**
-
-#### 📝 Review Management (AI-powered)
-- `kd_repall.html` - Quản lý đánh giá tổng hợp
-  - **Bước 1**: Select Name - Lấy danh sách khách hàng cần rep
-  - **Bước 2**: Xuất file JSON cho ChatGPT AI tạo nội dung rep
-  - Upload file AI trả về và gửi lên Shopee
-  
-- `kd_repauto.html` - Tạo đánh giá tự động
-- `kd_tenkhach.html` - Update giới tính & tên khách
-  
-**Loading Logic:**
-```javascript
-// kd_repall.html - JavaScript loading pattern
-function generateName() {
-    showLoading('nameLoading');
-    fetch(`/quantri/kd_repauto?make_name=ok&soluong=${soluong}&shop_name=${shop_name}`)
-        .then(res => res.json())
-        .then(data => showNameTable(data))
-        .catch(error => showError(error))
-        .finally(() => hideLoading('nameLoading'));
-}
-
-function generateReview() {
-    // Xuất file JSON để send cho AI
-    fetch(`/quantri/kd_repauto?makerep=ok`)
-        .then(res => res.json())
-        .then(data => {
-            // Download link: /static/openai/new-comment.json
-        });
-}
-
-function sendShopee() {
-    // Gửi đánh giá lên Shopee
-    fetch(`/quantri/kd_repauto?send_shopee=ok`)
-        .then(res => res.json())
-        .then(data => console.log('Success'));
-}
-```
-
-#### 📦 Sản phẩm & Giá
-- `kd_sanpham.html` - Quản lý sản phẩm & giá bán
-- `kd_giaovan.html` - Tính giá vốn
-- `kd_giasi.html` - Giá sỉ
-- `kd_giale.html` - Giá lẻ
-- `kd_bangbaogia.html` - Bảng báo giá
-
-#### 📋 Orders & Tickets
-- `kd_ticketprocess.html` - Xử lý ticket khách hàng (CSKH)
-- `kd_showdon.html` - Hiển thị chi tiết đơn hàng
-
-### 4. 📢 **MARKETING** - Marketing & Content
-
-**Chức năng:**
-- Copy ảnh sản phẩm từ Shopee
-- Quản lý danh sách sản phẩm marketing
-- Hướng content, copywriting
-
-**Templates:**
-- `mkt_listproduct.html` - Danh sách sản phẩm
-- `mkt_copyanhshopee.html` - Copy ảnh từ Shopee
-- `mkt_huongcontent.html` - Hướng dẫn content
-
-### 5. 💬 **CSKH** - Chăm sóc khách hàng
-
-**Chức năng:**
-- Xử lý khiếu nại, đổi trả
-- Hỗ trợ khách hàng qua các kênh
-- Ticket system
-
-### 6. 🔧 **SERVICE** - Dịch vụ bổ sung
-
-**Chức năng:**
-- Các dịch vụ hỗ trợ khác
-- Utils và helpers
-
-## 🔐 Authentication & Middleware
-
-### Middleware Stack:
-1. **SecurityMiddleware** - Django security
-2. **SessionMiddleware** - Session management
-3. **CsrfViewMiddleware** - CSRF protection
-4. **AuthenticationMiddleware** - User authentication
-5. **PortRedirectMiddleware** (Custom) - Port redirect logic
-6. **KhoSwitcherMiddleware** (Custom) - Warehouse switcher (HN/HCM)
-
-### Login Configuration:
-```python
-LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "/kho/"
-LOGOUT_REDIRECT_URL = "login"
-```
-
-## 🌐 API Endpoints & Integration
-
-### Shopee API
-**Base URL**: `https://banhang.shopee.vn/api/v3`
-
-**Key Endpoints sử dụng:**
-- `/order/get_order_list_search_bar_hint` - Tìm order_id theo order_sn
-- `/order/get_package` - Lấy thông tin package
-- `/shipment/get_pickup` - Lấy thông tin pickup
-- `/shipment/update_shipment_group_info` - Update thông tin shipment
-
-**Authentication:** Cookie-based (lưu trong `logs/raw_cookie/`)
-
-### Sapo API
-**Config:**
-```python
-SAPO_BASIC = {
-    'MAIN_URL': 'https://sisapsan.mysapogo.com/admin',
-    'USERNAME': '0988700162',
-    'PASSWORD': 'giadungPlus2@@4'
-}
-```
-
-**Chức năng:**
-- Đồng bộ đơn hàng
-- Quản lý inventory
-- Customer management
-
-### Internal APIs (Django REST Framework)
-
-**Pattern:**
-```
-/quantri/kd_repauto?action=value
-```
-
-**Actions:**
-- `make_name=ok` - Generate customer names
-- `makerep=ok` - Generate review content
-- `send_shopee=ok` - Send reviews to Shopee
-- `update=1&cmt_id=xxx` - Update review reply
-
-## 📂 Data Flow
-
-### Order Processing Flow:
-```
-1. Đơn hàng từ Shopee/Lazada/Tiki
-   ↓
-2. Sync vào Sapo ERP (core.sapo_client)
-   ↓
-3. Import vào DB (quantri.Order model)
-   ↓
-4. Xử lý trong KHO module
-   ↓ 
-5. Packing → Print → Pickup → Bàn giao ĐVVC
-   ↓
-6. Đối soát (ketoan)
-```
-
-### Review AI Workflow:
-```
-1. Lấy danh sách đánh giá cần rep (kd_repall.html)
-   ↓
-2. Select Name → Generate full_name, gender, short_name
-   ↓
-3. Export JSON file → Send to ChatGPT AI
-   ↓
-4. AI trả về JSON với suggested replies
-   ↓
-5. Upload file → Review & Edit
-   ↓
-6. Send to Shopee API
-```
-
-## 🗃️ Database Schema
-
-### Channel Mapping:
-```python
-channel_map = {
-    1880152: 'Shopee',
-    1880147: 'Facebook', 
-    1880146: 'Website',
-    1880148: 'Zalo',
-    1880149: 'Lazada',
-    1880150: 'Tiki',
-    1880151: 'Pos',
-    6510687: 'Tiktok',
-    7239422: 'CSKH',
-    4893087: 'Sỉ / Đại Lý',
-    4864539: 'Bồi hoàn',
-    4339735: 'Đổi trả'
-}
-```
 
 ### Warehouse IDs:
 ```python
@@ -323,138 +133,9 @@ KHO_GELEXIMCO = 241737  # Hà Nội
 KHO_TOKY = 548744       # HCM
 ```
 
-## 🚀 Cài đặt & Chạy
-
-### Requirements:
-```bash
-pip install -r rq.txt
-```
-
-### Khởi chạy:
-```bash
-# Development server
-python manage.py runserver
-
-# SSL server (HTTPS)
-python manage.py runsslserver
-
-# With custom HOME parameter
-python manage.py runserver --home=HN   # Chạy cho kho HN
-python manage.py runserver --home=HCM  # Chạy cho kho HCM
-```
-
-### Environment Variables:
-```bash
-# Sapo Config
-SAPO_MAIN_URL=https://sisapsan.mysapogo.com/admin
-SAPO_USERNAME=your_username
-SAPO_PASSWORD=your_password
-
-# System Config
-GDPLUS_HOME_PARAM=HN  # HN hoặc HCM hoặc CSKH
-GDPLUS_HOATOC_HN_ON=1
-GDPLUS_HOATOC_HCM_ON=1
-```
-
-### Shopee Shops Config:
-File `logs/shopee_shops.json`:
-```json
-{
-  "shops": [
-    {
-      "name": "giadungplus_official",
-      "shop_connect": 10925,
-      "seller_shop_id": 123456,
-      "address_geleximco": 29719283,
-      "address_toky": 200025624,
-      "headers_file": "logs/raw_cookie/giadungplus_cookie.txt"
-    }
-  ]
-}
-```
-
-## 📝 Workflows quan trọng
-
-### 1. In vận đơn Shopee
-
-```python
-from core.shopee_client import ShopeeClient
-
-# Khởi tạo client
-client = ShopeeClient("giadungplus_official")
-
-# Lấy order ID
-order_id = client._get_shopee_order_id("210707ABC123")
-
-# Lấy package info
-client._get_packed_list()
-
-# Restart ship (tìm tài xế mới)
-client._restart_express_shipping()
-```
-
-### 2. Đồng bộ đơn hàng từ Sapo
-
-```python
-from core.sapo_client.client import SapoClient
-
-sapo = SapoClient()
-sapo.ensure_core_login()
-
-# Lấy đơn hàng
-orders = sapo.core_get_orders(limit=100)
-
-# Import vào DB
-for order_data in orders:
-    order = Order()
-    order.load_from(order_data)
-    order.save()
-```
-
-### 3. Quy trình đóng gói
-
-1. Vào `kho_packing.html`
-2. Scan barcode đơn hàng
-3. Hệ thống check sản phẩm
-4. In tem (nếu cần)
-5. Đánh dấu đã đóng gói
-6. Chuyển sang bàn giao
-
-## 🛠️ Tools & Utilities
-
-### PDF Generation:
-- ReportLab - Tạo PDF phức tạp
-- FPDF - PDF đơn giản
-- PyPDF2 - Merge/split PDF
-
-### Barcode/QR:
-- `python-barcode` - Generate barcode
-- `qrcode` - Generate QR code
-
-### Excel:
-- `openpyxl` - Read/write .xlsx
-- `xlsxwriter` - Write .xlsx advanced
-- `xlwt` - Write .xls (legacy)
-
 ### Browser Automation:
 - Selenium - Web automation
 - Selenium Wire - Intercept HTTP requests
-
-## 🔒 Security Notes
-
-⚠️ **Quan trọng:**
-- File `system_settings.py` chứa credentials → **KHÔNG** commit lên Git
-- Cookie files trong `logs/raw_cookie/` → **KHÔNG** share public
-- Database `db.sqlite3` → Backup thường xuyên
-- SECRET_KEY trong `settings.py` → Đổi khi deploy production
-
-## 📊 Performance Tips
-
-1. **Database**: Nên chuyển sang PostgreSQL khi scale
-2. **Static Files**: Dùng CDN cho production
-3. **Caching**: Redis cho session & cache
-4. **Background Tasks**: Celery cho xử lý nặng
-5. **API Rate Limit**: Shopee API có limit → cần queue
 
 ## 🤝 Contributing
 
