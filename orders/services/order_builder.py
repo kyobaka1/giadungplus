@@ -127,7 +127,7 @@ class OrderDTOFactory:
             nguoi_goi=packing_data.get("nguoi_goi"),
             time_packing=packing_data.get("time_packing"),
             dvvc=packing_data.get("dvvc"),
-            shopee_id=packing_data.get("shopee_id"),
+            shopee_id=str(packing_data.get("shopee_id")) if packing_data.get("shopee_id") is not None else None,
             time_print=packing_data.get("time_print"),
             split=int(packing_data.get("split") or 0),
             time_chia=packing_data.get("time_chia"),

@@ -40,6 +40,8 @@ def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:
         print("[DEBUG]", *args, **kwargs)
 
+# ==================== EXISTING VIEWS (đã có implementation đầy đủ) ====================
+
 def prepare_and_print(request):
     """
     Màn hình:
@@ -307,6 +309,26 @@ def shopee_orders(request):
 
     return render(request, "kho/orders/shopee_orders.html", context)
 
+# ==================== NEW VIEWS (templates mẫu đã tạo) ====================
+
+@login_required
+def sapo_orders(request):
+    """
+    Đơn Sapo:
+    - Đơn sỉ, đơn giao ngoài, đơn Facebook/Zalo, đơn khách hàng quay lại
+    - Lấy từ Sapo Core API (không phải Marketplace)
+    - Tổng hợp xử lý, in đơn
+    """
+    context = {
+        "title": "ĐƠN SAPO - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Lấy đơn từ Sapo Core API (không phải Marketplace)
+    # Filter: location_id, status, source_id (để phân biệt đơn sỉ, Facebook/Zalo, etc.)
+    return render(request, "kho/orders/sapo_orders.html", context)
+
+
 def pickup_orders(request):
     """
     Đơn pickup:
@@ -318,6 +340,94 @@ def pickup_orders(request):
         "orders": [],
     }
     return render(request, "kho/orders/pickup.html", context)
+
+
+@login_required
+def packing_orders(request):
+    """
+    Đóng gói hàng:
+    - Scan barcode đơn hàng -> bắn đơn
+    - Scan barcode sản phẩm -> bắn sản phẩm
+    - Đảm bảo tính chính xác của đơn hàng
+    - Lưu thông tin: người gói, time gói (phục vụ KPI và rà soát camera)
+    """
+    context = {
+        "title": "Đóng Gói Hàng - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Logic scan barcode đóng gói
+    # TODO: API endpoint để handle scan barcode
+    return render(request, "kho/orders/packing_orders.html", context)
+
+
+@login_required
+def connect_shipping(request):
+    """
+    Liên kết đơn gửi bù:
+    - Liên kết các đơn gửi bù cho khách với các đơn Shopee hiện tại
+    - Ví dụ: khách A đặt đơn B bị thiếu sản phẩm C, sau khi khách đặt đơn mới thì gửi kèm sản phẩm C
+    - Phải tạo đơn để liên kết (xuất kho, giao hàng, thông tin)
+    """
+    context = {
+        "title": "Liên Kết Đơn Gửi Bù - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Logic liên kết đơn gửi bù
+    return render(request, "kho/orders/connect_shipping.html", context)
+
+
+@login_required
+def sos_shopee(request):
+    """
+    SOS Shopee:
+    - Quản lý các trạng thái của đơn hàng
+    - Phục vụ mục tiêu rà soát lại các đơn hàng cần xử lý và đã xử lý
+    - Để kịp tiến độ SLA giao hàng của sàn
+    - Ví dụ: để biết đơn nào đã in, chưa gói -> xử lý sót...
+    """
+    context = {
+        "title": "SOS Shopee - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Logic lấy đơn có vấn đề (đã in nhưng chưa gói, etc.)
+    return render(request, "kho/orders/sos_shopee.html", context)
+
+
+@login_required
+def packing_cancel(request):
+    """
+    Đơn đã gói nhưng bị huỷ:
+    - Quản lý các đơn đã gói hàng nhưng bị huỷ ngang
+    - Cần thu hồi lại đơn hàng
+    - Theo dõi quá trình này tránh bị mất hàng
+    """
+    context = {
+        "title": "Đã Gói Nhưng Bị Huỷ - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Logic lấy đơn đã packed nhưng bị cancelled
+    return render(request, "kho/orders/packing_cancel.html", context)
+
+
+@login_required
+def return_orders(request):
+    """
+    Quản lý đơn hoàn:
+    - Quản lý các đơn hàng hoàn
+    - Qui trình nhận hàng hoàn
+    - Quản lý tình trạng khiếu nại, hỏng vỡ của các đơn hoàn này
+    """
+    context = {
+        "title": "Hàng Hoàn - GIA DỤNG PLUS",
+        "orders": [],
+        "current_kho": request.session.get("current_kho", "geleximco"),
+    }
+    # TODO: Logic lấy đơn hoàn từ Sapo
+    return render(request, "kho/orders/return_orders.html", context)
 
 
 @require_GET

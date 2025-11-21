@@ -253,9 +253,8 @@ def _render_mvd_overlay(
             "deadline1": -5, "deadline2": 50
         },
         "ghn": {
-            "y_start_1": 185, "kho_11":-35,"kho_12":265,"kho_21":-35,"kho_22":255,"kho_31":-35,"kho_32":213,
-            "deadline1": 87, "deadline2": 228
-        },
+            "y_start_1": 185, "kho_11":-35,"kho_12":265,"kho_21":-35,"kho_22":255,"kho_31":-35,"kho_32":231,
+            "deadline1": 87, "deadline2": 230        },
         "hoatoc": {
             "y_start_1": 170
         },
@@ -295,14 +294,14 @@ def _render_mvd_overlay(
         c.drawString(-32, y_value, "** ĐƠN DÀI - QUÉT SAPO để xem thêm.")
         y_value -= 10
     if sc in ["spx","ghn"]:
-        c.setFont('UTM Avo', 8)
+        c.setFont('Arial', 8)
         if order.location_id == 241737:
-            c.drawString(config[sc]["kho_11"], config[sc]["kho_12"], f"C21-02 Geleximco, Dương Nội")
+            c.drawString(config[sc]["kho_11"], config[sc]["kho_12"], f"C21-02 KĐ Geleximco")
             c.drawString(config[sc]["kho_21"], config[sc]["kho_22"], f"Hà Đông, Hà Nội")
             c.setFont('UTM Avo Bold', 10)
             c.drawString(config[sc]["kho_31"], config[sc]["kho_32"], f"KHO HÀ NỘI: GELE")
         else:
-            c.drawString(config[sc]["kho_11"], config[sc]["kho_12"], f"B76a Tô Ký, Quận 12")
+            c.drawString(config[sc]["kho_11"], config[sc]["kho_12"], f"B76a Tô Ký, Q.12")
             c.drawString(config[sc]["kho_21"], config[sc]["kho_22"], f"Thành phố Hồ Chí Minh")
             c.setFont('UTM Avo Bold', 10)
             c.drawString(config[sc]["kho_31"], config[sc]["kho_32"], f"KHO SÀI GÒN: TOKY")
