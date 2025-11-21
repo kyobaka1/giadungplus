@@ -311,12 +311,12 @@
                                     {# Nút Tìm ship #}
                                     <button
                                         class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="return timShip(\'{{ order.id }}\', event);">
+                                        onclick="timShip('{{ order.id }}')">
                                         Tìm ship
                                     </button>
                                     <button
                                         class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="return inDon(\'{{ order.id }}\', event);">
+                                        onclick="inDon('{{ order.id }}')">
                                         In Đơn
                                     </button>
                                 </div>
@@ -332,7 +332,7 @@
                                 </span>
                                 <button
                                     class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                    onclick="return inDon(\'{{ order.id }}\', event);">
+                                    onclick="inDon('{{ order.id }}')">
                                     In Đơn
                                 </button>
 
@@ -405,20 +405,13 @@
         }, 3000);
     }
 
-    function timShip(mp_order_id, event) {
-        // Ngăn chặn hành vi mặc định
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        
+    function timShip(mp_order_id) {
         if (!mp_order_id) return;
 
         const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=no`;
-        const btn = event ? event.target : null;
 
         // Disable button to prevent double click
-        if (btn) {
+        const btn = event.target;
         btn.disabled = true;
         btn.textContent = 'Đang xử lý...';
 
@@ -446,73 +439,25 @@
             .catch(err => {
                 showToast('❌ Lỗi hệ thống', 'error');
                 console.error(err);
-                    btn.disabled = false;
-                    btn.textContent = 'Tìm ship';
-                }
+                btn.disabled = false;
+                btn.textContent = 'Tìm ship';
             });
-        
-        // Return false để ngăn reload
-        return false;
     }
 </script>
 <script>
-    function inDon(mp_order_id, event) {
-        // Ng chặn hành vi mặc định
-        if (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        }
-        
+    function inDon(mp_order_id) {
         if (!mp_order_id) return;
-        
+
         const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=yes`;
-        const btn = event ? event.target : null;
-        
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = 'Đang in...';
-        }
-        
-        // Fetch PDF và mở trong tab mới
-        fetch(url, { method: "GET" })
-            .then(response => {
-                if (!response.ok) throw new Error('Network error');
-                return response.blob();
-            })
-            .then(blob => {
-                // Tạo URL từ blob
-                const pdfUrl = URL.createObjectURL(blob);
-                
-                // Mở PDF trong tab mới
-                const newWindow = window.open(pdfUrl, '_blank');
-                
-                if (newWindow) {
-                    // Sau khi mở, revoke URL để giải phóng memory
-                    setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-                    
-                    showToast('✅ Đã gửi yêu cầu in đơn!', 'success');
-                    
-                    // Xóa row ngay lập tức
-                    removeOrderRow(mp_order_id);
-                } else {
-                    showToast('❌ Vui lòng cho phép popup để in đơn', 'error');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.textContent = 'In Đơn';
-                    }
-                }
-            })
-            .catch(err => {
-                console.error('Print error:', err);
-                showToast('❌ Lỗi khi in đơn', 'error');
-                if (btn) {
-                    btn.disabled = false;
-                    btn.textContent = 'In Đơn';
-                }
-            });
-        
-        // Return false để ngăn reload
-        return false;
+
+        // Mở cửa sổ in
+        window.open(url);
+
+        // Xóa row sau khi in (giả định in thành công)
+        setTimeout(() => {
+            showToast('✅ Đã gửi yêu cầu in đơn!', 'success');
+            removeOrderRow(mp_order_id);
+        }, 1000);
     }
 </script>
 

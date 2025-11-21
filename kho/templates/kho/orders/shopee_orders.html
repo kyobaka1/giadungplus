@@ -60,7 +60,8 @@
                     {% if orders %}
                     {% for order in orders %}
                     {% with first_product=order.products.0 %}
-                    <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row">
+                    <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row"
+                        data-order-id="{{ order.id }}">
                         <!-- Checkbox từng đơn -->
                         <div class="w-10 flex items-start justify-center pt-4">
                             <input type="checkbox" class="mt-1 rounded border-slate-300 order-checkbox"
@@ -240,8 +241,6 @@
                                     </div>
                                 </div>
 
-
-
                                 <!-- Đơn vị vận chuyển -->
                                 <div class="flex flex-col justify-center">
                                     <div class="flex items-center gap-2">
@@ -249,12 +248,17 @@
                                         <img src="/static/spx_logo.png" class="w-8 h-auto rounded" />
                                         {% elif "ghn" in order.shipping_carrier_name.lower %}
                                         <img src="/static/ghn_logo.png" class="w-8 h-auto rounded" />
+                                        {% elif "giao hàng nhanh" in order.shipping_carrier_name.lower %}
+                                        <img src="/static/ghn_logo.png" class="w-8 h-auto rounded" />
                                         {% elif "ninja" in order.shipping_carrier_name.lower %}
                                         <img src="/static/ninja_logo.jpg" class="w-8 h-auto rounded" />
-                                        {% elif "j&t" in order.shipping_carrier_name.lower or "jnt" in
-                                        order.shipping_carrier_name.lower %}
+                                        {% elif "j&t" in order.shipping_carrier_name.lower %}
                                         <img src="/static/jnt_logo.png" class="w-8 h-auto rounded" />
-                                        {% elif "viettel" in order.shipping_carrier_name.lower%}
+                                        {% elif "jnt" in order.shipping_carrier_name.lower %}
+                                        <img src="/static/jnt_logo.png" class="w-8 h-auto rounded" />
+                                        {% elif "viettel" in order.shipping_carrier_name.lower %}
+                                        <img src="/static/viettelpost.png" class="w-8 h-auto rounded" />
+                                        {% elif "vtp" in order.shipping_carrier_name.lower %}
                                         <img src="/static/viettelpost.png" class="w-8 h-auto rounded" />
                                         {% elif "vnp" in order.shipping_carrier_name.lower%}
                                         <img src="/static/vnpost_logo.jpg" class="w-8 h-auto rounded" />
@@ -478,16 +482,60 @@
         const idsParam = Array.from(selectedOrderIds).join(',');
         const url = `/kho/orders/print_now/?ids=${encodeURIComponent(idsParam)}&print=yes`;
 
-        const win = window.open(url, '_blank');
+        // Lưu lại danh sách IDs để xóa sau khi in thành công
+        const orderIdsToRemove = Array.from(selectedOrderIds);
 
-        if (!win) {
-            alert('Trình duyệt đang chặn cửa sổ bật lên, vui lòng cho phép popup để in phiếu.');
-        } else {
-            // Reload sau khi mở popup in
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        }
+        // Fetch PDF và mở trong tab mới
+        fetch(url, { method: "GET" })
+            .then(response => {
+                if (!response.ok) throw new Error('Network error');
+                return response.blob();
+            })
+            .then(blob => {
+                // Tạo URL từ blob
+                const pdfUrl = URL.createObjectURL(blob);
+
+                // Mở PDF trong tab mới
+                const newWindow = window.open(pdfUrl, '_blank');
+
+                if (newWindow) {
+                    // Sau khi mở, revoke URL để giải phóng memory
+                    setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
+
+                    alert('Đã tạo phiếu in thành công!');
+
+                    // Xóa các row đã chọn thay vì reload
+                    orderIdsToRemove.forEach(orderId => {
+                        const row = document.querySelector(`.js-order-row[data-order-id="${orderId}"]`);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s ease-out';
+                            row.style.opacity = '0';
+                            setTimeout(() => row.remove(), 300);
+                        }
+                    });
+
+                    // Clear selection và reset button
+                    selectedOrderIds.clear();
+
+                    // Bỏ check tất cả các checkbox còn lại
+                    document.querySelectorAll('.order-checkbox').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    const selectAllCb = document.getElementById('select-all-checkbox');
+                    if (selectAllCb) {
+                        selectAllCb.checked = false;
+                        selectAllCb.indeterminate = false;
+                    }
+
+                    updateBulkPanel();
+                } else {
+                    alert('Vui lòng cho phép popup để in phiếu');
+                }
+            })
+            .catch(err => {
+                console.error('Print error:', err);
+                alert('Lỗi khi tạo phiếu in');
+            });
     }
 
     document.addEventListener('DOMContentLoaded', function () {

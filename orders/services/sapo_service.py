@@ -156,10 +156,6 @@ class SapoCoreOrderService:
                 }
                 
                 url_put = f"orders/{order_id}/fulfillments/{fulfillment_id}.json"
-                debug_print(f"📦 Sending full payload to {url_put}")
-                debug_print(f"🔑 Headers: {self._sapo.core_session.headers}")
-                debug_print(f"📄 Payload: {json.dumps(full_payload, ensure_ascii=False)}")
-                
                 # PUT update
                 update_result = self._sapo.core.put(
                     url_put,
