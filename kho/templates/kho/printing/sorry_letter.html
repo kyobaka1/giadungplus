@@ -1,0 +1,70 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Thư Cảm Ơn/Xin Lỗi</h1>
+    <p class="text-xs text-gray-500 mt-1">Tạo file PDF thư cảm ơn, thư xin lỗi, thư ngỏ để gửi kèm đơn</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Form tạo thư -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Tạo thư</h2>
+            
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Mã đơn hàng</label>
+                    <input type="text" name="order_code" 
+                           placeholder="Nhập mã đơn hàng"
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Loại thư</label>
+                    <select name="letter_type" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="sorry">Thư xin lỗi</option>
+                        <option value="thank_you">Thư cảm ơn</option>
+                        <option value="greeting">Thư ngỏ</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Nội dung tùy chỉnh (tùy chọn)</label>
+                    <textarea name="custom_content" rows="4"
+                              placeholder="Nhập nội dung tùy chỉnh nếu có..."
+                              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
+                </div>
+                
+                <button type="submit" 
+                        class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
+                    Tạo và tải PDF
+                </button>
+            </form>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4 text-sm text-blue-800">
+            <p class="font-semibold mb-2">Hướng dẫn:</p>
+            <ul class="list-disc list-inside space-y-1">
+                <li>Nhập mã đơn hàng cần tạo thư</li>
+                <li>Chọn loại thư phù hợp</li>
+                <li>Hệ thống sẽ tự động tạo PDF và tải về</li>
+                <li>In thư và bỏ vào hộp hàng trước khi đóng gói</li>
+            </ul>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

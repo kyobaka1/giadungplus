@@ -21,4 +21,5 @@ urlpatterns = [
     path("cskh/", include("cskh.urls")),
     path("marketing/", include("marketing.urls")),
     path("service/", include("service.urls")),
+    path("products/", include("products.urls")),
 ]

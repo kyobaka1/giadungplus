@@ -40,8 +40,6 @@ def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:
         print("[DEBUG]", *args, **kwargs)
 
-# ==================== EXISTING VIEWS (đã có implementation đầy đủ) ====================
-
 def prepare_and_print(request):
     """
     Màn hình:
@@ -83,7 +81,7 @@ def express_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Filter cho Marketplace orders
-    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "sortBy": "ISSUED_AT", "orderBy": "desc", })
+    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED","shippingCarrierIds":"134097,1285481,108346,17426,60176,1283785,1285470,35696,47741,14895,1272209,176002,4329", "sortBy": "ISSUED_AT", "orderBy": "desc", })
 
     mp_resp = mp_service.list_orders(mp_filter)
     mp_orders = mp_resp.get("orders", [])
@@ -130,12 +128,6 @@ def express_orders(request):
             debug_print(f"express_orders Skip order {o.get('id')} - Location mismatch: {order_dto.location_id} != {allowed_location_id}")
             continue
 
-        # 4) Lọc đơn đã đóng gói (packing_status != 0)
-        #packing_status được lưu trong shipment note, đã được parse vào OrderDTO
-        if order_dto.packing_status and order_dto.packing_status != 0:
-            debug_print(f"express_orders Skip order {o.get('id')} - Already packed (status={order_dto.packing_status})")
-            continue
-
         # 4) Gắn thêm info từ DTO cho template dùng
         o["sapo_location_id"] = order_dto.location_id
         o["sapo_order_code"] = order_dto.code
@@ -146,7 +138,6 @@ def express_orders(request):
         o["customer_name"] = order_dto.customer_name
         o["customer_phone"] = order_dto.customer_phone
         o["shipping_address_line"] = order_dto.shipping_address_line
-
         # Lấy thông tin vận chuyển từ fulfillments cuối cùng (nếu có)
         shipment_name = None
         tracking_code = None
@@ -162,6 +153,8 @@ def express_orders(request):
             shipment_name or o.get("shipping_carrier_name")
         )
         o["tracking_code"] = tracking_code or o.get("tracking_code")
+        # Thêm packing_status để template có thể hiển thị hiệu ứng gạch đỏ chéo
+        o["packing_status"] = order_dto.packing_status or 0
         # Option: đính luôn DTO để template muốn đào sâu thì xài
         o["sapo_order_dto"] = order_dto
         filtered_orders.append(o)
@@ -174,7 +167,7 @@ def express_orders(request):
 @login_required
 def shopee_orders(request):
     """
-    Đơn hoả tốc:
+    Đơn Shopee, Tiktok:
     - Lấy danh sách đơn từ Marketplace API (Sapo Marketplace)
     - Lọc theo kho đang chọn trong session (geleximco / toky)
     - Gắn thêm thông tin Sapo core order (location_id, shipment, customer...)
@@ -208,6 +201,7 @@ def shopee_orders(request):
             "page": page, 
             "limit": limit, 
             "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", 
+            "shippingCarrierIds": "51237,1218211,68301,36287,1218210,4110,59778,3411,1236070,37407,171067,1270129,57740,1236040,55646,166180,1289173,4095",
             "sortBy": "ISSUED_AT", 
             "orderBy": "desc", 
         })
@@ -302,6 +296,22 @@ def shopee_orders(request):
         o["tracking_code"] = tracking_code or o.get("tracking_code")
         # Option: đính luôn DTO để template muốn đào sâu thì xài
         o["sapo_order_dto"] = order_dto
+        
+        # 5) Update product_name và variant_name từ DTO nếu products đã tồn tại trong o
+        if "products" in o and o["products"]:
+            for mp_product in o["products"]:
+                # Lấy ID từ Marketplace product để match
+                mp_id = mp_product.get("sapo_variant_id")
+                
+                if mp_id:
+                    # Duyệt trong order_dto.line_items để tìm match
+                    for dto_item in order_dto.line_items:
+                        # Match theo id hoặc variant_id
+                        if dto_item.id == mp_id or dto_item.variant_id == mp_id:
+                            mp_product["product_name"] = dto_item.product_name or ""
+                            mp_product["variant_name"] = dto_item.variant_name or ""
+                            break
+        
         filtered_orders.append(o)
 
     context["orders"] = filtered_orders[::-1]
@@ -309,37 +319,234 @@ def shopee_orders(request):
 
     return render(request, "kho/orders/shopee_orders.html", context)
 
-# ==================== NEW VIEWS (templates mẫu đã tạo) ====================
+
+# ==================== NEW VIEWS (skeleton implementations) ====================
 
 @login_required
 def sapo_orders(request):
     """
     Đơn Sapo:
-    - Đơn sỉ, đơn giao ngoài, đơn Facebook/Zalo, đơn khách hàng quay lại
-    - Lấy từ Sapo Core API (không phải Marketplace)
-    - Tổng hợp xử lý, in đơn
+    - Lấy danh sách đơn từ Sapo Core API -> Đơn giao ngoài Facebook, Zalo, CSKH (ngoài sàn).
+    - Lọc theo kho đang chọn trong session (geleximco / toky)
+    - Filter: status=finalized, packed_status=processing,packed, composite_fulfillment_status=wait_to_pack,packed_processing,packed
     """
+    from core.sapo_client import get_sapo_client
+    from orders.services.order_builder import OrderDTOFactory
+    from kho.services.product_service import load_all_products, get_variant_image
+    from kho.services.order_source_service import load_all_order_sources
+    from kho.services.delivery_provider_service import get_provider_name
+
     context = {
         "title": "ĐƠN SAPO - GIA DỤNG PLUS",
         "orders": [],
-        "current_kho": request.session.get("current_kho", "geleximco"),
     }
-    # TODO: Lấy đơn từ Sapo Core API (không phải Marketplace)
-    # Filter: location_id, status, source_id (để phân biệt đơn sỉ, Facebook/Zalo, etc.)
+
+    # Giờ VN
+    tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+    now_vn = datetime.now(tz_vn)
+
+    # Service layer
+    sapo = get_sapo_client()
+    core_repo = sapo.core
+    factory = OrderDTOFactory()
+    
+    # Load products với images để map vào line items
+    debug_print("sapo_orders Loading products with images...")
+    try:
+        load_all_products()
+        debug_print("sapo_orders Products loaded successfully")
+    except Exception as e:
+        logger.warning(f"sapo_orders Error loading products: {e}", exc_info=True)
+        debug_print(f"sapo_orders Error loading products: {e}")
+    
+    # Load order sources để map source_id -> source_name
+    debug_print("sapo_orders Loading order sources...")
+    try:
+        load_all_order_sources()
+        debug_print("sapo_orders Order sources loaded successfully")
+    except Exception as e:
+        logger.warning(f"sapo_orders Error loading order sources: {e}", exc_info=True)
+        debug_print(f"sapo_orders Error loading order sources: {e}")
+
+    # Kho hiện tại từ session
+    current_kho = request.session.get("current_kho", "geleximco")
+    allowed_location_id = LOCATION_BY_KHO.get(current_kho)
+
+    # Lấy orders từ Sapo Core API với filter
+    all_orders = []
+    page = 1
+    limit = 250
+    max_pages = 15  # Giới hạn 15 trang như user code
+    
+    while page <= max_pages:
+        try:
+            # Filter theo yêu cầu: status=finalized, packed_status=processing,packed, composite_fulfillment_status=wait_to_pack,packed_processing,packed
+            filters = {
+                "status": "finalized",
+                "fulfillment_status":"unshipped",
+                "packed_status": "processing,packed",
+                "composite_fulfillment_status": "wait_to_pack,packed_processing,packed,packed_cancelled_client",
+                "limit": limit,
+                "page": page,
+            }
+            
+            # Thêm location_id filter nếu có
+            if allowed_location_id:
+                filters["location_id"] = allowed_location_id
+            
+            raw_response = core_repo.list_orders_raw(**filters)
+            orders_data = raw_response.get("orders", [])
+            
+            if not orders_data:
+                break
+            
+            all_orders.extend(orders_data)
+            debug_print(f"sapo_orders fetched page {page}: {len(orders_data)} orders. Total so far: {len(all_orders)}")
+            
+            page += 1
+            
+        except Exception as e:
+            logger.error(f"sapo_orders Error fetching page {page}: {e}", exc_info=True)
+            break
+    
+    debug_print(f"sapo_orders finished fetching. Total: {len(all_orders)} orders")
+
+    filtered_orders = []
+
+    for raw_order in all_orders:
+        try:
+            # Convert raw order sang DTO
+            order_dto: OrderDTO = factory.from_sapo_json(raw_order)
+        except Exception as e:
+            logger.warning(f"sapo_orders Skip order {raw_order.get('id')} - Error parsing DTO: {e}")
+            continue
+
+        # Lọc theo kho (location_id) - đã filter ở API level nhưng double check
+        if allowed_location_id and order_dto.location_id != allowed_location_id:
+            continue
+
+        # CHỈ lọc đơn ngoài sàn (bỏ qua đơn sàn TMĐT)
+        if order_dto.is_marketplace_order:
+            debug_print(f"sapo_orders Skip order {order_dto.id} - Đây là đơn sàn TMĐT (is_marketplace_order=True)")
+            continue
+
+        # Parse created_on từ ISO string sang datetime
+        created_dt = None
+        if order_dto.created_on:
+            try:
+                # Parse ISO string format (có thể có hoặc không có timezone)
+                created_dt = datetime.fromisoformat(order_dto.created_on.replace('Z', '+00:00'))
+                # Đảm bảo có timezone, nếu không thì gán VN timezone
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=tz_vn)
+                # Convert về VN timezone nếu cần
+                if created_dt.tzinfo != tz_vn:
+                    created_dt = created_dt.astimezone(tz_vn)
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"sapo_orders Error parsing created_on for order {order_dto.id}: {e}")
+                created_dt = None
+
+        # Tạo dict cho template (tương tự shopee_orders nhưng không có shop_name, channel_order_number)
+        o = {
+            "id": order_dto.id,
+            "sapo_order_id": order_dto.id,
+            "sapo_order_code": order_dto.code,
+            "sapo_location_id": order_dto.location_id,
+            "sapo_channel": order_dto.channel or "Sapo",
+            "sapo_source_name": order_dto.source_name or "",  # Tên nguồn đơn hàng (từ source_id)
+            "sapo_reference_number": order_dto.reference_number or "",
+            
+            # Thông tin khách hàng
+            "customer_name": order_dto.customer_name or "",
+            "customer_phone": order_dto.customer_phone or "",
+            "shipping_address_line": order_dto.shipping_address_line or "",
+            
+            # Thời gian
+            "created_at": created_dt.timestamp() if created_dt else 0,
+            "issued_dt": created_dt or now_vn,
+            
+            # Deadline
+            "deadline": order_dto.ship_deadline_fast_str or "",
+            
+            # Products - từ line_items
+            "products": [],
+            
+            # Shipping
+            "shipping_carrier_name": "",
+            "dvvc": "",
+            "tracking_code": "",
+        }
+        
+        # Tính thời gian đã trôi qua
+        if created_dt:
+            diff = now_vn - created_dt
+            seconds = diff.total_seconds()
+            if seconds < 60:
+                o["issued_ago"] = f"{int(seconds)} giây trước"
+            elif seconds < 3600:
+                o["issued_ago"] = f"{int(seconds // 60)} phút trước"
+            elif seconds < 86400:
+                o["issued_ago"] = f"{int(seconds // 3600)} giờ trước"
+            else:
+                days = int(seconds // 86400)
+                o["issued_ago"] = f"{days} ngày trước"
+        else:
+            o["issued_ago"] = ""
+
+        # Lấy thông tin vận chuyển từ fulfillments cuối cùng (nếu có)
+        shipment_name = None
+        tracking_code = None
+
+        if order_dto.fulfillments:
+            last_f = order_dto.fulfillments[-1]
+            if last_f.shipment:
+                # Lấy tracking code
+                tracking_code = last_f.shipment.tracking_code
+                
+                # Lấy delivery_service_provider_id từ shipment
+                delivery_provider_id = last_f.shipment.delivery_service_provider_id
+                
+                # Ưu tiên lấy từ service_name nếu có, nếu không thì lấy từ delivery_provider_id
+                shipment_name = last_f.shipment.service_name
+                
+                # Nếu không có service_name, lấy từ delivery_provider_id
+                if not shipment_name and delivery_provider_id:
+                    shipment_name = get_provider_name(delivery_provider_id)
+
+        o["shipping_carrier_name"] = shipment_name or ""
+        o["dvvc"] = shipment_name or ""
+        o["tracking_code"] = tracking_code or ""
+        
+        # Tạo products list từ line_items
+        products = []
+        for line_item in order_dto.line_items:
+            # Lấy image từ product service (variant_id -> image_url mapping)
+            image_url = get_variant_image(line_item.variant_id) if line_item.variant_id else ""
+            
+            product_dict = {
+                "id": line_item.id,
+                "product_id": line_item.product_id,
+                "variant_id": line_item.variant_id,
+                "product_name": line_item.product_name or "",
+                "variant_name": line_item.variant_name or "",
+                "sku": line_item.sku or "",
+                "quantity": int(line_item.quantity) if line_item.quantity else 0,
+                "price": float(line_item.price) if line_item.price else 0.0,
+                "image": image_url,  # Lấy từ product service (variant_id -> image_url)
+            }
+            products.append(product_dict)
+        
+        o["products"] = products
+        o["sapo_order_dto"] = order_dto
+        
+        filtered_orders.append(o)
+
+    context["orders"] = filtered_orders[::-1]
+    context["current_kho"] = current_kho
+
     return render(request, "kho/orders/sapo_orders.html", context)
 
 
-def pickup_orders(request):
-    """
-    Đơn pickup:
-    - Đơn đã đóng gói, chờ đơn vị vận chuyển đến lấy
-    """
-    # TODO: gọi service lấy đơn trạng thái 'chờ lấy hàng'
-    context = {
-        "title": "Pick up",
-        "orders": [],
-    }
-    return render(request, "kho/orders/pickup.html", context)
 
 
 @login_required
@@ -428,6 +635,20 @@ def return_orders(request):
     }
     # TODO: Logic lấy đơn hoàn từ Sapo
     return render(request, "kho/orders/return_orders.html", context)
+
+
+@login_required
+def pickup_orders(request):
+    """
+    Đơn pickup:
+    - Đơn đã đóng gói, chờ đơn vị vận chuyển đến lấy
+    """
+    # TODO: gọi service lấy đơn trạng thái 'chờ lấy hàng'
+    context = {
+        "title": "Pick up",
+        "orders": [],
+    }
+    return render(request, "kho/orders/pickup.html", context)
 
 
 @require_GET
@@ -867,7 +1088,29 @@ def print_now(request: HttpRequest):
                 if shop_cfg:
                     shop_name = shop_cfg["name"]
                     client = ShopeeClient(shop_name)
-                    shopee_order_id = client.get_shopee_order_id(channel_order_number)
+                    
+                    # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
+                    shopee_order_info = client.get_shopee_order_id(channel_order_number)
+                    shopee_order_id = shopee_order_info["order_id"]
+                    
+                    # Add shop_name and connection_id for email API call
+                    shopee_order_info["shop_name"] = shop_name
+                    shopee_order_info["connection_id"] = connection_id
+                    
+                    logger.debug(f"✅ Got Shopee order ID: {shopee_order_id}")
+                    
+                    # Auto-update customer info from Shopee data (non-blocking)
+                    if pdf_bytes and dto and dto.customer_id:
+                        try:
+                            from orders.services.customer_update_helper import update_customer_from_shopee_data
+                            update_customer_from_shopee_data(
+                                customer_id=dto.customer_id,
+                                shopee_order_info=shopee_order_info,
+                                pdf_bytes=pdf_bytes
+                            )
+                        except Exception as e:
+                            logger.warning(f"Customer auto-update failed (non-blocking): {e}")
+                    
                     package_info = client.get_package_info(shopee_order_id)
                     package_list = package_info.get("package_list", [])
                     split_count = len(package_list) if package_list else 1
@@ -876,6 +1119,7 @@ def print_now(request: HttpRequest):
                     # Resolve shipping carrier name from channels mapping file
                     if package_list:
                         first_pack = package_list[0]
+
                         channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
                         
                         # Load shipping channels map from JSON
@@ -905,6 +1149,18 @@ def print_now(request: HttpRequest):
                 debug_print(f"⚠️ Could not get split count or resolve carrier: {split_error}")
                 split_count = None
                 resolved_carrier = meta.get("shipping_carrier") or ""
+                
+                # Fallback: Update customer from PDF only (cho express orders không phải Shopee)
+                if pdf_bytes and dto and dto.customer_id:
+                    try:
+                        from orders.services.customer_update_helper import update_customer_from_pdf_only
+                        logger.debug(f"Express order - updating customer from PDF only (order: {channel_order_number})")
+                        update_customer_from_pdf_only(
+                            customer_id=dto.customer_id,
+                            pdf_bytes=pdf_bytes
+                        )
+                    except Exception as e:
+                        logger.warning(f"Customer auto-update from PDF failed (non-blocking): {e}")
             
             # Now update packing status if fulfillments exist
             if dto and dto.fulfillments and len(dto.fulfillments) > 0:

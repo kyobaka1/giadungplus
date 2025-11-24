@@ -9,14 +9,18 @@ urlpatterns = [
 
     # ----- ĐƠN HÀNG -----
     path("orders/shopee_orders/", orders.shopee_orders, name="shopee_orders"),
+    path("orders/sapo_orders/", orders.sapo_orders, name="sapo_orders"),
     path("orders/express/", orders.express_orders, name="orders_express"),
     path("orders/pickup/", orders.pickup_orders, name="orders_pickup"),
+    path("orders/packing_orders/", orders.packing_orders, name="packing_orders"),
+    path("orders/connect_shipping/", orders.connect_shipping, name="connect_shipping"),
+    path("orders/sos_shopee/", orders.sos_shopee, name="sos_shopee"),
+    path("orders/packing_cancel/", orders.packing_cancel, name="packing_cancel"),
+    path("orders/return_orders/", orders.return_orders, name="return_orders"),
     path("orders/print_now/", orders.print_now, name="print_now"),
-    path("orders/packing/", orders.packing_board, name="orders_packing"),
+    path("orders/packing/", orders.packing_board, name="orders_packing"),  # Legacy - có thể xóa sau
 
     # ----- QUẢN TRỊ -----
-    path("management/sos-shopee/", management.sos_shopee, name="management_sos_shopee"),
-    path("management/packed-canceled/", management.packed_canceled, name="management_packed_canceled"),
     path("management/stats/", management.stats, name="management_stats"),
 
     # ----- TICKET -----
@@ -25,7 +29,6 @@ urlpatterns = [
     path("tickets/<int:ticket_id>/confirm-error/", tickets.ticket_confirm_error, name="ticket_confirm_error"),
 
     # ----- IN ẤN -----
-    path("printing/return-letter/", printing.return_letter, name="printing_return_letter"),
-    path("printing/product-barcode/", printing.product_barcode, name="printing_product_barcode"),
-
+    path("print/sorry_letter/", printing.sorry_letter, name="sorry_letter"),
+    path("print/barcode/", printing.product_barcode, name="product_barcode"),
 ]

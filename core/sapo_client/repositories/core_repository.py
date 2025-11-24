@@ -112,29 +112,42 @@ class SapoCoreRepository(BaseRepository):
             customer_data: Dict chứa fields cần update (name, phone, addresses...)
             
         Returns:
-            Updated customer dict
+            {
+                "customer": {...}
+            }
         """
         logger.info(f"[SapoCoreRepo] update_customer: {customer_id}")
         return self.put(f"customers/{customer_id}.json", json={
             "customer": customer_data
         })
     
-    # ==================== PRODUCTS & VARIANTS ====================
-    
-    def get_product_raw(self, product_id: int) -> Dict[str, Any]:
+    def update_customer_address(
+        self, 
+        customer_id: int, 
+        address_id: int, 
+        address_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
-        Lấy thông tin sản phẩm.
+        Update địa chỉ của khách hàng.
         
         Args:
-            product_id: Sapo product ID
+            customer_id: Sapo customer ID
+            address_id: Sapo address ID
+            address_data: Dict chứa fields cần update (address1, city, district, ward, etc.)
             
         Returns:
             {
-                "product": {...}
+                "address": {...}
             }
+            
+        Note: 
+            Endpoint: PUT /admin/customers/{customer_id}/addresses/{address_id}.json
+            Verified và tested thành công.
         """
-        logger.debug(f"[SapoCoreRepo] get_product: {product_id}")
-        return self.get(f"products/{product_id}.json")
+        logger.info(f"[SapoCoreRepo] update_customer_address: customer={customer_id}, address={address_id}")
+        return self.put(f"customers/{customer_id}/addresses/{address_id}.json", json={
+            "address": address_data
+        })
     
     def get_variant_raw(self, variant_id: int) -> Dict[str, Any]:
         """
@@ -151,6 +164,41 @@ class SapoCoreRepository(BaseRepository):
         logger.debug(f"[SapoCoreRepo] get_variant: {variant_id}")
         return self.get(f"variants/{variant_id}.json")
     
+    # ==================== PRODUCTS ====================
+    
+    def get_product_raw(self, product_id: int) -> Dict[str, Any]:
+        """
+        Lấy thông tin product đầy đủ (bao gồm variants).
+        
+        Args:
+            product_id: Sapo product ID
+            
+        Returns:
+            {
+                "product": {...}
+            }
+        """
+        logger.debug(f"[SapoCoreRepo] get_product: {product_id}")
+        return self.get(f"products/{product_id}.json")
+    
+    def update_product(self, product_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update thông tin product (dùng để update description với GDP_META).
+        
+        Args:
+            product_id: Sapo product ID
+            product_data: Dict chứa fields cần update (description, tags, etc.)
+            
+        Returns:
+            {
+                "product": {...}
+            }
+        """
+        logger.info(f"[SapoCoreRepo] update_product: {product_id}")
+        return self.put(f"products/{product_id}.json", json={
+            "product": product_data
+        })
+    
     def list_products_raw(self, **filters) -> Dict[str, Any]:
         """
         Lấy danh sách products.
@@ -166,6 +214,74 @@ class SapoCoreRepository(BaseRepository):
         """
         logger.debug(f"[SapoCoreRepo] list_products with filters: {filters}")
         return self.get("products.json", params=filters)
+    
+    def list_order_sources_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách order sources (nguồn đơn hàng).
+        
+        Args:
+            **filters: page, limit, query, etc.
+            
+        Returns:
+            {
+                "order_sources": [...],
+                "metadata": {...}
+            }
+            
+        Example:
+            GET /admin/order_sources.json?page=1&limit=250
+        """
+        logger.debug(f"[SapoCoreRepo] list_order_sources with filters: {filters}")
+        return self.get("order_sources.json", params=filters)
+    
+    def get_order_source_raw(self, source_id: int) -> Dict[str, Any]:
+        """
+        Lấy chi tiết 1 order source.
+        
+        Args:
+            source_id: Order source ID
+            
+        Returns:
+            {
+                "order_source": {...}
+            }
+        """
+        logger.debug(f"[SapoCoreRepo] get_order_source: {source_id}")
+        return self.get(f"order_sources/{source_id}.json")
+    
+    def get_delivery_service_provider_raw(self, provider_id: int) -> Dict[str, Any]:
+        """
+        Lấy chi tiết 1 delivery service provider (đơn vị vận chuyển).
+        
+        Args:
+            provider_id: Delivery service provider ID
+            
+        Returns:
+            {
+                "delivery_service_provider": {...}
+            }
+            
+        Example:
+            GET /admin/delivery_service_providers/373257.json
+        """
+        logger.debug(f"[SapoCoreRepo] get_delivery_service_provider: {provider_id}")
+        return self.get(f"delivery_service_providers/{provider_id}.json")
+    
+    def list_delivery_service_providers_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách delivery service providers.
+        
+        Args:
+            **filters: page, limit, status, etc.
+            
+        Returns:
+            {
+                "delivery_service_providers": [...],
+                "metadata": {...}
+            }
+        """
+        logger.debug(f"[SapoCoreRepo] list_delivery_service_providers with filters: {filters}")
+        return self.get("delivery_service_providers.json", params=filters)
     
     # ==================== SHIPMENTS ====================
     

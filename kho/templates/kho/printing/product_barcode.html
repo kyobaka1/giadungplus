@@ -1,0 +1,67 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">In Barcode Sản Phẩm</h1>
+    <p class="text-xs text-gray-500 mt-1">Lựa chọn SKU / scan SKU để in mã vạch theo template</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Form in barcode -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Tạo barcode</h2>
+            
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">SKU sản phẩm</label>
+                    <input type="text" name="sku" 
+                           placeholder="Nhập hoặc quét SKU"
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                           autofocus>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Số lượng</label>
+                    <input type="number" name="quantity" value="1" min="1"
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Kích thước barcode</label>
+                    <select name="size" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="small">Nhỏ (40x20mm)</option>
+                        <option value="medium" selected>Vừa (60x30mm)</option>
+                        <option value="large">Lớn (80x40mm)</option>
+                    </select>
+                </div>
+                
+                <button type="submit" 
+                        class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
+                    Tạo và tải PDF
+                </button>
+            </form>
+        </div>
+
+        <!-- Preview area -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mt-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Xem trước</h2>
+            <div class="text-sm text-gray-500">
+                <p>Preview barcode sẽ hiển thị sau khi nhập SKU.</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

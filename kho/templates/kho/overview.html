@@ -1,4 +1,82 @@
 {% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
 
 {% block title %}Overview Kho - Gia Dụng Plus {% endblock %}
 
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Tổng quan kho hàng</h1>
+    <p class="text-xs text-gray-500 mt-1">Dashboard với công việc cần xử lý, doanh số đơn gói, toplist hiệu suất, KPI</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-gray-500 mb-1">Đơn hôm nay</div>
+                <div class="text-2xl font-bold text-slate-800">{{ kpi.orders_today|default:0 }}</div>
+                <div class="text-xs text-gray-400 mt-1">Theo kho hiện tại</div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-gray-500 mb-1">Đã đóng gói</div>
+                <div class="text-2xl font-bold text-emerald-600">{{ kpi.orders_packed|default:0 }}</div>
+                <div class="text-xs text-gray-400 mt-1">Hôm nay</div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-gray-500 mb-1">Hoả tốc chưa xử lý</div>
+                <div class="text-2xl font-bold text-red-600">{{ kpi.orders_express|default:0 }}</div>
+                <div class="text-xs text-gray-400 mt-1">Cần xử lý gấp</div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-gray-500 mb-1">Chờ pickup</div>
+                <div class="text-2xl font-bold text-orange-600">{{ kpi.orders_pickup|default:0 }}</div>
+                <div class="text-xs text-gray-400 mt-1">Đã gói, chờ lấy</div>
+            </div>
+        </div>
+
+        <!-- Công việc cần xử lý -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Công việc cần xử lý</h2>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
+                    <span>Đơn Shopee chưa xử lý</span>
+                    <span class="text-red-600 font-semibold">0</span>
+                </div>
+                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
+                    <span>Đơn Sapo chưa xử lý</span>
+                    <span class="text-red-600 font-semibold">0</span>
+                </div>
+                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
+                    <span>Ticket chưa xử lý</span>
+                    <span class="text-red-600 font-semibold">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toplist hiệu suất -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Toplist hiệu suất</h2>
+            <div class="text-sm text-gray-500">
+                <p>Dữ liệu sẽ được cập nhật sau khi có logic tính toán.</p>
+            </div>
+        </div>
+
+        <!-- Danh sách đơn theo trạng thái -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Đơn hàng theo trạng thái</h2>
+            <div class="text-sm text-gray-500">
+                <p>Dữ liệu sẽ được cập nhật sau khi có logic lấy đơn từ Sapo.</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

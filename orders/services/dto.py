@@ -11,11 +11,24 @@ from pydantic import Field, field_validator, computed_field
 
 from core.base.dto_base import BaseDTO
 
+# Import Customer DTOs from customers module (single source of truth)
+from customers.services.dto import (
+    CustomerDTO,
+    CustomerGroupDTO, 
+    CustomerSaleOrderStatsDTO,
+    CustomerAddressDTO,
+)
+
 
 # ========================= ADDRESS =========================
 
 class AddressDTO(BaseDTO):
-    """Địa chỉ (billing/shipping address)"""
+    """
+    Địa chỉ (billing/shipping address).
+    
+    Note: Đây là AddressDTO cho orders. CustomerAddressDTO được import từ customers.
+    Có thể merge sau nếu cần.
+    """
     id: Optional[int] = None
     label: Optional[str] = None
     first_name: Optional[str] = None
@@ -45,40 +58,12 @@ class AddressDTO(BaseDTO):
 
 
 # ========================= CUSTOMER =========================
+# Customer DTOs are imported from customers.services.dto
+# - CustomerDTO
+# - CustomerGroupDTO
+# - CustomerSaleOrderStatsDTO
+# - CustomerAddressDTO
 
-class CustomerGroupDTO(BaseDTO):
-    """Nhóm khách hàng"""
-    id: Optional[int] = None
-    name: Optional[str] = None
-    name_translate: Optional[str] = None
-    code: Optional[str] = None
-    status: Optional[str] = None
-    is_default: bool = False
-
-
-class CustomerSaleOrderStatsDTO(BaseDTO):
-    """Thống kê đơn hàng của khách"""
-    total_sales: float = 0.0
-    order_purchases: float = 0.0
-    returned_item_quantity: float = 0.0
-    net_quantity: float = 0.0
-    last_order_on: Optional[str] = None  # ISO datetime string
-
-
-class CustomerDTO(BaseDTO):
-    """Khách hàng"""
-    id: int
-    code: str
-    name: str
-    phone_number: Optional[str] = None
-    email: Optional[str] = None
-    sex: Optional[str] = None
-    tax_number: Optional[str] = None
-    website: Optional[str] = None
-    group: Optional[CustomerGroupDTO] = None
-    sale_stats: Optional[CustomerSaleOrderStatsDTO] = None
-    tags: List[str] = Field(default_factory=list)
-    addresses: List[AddressDTO] = Field(default_factory=list)
 
 
 # ========================= LINE ITEMS & DISCOUNTS =========================
@@ -95,11 +80,11 @@ class OrderLineDiscountDTO(BaseDTO):
 class OrderLineItemDTO(BaseDTO):
     """Sản phẩm trong đơn hàng"""
     id: int
-    product_id: int
-    variant_id: int
-    product_name: str
-    variant_name: str
-    sku: str
+    product_id: Optional[int] = None  # Có thể None cho các line items đặc biệt (phí vận chuyển, chiết khấu...)
+    variant_id: Optional[int] = None  # Có thể None cho các line items đặc biệt
+    product_name: str = ""  # Có thể rỗng cho các line items đặc biệt
+    variant_name: str = ""  # Có thể rỗng cho các line items đặc biệt
+    sku: str = ""  # Có thể rỗng cho các line items đặc biệt
     barcode: Optional[str] = None
     unit: Optional[str] = None
     variant_options: Optional[str] = None
@@ -114,6 +99,7 @@ class OrderLineItemDTO(BaseDTO):
     tax_amount: float = 0.0
     product_type: str = "normal"
     discount_items: List[OrderLineDiscountDTO] = Field(default_factory=list)
+    shopee_variation_id: Optional[str] = None
 
 
 # ========================= FULFILLMENT & SHIPMENT =========================
@@ -309,6 +295,85 @@ class OrderDTO(BaseDTO):
     def line_items(self) -> List[OrderLineItemDTO]:
         """Alias cho order_line_items (backward compatibility)"""
         return self.order_line_items
+    
+    @computed_field
+    @property
+    def is_marketplace_order(self) -> bool:
+        """
+        Xác định đơn hàng có phải là đơn sàn TMĐT hay không.
+        
+        Đơn sàn TMĐT (Shopee, Lazada, Tiktok, Tiki, Sendo...) phải thỏa mãn TẤT CẢ điều kiện:
+        1. source_id trong danh sách: 6510687, 1880152, 1880149, 1880150, 2172553
+        2. account_id = 319911
+        3. reference_number không null/empty
+        4. tags phải chứa tên sàn: "Shopee", "Tiktok", "Lazada", "Tiki", "Sendo"...
+        
+        Returns:
+            True nếu là đơn sàn, False nếu là đơn ngoài sàn
+        """
+        # Danh sách source_id của các sàn TMĐT
+        MARKETPLACE_SOURCE_IDS = {6510687, 1880152, 1880149, 1880150, 2172553}
+        
+        # Điều kiện 1: source_id phải trong danh sách
+        if not self.source_id or self.source_id not in MARKETPLACE_SOURCE_IDS:
+            return False
+        
+        # Điều kiện 2: account_id phải = 319911
+        if self.account_id != 319911:
+            return False
+        
+        # Điều kiện 3: reference_number phải tồn tại và không rỗng
+        if not self.reference_number or not self.reference_number.strip():
+            return False
+        
+        # Điều kiện 4: tags phải chứa tên sàn
+        if not self.tags:
+            return False
+        
+        # Danh sách tên sàn TMĐT (viết thường để so sánh không phân biệt hoa thường)
+        MARKETPLACE_NAMES = {"shopee", "tiktok", "lazada", "tiki", "sendo"}
+        
+        # Kiểm tra tags có chứa tên sàn không (không phân biệt hoa thường)
+        tags_str = " ".join(str(tag).lower() for tag in self.tags if tag)
+        has_marketplace_tag = any(
+            marketplace_name in tags_str 
+            for marketplace_name in MARKETPLACE_NAMES
+        )
+        
+        if not has_marketplace_tag:
+            return False
+        
+        # Tất cả điều kiện đều thỏa mãn -> đơn sàn
+        return True
+    
+    @computed_field
+    @property
+    def is_offline_order(self) -> bool:
+        """Đơn ngoài sàn (ngược lại với is_marketplace_order)"""
+        return not self.is_marketplace_order
+    
+    @computed_field
+    @property
+    def source_name(self) -> str:
+        """
+        Lấy tên của order source từ source_id.
+        
+        Returns:
+            Source name hoặc empty string nếu không tìm thấy
+            
+        Note:
+            Cần load order sources trước khi sử dụng (gọi load_all_order_sources)
+        """
+        if not self.source_id:
+            return ""
+        
+        # Import ở đây để tránh circular import
+        try:
+            from kho.services.order_source_service import get_source_name
+            return get_source_name(self.source_id)
+        except Exception:
+            # Nếu không load được service, trả về empty string
+            return ""
 
 
 # ========================= MARKETPLACE CONFIRM DTO =========================

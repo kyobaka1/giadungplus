@@ -1,0 +1,70 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Xác nhận lỗi - Ticket #{{ ticket_id }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Xác Nhận Lỗi</h1>
+    <p class="text-xs text-gray-500 mt-1">Kho chọn loại lỗi và ghi chú</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-2xl mx-auto">
+        
+        <!-- Form xác nhận lỗi -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Xác nhận lỗi cho Ticket #{{ ticket_id }}</h2>
+            
+            <form method="post" id="confirm-error-form" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Loại lỗi</label>
+                    <select name="error_type" 
+                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                        <option value="">-- Chọn loại lỗi --</option>
+                        <option value="warehouse_error">Lỗi kho</option>
+                        <option value="shipping_error">Lỗi vận chuyển</option>
+                        <option value="supplier_error">Lỗi nhà cung cấp</option>
+                        <option value="customer_error">Lỗi khách hàng</option>
+                        <option value="other">Khác</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Ghi chú</label>
+                    <textarea name="note" rows="4"
+                              placeholder="Nhập ghi chú về lỗi..."
+                              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="submit" 
+                            class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
+                        Xác nhận
+                    </button>
+                    <a href="{% url 'kho:ticket_detail' ticket_id %}" 
+                       class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition">
+                        Hủy
+                    </a>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// AJAX submit form
+document.getElementById('confirm-error-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    // TODO: Implement AJAX submit
+    console.log('Submit confirm error');
+});
+</script>
+{% endblock %}
+

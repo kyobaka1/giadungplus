@@ -13,13 +13,19 @@ def dashboard(request):
     - Đơn hoả tốc hôm nay
     - KPI theo ngày/tuần (sẽ gọi từ core.services sau)
     """
+    current_kho = request.session.get("current_kho", "geleximco")
+    location_id = 241737 if current_kho == "geleximco" else 548744
+    
+    # TODO: gọi service lấy KPI thực tế từ Sapo
+    # Tạm thời dùng giá trị mẫu
     context = {
         "title": "Kho – Overview",
-        # TODO: gọi service lấy KPI thực tế
+        "current_kho": current_kho,
         "kpi": {
-            "orders_today": 0,
-            "orders_packed": 0,
-            "orders_express": 0,
+            "orders_today": 0,  # TODO: Lấy từ Sapo Core API
+            "orders_packed": 0,  # TODO: Lấy từ Sapo Core API
+            "orders_express": 0,  # TODO: Lấy từ Marketplace API
+            "orders_pickup": 0,  # TODO: Lấy từ Sapo Core API (packed nhưng chưa shipped)
         },
     }
 

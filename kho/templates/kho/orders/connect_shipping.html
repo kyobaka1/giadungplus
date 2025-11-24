@@ -1,0 +1,64 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Liên Kết Đơn Gửi Bù</h1>
+    <p class="text-xs text-gray-500 mt-1">Liên kết các đơn gửi bù cho khách với các đơn Shopee hiện tại</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- Form liên kết -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Tạo đơn gửi bù</h2>
+            
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Đơn Shopee gốc</label>
+                    <input type="text" name="shopee_order" 
+                           placeholder="Nhập mã đơn Shopee"
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Sản phẩm cần gửi bù</label>
+                    <input type="text" name="products" 
+                           placeholder="Nhập SKU sản phẩm (cách nhau bằng dấu phẩy)"
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-600 mb-2">Ghi chú</label>
+                    <textarea name="note" rows="3"
+                              placeholder="Lý do gửi bù..."
+                              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
+                </div>
+                
+                <button type="submit" 
+                        class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
+                    Tạo đơn gửi bù
+                </button>
+            </form>
+        </div>
+
+        <!-- Danh sách đơn đã liên kết -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mt-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Đơn đã liên kết</h2>
+            <div class="text-sm text-gray-500">
+                <p>Template mẫu - Logic liên kết đơn gửi bù sẽ được bổ sung sau.</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

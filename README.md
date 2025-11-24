@@ -107,12 +107,24 @@ giadungplus/
 
 ### 1. 📦 **KHO** - Quản lý kho vận
 
-**Chức năng:**
-- Quản lý 2 kho: **KHO_GELEXIMCO** (Hà Nội - ID: 241737) & **KHO_TOKY** (HCM - ID: 548744)
-- Quy trình đóng gói (packing), phân hàng, bàn giao
-- In tem barcode, QR code thanh toán
-- Quản lý pickup, vận đơn
-- Thống kê theo ngày, báo cáo kho
+**Chức năng chính:**
+- /kho/overview -> Hiển thị dashboard bao gồm các công việc cần xử lý, doanh số đơn gói, toplist hiệu suất, kpi...
+- /kho/orders/shopee_orders -> Hiển thị danh sách các đơn Shopee, Tiktok,Lazada thường để tổng hợp xử lý và in đơn, xử lý bao gồm chuẩn bị hàng (lấy thông tin vận chuyển) và in đơn (custom theo yêu cầu).
+- /kho/orders/sapo_orders -> Hiển thị danh sách các đơn Sapo (đơn sỉ, đơn giao ngoài, đơn facebook/zalo, đơn khách hàng quay lại) bao gồm tổng hợp xử lý, in đơn.
+- /kho/orders/express_orders -> Hiển thị danh sách các đơn Shopee hoả tốc, giao ngay -> Để tìm shipper, in đơn. Phải xử lý riêng vì đơn hoả tốc cần xử lý nhanh và trực tiếp.
+- /kho/orders/pickup_orders -> Sau này sẽ xây dựng thêm tính năng nhặt hàng thông minh theo kiểu wave pickup.
+- /kho/orders/packing_orders -> Cho nhân viên gói hàng bắn đơn bằng barcode, bắn đơn -> bắn sản phẩm để đảm bảo tính chính xác của đơn hàng, cũng như lưu lại các thông tin như người gói, time gói để phục vụ KPI và rà soát lại camera sau này.
+- /kho/orders/connect_shipping -> Liên kết các đơn gửi bù cho khách với các đơn Shopee hiện tại. Ví dụ khách A đặt đơn B bị thiếu sản phẩm C, sau khi khách đặt 1 đơn mới thì gửi kèm sản phẩm C cùng đơn -> Phải tạo đơn để liên kết (xuất kho, giao hàng, thông tin).
+
+- /kho/ticket -> Các phiếu khiếu nại và làm việc của CSKH gửi đến cho kho hàng như xác nhận lỗi đơn hàng, gửi thiếu, gửi bù, các thông tin theo từng đơn hàng... để xử lý với khách hàng. (tương ứng với nó sẽ có 1 /cskh/ticket)
+- /kho/orders/sos_shopee -> Quản lý các trạng thái của đơn hàng để phục vụ mục tiêu rà soát lại các đơn hàng cần xử lý và đã xử lý để kịp tiến độ SLA giao hàng của sàn -> ví dụ để biết đơn nào đã in, chưa gói -> xử lý sót...
+- /kho/orders/packing_cancel -> Quản lý các đơn đã gói hàng nhưng bị huỷ ngang -> cần thu hồi lại đơn hàng. Theo dõi quá trình này tránh bị mất hàng.
+- /kho/orders/return_orders -> Quản lý các đơn hàng hoàn, qui trình nhận hàng hoàn, quản lý tình trạng khiếu nại, hỏng vỡ của các đơn hoàn này.
+
+- /kho/print/sorry_letter -> Mẫu thư cảm ơn, thư xin lỗi, thư ngỏ... để kho hàng gửi kèm cho khách khi gặp các trường hợp tương ứng.
+- /kho/print/barcode -> Quản lý sản phẩm, in barcode phục vụ mục đích quản lý kho.
+
+.....Sau này sẽ bổ sung thêm tính năng khi cần thiết....
 
 **Templates chính:**
 - `kho_start.html` - Dashboard kho

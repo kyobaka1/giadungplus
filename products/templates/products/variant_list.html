@@ -1,0 +1,186 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý và xem thông tin tất cả phân loại sản phẩm</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto">
+
+        <!-- BỘ LỌC VÀ TÌM KIẾM -->
+        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <form method="get" action="{% url 'products:variant_list' %}" class="flex items-center gap-4 flex-wrap">
+                <!-- Tìm kiếm -->
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" 
+                           name="search" 
+                           value="{{ search }}"
+                           placeholder="Tìm kiếm theo SKU, barcode, tên..." 
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+                </div>
+
+                <!-- Status filter -->
+                <div>
+                    <select name="status" 
+                            class="px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="active" {% if status == "active" %}selected{% endif %}>Đang hoạt động</option>
+                        <option value="inactive" {% if status == "inactive" %}selected{% endif %}>Ngừng hoạt động</option>
+                        <option value="" {% if not status %}selected{% endif %}>Tất cả</option>
+                    </select>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" 
+                        class="px-4 py-2 bg-brand text-white rounded-md hover:bg-red-700 transition text-sm font-medium">
+                    Tìm kiếm
+                </button>
+
+                <!-- Reset -->
+                <a href="{% url 'products:variant_list' %}" 
+                   class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+                    Đặt lại
+                </a>
+            </form>
+        </div>
+
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- BẢNG DANH SÁCH PHÂN LOẠI -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Sản phẩm</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Barcode</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Giá bán lẻ</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        {% if variants %}
+                            {% for variant in variants %}
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ variant.id }}</td>
+                                <td class="px-4 py-3">
+                                    <a href="{% url 'products:product_detail' variant.product_id %}" 
+                                       class="text-sm text-slate-900 hover:text-brand">
+                                        {{ variant.product_name|truncatewords:5 }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3 text-sm font-mono text-slate-700">{{ variant.sku }}</td>
+                                <td class="px-4 py-3 text-sm font-mono text-slate-600">{{ variant.barcode|default:"-" }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">
+                                    <div class="flex flex-col">
+                                        <span>{{ variant.name|truncatewords:8 }}</span>
+                                        {% if variant.opt1 or variant.opt2 or variant.opt3 %}
+                                        <div class="flex gap-1 mt-1">
+                                            {% if variant.opt1 %}
+                                            <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">{{ variant.opt1 }}</span>
+                                            {% endif %}
+                                            {% if variant.opt2 %}
+                                            <span class="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
+                                            {% endif %}
+                                            {% if variant.opt3 %}
+                                            <span class="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-700">
+                                    <span class="font-medium">{{ variant.variant_retail_price|floatformat:0|intcomma }} đ</span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <span class="font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
+                                            {{ variant.total_available|floatformat:0|intcomma }}
+                                        </span>
+                                        <span class="text-[10px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3">
+                                    {% if variant.status == "active" %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            Hoạt động
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            Ngừng hoạt động
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center gap-2">
+                                        <a href="{% url 'products:variant_detail' variant.id %}" 
+                                           class="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition">
+                                            Xem
+                                        </a>
+                                        <a href="https://sisapsan.mysapogo.com/admin/variants/{{ variant.id }}" 
+                                           target="_blank"
+                                           class="text-xs px-2 py-1 bg-slate-50 text-slate-700 rounded hover:bg-slate-100 transition">
+                                            Sapo
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">
+                                    {% if search %}
+                                        Không tìm thấy phân loại nào với từ khóa "{{ search }}"
+                                    {% else %}
+                                        Chưa có phân loại nào
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PAGINATION -->
+            {% if variants %}
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <div class="text-sm text-slate-600">
+                    Trang {{ page }} - Hiển thị {{ variants|length }} phân loại
+                </div>
+                <div class="flex items-center gap-2">
+                    {% if page > 1 %}
+                    <a href="?page={{ page|add:-1 }}&status={{ status }}&search={{ search }}" 
+                       class="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-100">
+                        Trước
+                    </a>
+                    {% endif %}
+                    <a href="?page={{ page|add:1 }}&status={{ status }}&search={{ search }}" 
+                       class="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-100">
+                        Sau
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
