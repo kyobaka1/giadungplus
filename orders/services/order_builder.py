@@ -5,22 +5,22 @@ Refactored từ build_order_from_sapo() function.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Optional
 from zoneinfo import ZoneInfo
+from typing import Dict, Any, List, Optional
 import json
 import logging
 
 from .dto import (
-    OrderDTO, AddressDTO, CustomerDTO, CustomerGroupDTO,
-    CustomerSaleOrderStatsDTO, OrderLineItemDTO, OrderLineDiscountDTO,
+    OrderDTO, AddressDTO, OrderLineItemDTO, OrderLineDiscountDTO,
     FulfillmentDTO, FulfillmentLineItemDTO, ShipmentDTO
 )
+# Import CustomerDTO from customers module (single source of truth)
+from customers.services.dto import CustomerDTO, CustomerGroupDTO, CustomerSaleOrderStatsDTO
 
 logger = logging.getLogger(__name__)
 
 TZ_VN = ZoneInfo("Asia/Ho_Chi_Minh")
 HOLIDAYS = set()  # Có thể load từ config hoặc database
-
 
 class OrderDTOFactory:
     """
@@ -178,37 +178,70 @@ class OrderDTOFactory:
         )
     
     def _build_order_line_items(self, data_list: List[Dict[str, Any]]) -> List[OrderLineItemDTO]:
-        """Build list of OrderLineItemDTO."""
+        """
+        Build list of OrderLineItemDTO.
+        
+        Note: Map item_name -> product_name và variation_name -> variant_name
+        để hỗ trợ cả Sapo Core API và Marketplace API format.
+        
+        Xử lý trường hợp các line items đặc biệt (phí vận chuyển, chiết khấu...) 
+        có thể có product_id, variant_id, product_name, variant_name là None.
+        """
         result = []
         
         for d in (data_list or []):
-            discount_items = [
-                OrderLineDiscountDTO.from_dict(item)
-                for item in (d.get("discount_items") or [])
-            ]
-            
-            result.append(OrderLineItemDTO(
-                id=d["id"],
-                product_id=d["product_id"],
-                variant_id=d["variant_id"],
-                product_name=d.get("product_name", ""),
-                variant_name=d.get("variant_name", ""),
-                sku=d.get("sku", ""),
-                barcode=d.get("barcode"),
-                unit=d.get("unit"),
-                variant_options=d.get("variant_options"),
-                price=float(d.get("price", 0) or 0),
-                quantity=float(d.get("quantity", 0) or 0),
-                line_amount=float(d.get("line_amount", 0) or 0),
-                discount_amount=float(d.get("discount_amount", 0) or 0),
-                discount_value=float(d.get("discount_value", 0) or 0),
-                discount_rate=float(d.get("discount_rate", 0) or 0),
-                discount_reason=d.get("discount_reason"),
-                tax_rate=float(d.get("tax_rate", 0) or 0),
-                tax_amount=float(d.get("tax_amount", 0) or 0),
-                product_type=d.get("product_type", "normal"),
-                discount_items=discount_items,
-            ))
+            try:
+                discount_items = [
+                    OrderLineDiscountDTO.from_dict(item)
+                    for item in (d.get("discount_items") or [])
+                ]
+                
+                # Map item_name -> product_name (Marketplace API format)
+                # Fallback về product_name nếu không có item_name (Sapo Core API format)
+                product_name = d.get("item_name") or d.get("product_name") or ""
+                
+                # Map variation_name -> variant_name (Marketplace API format)
+                # Fallback về variant_name nếu không có variation_name (Sapo Core API format)
+                variant_name = d.get("variation_name") or d.get("variant_name") or ""
+                
+                # Xử lý product_id và variant_id - có thể None cho các line items đặc biệt
+                product_id = d.get("product_id")
+                variant_id = d.get("variant_id")
+                
+                # SKU có thể None
+                sku = d.get("sku") or ""
+                
+                # Product type có thể None
+                product_type = d.get("product_type") or "normal"
+                
+                result.append(OrderLineItemDTO(
+                    id=d["id"],
+                    product_id=product_id,
+                    variant_id=variant_id,
+                    product_name=product_name,
+                    variant_name=variant_name,
+                    sku=sku,
+                    barcode=d.get("barcode"),
+                    unit=d.get("unit"),
+                    variant_options=d.get("variant_options"),
+                    price=float(d.get("price", 0) or 0),
+                    quantity=float(d.get("quantity", 0) or 0),
+                    line_amount=float(d.get("line_amount", 0) or 0),
+                    discount_amount=float(d.get("discount_amount", 0) or 0),
+                    discount_value=float(d.get("discount_value", 0) or 0),
+                    discount_rate=float(d.get("discount_rate", 0) or 0),
+                    discount_reason=d.get("discount_reason"),
+                    tax_rate=float(d.get("tax_rate", 0) or 0),
+                    tax_amount=float(d.get("tax_amount", 0) or 0),
+                    product_type=product_type,
+                    discount_items=discount_items,
+                    # Map shopee_variation_id nếu có (từ Marketplace API)
+                    shopee_variation_id=d.get("variation_id") or d.get("shopee_variation_id"),
+                ))
+            except Exception as e:
+                logger.warning(f"Failed to build OrderLineItemDTO for line item {d.get('id')}: {e}")
+                # Skip line item nếu có lỗi (không crash toàn bộ order)
+                continue
         
         return result
     

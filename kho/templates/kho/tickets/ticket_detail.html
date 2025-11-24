@@ -1,0 +1,38 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Ticket #{{ ticket_id }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Chi tiết ticket khiếu nại</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-4xl mx-auto">
+        
+        <!-- Ticket Info -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Thông tin ticket</h2>
+            <div class="text-sm text-gray-500">
+                <p>Template mẫu - Logic chi tiết ticket sẽ được bổ sung sau.</p>
+                <p class="mt-2">Sẽ hiển thị: Thông tin đơn hàng, hình ảnh lỗi, ý kiến kho/CSKH, comments</p>
+            </div>
+        </div>
+
+        <!-- Comments -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Comments</h2>
+            <div class="text-sm text-gray-500">
+                <p>Danh sách comments sẽ hiển thị ở đây.</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

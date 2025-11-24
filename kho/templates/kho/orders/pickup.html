@@ -1,0 +1,40 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Pickup - Wave Pickup Thông Minh</h1>
+    <p class="text-xs text-gray-500 mt-1">Đơn đã đóng gói, chờ đơn vị vận chuyển đến lấy</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- Filter bar -->
+        <div class="mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-3 text-sm">
+                <form method="get" class="relative">
+                    <input type="text" name="q" value="{{ request.GET.q }}"
+                        placeholder="Tìm mã đơn / tracking code"
+                        class="pl-8 pr-3 py-1.5 text-sm rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500">
+                </form>
+            </div>
+        </div>
+
+        <!-- Orders list -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 text-sm text-gray-500">
+                <p>Template mẫu - Logic wave pickup thông minh sẽ được bổ sung sau.</p>
+                <p class="mt-2">Sẽ hiển thị: Đơn đã đóng gói (packing_status != 0) nhưng chưa shipped</p>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

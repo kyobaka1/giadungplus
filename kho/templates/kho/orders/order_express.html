@@ -12,6 +12,93 @@
 {% endblock %}
 
 {% block content %}
+<style>
+    /* Hiệu ứng gạch xanh lá chéo cho đơn đang tìm shipper (packing_status = 1) */
+    .order-finding-shipper {
+        position: relative;
+        /* Nền trắng với sọc xanh lá nhạt chéo */
+        background: repeating-linear-gradient(
+            135deg,
+            #ffffff 0px,
+            #ffffff 8px,
+            rgba(34, 197, 94, 0.08) 8px,
+            rgba(34, 197, 94, 0.08) 10px
+        );
+    }
+    
+    /* Border xanh lá ở trên cho đơn đang tìm shipper */
+    .order-finding-shipper::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background-color: #22c55e;
+        z-index: 9;
+    }
+    
+    /* Badge "Đang tìm shipper" ở giữa dòng xanh lá */
+    .order-finding-shipper::after {
+        content: 'Đang tìm shipper';
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #22c55e;
+        color: white;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        z-index: 10;
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+    
+    /* Hiệu ứng gạch đỏ chéo cho đơn đã đóng gói (packing_status >= 2) */
+    .order-packed {
+        position: relative;
+        /* Nền trắng với sọc đỏ nhạt chéo */
+        background: repeating-linear-gradient(
+            135deg,
+            #ffffff 0px,
+            #ffffff 8px,
+            rgba(239, 68, 68, 0.08) 8px,
+            rgba(239, 68, 68, 0.08) 10px
+        );
+    }
+    
+    /* Border đỏ ở trên cho đơn đã đóng gói */
+    .order-packed::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background-color: #ef4444;
+        z-index: 9;
+    }
+    
+    /* Badge "Đã gói" ở giữa dòng đỏ */
+    .order-packed::after {
+        content: 'Đã gói';
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: #ef4444;
+        color: white;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 4px;
+        z-index: 10;
+        white-space: nowrap;
+        line-height: 1.2;
+    }
+</style>
 <div class="min-h-screen bg-slate-100">
     <div class="max-w-6xl mx-auto">
         <!-- Tiêu đề + filter -->
@@ -54,7 +141,7 @@
             {% for order in orders %}
             {# Lấy sản phẩm đầu tiên cho phần thumbnail #}
             {% with first_product=order.products.0 %}
-            <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row"
+            <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row{% if order.packing_status == 1 %} order-finding-shipper{% elif order.packing_status >= 2 %} order-packed{% endif %}"
                 data-order-id="{{ order.id }}">
                 <!-- Checkbox -->
                 <div class="w-10 flex items-start justify-center pt-4">
@@ -201,7 +288,9 @@
                                 {{ order.channel_order_number }}
                             </p>
                             <p class="mt-1 text-xs text-slate-500">
-                                Mã Sapo: {{ order.sapo_order_code }}
+                                Sapo: <a
+                                    href="https://sisapsan.mysapogo.com/admin/orders/{{order.sapo_order_id}}"
+                                    target="_blank"> {{ order.sapo_order_code }} </a>
                             </p>
                             <!-- Shop / Brand -->
                             <div class="flex items-center gap-2 mt-1">
@@ -242,13 +331,13 @@
                         <!-- Người mua -->
                         <div class="flex flex-col justify-center">
                             <p class="text-[13px] font-medium text-slate-800">
-                                {{ order.customer.user_name }}
+                                {% if order.customer.user_name %}{{ order.customer.user_name }}{% else %}{{ order.customer_name }}{% endif %}
+                            </p>
+                            <p class="text-[13px] font-medium text-slate-800">
+                                {{order.customer.addresses.0.address1 }}
                             </p>
                             <p class="mt-1 text-xs text-slate-500">
-                                {{ order.customer.full_name }}
-                            </p>
-                            <p class="mt-1 text-xs text-slate-500">
-                                {{ order.customer.district }}, {{ order.customer.city }}
+                                {% if order.customer.district or order.customer.city %}{{ order.customer.district }}{% if order.customer.district and order.customer.city %}, {% endif %}{{ order.customer.city }}{% endif %}
                             </p>
                         </div>
 
@@ -420,8 +509,10 @@
             .then(data => {
                 if (data.status === "ok") {
                     showToast('✅ Tìm ship thành công!', 'success');
-                    // Xóa row thay vì reload
-                    removeOrderRow(mp_order_id);
+                    // Enable lại button sau khi thành công
+                    btn.disabled = false;
+                    btn.textContent = 'Tìm ship';
+                    // Không xóa row - chỉ hiển thị toast
                 } else {
                     let msg = "Không rõ lỗi";
 
@@ -453,11 +544,8 @@
         // Mở cửa sổ in
         window.open(url);
 
-        // Xóa row sau khi in (giả định in thành công)
-        setTimeout(() => {
-            showToast('✅ Đã gửi yêu cầu in đơn!', 'success');
-            removeOrderRow(mp_order_id);
-        }, 1000);
+        // Chỉ hiển thị toast - không xóa row
+        showToast('✅ Đã gửi yêu cầu in đơn!', 'success');
     }
 </script>
 

@@ -168,3 +168,60 @@ class ShopeeRepository(BaseRepository):
             "SPC_CDS": "06614307-0c48-4f4f-829f-98b6da1345c2",
             "SPC_CDS_VER": "2"
         }, json=payload)
+    
+    def get_order_receipt_settings_batch_raw(self, order_ids: list[int]) -> Dict[str, Any]:
+        """
+        Lấy email và thông tin hóa đơn của khách hàng từ Shopee KNB.
+        
+        Args:
+            order_ids: List of Shopee order IDs
+            
+        Returns:
+            {
+                "data": {
+                    "order_receipt_settings": [
+                        {
+                            "order_id": 123,
+                            "receipt_settings": {
+                                "personal": {
+                                    "email": "customer@example.com",
+                                    "name": "******",
+                                    "address": {"address": "******"}
+                                }
+                            }
+                        }
+                    ]
+                },
+                "code": 0
+            }
+            
+        Note:
+            Endpoint: POST /api/v4/invoice/seller/get_order_receipt_settings_batch
+            Base URL khác với v3, cần override trong method này.
+        """
+        logger.debug(f"[ShopeeRepo] Getting receipt settings for orders: {order_ids}")
+        
+        # API v4 có base URL khác
+        url = "https://banhang.shopee.vn/api/v4/invoice/seller/get_order_receipt_settings_batch"
+        
+        # Build queries payload
+        queries = [{"order_id": order_id} for order_id in order_ids]
+        payload = {"queries": queries}
+        
+        # Make request với params SPC_CDS
+        response = self.session.post(
+            url,
+            params={
+                "SPC_CDS": "a4ef0c3a-4b1a-4920-a8bf-4fccf56c8808",
+                "SPC_CDS_VER": "2"
+            },
+            json=payload,
+            timeout=30
+        )
+        response.raise_for_status()
+        
+        try:
+            return response.json()
+        except ValueError:
+            logger.warning(f"Response is not JSON: {response.text[:200]}")
+            return {}

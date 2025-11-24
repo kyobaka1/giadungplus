@@ -5,14 +5,12 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
-    <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta http-equiv="Content-Language" content="en">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="description" content="This is an example dashboard created using build-in elements and components.">
     <link rel="icon" href="/static/favicon.png">
-    <!-- Disable tap highlight on IE -->
     <link rel="shortcut icon" href="/static/favicon.png"/>
     <meta name="msapplication-tap-highlight" content="no">
 
@@ -22,7 +20,6 @@
     <!-- Tailwind -->
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-
 
     <!-- Font Averta -->
     <style>
@@ -53,7 +50,7 @@
             theme: {
                 extend: {
                     colors: {
-                        brand: "#ee4d2d",
+                        brand: "#db0d29",
                         brandlight: "#fff1eb"
                     }
                 }
@@ -61,7 +58,7 @@
         }
     </script>
 </head>
-<body class="bg-slate-100 text-gray-900 antialiased">
+<body class="bg-slate-100 text-gray-900 antialiased text-[13px] sm:text-[14px] md:text-[15px]">
 
 <div class="min-h-screen flex flex-col">
 
@@ -79,216 +76,306 @@
         </a>
 
         <div class="flex items-center gap-4">
-    <!-- Nút chuông -->
-    <button class="relative p-1.5 rounded-full hover:bg-slate-100">
-        🔔
-        <span class="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 rounded-full">3</span>
-    </button>
+            <!-- Nút chuông -->
+            <button class="relative p-1.5 rounded-full hover:bg-slate-100">
+                🔔
+                <span class="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 rounded-full">3</span>
+            </button>
 
-    <!-- Chọn kho -->
-    <div class="relative">
-        <!-- Khu vực hiển thị kho + user, dùng làm nút bấm -->
-        <button type="button"
-                id="khoDropdownButton"
-                class="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-slate-100 transition">
-            <div class="w-8 h-8 rounded-full bg-orange-100 flex justify-center items-center text-xs font-semibold text-brand">
-                {% if request.session.current_kho == "toky" %}
-                        SG
-                    {% else %}
-                        HN
-                    {% endif %}
-            </div>
-            <div class="hidden sm:block text-xs leading-tight text-left">
-                <!-- Hiển thị kho hiện tại từ session -->
-                <div class="font-medium text-sm">
-                    {% if request.session.current_kho == "toky" %}
-                        Kho Tô Ký
-                    {% else %}
-                        Kho Geleximco
-                    {% endif %}
+            <!-- Chọn kho -->
+            <div class="relative">
+                <!-- Khu vực hiển thị kho + user, dùng làm nút bấm -->
+                <button type="button"
+                        id="khoDropdownButton"
+                        class="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-slate-100 transition">
+                    <div class="w-8 h-8 rounded-full bg-orange-100 flex justify-center items-center text-xs font-semibold text-brand">
+                        {% if request.session.current_kho == "toky" %}
+                                SG
+                            {% else %}
+                                HN
+                            {% endif %}
+                    </div>
+                    <div class="hidden sm:block text-xs leading-tight text-left">
+                        <!-- Hiển thị kho hiện tại từ session -->
+                        <div class="font-medium text-sm">
+                            {% if request.session.current_kho == "toky" %}
+                                Kho Tô Ký
+                            {% else %}
+                                Kho Geleximco
+                            {% endif %}
+                        </div>
+                        <div class="text-gray-500">
+                            {% if request.user.is_authenticated %}
+                                {{ request.user.get_full_name  }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </button>
+
+                <!-- Dropdown chọn kho -->
+                <div id="khoDropdownMenu"
+                     class="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 text-sm hidden z-50">
+                    <button type="button"
+                            data-kho="geleximco"
+                            class="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center justify-between">
+                        <span>Kho Geleximco</span>
+                        {% if request.session.current_kho != "toky" %}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">x</span>
+                        {% endif %}
+                    </button>
+                    <button type="button"
+                            data-kho="toky"
+                            class="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center justify-between">
+                        <span>Kho Tô Ký</span>
+                        {% if request.session.current_kho == "toky" %}
+                            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">x</span>
+                        {% endif %}
+                    </button>
                 </div>
-                <div class="text-gray-500">{% if request.user.is_authenticated %}
-                    {{ request.user.get_full_name  }}
-                {% endif %}</div>
             </div>
-        </button>
 
-        <!-- Dropdown chọn kho -->
-        <div id="khoDropdownMenu"
-             class="absolute right-0 mt-2 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 text-sm hidden z-50">
-            <button type="button"
-                    data-kho="geleximco"
-                    class="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center justify-between">
-                <span>Kho Geleximco</span>
-                {% if request.session.current_kho != "toky" %}
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">x</span>
-                {% endif %}
-            </button>
-            <button type="button"
-                    data-kho="toky"
-                    class="w-full text-left px-3 py-2 hover:bg-slate-100 flex items-center justify-between">
-                <span>Kho Tô Ký</span>
-                {% if request.session.current_kho == "toky" %}
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">x</span>
-                {% endif %}
-            </button>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke-width="2"
+                         stroke="currentColor"
+                         class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                    </svg>
+                </button>
+            </form>
         </div>
 
-    </div>
-<form method="post" action="{% url 'logout' %}">
-    {% csrf_token %}
-    <button type="submit"
-            class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
-        <svg xmlns="http://www.w3.org/2000/svg"
-             fill="none"
-             viewBox="0 0 24 24"
-             stroke-width="2"
-             stroke="currentColor"
-             class="w-5 h-5">
-            <path stroke-linecap="round" stroke-linejoin="round"
-                  d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-        </svg>
-    </button>
-</form>
+        <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('khoDropdownButton');
+            const menu = document.getElementById('khoDropdownMenu');
 
+            if (!btn || !menu) return;
 
-</div>
+            // Mở/đóng dropdown khi click vào "Kho Geleximco"
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                menu.classList.toggle('hidden');
+            });
 
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('khoDropdownButton');
-    const menu = document.getElementById('khoDropdownMenu');
+            // Click ra ngoài thì đóng dropdown
+            document.addEventListener('click', () => {
+                menu.classList.add('hidden');
+            });
 
-    if (!btn || !menu) return;
-
-    // Mở/đóng dropdown khi click vào "Kho Geleximco"
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        menu.classList.toggle('hidden');
-    });
-
-    // Click ra ngoài thì đóng dropdown
-    document.addEventListener('click', () => {
-        menu.classList.add('hidden');
-    });
-
-    // Chọn kho
-    menu.querySelectorAll('[data-kho]').forEach(item => {
-        item.addEventListener('click', (e) => {
-            const kho = e.currentTarget.getAttribute('data-kho');
-            if (!kho) return;
-            // Điều hướng đến endpoint set_kho, view sẽ lưu vào session rồi redirect về trang cũ
-            window.location.href = `?kho=${encodeURIComponent(kho)}`;
+            // Chọn kho
+            menu.querySelectorAll('[data-kho]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const kho = e.currentTarget.getAttribute('data-kho');
+                    if (!kho) return;
+                    // Điều hướng đến endpoint set_kho, view sẽ lưu vào session rồi redirect về trang cũ
+                    window.location.href = `?kho=${encodeURIComponent(kho)}`;
+                });
+            });
         });
-    });
-});
-</script>
-
+        </script>
     </header>
 
     <!-- █▀ MAIN LAYOUT ───────────────────────── -->
     <div class="flex flex-1 overflow-hidden">
 
-        <!-- SIDEBAR (smaller width) -->
-        <aside class="w-[160px] bg-white border-r overflow-y-auto">
-            <nav class="py-4 text-[13px]">
-                <!-- GROUP: Đơn hàng -->
-                <div class="px-4 mb-4">
+        <!-- SIDEBAR (giữ nguyên menu, nâng UI + responsive) -->
+        <aside
+            class="bg-white border-r overflow-y-auto flex-shrink-0
+                   w-16 sm:w-32 md:w-32 lg:w-48
+                   text-[12px] sm:text-[13px]">
+            <nav class="py-4 space-y-4">
+
+                <!-- GROUP: Xử lý đơn -->
+                <div class="px-4 mb-1">
                     <button
                         type="button"
-                        class="w-full flex items-center justify-between text-[12px] uppercase text-gray-400 font-semibold mb-2 collapse-toggle"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
                         data-collapse-id="menu-orders"
                     >
-                        <span>Quản lý Đơn Hàng</span>
-                        <span class="collapse-arrow text-xs text-gray-400 transition-transform duration-200 transform">▾</span>
+                        <span>Xử lý đơn</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-orders" class="space-y-1">
                         <li>
-                            <a href="/kho/orders/shopee_orders/" class="flex justify-between px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand sidebar-link ">
-                                Đơn Shopee
-                                <span class="text-xs text-gray-500">17</span>
+                            <a href="{% url 'kho:shopee_orders' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Đơn Shopee</span>
+                                <span class="text-[10px] text-gray-500">0</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="flex justify-between px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand sidebar-link ">
-                                Đơn Sapo
-                                <span class="text-xs text-gray-500">17</span>
+                            <a href="{% url 'kho:sapo_orders' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Đơn Sapo</span>
+                                <span class="text-[10px] text-gray-500">0</span>
                             </a>
                         </li>
                         <li>
-                            <a href="/kho/orders/express/" class="flex justify-between px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand sidebar-link ">
-                                Hoả Tốc
-                                <span class="text-xs text-gray-500">130</span>
+                            <a href="{% url 'kho:orders_express' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Hoả Tốc</span>
+                                <span class="text-[10px] text-gray-500">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- GROUP: Gói đơn -->
+                <div class="px-4 mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
+                        data-collapse-id="menu-packing"
+                    >
+                        <span>Gói đơn</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-packing" class="space-y-1">
+                        <li>
+                            <a href="{% url 'kho:orders_pickup' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Pickup</span>
+                                <span class="text-[10px] text-gray-500">0</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="flex justify-between px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand sidebar-link ">
-                                Hàng Hoàn
-                                <span class="text-xs text-gray-500">228</span>
+                            <a href="{% url 'kho:packing_orders' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Đóng Gói</span>
+                                <span class="text-[10px] text-gray-500">0</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- GROUP: Quản lý đơn -->
+                <div class="px-4 mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
+                        data-collapse-id="menu-management"
+                    >
+                        <span>Quản lý đơn</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-management" class="space-y-1">
+                        <li>
+                            <a href="{% url 'kho:connect_shipping' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Gửi Bù</span>
+                                <span class="text-[10px] text-gray-500">0</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'kho:sos_shopee' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">SOS Shopee</span>
+                                <span class="text-[10px] text-gray-500">0</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'kho:packing_cancel' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Đã Gói, Bị Huỷ</span>
+                                <span class="text-[10px] text-gray-500">0</span>
                             </a>
                         </li>
                     </ul>
                 </div>
 
                 <!-- GROUP: Ticket -->
-                <div class="px-4 mb-4">
+                <div class="px-4 mb-1">
                     <button
                         type="button"
-                        class="w-full flex items-center justify-between text-[12px] uppercase text-gray-400 font-semibold mb-2 collapse-toggle"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
                         data-collapse-id="menu-ticket"
                     >
                         <span>Ticket</span>
-                        <span class="collapse-arrow text-xs text-gray-400 transition-transform duration-200 transform">▾</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-ticket" class="space-y-1">
                         <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Ticket</a>
-                        </li>
-                        <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Xác nhận lỗi</a>
+                            <a href="{% url 'kho:ticket_list' %}"
+                               class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                Danh sách ticket
+                            </a>
                         </li>
                     </ul>
                 </div>
 
                 <!-- GROUP: Quản trị -->
-                <div class="px-4 mb-4">
+                <div class="px-4 mb-1">
                     <button
                         type="button"
-                        class="w-full flex items-center justify-between text-[12px] uppercase text-gray-400 font-semibold mb-2 collapse-toggle"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
                         data-collapse-id="menu-admin"
                     >
-                        <span>Quản Trị</span>
-                        <span class="collapse-arrow text-xs text-gray-400 transition-transform duration-200 transform">▾</span>
+                        <span>Quản trị</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-admin" class="space-y-1">
                         <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">SOS Shopee</a>
-                        </li>
-                        <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Đã gói, bị huỷ</a>
-                        </li>
-                        <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Thống kê</a>
+                            <a href="{% url 'kho:management_stats' %}"
+                               class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                Thống kê
+                            </a>
                         </li>
                     </ul>
                 </div>
 
                 <!-- GROUP: Hỗ trợ in -->
-                <div class="px-4 mb-4">
+                <div class="px-4 mb-2">
                     <button
                         type="button"
-                        class="w-full flex items-center justify-between text-[12px] uppercase text-gray-400 font-semibold mb-2 collapse-toggle"
+                        class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle"
                         data-collapse-id="menu-print"
                     >
                         <span>Hỗ trợ in</span>
-                        <span class="collapse-arrow text-xs text-gray-400 transition-transform duration-200 transform">▾</span>
+                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
-                    <ul id="menu-print" class="space-y-1">
+                    <ul id="menu-print" class="space-y-1 pb-2">
                         <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Thư đổi trả</a>
+                            <a href="{% url 'kho:sorry_letter' %}"
+                               class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                Thư cảm ơn/xin lỗi
+                            </a>
                         </li>
                         <li>
-                            <a href="#" class="block px-2 py-1 rounded-md hover:bg-brandlight hover:text-brand">Sản phẩm</a>
+                            <a href="{% url 'kho:product_barcode' %}"
+                               class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                Barcode sản phẩm
+                            </a>
                         </li>
                     </ul>
                 </div>
@@ -346,7 +433,6 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.addEventListener('click', function () {
             const isHidden = body.classList.toggle('hidden');
             if (arrow) {
-                // khi thu gọn: mũi tên quay ngang (-90deg)
                 if (isHidden) {
                     arrow.classList.add('-rotate-90');
                 } else {
@@ -357,13 +443,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const currentURL = window.location.pathname;
     const links = document.querySelectorAll('.sidebar-link');
 
     links.forEach(link => {
-        // So sánh URL (/express_orders)
         if (link.getAttribute('href') === currentURL) {
 
             // Tô active

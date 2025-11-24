@@ -1,5 +1,77 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+class Ticket(models.Model):
+    """
+    Ticket khiếu nại từ CSKH gửi đến kho.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Chờ xử lý'),
+        ('processing', 'Đang xử lý'),
+        ('resolved', 'Đã xử lý'),
+        ('closed', 'Đã đóng'),
+    ]
+    
+    ERROR_TYPE_CHOICES = [
+        ('warehouse_error', 'Lỗi kho'),
+        ('shipping_error', 'Lỗi vận chuyển'),
+        ('supplier_error', 'Lỗi nhà cung cấp'),
+        ('customer_error', 'Lỗi khách hàng'),
+        ('other', 'Khác'),
+    ]
+    
+    # Thông tin cơ bản
+    order_code = models.CharField(max_length=50, db_index=True)  # Mã đơn hàng
+    sapo_order_id = models.BigIntegerField(null=True, blank=True)  # Sapo order ID
+    reference_number = models.CharField(max_length=100, blank=True)  # Mã đơn sàn TMĐT
+    
+    # Nội dung ticket
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    error_type = models.CharField(max_length=50, choices=ERROR_TYPE_CHOICES, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Người tạo và xử lý
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='tickets_created')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_assigned')
+    confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_confirmed')
+    
+    # Thời gian
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    # Ghi chú và hình ảnh
+    images = models.JSONField(default=list, blank=True)  # Danh sách URL hình ảnh
+    warehouse_note = models.TextField(blank=True)  # Ghi chú từ kho
+    cskh_note = models.TextField(blank=True)  # Ghi chú từ CSKH
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['order_code']),
+        ]
+    
+    def __str__(self):
+        return f"Ticket #{self.id} - {self.order_code}"
+
+
+class TicketComment(models.Model):
+    """
+    Comments trong ticket.
+    """
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comments')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    content = models.TextField()
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    class Meta:
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"Comment #{self.id} on Ticket #{self.ticket.id}"
 
 class Warehouse(models.Model):
     code = models.CharField(max_length=20, unique=True)  # 'gele', 'toky'

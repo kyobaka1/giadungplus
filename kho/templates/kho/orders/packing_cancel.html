@@ -1,0 +1,33 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">Đã Gói Nhưng Bị Huỷ</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý các đơn đã gói hàng nhưng bị huỷ ngang - Cần thu hồi lại đơn hàng</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- Orders list -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4">
+                <h2 class="text-sm font-semibold text-slate-800 mb-4">Danh sách đơn đã gói nhưng bị huỷ</h2>
+                
+                <div class="text-sm text-gray-500">
+                    <p>Template mẫu - Logic lấy đơn đã packed nhưng bị cancelled sẽ được bổ sung sau.</p>
+                    <p class="mt-2">Sẽ hiển thị thông tin để kho xử lý: trả hàng về vị trí, check lại tồn, phiếu phạt...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+

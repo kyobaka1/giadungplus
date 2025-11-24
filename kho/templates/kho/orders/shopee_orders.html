@@ -15,13 +15,112 @@
 <div class="min-h-screen bg-slate-100">
     <div class="max-w-7xl mx-auto">
 
-        <!-- Tiêu đề + filter -->
+        <!-- BỘ LỌC ĐƠN HÀNG -->
+        <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+            <!-- Bộ lọc Shop -->
+            <div class="mb-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Shop:</span>
+                    <button id="filter-shop-all" 
+                            class="filter-btn filter-shop-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="shop"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-shop-all-count">0</span>)
+                    </button>
+                    <div id="filter-shop-container" class="flex flex-wrap gap-1.5">
+                        <!-- Sẽ được populate bằng JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bộ lọc Đơn vị vận chuyển -->
+            <div class="mb-2">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Đơn vị vận chuyển:</span>
+                    <button id="filter-carrier-all" 
+                            class="filter-btn filter-carrier-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="carrier"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-carrier-all-count">0</span>)
+                    </button>
+                    <div id="filter-carrier-container" class="flex flex-wrap gap-1.5">
+                        <!-- Sẽ được populate bằng JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bộ lọc Sản phẩm -->
+            <div>
+                <!-- Tags sản phẩm -->
+                <div class="mb-2 flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Sản phẩm:</span>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword=""
+                            onclick="toggleProductFilter('')">
+                        Tất cả
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="thanh móc"
+                            onclick="toggleProductFilter('thanh móc')">
+                        thanh móc
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="móc nhỏ"
+                            onclick="toggleProductFilter('móc nhỏ')">
+                        móc nhỏ
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="kệ"
+                            onclick="toggleProductFilter('kệ')">
+                        kệ
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="tấm chắn dầu"
+                            onclick="toggleProductFilter('tấm chắn dầu')">
+                        tấm chắn dầu
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="ly cốc"
+                            onclick="toggleProductFilter('ly cốc')">
+                        ly cốc
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="thuỷ tinh"
+                            onclick="toggleProductFilter('thuỷ tinh')">
+                        thuỷ tinh
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="thùng đựng gạo"
+                            onclick="toggleProductFilter('thùng đựng gạo')">
+                        thùng đựng gạo
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="thùng rác"
+                            onclick="toggleProductFilter('thùng rác')">
+                        thùng rác
+                    </button>
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="thùng đựng đồ"
+                            onclick="toggleProductFilter('thùng đựng đồ')">
+                        thùng đựng đồ
+                    </button>
+                    
+                    <button type="button" class="product-tag-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-product-keyword="kệ chia ngăn"
+                            onclick="toggleProductFilter('kệ chia ngăn')">
+                        kệ chia ngăn
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tiêu đề + search -->
         <div class="mb-4 flex items-center justify-between">
             <div class="flex items-center gap-3 text-sm">
                 <!-- Ô tìm kiếm mã đơn (tuỳ anh xử lý backend) -->
                 <form method="get" class="relative">
                     <input type="text" id="order-search-input" name="q" value="{{ request.GET.q }}"
-                        placeholder="Tìm mã đơn / người mua" oninput="filterOrders()"
+                        placeholder="Tìm mã đơn / tên sản phẩm .." oninput="filterOrders()"
                         class="pl-8 pr-3 py-1.5 text-sm rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
                     <span class="absolute left-2 top-1.5 text-slate-400">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
@@ -61,7 +160,9 @@
                     {% for order in orders %}
                     {% with first_product=order.products.0 %}
                     <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row"
-                        data-order-id="{{ order.id }}">
+                        data-order-id="{{ order.id }}"
+                        data-shop-name="{{ order.shop_name|default:'' }}"
+                        data-shipping-carrier="{{ order.shipping_carrier_name|default:'' }}">
                         <!-- Checkbox từng đơn -->
                         <div class="w-10 flex items-start justify-center pt-4">
                             <input type="checkbox" class="mt-1 rounded border-slate-300 order-checkbox"
@@ -191,6 +292,8 @@
                                             <div class="mt-1 flex flex-wrap gap-1">
 
                                                 {% for p in order.products %}
+                                                <!-- Tên sản phẩm ẩn để có thể filter -->
+                                                <span class="hidden" data-product-name="{{ p.product_name|default:''|lower }}">{{ p.product_name|default:'' }}</span>
                                                 <span class="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-[11px] text-slate-700
                            {% if forloop.counter > 3 %} hidden {% endif %}">
                                                     {{ p.sku }}
@@ -323,7 +426,7 @@
             <div class="w-full lg:w-[240px] lg:shrink-0">
                 <div id="side-panel" class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
                     <h2 class="text-base font-semibold text-slate-800">Chuẩn bị hàng & in</h2>
-                    <p class="mt-1 text-xs text-amber-500">
+                    <p class="mt-1 text-xs text-red-500">
                         Vui lòng tách đơn khó gói trên Shopee trước khi thao tác in đơn.
                     </p>
 
@@ -423,9 +526,411 @@
     }
 </script>
 
-<!-- JS: LỌC ĐƠN HÀNG -->
+<!-- JS: BỘ LỌC ĐƠN HÀNG -->
+<script>
+    // State của bộ lọc
+    let activeFilters = {
+        shop: null,
+        carrier: null,
+        product: null  // Keyword sản phẩm đang được filter
+    };
+
+    // Thu thập số lượng từ TẤT CẢ đơn (không filter shop/carrier, chỉ filter search nếu có)
+    // Hàm này đếm từ DOM, không quan tâm đến filter shop/carrier (chỉ quan tâm search)
+    function collectAllData() {
+        const allRows = document.querySelectorAll('.js-order-row');
+        const shops = new Map(); // {shopName: count}
+        const carriers = new Map(); // {carrierName: count}
+        let totalCount = 0;
+
+        // Kiểm tra search query
+        const searchInput = document.getElementById('order-search-input');
+        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
+
+        allRows.forEach(row => {
+            // Chỉ bỏ qua nếu không match search (không quan tâm đến filter shop/carrier)
+            const rowText = (row.innerText || '').toLowerCase();
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            if (!matchesSearch) return; // Bỏ qua nếu không match search
+
+            // Đếm từ tất cả đơn (không check isHidden vì có thể bị hidden bởi filter shop/carrier)
+            const shopName = row.dataset.shopName || '';
+            const carrierName = row.dataset.shippingCarrier || '';
+
+            if (shopName) {
+                shops.set(shopName, (shops.get(shopName) || 0) + 1);
+            }
+            if (carrierName) {
+                carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
+            }
+            totalCount++;
+        });
+
+        return { shops, carriers, total: totalCount };
+    }
+
+    // Thu thập danh sách shop và carrier từ các đơn hiện tại (dựa trên filter hiện tại)
+    function collectFilterData() {
+        const allRows = document.querySelectorAll('.js-order-row');
+        const allData = collectAllData(); // Lấy số lượng từ tất cả đơn (chỉ filter bởi search)
+        const shops = new Map(); // {shopName: count}
+        const carriers = new Map(); // {carrierName: count}
+        let visibleCount = 0;
+
+        // Đếm số đơn đang visible (không bị hidden)
+        allRows.forEach(row => {
+            const isHidden = row.classList.contains('hidden');
+            if (!isHidden) {
+                visibleCount++;
+            }
+        });
+
+        // Logic: 
+        // - Nếu đang filter shop A: shop khác giữ nguyên số lượng từ allData, DVVC cập nhật theo shop A
+        // - Nếu đang filter DVVC X: DVVC khác giữ nguyên số lượng từ allData, shop cập nhật theo DVVC X
+        // - Nếu không filter: dùng allData
+
+        if (activeFilters.shop && !activeFilters.carrier) {
+            // Filter theo shop: shop khác giữ nguyên, DVVC cập nhật theo shop
+            // Copy shop counts từ allData (giữ nguyên số lượng của các shop khác)
+            allData.shops.forEach((count, shopName) => {
+                shops.set(shopName, count);
+            });
+            
+            // Đếm DVVC từ các đơn của shop được filter (chỉ đếm các row visible)
+            allRows.forEach(row => {
+                if (row.classList.contains('hidden')) return;
+                const shopName = row.dataset.shopName || '';
+                const carrierName = row.dataset.shippingCarrier || '';
+                
+                if (shopName === activeFilters.shop && carrierName) {
+                    carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
+                }
+            });
+        } else if (activeFilters.carrier && !activeFilters.shop) {
+            // Filter theo DVVC: DVVC khác giữ nguyên, shop cập nhật theo DVVC
+            // Copy carrier counts từ allData (giữ nguyên số lượng của các DVVC khác)
+            allData.carriers.forEach((count, carrierName) => {
+                carriers.set(carrierName, count);
+            });
+            
+            // Đếm shop từ các đơn của DVVC được filter (chỉ đếm các row visible)
+            allRows.forEach(row => {
+                if (row.classList.contains('hidden')) return;
+                const shopName = row.dataset.shopName || '';
+                const carrierName = row.dataset.shippingCarrier || '';
+                
+                if (carrierName === activeFilters.carrier && shopName) {
+                    shops.set(shopName, (shops.get(shopName) || 0) + 1);
+                }
+            });
+        } else if (activeFilters.shop && activeFilters.carrier) {
+            // Filter cả 2: cả shop và DVVC đều cập nhật theo filter hiện tại
+            allRows.forEach(row => {
+                if (row.classList.contains('hidden')) return;
+                const shopName = row.dataset.shopName || '';
+                const carrierName = row.dataset.shippingCarrier || '';
+                
+                if (shopName === activeFilters.shop && shopName) {
+                    shops.set(shopName, (shops.get(shopName) || 0) + 1);
+                }
+                if (carrierName === activeFilters.carrier && carrierName) {
+                    carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
+                }
+            });
+        } else {
+            // Không filter: dùng allData
+            allData.shops.forEach((count, shopName) => {
+                shops.set(shopName, count);
+            });
+            allData.carriers.forEach((count, carrierName) => {
+                carriers.set(carrierName, count);
+            });
+        }
+
+        return { shops, carriers, total: visibleCount };
+    }
+
+    // Tạo filter buttons (chỉ gọi khi khởi tạo, không gọi lại sau khi click filter)
+    function renderFilterButtons() {
+        // Khi khởi tạo, chưa có filter, nên dùng collectAllData() để lấy số lượng từ tất cả đơn
+        const allData = collectAllData();
+        const { shops, carriers } = allData;
+
+        // Tính tổng số đơn của TẤT CẢ các shop
+        let totalShops = 0;
+        shops.forEach((count) => {
+            totalShops += count;
+        });
+
+        // Tính tổng số đơn của TẤT CẢ các carrier
+        let totalCarriers = 0;
+        carriers.forEach((count) => {
+            totalCarriers += count;
+        });
+
+        // Update shop "Tất cả" count - Tổng số đơn của TẤT CẢ các shop
+        // CHỈ cập nhật số lượng trong span
+        const shopAllCount = document.getElementById('filter-shop-all-count');
+        if (shopAllCount) {
+            shopAllCount.textContent = totalShops;
+        }
+
+        // Render shop filters
+        const shopContainer = document.getElementById('filter-shop-container');
+        if (shopContainer) {
+            shopContainer.innerHTML = '';
+            const sortedShops = Array.from(shops.entries()).sort((a, b) => b[1] - a[1]);
+            
+            sortedShops.forEach(([shopName, count]) => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn filter-shop-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
+                btn.dataset.filterType = 'shop';
+                btn.dataset.filterValue = shopName;
+                btn.textContent = `${shopName} (${count})`;
+                btn.addEventListener('click', () => toggleFilter('shop', shopName));
+                shopContainer.appendChild(btn);
+            });
+        }
+
+        // Update carrier "Tất cả" count - Tổng số đơn của TẤT CẢ các carrier
+        // CHỈ cập nhật số lượng trong span
+        const carrierAllCount = document.getElementById('filter-carrier-all-count');
+        if (carrierAllCount) {
+            carrierAllCount.textContent = totalCarriers;
+        }
+
+        // Render carrier filters
+        const carrierContainer = document.getElementById('filter-carrier-container');
+        if (carrierContainer) {
+            carrierContainer.innerHTML = '';
+            const sortedCarriers = Array.from(carriers.entries()).sort((a, b) => b[1] - a[1]);
+            
+            sortedCarriers.forEach(([carrierName, count]) => {
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn filter-carrier-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
+                btn.dataset.filterType = 'carrier';
+                btn.dataset.filterValue = carrierName;
+                btn.textContent = `${carrierName} (${count})`;
+                btn.addEventListener('click', () => toggleFilter('carrier', carrierName));
+                carrierContainer.appendChild(btn);
+            });
+        }
+    }
+
+    // Toggle filter (click để bật/tắt)
+    function toggleFilter(type, value) {
+        // Nếu click vào "Tất cả" -> bỏ filter
+        if (value === 'all') {
+            activeFilters[type] = null;
+        } 
+        // Nếu click vào filter đang active -> bỏ filter
+        else if (activeFilters[type] === value) {
+            activeFilters[type] = null;
+        } 
+        // Bật filter mới
+        else {
+            activeFilters[type] = value;
+        }
+
+        // Apply filters trước (sẽ tự động gọi updateFilterCounts)
+        applyFilters();
+        
+        // Sau đó update UI (active states)
+        updateFilterButtons();
+    }
+
+    // Update filter button states
+    function updateFilterButtons() {
+        const shopAllBtn = document.getElementById('filter-shop-all');
+        const carrierAllBtn = document.getElementById('filter-carrier-all');
+        const shopButtons = document.querySelectorAll('.filter-shop-btn');
+        const carrierButtons = document.querySelectorAll('.filter-carrier-btn');
+
+        // Reset shop buttons
+        shopButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        // Reset carrier buttons
+        carrierButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        // Activate shop "Tất cả" if no shop filter
+        if (!activeFilters.shop) {
+            if (shopAllBtn) {
+                shopAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                shopAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            // Activate specific shop filter button
+            shopButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.shop) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+
+        // Activate carrier "Tất cả" if no carrier filter
+        if (!activeFilters.carrier) {
+            if (carrierAllBtn) {
+                carrierAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                carrierAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            // Activate specific carrier filter button
+            carrierButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.carrier) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+    }
+
+    // Apply filters to rows
+    function applyFilters() {
+        const rows = document.querySelectorAll('.js-order-row');
+        const searchInput = document.getElementById('order-search-input');
+        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
+        const productKeyword = activeFilters.product ? activeFilters.product.toLowerCase() : '';
+
+        rows.forEach(row => {
+            const shopName = row.dataset.shopName || '';
+            const carrierName = row.dataset.shippingCarrier || '';
+            const rowText = (row.innerText || '').toLowerCase();
+
+            // Check filter conditions
+            let matchesShop = !activeFilters.shop || shopName === activeFilters.shop;
+            let matchesCarrier = !activeFilters.carrier || carrierName === activeFilters.carrier;
+            let matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            // Filter theo tên sản phẩm: tìm trong các span có data-product-name
+            let matchesProduct = true;
+            if (productKeyword) {
+                matchesProduct = false;
+                // Tìm tất cả các span có data-product-name trong row này
+                const productSpans = row.querySelectorAll('span[data-product-name]');
+                for (let span of productSpans) {
+                    const productName = (span.dataset.productName || '').toLowerCase();
+                    if (productName && productName.includes(productKeyword)) {
+                        matchesProduct = true;
+                        break;
+                    }
+                }
+            }
+
+            // Show/hide row
+            if (matchesShop && matchesCarrier && matchesSearch && matchesProduct) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+
+        // Update checkbox states after filtering
+        if (typeof window.syncSelectAllState === 'function') {
+            window.syncSelectAllState();
+        }
+        
+        // Update filter button counts sau khi filter
+        updateFilterCounts();
+    }
+
+    // Cập nhật số lượng trong các filter buttons (không tạo lại buttons)
+    function updateFilterCounts() {
+        // Lấy dữ liệu từ filter hiện tại (để cập nhật các button filter cụ thể)
+        const filterData = collectFilterData();
+        const { shops: filterShops, carriers: filterCarriers } = filterData;
+        
+        // Lấy dữ liệu tổng (tất cả đơn, chỉ filter bởi search) - để hiển thị cho button "Tất cả" của shop
+        const allData = collectAllData();
+
+        // Tính tổng số đơn của TẤT CẢ các shop trong filterShops
+        let totalShops = 0;
+        filterShops.forEach((count) => {
+            totalShops += count;
+        });
+
+        // Tính tổng số đơn của TẤT CẢ các carrier trong filterCarriers
+        let totalCarriers = 0;
+        filterCarriers.forEach((count) => {
+            totalCarriers += count;
+        });
+
+        // Update shop "Tất cả" count - Tổng số đơn của TẤT CẢ các shop đang hiển thị
+        // CHỈ cập nhật số lượng trong span, KHÔNG thay đổi text của button
+        const shopAllCount = document.getElementById('filter-shop-all-count');
+        if (shopAllCount) {
+            shopAllCount.textContent = totalShops;
+        }
+
+        // Update carrier "Tất cả" count - Tổng số đơn của TẤT CẢ các carrier đang hiển thị
+        // CHỈ cập nhật số lượng trong span, KHÔNG thay đổi text của button
+        const carrierAllCount = document.getElementById('filter-carrier-all-count');
+        if (carrierAllCount) {
+            carrierAllCount.textContent = totalCarriers;
+        }
+
+        // Update shop buttons counts (chỉ các button trong container, không phải button "Tất cả")
+        // Sử dụng filterData để cập nhật số lượng dựa trên filter hiện tại
+        const shopButtons = document.querySelectorAll('#filter-shop-container .filter-shop-btn[data-filter-value]');
+        shopButtons.forEach(btn => {
+            const shopName = btn.dataset.filterValue;
+            if (shopName && shopName !== 'all') {
+                // Lấy số lượng từ filterData (đã xử lý logic giữ nguyên số lượng shop khác)
+                const count = filterShops.get(shopName) || 0;
+                btn.textContent = `${shopName} (${count})`;
+            }
+        });
+
+        // Update carrier buttons counts (chỉ các button trong container, không phải button "Tất cả")
+        // Sử dụng filterData để cập nhật số lượng dựa trên filter hiện tại
+        const carrierButtons = document.querySelectorAll('#filter-carrier-container .filter-carrier-btn[data-filter-value]');
+        carrierButtons.forEach(btn => {
+            const carrierName = btn.dataset.filterValue;
+            if (carrierName && carrierName !== 'all') {
+                // Lấy số lượng từ filterData (đã xử lý logic giữ nguyên số lượng carrier khác)
+                const count = filterCarriers.get(carrierName) || 0;
+                btn.textContent = `${carrierName} (${count})`;
+            }
+        });
+    }
+
+    // Initialize filters
+    document.addEventListener('DOMContentLoaded', function() {
+        renderFilterButtons();
+        updateFilterButtons();
+
+        // Shop "Tất cả" button
+        const shopAllBtn = document.getElementById('filter-shop-all');
+        if (shopAllBtn) {
+            shopAllBtn.addEventListener('click', () => toggleFilter('shop', 'all'));
+        }
+
+        // Carrier "Tất cả" button
+        const carrierAllBtn = document.getElementById('filter-carrier-all');
+        if (carrierAllBtn) {
+            carrierAllBtn.addEventListener('click', () => toggleFilter('carrier', 'all'));
+        }
+    });
+</script>
+
+<!-- JS: LỌC ĐƠN HÀNG (Search) -->
 <script>
     function filterOrders() {
+        // Apply filters (includes search)
+        if (typeof applyFilters === 'function') {
+            applyFilters();
+        } else {
+            // Fallback nếu applyFilters chưa được định nghĩa
         const input = document.getElementById('order-search-input');
         if (!input) return;
 
@@ -445,9 +950,104 @@
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
+                }
+            });
+        }
+    }
+    
+    // Toggle product filter (click vào tag sản phẩm)
+    function toggleProductFilter(keyword) {
+        // Nếu click vào "Tất cả" hoặc click vào tag đang active -> bỏ filter
+        if (!keyword || activeFilters.product === keyword) {
+            activeFilters.product = null;
+        } else {
+            activeFilters.product = keyword;
+        }
+
+        // Apply filters
+        applyFilters();
+        
+        // Update product tag active states
+        updateProductTagButtons();
+    }
+
+    // Update product tag button active states
+    function updateProductTagButtons() {
+        const productTagButtons = document.querySelectorAll('.product-tag-btn');
+        productTagButtons.forEach(btn => {
+            const keyword = btn.dataset.productKeyword || '';
+            if (activeFilters.product === keyword) {
+                // Active state
+                btn.classList.add('bg-red-500', 'text-white', 'border-orange-500');
+                btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            } else {
+                // Inactive state
+                btn.classList.remove('bg-red-500', 'text-white', 'border-orange-500');
+                btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
             }
         });
     }
+</script>
+
+<!-- TOAST NOTIFICATION -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+    // Toast notification system
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        const bgColor = type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+        const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+        
+        toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-[300px] animate-slide-in`;
+        toast.innerHTML = `
+            <span class="text-lg">${icon}</span>
+            <span class="flex-1 text-sm font-medium">${message}</span>
+            <button onclick="this.parentElement.remove()" class="text-white hover:text-gray-200">✕</button>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transition = 'opacity 0.4s ease-out';
+            setTimeout(() => toast.remove(), 500);
+        }, 5000);
+    }
+
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slide-in {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.3s ease-out;
+        }
+        
+        /* Filter button active state */
+        .filter-btn.active {
+            background-color: rgb(219 13 41) !important;
+            color: white !important;
+            border-color: rgb(249 115 22) !important;
+        }
+        
+        .filter-btn:hover:not(.active) {
+            background-color: rgb(241 245 249) !important;
+        }
+    `;
+    document.head.appendChild(style);
 </script>
 
 <!-- JS: QUẢN LÝ CHECKBOX + TẠO PHIẾU ĐÃ CHỌN -->
@@ -468,11 +1068,11 @@
         if (hasSelected) {
             btn.disabled = false;
             btn.classList.remove('bg-slate-100', 'text-slate-400', 'border-slate-200', 'cursor-not-allowed');
-            btn.classList.add('bg-orange-500', 'hover:bg-orange-600', 'text-white', 'border-orange-500', 'cursor-pointer');
+            btn.classList.add('bg-red-500', 'hover:bg-red-600', 'text-white', 'border-red-500', 'cursor-pointer');
         } else {
             btn.disabled = true;
             btn.classList.add('bg-slate-100', 'text-slate-400', 'border-slate-200', 'cursor-not-allowed');
-            btn.classList.remove('bg-orange-500', 'hover:bg-orange-600', 'text-white', 'border-orange-500', 'cursor-pointer');
+            btn.classList.remove('bg-red-500', 'hover:bg-red-600', 'text-white', 'border-red-500', 'cursor-pointer');
         }
     }
 
@@ -482,13 +1082,44 @@
         const idsParam = Array.from(selectedOrderIds).join(',');
         const url = `/kho/orders/print_now/?ids=${encodeURIComponent(idsParam)}&print=yes`;
 
-        // Lưu lại danh sách IDs để xóa sau khi in thành công
+        // Lưu lại danh sách IDs để xóa
         const orderIdsToRemove = Array.from(selectedOrderIds);
 
-        // Fetch PDF và mở trong tab mới
+        // ========== BƯỚC 1: XÓA ROWS NGAY LẬP TỨC ==========
+                    orderIdsToRemove.forEach(orderId => {
+                        const row = document.querySelector(`.js-order-row[data-order-id="${orderId}"]`);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s ease-out';
+                            row.style.opacity = '0';
+                            setTimeout(() => row.remove(), 300);
+                        }
+                    });
+
+        // ========== BƯỚC 2: RESET UI NGAY LẬP TỨC ==========
+                    selectedOrderIds.clear();
+
+        // Bỏ check tất cả các checkbox
+                    document.querySelectorAll('.order-checkbox').forEach(cb => {
+                        cb.checked = false;
+                    });
+                    const selectAllCb = document.getElementById('select-all-checkbox');
+                    if (selectAllCb) {
+                        selectAllCb.checked = false;
+                        selectAllCb.indeterminate = false;
+                    }
+
+        // Reset button state
+                    updateBulkPanel();
+
+        // ========== BƯỚC 3: FETCH PDF VÀ MỞ TAB MỚI ==========
+        // Hiển thị toast "Đang xử lý..."
+        showToast('Đang tạo phiếu in...', 'info');
+
         fetch(url, { method: "GET" })
             .then(response => {
-                if (!response.ok) throw new Error('Network error');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 return response.blob();
             })
             .then(blob => {
@@ -502,39 +1133,16 @@
                     // Sau khi mở, revoke URL để giải phóng memory
                     setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
 
-                    alert('Đã tạo phiếu in thành công!');
-
-                    // Xóa các row đã chọn thay vì reload
-                    orderIdsToRemove.forEach(orderId => {
-                        const row = document.querySelector(`.js-order-row[data-order-id="${orderId}"]`);
-                        if (row) {
-                            row.style.transition = 'opacity 0.3s ease-out';
-                            row.style.opacity = '0';
-                            setTimeout(() => row.remove(), 300);
-                        }
-                    });
-
-                    // Clear selection và reset button
-                    selectedOrderIds.clear();
-
-                    // Bỏ check tất cả các checkbox còn lại
-                    document.querySelectorAll('.order-checkbox').forEach(cb => {
-                        cb.checked = false;
-                    });
-                    const selectAllCb = document.getElementById('select-all-checkbox');
-                    if (selectAllCb) {
-                        selectAllCb.checked = false;
-                        selectAllCb.indeterminate = false;
-                    }
-
-                    updateBulkPanel();
+                    // Hiển thị toast thành công
+                    showToast('Đã tạo phiếu in thành công!', 'success');
                 } else {
-                    alert('Vui lòng cho phép popup để in phiếu');
+                    // Popup bị chặn
+                    showToast('Vui lòng cho phép popup để xem phiếu in', 'error');
                 }
             })
             .catch(err => {
                 console.error('Print error:', err);
-                alert('Lỗi khi tạo phiếu in');
+                showToast('Lỗi khi tạo phiếu in: ' + (err.message || 'Không xác định'), 'error');
             });
     }
 
@@ -564,19 +1172,24 @@
                     selectedOrderIds.delete(orderId);
                 }
                 updateBulkPanel();
-                syncSelectAllState();
+                window.syncSelectAllState();
             });
         });
 
-        // Hàm đồng bộ trạng thái checkbox "chọn tất cả"
-        function syncSelectAllState() {
+        // Hàm đồng bộ trạng thái checkbox "chọn tất cả" - di chuyển ra window để có thể gọi từ applyFilters
+        window.syncSelectAllState = function() {
+            const selectAllCb = document.getElementById('select-all-checkbox');
+            const orderCheckboxes = document.querySelectorAll('.order-checkbox');
+            
             if (!selectAllCb) return;
 
             let totalVisible = 0;
             let checkedVisible = 0;
 
             orderCheckboxes.forEach(cb => {
-                if (!isVisibleCheckbox(cb)) return;  // chỉ tính các dòng đang hiển thị
+                const row = cb.closest('.js-order-row');
+                const isVisible = row && !row.classList.contains('hidden');
+                if (!isVisible) return;  // chỉ tính các dòng đang hiển thị
 
                 totalVisible++;
                 if (cb.checked) {
@@ -586,7 +1199,7 @@
 
             selectAllCb.checked = (checkedVisible === totalVisible && totalVisible > 0);
             selectAllCb.indeterminate = (checkedVisible > 0 && checkedVisible < totalVisible);
-        }
+        };
 
         // Sự kiện cho checkbox "chọn tất cả"
         if (selectAllCb) {
@@ -608,7 +1221,7 @@
                 });
 
                 updateBulkPanel();
-                syncSelectAllState();
+                window.syncSelectAllState();
             });
         }
 
@@ -620,7 +1233,10 @@
 
         // Cập nhật panel lần đầu
         updateBulkPanel();
-        syncSelectAllState();
+        window.syncSelectAllState();
+        
+        // Cập nhật product tag buttons lần đầu
+        updateProductTagButtons();
     });
 </script>
 

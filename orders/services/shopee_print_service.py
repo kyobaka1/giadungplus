@@ -2,6 +2,7 @@
 
 import json
 import time
+import logging
 from io import BytesIO
 from typing import Any, Dict, List
 from pathlib import Path
@@ -10,8 +11,6 @@ from django.conf import settings
 
 import PyPDF2
 import pdfplumber
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch
 from reportlab.lib import colors
@@ -25,6 +24,9 @@ from orders.services.sapo_service import (
     SapoCoreOrderService,
 )
 from orders.services.dto import OrderDTO
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # =========================
 # DEBUG CONFIG
@@ -88,15 +90,6 @@ def detect_carrier_type(shipping_carrier_name: str) -> str:
     """
 
     name = (shipping_carrier_name or "").lower()
-
-    if "spx" in name or "shopee xpress" in name or "spx express" in name:
-        return "spx"
-    if "j&t" in name or "jnt" in name:
-        return "jnt"
-    if "ninja" in name:
-        return "ninja"
-    if "giao hàng nhanh" in name or "ghn" in name:
-        return "ghn"
     if (
         "grab" in name
         or "bedelivery" in name
@@ -105,6 +98,16 @@ def detect_carrier_type(shipping_carrier_name: str) -> str:
         or "instant" in name
     ):
         return "hoatoc"
+        
+    if "spx" in name or "shopee xpress" in name or "spx express" in name:
+        return "spx"
+    if "j&t" in name or "jnt" in name:
+        return "jnt"
+    if "ninja" in name:
+        return "ninja"
+    if "giao hàng nhanh" in name or "ghn" in name:
+        return "ghn"
+    
     return "khac"
 
 def _build_mvd_overlay_page(channel_order_number: str, shipping_carrier_name: str):
@@ -337,7 +340,9 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
     base_dir = Path("logs") / "print-cover" / shop_name
     sc = (shipping_carrier or "").lower()
 
-    if "spx" in sc or "shopee xpress" in sc:
+    if any(x in sc for x in ["grab", "instant", "ahamove", "bedelivery"]):
+        fname = "hoatoc.pdf"
+    elif ("spx" in sc or "shopee xpress" in sc) and "Instant" not in sc:
         fname = "shopee-express-cover.pdf"
     elif "j&t" in sc or "j & t" in sc:
         fname = "jat-express-cover.pdf"
@@ -345,8 +350,7 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
         fname = "ninja-cover.pdf"
     elif "ghn" in sc or "giao hàng nhanh" in sc:
         fname = "ghn-cover.pdf"
-    elif any(x in sc for x in ["grab", "instant", "ahamove", "bedelivery"]):
-        fname = "hoatoc.pdf"
+    
     else:
         fname = "khac.pdf"
 
@@ -394,14 +398,21 @@ def generate_label_pdf_for_channel_order(
     debug("→ Shop name:", shop_name)
     debug("→ seller_shop_id:", seller_shop_id)
     
-    # Initialize Shopee client
+    # ----------------------------------------------------------
+    # 2. SHOPEE CLIENT & ORDER ID
+    # ----------------------------------------------------------
     client = ShopeeClient(shop_name)
     
-    # Get Shopee order_id from channel order number
-    SHOPEE_ID = client.get_shopee_order_id(channel_order_number)
-    debug("→ SHOPEE_ID:", SHOPEE_ID)
+    # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
+    shopee_order_info = client.get_shopee_order_id(channel_order_number)
+    SHOPEE_ID = shopee_order_info["order_id"]  # Extract order_id from Dict
     
-    # Get package info
+    debug("→ Order ID:", SHOPEE_ID)
+    logger.info(f"[ShopeePrintService] Order ID: {SHOPEE_ID}")
+    
+    #  ----------------------------------------------------------
+    # 3. GET PACKAGE INFO
+    # ----------------------------------------------------------
     package_info = client.get_package_info(SHOPEE_ID)
     package_list = package_info.get("package_list", [])
     
@@ -410,8 +421,7 @@ def generate_label_pdf_for_channel_order(
     
     first_pack = package_list[0]
     channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
-    # ----------------------------------------------------------
-    # 4.1 LOAD FILE KÊNH & MAP channel_id -> carrier_name
+    
     # ----------------------------------------------------------
     channels_map = _load_shipping_channels()
     resolved_carrier = shipping_carrier  # nếu có truyền từ ngoài thì ưu tiên

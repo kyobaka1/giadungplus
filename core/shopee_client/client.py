@@ -143,29 +143,70 @@ class ShopeeClient:
             raise RuntimeError("Repository not initialized. Call switch_shop() first.")
         return self.repository
     
-    def get_shopee_order_id(self, order_sn: str) -> int:
+    def get_shopee_order_id(self, order_sn: str) -> Dict[str, Any]:
         """
-        Tìm Shopee order_id từ mã đơn.
+        Tìm Shopee order info từ mã đơn.
         
         Args:
             order_sn: Mã đơn Shopee (vd: 25112099T2CASS)
             
         Returns:
-            Shopee order_id
+            Dict containing:
+            - order_id: int - Shopee order ID
+            - buyer_name: str - Shopee username  
+            - buyer_image: str - Avatar URL
+            - order_sn: str - Order number
             
         Raises:
             RuntimeError: Nếu không tìm thấy order
         """
-        logger.debug(f"[ShopeeClient] Getting order_id for: {order_sn}")
+        logger.debug(f"[ShopeeClient] Getting order info for: {order_sn}")
         
         result = self.repo.search_order_raw(order_sn)
         
         try:
-            order_id = result["data"]["order_sn_result"]["list"][0]["order_id"]
-            logger.debug(f"[ShopeeClient] Found order_id: {order_id}")
-            return order_id
+            order_info = result["data"]["order_sn_result"]["list"][0]
+            logger.debug(f"[ShopeeClient] Found order_id: {order_info['order_id']}, buyer: {order_info.get('buyer_name')}")
+            return order_info
         except (KeyError, IndexError) as e:
             raise RuntimeError(f"Order not found: {order_sn}") from e
+    
+    def get_customer_email(self, order_id: int) -> Optional[str]:
+        """
+        Lấy email khách hàng từ Shopee KNB API.
+        
+        Args:
+            order_id: Shopee order ID
+            
+        Returns:
+            Email address hoặc None nếu không có hoặc bị masked
+        """
+        logger.debug(f"[ShopeeClient] Getting customer email for order: {order_id}")
+        
+        try:
+            result = self.repo.get_order_receipt_settings_batch_raw([order_id])
+            
+            settings_list = result.get("data", {}).get("order_receipt_settings", [])
+            if not settings_list:
+                logger.debug(f"[ShopeeClient] No receipt settings found for order {order_id}")
+                return None
+            
+            # Get first order's receipt settings
+            receipt_settings = settings_list[0].get("receipt_settings", {})
+            personal = receipt_settings.get("personal", {})
+            email = personal.get("email", "")
+            
+            # Check if email is masked
+            if email and not email.startswith("****"):
+                logger.debug(f"[ShopeeClient] Found email for order {order_id}: {email}")
+                return email
+            else:
+                logger.debug(f"[ShopeeClient] Email is masked or empty for order {order_id}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"[ShopeeClient] Failed to get customer email: {e}", exc_info=True)
+            return None
     
     def get_package_info(self, order_id: int) -> Dict[str, Any]:
         """
