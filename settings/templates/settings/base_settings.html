@@ -1,0 +1,245 @@
+{% load static %}
+{% load humanize %}
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Language" content="en">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="Gia Dung Plus Settings">
+    <link rel="icon" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.png" />
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <title>{% block title %}Settings – Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind -->
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Averta -->
+    <style>
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        * {
+            font-family: 'Averta', sans-serif;
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: "#db0d29",
+                        brandlight: "#fff1eb"
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-slate-100 text-gray-900 antialiased text-[13px] sm:text-[14px] md:text-[15px]">
+
+    <div class="min-h-screen flex flex-col">
+
+        <!-- █▀ TOP BAR ───────────────────────────── -->
+        <header class="h-14 bg-white border-b shadow-sm flex items-center justify-between px-4">
+            <a href="/settings/" class="flex items-center gap-2 hover:opacity-90 transition">
+                <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
+                    <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
+                </div>
+
+                <div>
+                    <div class="text-sm font-semibold">Gia Dụng Plus – Settings</div>
+                    <div class="text-[11px] text-gray-500 -mt-1">Kênh Cấu Hình Hệ Thống</div>
+                </div>
+            </a>
+
+            <div class="flex items-center gap-4">
+                <!-- User Info -->
+                <div class="text-sm font-medium text-gray-700">
+                    {% if request.user.is_authenticated %}
+                    {{ request.user.get_full_name }}
+                    {% endif %}
+                </div>
+
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        <!-- █▀ MAIN LAYOUT ───────────────────────── -->
+        <div class="flex flex-1 overflow-hidden">
+
+            <!-- SIDEBAR -->
+            <aside class="bg-white border-r overflow-y-auto flex-shrink-0
+                   w-16 sm:w-32 md:w-32 lg:w-48
+                   text-[12px] sm:text-[13px]">
+                <nav class="py-4 space-y-4">
+
+                    <!-- GROUP: Cài đặt -->
+                    <div class="px-4 mb-2">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle" data-collapse-id="menu-settings">
+                            <span>Cài đặt</span>
+                            <span
+                                class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-settings" class="space-y-1 pb-2">
+                            <li>
+                                <a href="{% url 'settings_dashboard' %}" class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Tổng quan
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'sapo_config' %}" class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Sapo Config
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'shopee_settings' %}" class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Shopee Cookies
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- GROUP: Quay lại -->
+                    <div class="px-4 mb-2">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 collapse-toggle" data-collapse-id="menu-back">
+                            <span>Quay lại</span>
+                            <span
+                                class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-back" class="space-y-1 pb-2">
+                            <li>
+                                <a href="/kho/" class="block px-2.5 py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Kho hàng
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                </nav>
+            </aside>
+
+            <!-- █▀ MAIN CONTENT -->
+            <main class="flex-1 overflow-y-auto">
+                <div class="px-5 py-4 space-y-6">
+
+                    <!-- █▀ OVERVIEW BLOCK -->
+                    {% block overview %}
+                    <section>
+                        <h1 class="text-lg font-semibold text-slate-800">
+                            Settings
+                        </h1>
+                    </section>
+                    {% endblock %}
+
+                    <!-- █▀ CONTENT BLOCK -->
+                    {% block content %}
+                    {% endblock %}
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- JS toggle sidebar group -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggles = document.querySelectorAll('.collapse-toggle');
+
+            toggles.forEach(function (btn) {
+                const id = btn.getAttribute('data-collapse-id');
+                const body = document.getElementById(id);
+                const arrow = btn.querySelector('.collapse-arrow');
+
+                if (!body) return;
+
+                btn.addEventListener('click', function () {
+                    const isHidden = body.classList.toggle('hidden');
+                    if (arrow) {
+                        if (isHidden) {
+                            arrow.classList.add('-rotate-90');
+                        } else {
+                            arrow.classList.remove('-rotate-90');
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentURL = window.location.pathname;
+            const links = document.querySelectorAll('.sidebar-link');
+
+            links.forEach(link => {
+                if (link.getAttribute('href') === currentURL) {
+
+                    // Tô active
+                    link.classList.add(
+                        "bg-brandlight",
+                        "text-brand",
+                        "font-semibold"
+                    );
+
+                    // Tìm nhóm cha và auto mở nó
+                    let parent = link.closest("ul");
+                    if (parent) {
+                        parent.classList.remove('hidden');   // mở dropdown
+
+                        // Xoay mũi tên
+                        const button = parent.previousElementSibling;
+                        if (button && button.querySelector('.collapse-arrow')) {
+                            button.querySelector('.collapse-arrow').classList.remove('-rotate-90');
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>
