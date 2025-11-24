@@ -1,15 +1,15 @@
-Xây dựng lại /orders ở các hàm DTO, services... với yêu cầu như sau:
+Xây dựng lại /orders ở các hàm DTO, services... với yêu cầu như sau, kết hợp với /products DTO.
 
 ***MÔ TẢ YÊU CẦU***
-- Xây dựng lại danh sách sản phẩm của đơn hàng thành các phân loại đơn lẻ (tách từ combo, packed ra) để dễ xử lý hơn.
-Ví dụ: Tôi có sản phẩm A - tôi có 2 phân loại là A, và A-CB2 -> là packed 2 của sản phẩm A. Như vậy qua đoạn xử lý -> tôi sẽ có 2 A -> chứ ko phải 1 A-CB2.
 
-- Xây dựng thêm gift dựa vào danh sách sản phẩm và qui định tặng quà được qui định sẵn. 
+- Xây dựng lại đơn hàng với products/variants DTO trong /products
+- Xây dựng lại danh sách sản phẩm của đơn hàng thành các phân loại đơn lẻ (tách từ combo, packed ra).
 
 ***LOGIC VÀ XỬ LÝ***
 
 1. Danh sách sản phẩm
     ** Các bước xử lý
+
     - Từ json đơn hàng, ta dò lại các order_line_items.
     - Xem thử product_type (normal/combo) và is_packsize (true/false) để xử lý tiếp.
     - Nếu là sản phẩm thường -> không cần xử lý.
@@ -21,11 +21,6 @@ Ví dụ: Tôi có sản phẩm A - tôi có 2 phân loại là A, và A-CB2 -> 
 
     ** Chú ý:
     - Có thể cần lưu lại old_id -> tức là variant_id của combo hoặc packsize -> Mục đích là để khi sang Sapo MP hoặc Shopee KNB, dù đã qui đổi nhưng kiện hàng nào chứa sản phẩm nào -> vẫn có thể biết được để in ra trong kiện hàng đó.
-
-
-2. Quà tặng kèm
-    ** Các bước xử lý:
-    - 
 
 
 ***ĐOẠN CODE THAM KHẢO - CHỈ THAM KHẢO TƯ DUY***
@@ -132,4 +127,17 @@ for order_id in order_ids:
 
         # Sắp xếp order['real_items'] theo SKU (sắp xếp theo phần số trong SKU trước dấu '-')
         order['real_items'] = sorted(order['real_items'], key=lambda item: get_sku_number(item['sku']))
+
+*** KẾT QUẢ MONG MUỐN ***
+
+- Ví dụ đơn hàng SON02345 - Có 1 order_lines là: SQ-0101-CB2 (SKU) SL: 2 -> Sau khi init đơn hàng dto -> SQ-0101-BS 4 chiếc. Với SQ-0101-CB2 là loại packed có orgin là 2 chiếc SQ-0101-BS.
+
+- Ví dụ đơn hàng SON97432 - Có 1 order_lines là: CB-0306 SL : 1 -> Sau khi init đơn hàng -> Sẽ có:
+    + SL:1 JX-0306-S3
+    + SL:1 JX-0306-S4
+    + SL:2 JX-0306-S5
+(với combo CB-0306 là 1 jx-0306-s3 + 1 jx-0306-s4 + 2 jx-0306-s5)
+
+- Ví dụ đơn hàng SON02366 - Có 1 order_lines là: SQ-0101-CB2 (SKU) SL: 2, SQ-0101-BS SL: 2 -> Sau khi init đơn hàng dto:
+    SL: SQ-0101-BS SL: 6 chiếc.
 

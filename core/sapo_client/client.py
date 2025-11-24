@@ -6,11 +6,13 @@ Quản lý 2 sessions riêng cho Core API và Marketplace API.
 
 import json
 import time
+import threading
 from typing import Dict, Any, Optional
 import logging
 
 import requests
 from django.utils import timezone
+from django.core.cache import cache
 from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -20,8 +22,13 @@ from core.models import SapoToken
 from core.system_settings import SAPO_BASIC, SAPO_TMDT
 
 from .repositories import SapoCoreRepository, SapoMarketplaceRepository
+from .exceptions import SeleniumLoginInProgressException
 
 logger = logging.getLogger(__name__)
+
+# Lock key for Selenium login process
+SELENIUM_LOCK_KEY = "sapo_selenium_login_lock"
+SELENIUM_LOCK_TIMEOUT = 300  # 5 minutes
 
 
 class SapoClient:
@@ -254,12 +261,21 @@ class SapoClient:
                 self.core_valid = True
                 return
         
-        # Need new login
-        logger.info("[SapoClient] Core login via browser required")
-        core_headers = self._login_via_browser()
-        self._save_token_to_db(core_headers)
-        self.core_valid = True
-        logger.info("[SapoClient] Core login complete ✓")
+        # Need new login - check if login is already in progress
+        if self._check_selenium_lock_status():
+            logger.warning("[SapoClient] Selenium login already in progress")
+            raise SeleniumLoginInProgressException(
+                "Selenium login is currently in progress. Please wait."
+            )
+        
+        # Start background login and raise exception to show loading page
+        logger.info("[SapoClient] Starting background Selenium login")
+        self._start_background_login()
+        
+        # Raise exception để redirect tới loading page
+        raise SeleniumLoginInProgressException(
+            "Starting Selenium login. Please wait."
+        )
     
     def _ensure_tmdt_headers(self):
         """Đảm bảo marketplace session đã authenticated."""
@@ -275,24 +291,81 @@ class SapoClient:
             self.tmdt_valid = True
             return
         
-        # Need refresh
-        logger.info("[SapoClient] Marketplace token refresh required")
+        # Need refresh - check if login is already in progress
+        if self._check_selenium_lock_status():
+            logger.warning("[SapoClient] Selenium login already in progress for marketplace")
+            raise SeleniumLoginInProgressException(
+                "Selenium login is currently in progress. Please wait."
+            )
         
         # Reset core để force browser login (sẽ capture cả marketplace token)
         self.core_valid = False
         self.core_initialized = False
         
-        core_headers = self._login_via_browser()
-        self._save_token_to_db(core_headers)
+        # Start background login and raise exception
+        logger.info("[SapoClient] Starting background Selenium login for marketplace")
+        self._start_background_login()
         
-        # Load marketplace token vừa capture được
-        headers = self._load_tmdt_token()
-        if not headers or not self._check_tmdt_valid_remote(headers):
-            raise RuntimeError("Failed to get marketplace token after browser login")
+        # Raise exception để redirect tới loading page
+        raise SeleniumLoginInProgressException(
+            "Starting Selenium login for marketplace. Please wait."
+        )
+    
+    # ========================= BACKGROUND LOGIN =========================
+    
+    def _start_background_login(self):
+        """
+        Start Selenium login trong background thread.
+        Thread sẽ acquire lock, login, và release lock khi hoàn tất.
+        """
+        def background_login_task():
+            try:
+                logger.info("[BackgroundLogin] Starting Selenium login...")
+                core_headers = self._login_via_browser()
+                self._save_token_to_db(core_headers)
+                logger.info("[BackgroundLogin] Selenium login complete ✓")
+            except Exception as e:
+                logger.error(f"[BackgroundLogin] Login failed: {e}")
+                # Release lock nếu có lỗi
+                self._release_selenium_lock()
         
-        self._apply_tmdt_headers_to_session(headers)
-        self.tmdt_valid = True
-        logger.info("[SapoClient] Marketplace session ready ✓")
+        # Start thread
+        thread = threading.Thread(target=background_login_task, daemon=True)
+        thread.start()
+        logger.info("[SapoClient] Background login thread started")
+    
+    # ========================= SELENIUM LOCK MANAGEMENT =========================
+    
+    def _acquire_selenium_lock(self) -> bool:
+        """
+        Acquire lock để đảm bảo chỉ 1 Selenium instance chạy tại một thời điểm.
+        
+        Returns:
+            True nếu acquire được lock, False nếu lock đang được giữ bởi process khác
+        """
+        # Thử set lock với timeout
+        acquired = cache.add(SELENIUM_LOCK_KEY, True, SELENIUM_LOCK_TIMEOUT)
+        
+        if acquired:
+            logger.info("[SapoClient] Selenium lock acquired ✓")
+        else:
+            logger.warning("[SapoClient] Selenium lock is held by another process")
+        
+        return acquired
+    
+    def _release_selenium_lock(self):
+        """Release Selenium lock."""
+        cache.delete(SELENIUM_LOCK_KEY)
+        logger.info("[SapoClient] Selenium lock released ✓")
+    
+    def _check_selenium_lock_status(self) -> bool:
+        """
+        Check xem có lock nào đang active không.
+        
+        Returns:
+            True nếu lock đang active (login đang chạy), False nếu không
+        """
+        return cache.get(SELENIUM_LOCK_KEY) is not None
     
     # ========================= BROWSER LOGIN (SELENIUM) =========================
     
@@ -305,11 +378,21 @@ class SapoClient:
             
         Side effect:
             Lưu marketplace headers vào DB
+            
+        Raises:
+            SeleniumLoginInProgressException: Nếu có Selenium login khác đang chạy
         """
         logger.info("[SapoClient] Starting browser login (Selenium Wire)...")
         
+        # Kiểm tra lock trước
+        if not self._acquire_selenium_lock():
+            logger.warning("[SapoClient] Another Selenium login is in progress")
+            raise SeleniumLoginInProgressException(
+                "Another Selenium login process is currently running. Please wait."
+            )
+        
         chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument("--headless")  # Run in background
+        # chrome_options.add_argument("--headless")  # Disabled for testing - browser will be visible
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument("--no-sandbox")
@@ -385,6 +468,8 @@ class SapoClient:
         
         finally:
             driver.quit()
+            # Always release lock khi hoàn tất (hoặc lỗi)
+            self._release_selenium_lock()
         
         if not captured_core_headers:
             raise RuntimeError("Failed to capture core headers from browser session")

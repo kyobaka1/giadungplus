@@ -11,7 +11,7 @@
 </section>
 {% endblock %}
 
-{% block content %}
+{% block main_content %}
 <style>
     /* Hiệu ứng gạch xanh lá chéo cho đơn đang tìm shipper (packing_status = 1) */
     .order-finding-shipper {
@@ -100,7 +100,6 @@
     }
 </style>
 <div class="min-h-screen bg-slate-100">
-    <div class="max-w-6xl mx-auto">
         <!-- Tiêu đề + filter -->
         <div class="mb-4 flex items-center justify-between">
             <div class="flex items-center gap-3 text-sm">
@@ -443,7 +442,6 @@
             </div>
             {% endif %}
         </div>
-    </div>
 </div>
 
 <!-- File: templates/kho/orders/express.html -->
@@ -587,5 +585,4 @@
         }
     });
 </script>
-
 {% endblock %}

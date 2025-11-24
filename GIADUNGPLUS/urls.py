@@ -22,4 +22,6 @@ urlpatterns = [
     path("marketing/", include("marketing.urls")),
     path("service/", include("service.urls")),
     path("products/", include("products.urls")),
+    path("settings/", include("settings.urls")),
+    path("core/", include("core.urls")),  # Selenium loading page
 ]

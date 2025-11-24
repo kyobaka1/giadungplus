@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 class ShopeeCookieManager:
     """
     Quản lý cookies cho Shopee shops.
-    Mỗi shop có 1 file cookie riêng trong logs/raw_cookie/
+    Mỗi shop có 1 file cookie riêng trong settings/logs/raw_cookie/
     """
     
-    def __init__(self, cookie_dir: str = "logs/raw_cookie"):
+    def __init__(self, cookie_dir: str = "settings/logs/raw_cookie"):
         """
         Args:
             cookie_dir: Directory chứa cookie files

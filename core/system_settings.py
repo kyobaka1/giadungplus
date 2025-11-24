@@ -8,11 +8,35 @@ Cấu hình hệ thống nội bộ cho Gia Dụng Plus:
 """
 
 import os
+import json
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # Đọc biến môi trường với default (anh có thể set trong .env, Docker, v.v.)
+# Ưu tiên đọc từ file settings/logs/sapo_config.env
+
+SAPO_CONFIG_FILE = Path("settings/logs/sapo_config.env")
+_file_config = {}
+
+def load_config_file():
+    global _file_config
+    if SAPO_CONFIG_FILE.exists():
+        try:
+            with open(SAPO_CONFIG_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    _file_config[key.strip()] = value.strip()
+        except Exception as e:
+            print(f"Error loading config file: {e}")
+
+load_config_file()
+
 def env(key: str, default: str = "") -> str:
-    return os.environ.get(key, default)
+    return _file_config.get(key) or os.environ.get(key, default)
 
 
 # ================== CẤU HÌNH SAPO CƠ BẢN ==================
@@ -34,9 +58,9 @@ SAPO_BASIC = SapoBasicConfig(
     PASSWORD=env("SAPO_PASSWORD", "giadungPlus2@@4"),
 
     # Các XPATH dùng login – anh điền đúng như hiện tại
-    LOGIN_USERNAME_FIELD='/html/body/div[2]/div/div[6]/form/div[1]/div[2]/input',       # ví dụ
-    LOGIN_PASSWORD_FIELD='/html/body/div[2]/div/div[6]/form/div[1]/div[3]/input',    # ví dụ
-    LOGIN_BUTTON='/html/body/div[2]/div/div[6]/form/div[4]/button',        # ví dụ
+    LOGIN_USERNAME_FIELD=env("SAPO_LOGIN_USERNAME_FIELD", '/html/body/div[2]/div/div[6]/form/div[1]/div[2]/input'),
+    LOGIN_PASSWORD_FIELD=env("SAPO_LOGIN_PASSWORD_FIELD", '/html/body/div[2]/div/div[6]/form/div[1]/div[3]/input'),
+    LOGIN_BUTTON=env("SAPO_LOGIN_BUTTON", '/html/body/div[2]/div/div[6]/form/div[4]/button'),
 )
 
 
@@ -66,13 +90,9 @@ HOATOC_HN_ON: bool = env("GDPLUS_HOATOC_HN_ON", "1") == "1"
 HOATOC_HCM_ON: bool = env("GDPLUS_HOATOC_HCM_ON", "1") == "1"
 
 
+# ================== SHOPEE CONFIG ==================
 
-# core/shopee_config.py
-import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-SHOPEE_SHOPS_CONFIG = Path("logs/shopee_shops.json")
+SHOPEE_SHOPS_CONFIG = Path("settings/logs/shopee_shops.json")
 
 # Location ID theo Sapo
 KHO_GELEXIMCO = 241737  # Hà Nội
@@ -81,7 +101,7 @@ KHO_TOKY = 548744       # HCM
 
 def load_shopee_shops() -> Dict[str, int]:
     """
-    Đọc file logs/shopee_shops.json và trả về map:
+    Đọc file settings/logs/shopee_shops.json và trả về map:
     {
         "giadungplus_official": 10925,
         "lteng_vn": 155174,
@@ -129,7 +149,7 @@ def get_connection_ids(shop_names: Optional[List[str]] = None) -> str:
 
 def load_shopee_shops_detail() -> Dict[str, Dict[str, Any]]:
     """
-    Đọc file logs/shopee_shops.json và trả về map chi tiết:
+    Đọc file settings/logs/shopee_shops.json và trả về map chi tiết:
     {
         "giadungplus_official": {
             "name": "giadungplus_official",
@@ -173,7 +193,7 @@ def resolve_pickup_address_id(shop_name: str, location_id: int) -> int:
     - shop_name (ví dụ: giadungplus_official, phaledo, lteng_vn, lteng_hcm...)
     - location_id (KHO_GELEXIMCO / KHO_TOKY)
 
-    Lấy từ logs/shopee_shops.json:
+    Lấy từ settings/logs/shopee_shops.json:
     - address_geleximco cho kho Hà Nội
     - address_toky cho kho HCM
 
@@ -207,7 +227,7 @@ def resolve_pickup_address_id(shop_name: str, location_id: int) -> int:
     if not address_id:
         print(
             f"[!] address_id = 0 cho shop={shop_name}, key={key}. "
-            f"Kiểm tra lại logs/shopee_shops.json"
+            f"Kiểm tra lại settings/logs/shopee_shops.json"
         )
         return 0
 
@@ -218,7 +238,7 @@ def resolve_location_by_address(address_id: int) -> Optional[int]:
     """
     Dựa vào address_id (Shopee pickup address) để suy ra location_id Sapo:
 
-    - Nếu address_id trùng với address_geleximco trong logs/shopee_shops.json
+    - Nếu address_id trùng với address_geleximco trong settings/logs/shopee_shops.json
       -> trả về KHO_GELEXIMCO
     - Nếu address_id trùng với address_toky
       -> trả về KHO_TOKY

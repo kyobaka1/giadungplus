@@ -1,0 +1,56 @@
+{% extends "settings/base_settings.html" %}
+
+{% block title %}Settings - Edit Cookie - {{ shop.name }}{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'shopee_settings' %}" class="text-gray-500 hover:text-gray-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+        </a>
+        <div>
+            <h1 class="text-lg font-semibold text-slate-800">
+                Edit Cookie: {{ shop.name }}
+            </h1>
+            <p class="text-xs text-gray-500 mt-1">
+                Cập nhật cookie cho shop
+            </p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <form method="post" class="bg-white border rounded-xl shadow-sm p-6 space-y-6">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Cookie Content</label>
+            <p class="text-xs text-gray-500 mb-2">Paste toàn bộ nội dung cookie vào đây (format key-value từng dòng)</p>
+            <textarea name="cookie_content" rows="15"
+                class="w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring focus:ring-brand focus:ring-opacity-20 text-xs font-mono p-4"
+                placeholder="accept
+application/json
+cookie
+SPC_F=...; SPC_R_T_ID=...
+...">{{ current_cookie }}</textarea>
+        </div>
+
+        <div class="pt-4 border-t flex justify-end gap-3">
+            <a href="{% url 'shopee_settings' %}"
+                class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition shadow-sm font-medium text-sm">
+                Huỷ
+            </a>
+            <button type="submit"
+                class="px-4 py-2 bg-brand text-white rounded-md hover:bg-red-700 transition shadow-sm font-medium text-sm">
+                Lưu Cookie
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

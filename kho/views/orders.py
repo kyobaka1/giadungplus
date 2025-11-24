@@ -1166,21 +1166,32 @@ def print_now(request: HttpRequest):
             if dto and dto.fulfillments and len(dto.fulfillments) > 0:
                 last_ff = dto.fulfillments[-1]
                 if last_ff.id and dto.id:
-                    # Use resolved carrier name (already resolved above)
-                    shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
+                    # Kiểm tra packing_status hiện tại
+                    current_packing_status = dto.packing_status or 0
                     
-                    success = core_service.update_fulfillment_packing_status(
-                        order_id=dto.id,
-                        fulfillment_id=last_ff.id,
-                        packing_status=1,
-                        shopee_id=channel_order_number,  # Shopee order number
-                        split=split_count,  # Package count
-                        dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
-                    )
-                    if success:
-                        debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                    # Chỉ update nếu packing_status < 2 (giữ nguyên nếu >= 2)
+                    if current_packing_status < 2:
+                        # Use resolved carrier name (already resolved above)
+                        shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
+                        
+                        success = core_service.update_fulfillment_packing_status(
+                            order_id=dto.id,
+                            fulfillment_id=last_ff.id,
+                            packing_status=1,
+                            shopee_id=channel_order_number,  # Shopee order number
+                            split=split_count,  # Package count
+                            dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
+                        )
+                        if success:
+                            debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                            debug_info.setdefault("logs", []).append(
+                                f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                            )
+                    else:
+                        # Giữ nguyên packing_status hiện tại (>= 2)
+                        debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 2, keeping unchanged)")
                         debug_info.setdefault("logs", []).append(
-                            f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                            f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 2, keeping unchanged)"
                         )
             else:
                 debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")

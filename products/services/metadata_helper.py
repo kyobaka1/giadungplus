@@ -13,7 +13,14 @@ import json
 from typing import Optional, Tuple
 import logging
 
-from products.services.dto import ProductMetadataDTO, VariantMetadataDTO
+from products.services.dto import (
+    ProductMetadataDTO, 
+    VariantMetadataDTO,
+    VideoInfoDTO,
+    NhanPhuInfoDTO,
+    BoxInfoDTO,
+    PackedInfoDTO,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -129,14 +136,14 @@ def update_description_metadata(
 
 def init_empty_metadata(product_id: int, variant_ids: list[int]) -> ProductMetadataDTO:
     """
-    Khởi tạo metadata rỗng cho product và variants.
+    Khởi tạo metadata rỗng cho product và variants với đầy đủ các trường bắt buộc.
     
     Args:
         product_id: Sapo product ID
         variant_ids: List of variant IDs
         
     Returns:
-        ProductMetadataDTO với structure rỗng cho tất cả variants
+        ProductMetadataDTO với structure đầy đủ (có thể rỗng/null) cho tất cả variants
         
     Example:
         >>> metadata = init_empty_metadata(42672265, [62457516, 62457517])
@@ -144,15 +151,47 @@ def init_empty_metadata(product_id: int, variant_ids: list[int]) -> ProductMetad
         2
         >>> metadata.variants[0].id
         62457516
+        >>> metadata.variants[0].price_tq is None
+        True
     """
-    variant_metadata_list = [
-        VariantMetadataDTO(id=vid) 
-        for vid in variant_ids
-    ]
+    # Tạo variant metadata với đầy đủ các trường bắt buộc (có thể null)
+    variant_metadata_list = []
+    for vid in variant_ids:
+        variant_meta = VariantMetadataDTO(
+            id=vid,
+            price_tq=None,
+            sku_tq=None,
+            box_info=BoxInfoDTO(
+                full_box=None,
+                length_cm=None,
+                width_cm=None,
+                height_cm=None
+            ),
+            packed_info=PackedInfoDTO(
+                length_cm=None,
+                width_cm=None,
+                height_cm=None,
+                weight_with_box_g=None,
+                weight_without_box_g=None,
+                converted_weight_g=None
+            ),
+            sku_model_xnk=None,
+            web_variant_id=[]
+        )
+        variant_metadata_list.append(variant_meta)
     
     return ProductMetadataDTO(
-        web_product_id=None,
-        custom_description=None,
+        description=None,  # HTML description
+        videos=[],
+        video_primary=None,
+        nhanphu_info=NhanPhuInfoDTO(
+            vi_name=None,
+            en_name=None,
+            description=None,
+            material=None,
+            hdsd=None
+        ),
+        warranty_months=None,
         variants=variant_metadata_list
     )
 

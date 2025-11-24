@@ -13,8 +13,41 @@ from core.base.dto_base import BaseDTO
 
 # ========================= METADATA STRUCTURES =========================
 
+class VideoInfoDTO(BaseDTO):
+    """Thông tin video"""
+    url: Optional[str] = None
+    title: Optional[str] = None
+
+
+class NhanPhuInfoDTO(BaseDTO):
+    """Thông tin nhãn phụ"""
+    vi_name: Optional[str] = None      # Tên tiếng Việt
+    en_name: Optional[str] = None      # Tên tiếng Anh
+    description: Optional[str] = None  # Mô tả
+    material: Optional[str] = None     # Chất liệu
+    hdsd: Optional[str] = None         # Hướng dẫn sử dụng
+
+
+class BoxInfoDTO(BaseDTO):
+    """Thông tin thùng (master carton)"""
+    full_box: Optional[int] = None         # Số cái/thùng
+    length_cm: Optional[float] = None       # Chiều dài (cm)
+    width_cm: Optional[float] = None        # Chiều rộng (cm)
+    height_cm: Optional[float] = None       # Chiều cao (cm)
+
+
+class PackedInfoDTO(BaseDTO):
+    """Thông tin đóng gói 1 chiếc"""
+    length_cm: Optional[float] = None          # Chiều dài (cm)
+    width_cm: Optional[float] = None            # Chiều rộng (cm)
+    height_cm: Optional[float] = None           # Chiều cao (cm)
+    weight_with_box_g: Optional[float] = None   # Trọng lượng cả hộp (g)
+    weight_without_box_g: Optional[float] = None  # Trọng lượng không hộp (g)
+    converted_weight_g: Optional[float] = None    # Trọng lượng quy đổi = dài x rộng x cao / 6000 (g)
+
+
 class PackagingInfoDTO(BaseDTO):
-    """Thông tin đóng gói của variant"""
+    """Thông tin đóng gói của variant (legacy - giữ để tương thích)"""
     # Thông tin hộp đơn lẻ
     box_length_cm: Optional[float] = None    # Chiều dài hộp (cm)
     box_width_cm: Optional[float] = None     # Chiều rộng hộp (cm)
@@ -31,7 +64,7 @@ class PackagingInfoDTO(BaseDTO):
 
 
 class ImportInfoDTO(BaseDTO):
-    """Thông tin nhập hàng của variant"""
+    """Thông tin nhập hàng của variant (legacy - giữ để tương thích)"""
     china_price_cny: Optional[float] = None      # Giá nhập (CNY - Nhân dân tệ)
     supplier_sku: Optional[str] = None           # SKU nhà sản xuất
     import_model_sku: Optional[str] = None       # SKU-MODEL nhập khẩu (ref to customs data)
@@ -50,6 +83,16 @@ class VariantMetadataDTO(BaseDTO):
     product.description field với format [GDP_META]{...}[/GDP_META].
     """
     id: int                                      # variant_id (để match với variant trong Sapo)
+    
+    # Thông tin bắt buộc mới
+    price_tq: Optional[float] = None            # Giá nhân dân tệ (CNY)
+    sku_tq: Optional[str] = None                 # SKU của nhà sản xuất
+    box_info: Optional[BoxInfoDTO] = None        # Thông tin thùng (full_box, dài x rộng x cao)
+    packed_info: Optional[PackedInfoDTO] = None  # Thông tin đóng gói 1 chiếc
+    sku_model_xnk: Optional[str] = None          # SKU-MODEL-XNK (nhập khẩu)
+    web_variant_id: List[str] = Field(default_factory=list)  # Danh sách ID variant trên website
+    
+    # Legacy fields (giữ để tương thích)
     import_info: Optional[ImportInfoDTO] = None
     packaging_info: Optional[PackagingInfoDTO] = None
     website_info: Optional[WebsiteInfoDTO] = None
@@ -61,16 +104,28 @@ class ProductMetadataDTO(BaseDTO):
     
     Structure:
     {
-        "web_product_id": "...",
-        "custom_description": "...",
+        "description": "<html>...</html>",
+        "videos": [{"url": "...", "title": "..."}],
+        "video_primary": {"url": "...", "title": "..."},
+        "nhanphu_info": {"vi_name": "...", "en_name": "...", ...},
+        "warranty_months": 12,
         "variants": [
-            {"id": 123, "import_info": {...}, ...},
-            {"id": 456, "packaging_info": {...}, ...}
+            {"id": 123, "price_tq": 50.0, "sku_tq": "...", ...},
+            {"id": 456, "box_info": {...}, ...}
         ]
     }
     """
+    # Thông tin bắt buộc mới
+    description: Optional[str] = None            # Mô tả sản phẩm (HTML format)
+    videos: List[VideoInfoDTO] = Field(default_factory=list)  # Danh sách videos
+    video_primary: Optional[VideoInfoDTO] = None # Video chính
+    nhanphu_info: Optional[NhanPhuInfoDTO] = None # Thông tin nhãn phụ
+    warranty_months: Optional[int] = None         # Thời gian bảo hành (tháng)
+    
+    # Legacy fields (giữ để tương thích)
     web_product_id: Optional[str] = None         # ID trên website
     custom_description: Optional[str] = None     # Mô tả tùy chỉnh
+    
     variants: List[VariantMetadataDTO] = Field(default_factory=list)
 
 
@@ -144,7 +199,7 @@ class ProductVariantDTO(BaseDTO):
     # Relations
     variant_prices: List[VariantPriceDTO] = Field(default_factory=list)
     inventories: List[VariantInventoryDTO] = Field(default_factory=list)
-    images: List[VariantImageDTO] = Field(default_factory=list)
+    images: Optional[List[VariantImageDTO]] = Field(default_factory=list)  # Cho phép None từ API
     
     # ===== GDP Extended metadata =====
     # Parsed from parent product.description [GDP_META] section
@@ -211,7 +266,7 @@ class ProductDTO(BaseDTO):
     # ===== Relations =====
     variants: List[ProductVariantDTO] = Field(default_factory=list)
     options: List[ProductOptionDTO] = Field(default_factory=list)
-    images: List[VariantImageDTO] = Field(default_factory=list)
+    images: Optional[List[VariantImageDTO]] = Field(default_factory=list)  # Cho phép None từ API
     
     # ===== GDP metadata =====
     # Parsed from description field [GDP_META]...[/GDP_META]
@@ -248,7 +303,13 @@ class ProductDTO(BaseDTO):
 # ========================= EXPORTS =========================
 
 __all__ = [
-    # Metadata
+    # Metadata - New structures
+    'VideoInfoDTO',
+    'NhanPhuInfoDTO',
+    'BoxInfoDTO',
+    'PackedInfoDTO',
+    
+    # Metadata - Legacy (tương thích)
     'PackagingInfoDTO',
     'ImportInfoDTO',
     'WebsiteInfoDTO',

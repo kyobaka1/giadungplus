@@ -19,48 +19,88 @@
         <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
             <div class="flex items-center justify-between mb-4">
                 <h2 class="text-sm font-semibold text-slate-700">Tìm kiếm & Lọc</h2>
-                <!-- Button Init Metadata -->
-                <button type="button" 
-                        id="init-metadata-btn"
-                        class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-2">
-                    <span>🔄</span>
-                    <span>Init Metadata Tất Cả Sản Phẩm</span>
-                </button>
+                <!-- Init Metadata Section -->
+                <div class="flex items-center gap-3">
+                    <!-- Test Mode Toggle -->
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" 
+                               id="test-mode-toggle"
+                               class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                        <span class="text-sm text-slate-700">Test Mode (Init tất cả)</span>
+                    </label>
+                    <!-- Button Init Metadata -->
+                    <button type="button" 
+                            id="init-metadata-btn"
+                            class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-2">
+                        <span>🔄</span>
+                        <span>Init Metadata</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Bộ lọc Nhãn hiệu -->
+            <div class="mb-3">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Nhãn hiệu:</span>
+                    <button id="filter-brand-all" 
+                            class="filter-btn filter-brand-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="brand"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-brand-all-count">0</span>)
+                    </button>
+                    <div id="filter-brand-container" class="flex flex-wrap gap-1.5">
+                        {% for brand in brands %}
+                        <button class="filter-btn filter-brand-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                                data-filter-type="brand"
+                                data-filter-value="{{ brand }}">
+                            {{ brand }} (<span class="filter-brand-count" data-brand="{{ brand }}">0</span>)
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bộ lọc Trạng thái -->
+            <div class="mb-3">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Trạng thái:</span>
+                    <button id="filter-status-all" 
+                            class="filter-btn filter-status-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="status"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-status-all-count">0</span>)
+                    </button>
+                    <div id="filter-status-container" class="flex flex-wrap gap-1.5">
+                        {% for status_item in statuses %}
+                        <button class="filter-btn filter-status-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                                data-filter-type="status"
+                                data-filter-value="{{ status_item }}">
+                            {% if status_item == "active" %}Hoạt động{% elif status_item == "inactive" %}Ngừng hoạt động{% else %}{{ status_item }}{% endif %} (<span class="filter-status-count" data-status="{{ status_item }}">0</span>)
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
             
             {% csrf_token %}
-            <form method="get" action="{% url 'products:product_list' %}" class="flex items-center gap-4 flex-wrap">
-                <!-- Tìm kiếm -->
+            <!-- Tìm kiếm -->
+            <div class="flex items-center gap-4 flex-wrap">
                 <div class="flex-1 min-w-[200px]">
                     <input type="text" 
+                           id="product-search-input"
                            name="search" 
-                           value="{{ search }}"
+                           value=""
                            placeholder="Tìm kiếm sản phẩm..." 
                            class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
                 </div>
 
-                <!-- Status filter -->
-                <div>
-                    <select name="status" 
-                            class="px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
-                        <option value="active" {% if status == "active" %}selected{% endif %}>Đang hoạt động</option>
-                        <option value="inactive" {% if status == "inactive" %}selected{% endif %}>Ngừng hoạt động</option>
-                        <option value="" {% if not status %}selected{% endif %}>Tất cả</option>
-                    </select>
-                </div>
-
-                <!-- Submit -->
-                <button type="submit" 
-                        class="px-4 py-2 bg-brand text-white rounded-md hover:bg-red-700 transition text-sm font-medium">
-                    Tìm kiếm
-                </button>
-
                 <!-- Reset -->
-                <a href="{% url 'products:product_list' %}" 
-                   class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+                <button type="button" 
+                        id="reset-filters-btn"
+                        class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
                     Đặt lại
-                </a>
-            </form>
+                </button>
+            </div>
         </div>
 
         <!-- Progress Modal -->
@@ -116,7 +156,9 @@
                     <tbody class="bg-white divide-y divide-slate-200">
                         {% if products %}
                             {% for product in products %}
-                            <tr class="hover:bg-slate-50 transition">
+                            <tr class="js-product-row hover:bg-slate-50 transition"
+                                data-brand="{{ product.brand|default:'' }}"
+                                data-status="{{ product.status|default:'' }}">
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ product.id }}</td>
                                 <td class="px-4 py-3">
                                     <a href="{% url 'products:product_detail' product.id %}" 
@@ -163,11 +205,7 @@
                         {% else %}
                             <tr>
                                 <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">
-                                    {% if search %}
-                                        Không tìm thấy sản phẩm nào với từ khóa "{{ search }}"
-                                    {% else %}
-                                        Chưa có sản phẩm nào
-                                    {% endif %}
+                                    Chưa có sản phẩm nào
                                 </td>
                             </tr>
                         {% endif %}
@@ -175,23 +213,11 @@
                 </table>
             </div>
 
-            <!-- PAGINATION -->
+            <!-- SUMMARY -->
             {% if products %}
-            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200">
                 <div class="text-sm text-slate-600">
-                    Trang {{ page }} - Hiển thị {{ products|length }} sản phẩm
-                </div>
-                <div class="flex items-center gap-2">
-                    {% if page > 1 %}
-                    <a href="?page={{ page|add:-1 }}&status={{ status }}&search={{ search }}" 
-                       class="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-100">
-                        Trước
-                    </a>
-                    {% endif %}
-                    <a href="?page={{ page|add:1 }}&status={{ status }}&search={{ search }}" 
-                       class="px-3 py-1 text-sm border border-slate-300 rounded hover:bg-slate-100">
-                        Sau
-                    </a>
+                    <strong>Tổng số sản phẩm:</strong> {{ total|default:products|length }} sản phẩm
                 </div>
             </div>
             {% endif %}
@@ -211,15 +237,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (initBtn) {
         initBtn.addEventListener('click', function() {
+            // Lấy test mode từ checkbox
+            const testModeToggle = document.getElementById('test-mode-toggle');
+            const testMode = testModeToggle ? testModeToggle.checked : false;
+            
             // Hiển thị modal
             modal.classList.remove('hidden');
             resultDiv.classList.add('hidden');
             progressBar.style.width = '0%';
-            progressText.textContent = 'Đang tải danh sách sản phẩm...';
+            progressText.textContent = testMode 
+                ? 'Đang tải danh sách sản phẩm (Test Mode: Init tất cả)...' 
+                : 'Đang tải danh sách sản phẩm (Chỉ init sản phẩm trống)...';
             
-            // Disable button
+            // Disable button và toggle
             initBtn.disabled = true;
             initBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            if (testModeToggle) {
+                testModeToggle.disabled = true;
+            }
             
             // Lấy CSRF token
             function getCookie(name) {
@@ -245,6 +280,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     'X-CSRFToken': csrftoken,
                     'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({
+                    test_mode: testMode
+                })
             })
             .then(response => response.json())
             .then(data => {
@@ -258,6 +296,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('result-to-init').textContent = data.products_to_init || 0;
                 document.getElementById('result-success').textContent = data.success_count || 0;
                 document.getElementById('result-error').textContent = data.error_count || 0;
+                
+                // Hiển thị test mode status
+                if (data.test_mode) {
+                    const resultDivContent = resultDiv.querySelector('div');
+                    if (resultDivContent && !resultDivContent.querySelector('.test-mode-badge')) {
+                        const badge = document.createElement('p');
+                        badge.className = 'test-mode-badge text-xs text-orange-600 font-semibold';
+                        badge.textContent = '⚠️ Test Mode: Đã init tất cả sản phẩm (kể cả đã có metadata)';
+                        resultDivContent.insertBefore(badge, resultDivContent.firstChild);
+                    }
+                }
                 
                 resultDiv.classList.remove('hidden');
                 
@@ -274,9 +323,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('result-error').textContent = '1';
             })
             .finally(() => {
-                // Enable button
+                // Enable button và toggle
                 initBtn.disabled = false;
                 initBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                if (testModeToggle) {
+                    testModeToggle.disabled = false;
+                }
             });
         });
     }
@@ -294,6 +346,258 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+// JS: BỘ LỌC SẢN PHẨM
+<script>
+    // State của bộ lọc
+    let activeFilters = {
+        brand: null,
+        status: null
+    };
+    
+    // Cache DOM elements
+    let allRowsCache = null;
+    let searchInputCache = null;
+
+    // Thu thập số lượng từ TẤT CẢ sản phẩm (tối ưu: cache rows)
+    function collectAllData() {
+        if (!allRowsCache) {
+            allRowsCache = Array.from(document.querySelectorAll('.js-product-row'));
+        }
+        
+        const brands = new Map(); // {brandName: count}
+        const statuses = new Map(); // {statusName: count}
+        let totalCount = 0;
+
+        // Kiểm tra search query
+        if (!searchInputCache) {
+            searchInputCache = document.getElementById('product-search-input');
+        }
+        const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+        allRowsCache.forEach(row => {
+            // Chỉ bỏ qua nếu không match search
+            const rowText = (row.innerText || '').toLowerCase();
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            if (!matchesSearch) return; // Bỏ qua nếu không match search
+
+            // Đếm từ tất cả sản phẩm
+            const brandName = row.dataset.brand || '';
+            const statusName = row.dataset.status || '';
+
+            if (brandName) {
+                brands.set(brandName, (brands.get(brandName) || 0) + 1);
+            }
+            if (statusName) {
+                statuses.set(statusName, (statuses.get(statusName) || 0) + 1);
+            }
+            totalCount++;
+        });
+
+        return { brands, statuses, total: totalCount };
+    }
+
+    // Cập nhật số lượng trong các filter buttons (debounced)
+    let updateCountsTimeout = null;
+    function updateFilterCounts() {
+        // Debounce để tránh update quá nhiều lần
+        if (updateCountsTimeout) {
+            clearTimeout(updateCountsTimeout);
+        }
+        updateCountsTimeout = setTimeout(() => {
+            const data = collectAllData();
+            
+            // Update "Tất cả" counts
+            const brandAllCount = document.getElementById('filter-brand-all-count');
+            const statusAllCount = document.getElementById('filter-status-all-count');
+            if (brandAllCount) brandAllCount.textContent = data.total;
+            if (statusAllCount) statusAllCount.textContent = data.total;
+            
+            // Update brand counts
+            document.querySelectorAll('.filter-brand-count').forEach(span => {
+                const brand = span.dataset.brand;
+                const count = data.brands.get(brand) || 0;
+                span.textContent = count;
+            });
+            
+            // Update status counts
+            document.querySelectorAll('.filter-status-count').forEach(span => {
+                const status = span.dataset.status;
+                const count = data.statuses.get(status) || 0;
+                span.textContent = count;
+            });
+        }, 100);
+    }
+
+    // Toggle filter
+    function toggleFilter(filterType, filterValue) {
+        if (filterValue === 'all') {
+            activeFilters[filterType] = null;
+        } else {
+            // Nếu click vào filter đang active -> bỏ filter
+            if (activeFilters[filterType] === filterValue) {
+                activeFilters[filterType] = null;
+            } else {
+                activeFilters[filterType] = filterValue;
+            }
+        }
+        
+        applyFilters();
+        updateFilterButtons();
+    }
+
+    // Update filter button states
+    function updateFilterButtons() {
+        const brandAllBtn = document.getElementById('filter-brand-all');
+        const statusAllBtn = document.getElementById('filter-status-all');
+        const brandButtons = document.querySelectorAll('.filter-brand-btn');
+        const statusButtons = document.querySelectorAll('.filter-status-btn');
+
+        // Reset brand buttons
+        brandButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        // Reset status buttons
+        statusButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        // Activate brand "Tất cả" if no brand filter
+        if (!activeFilters.brand) {
+            if (brandAllBtn) {
+                brandAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                brandAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            // Activate specific brand filter button
+            brandButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.brand) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+
+        // Activate status "Tất cả" if no status filter
+        if (!activeFilters.status) {
+            if (statusAllBtn) {
+                statusAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                statusAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            // Activate specific status filter button
+            statusButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.status) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+    }
+
+    // Apply filters to rows (tối ưu với requestAnimationFrame)
+    let filterTimeout = null;
+    function applyFilters() {
+        // Debounce để tránh filter quá nhiều lần
+        if (filterTimeout) {
+            cancelAnimationFrame(filterTimeout);
+        }
+        
+        filterTimeout = requestAnimationFrame(() => {
+            if (!allRowsCache) {
+                allRowsCache = Array.from(document.querySelectorAll('.js-product-row'));
+            }
+            
+            if (!searchInputCache) {
+                searchInputCache = document.getElementById('product-search-input');
+            }
+            const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+            // Batch DOM updates để tối ưu performance
+            const fragment = document.createDocumentFragment();
+            let visibleCount = 0;
+            
+            allRowsCache.forEach(row => {
+                const brandName = row.dataset.brand || '';
+                const statusName = row.dataset.status || '';
+                const rowText = (row.innerText || '').toLowerCase();
+
+                // Check filter conditions
+                let matchesBrand = !activeFilters.brand || brandName === activeFilters.brand;
+                let matchesStatus = !activeFilters.status || statusName === activeFilters.status;
+                let matchesSearch = !searchQuery || rowText.includes(searchQuery);
+
+                // Show/hide row
+                if (matchesBrand && matchesStatus && matchesSearch) {
+                    row.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+            
+            // Update filter button counts sau khi filter (debounced)
+            updateFilterCounts();
+        });
+    }
+
+    // Initialize filters
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cache rows ngay từ đầu
+        allRowsCache = Array.from(document.querySelectorAll('.js-product-row'));
+        searchInputCache = document.getElementById('product-search-input');
+        
+        // Update counts lần đầu
+        updateFilterCounts();
+        updateFilterButtons();
+        
+        // Brand filter buttons
+        document.querySelectorAll('.filter-brand-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterValue = btn.dataset.filterValue;
+                toggleFilter('brand', filterValue);
+            });
+        });
+        
+        // Status filter buttons
+        document.querySelectorAll('.filter-status-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterValue = btn.dataset.filterValue;
+                toggleFilter('status', filterValue);
+            });
+        });
+        
+        // Search input với debounce
+        if (searchInputCache) {
+            let searchTimeout = null;
+            searchInputCache.addEventListener('input', () => {
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+                searchTimeout = setTimeout(() => {
+                    applyFilters();
+                }, 300); // Debounce 300ms
+            });
+        }
+        
+        // Reset button
+        const resetBtn = document.getElementById('reset-filters-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                activeFilters.brand = null;
+                activeFilters.status = null;
+                if (searchInputCache) searchInputCache.value = '';
+                applyFilters();
+                updateFilterButtons();
+            });
+        }
+    });
 </script>
 {% endblock %}
 

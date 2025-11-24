@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "orders",
     "products",
     "customers",
+    "settings",
     'rest_framework',
     'sslserver',
 
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'GIADUNGPLUS.middleware.port_redirect.PortRedirectMiddleware',
+    'core.middleware.selenium_login_middleware.SeleniumLoginMiddleware',  # Catch Selenium login exceptions
     'kho.middleware.KhoSwitcherMiddleware'
 ]
 
@@ -106,6 +108,15 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Cache configuration (for Selenium lock mechanism)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'sapo-selenium-lock',
+    }
+}
+
 
 
 # Password validation

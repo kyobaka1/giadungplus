@@ -73,6 +73,23 @@ class SapoProductService:
                 logger.warning(f"Product {product_id} not found in Sapo")
                 return None
             
+            # Normalize data: convert None lists to empty lists
+            if 'variants' in product_data and product_data['variants']:
+                for variant_data in product_data['variants']:
+                    # Fix images field: None -> []
+                    if 'images' in variant_data and variant_data['images'] is None:
+                        variant_data['images'] = []
+                    # Fix variant_prices field: None -> []
+                    if 'variant_prices' in variant_data and variant_data['variant_prices'] is None:
+                        variant_data['variant_prices'] = []
+                    # Fix inventories field: None -> []
+                    if 'inventories' in variant_data and variant_data['inventories'] is None:
+                        variant_data['inventories'] = []
+            
+            # Fix product images field: None -> []
+            if 'images' in product_data and product_data['images'] is None:
+                product_data['images'] = []
+            
             # Parse product DTO
             product_dto = ProductDTO.from_dict(product_data)
             
@@ -114,19 +131,41 @@ class SapoProductService:
             
             products = []
             for product_data in products_data:
-                product_dto = ProductDTO.from_dict(product_data)
+                # Normalize data: convert None lists to empty lists
+                if 'variants' in product_data and product_data['variants']:
+                    for variant_data in product_data['variants']:
+                        # Fix images field: None -> []
+                        if 'images' in variant_data and variant_data['images'] is None:
+                            variant_data['images'] = []
+                        # Fix variant_prices field: None -> []
+                        if 'variant_prices' in variant_data and variant_data['variant_prices'] is None:
+                            variant_data['variant_prices'] = []
+                        # Fix inventories field: None -> []
+                        if 'inventories' in variant_data and variant_data['inventories'] is None:
+                            variant_data['inventories'] = []
                 
-                # Extract GDP metadata
-                metadata, _ = extract_gdp_metadata(product_dto.description)
-                product_dto.gdp_metadata = metadata
+                # Fix product images field: None -> []
+                if 'images' in product_data and product_data['images'] is None:
+                    product_data['images'] = []
                 
-                # Assign metadata to variants
-                if metadata and metadata.variants:
-                    variant_meta_map = {vm.id: vm for vm in metadata.variants}
-                    for variant in product_dto.variants:
-                        variant.gdp_metadata = variant_meta_map.get(variant.id)
-                
-                products.append(product_dto)
+                try:
+                    product_dto = ProductDTO.from_dict(product_data)
+                    
+                    # Extract GDP metadata
+                    metadata, _ = extract_gdp_metadata(product_dto.description)
+                    product_dto.gdp_metadata = metadata
+                    
+                    # Assign metadata to variants
+                    if metadata and metadata.variants:
+                        variant_meta_map = {vm.id: vm for vm in metadata.variants}
+                        for variant in product_dto.variants:
+                            variant.gdp_metadata = variant_meta_map.get(variant.id)
+                    
+                    products.append(product_dto)
+                except Exception as parse_error:
+                    logger.warning(f"Error parsing product {product_data.get('id', 'unknown')}: {parse_error}")
+                    # Skip product này và tiếp tục
+                    continue
             
             logger.info(f"Fetched {len(products)} products from Sapo")
             return products
