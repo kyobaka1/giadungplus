@@ -1,0 +1,183 @@
+{% extends "settings/base_settings.html" %}
+
+{% block title %}Chi tiết Khuyến mãi - Settings{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-lg font-semibold text-slate-800">
+                {{ promotion.name }}
+            </h1>
+            <p class="text-xs text-gray-500 mt-1">
+                Code: <span class="font-mono bg-gray-100 px-2 py-0.5 rounded">{{ promotion.code }}</span>
+            </p>
+        </div>
+        <a href="{% url 'gift_list' %}"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium text-sm">
+            ← Quay lại
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+
+<!-- Promotion Info -->
+<div class="bg-white p-6 rounded-lg border shadow-sm mb-6">
+    <h2 class="text-md font-semibold text-gray-800 mb-4">Thông tin chương trình</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <div class="text-xs text-gray-500">ID</div>
+            <div class="text-sm font-mono text-gray-800 mt-1">#{{ promotion.id }}</div>
+        </div>
+
+        <div>
+            <div class="text-xs text-gray-500">Loại khuyến mãi</div>
+            <div class="text-sm text-gray-800 mt-1">{{ promotion.type }}</div>
+        </div>
+
+        <div>
+            <div class="text-xs text-gray-500">Ngày bắt đầu</div>
+            <div class="text-sm text-gray-800 mt-1">
+                {% if promotion.start_date %}
+                {{ promotion.start_date }}
+                {% else %}
+                <span class="text-gray-400">Không giới hạn</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <div class="text-xs text-gray-500">Ngày kết thúc</div>
+            <div class="text-sm text-gray-800 mt-1">
+                {% if promotion.end_date %}
+                {{ promotion.end_date }}
+                {% else %}
+                <span class="text-green-600 font-medium">Không giới hạn</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <div class="text-xs text-gray-500">Trạng thái</div>
+            <div class="mt-1">
+                {% if promotion.status == 'active' %}
+                <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">Đang hoạt động</span>
+                {% else %}
+                <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">{{ promotion.status
+                    }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if promotion.description %}
+    <div class="mt-4 pt-4 border-t">
+        <div class="text-xs text-gray-500 mb-2">Mô tả</div>
+        <div class="text-sm text-gray-700">{{ promotion.description }}</div>
+    </div>
+    {% endif %}
+
+    {% if promotion.location_ids %}
+    <div class="mt-4 pt-4 border-t">
+        <div class="text-xs text-gray-500 mb-2">Áp dụng cho Location IDs</div>
+        <div class="text-sm text-gray-700 font-mono">{{ promotion.location_ids|join:", " }}</div>
+    </div>
+    {% endif %}
+
+    {% if promotion.order_source_ids %}
+    <div class="mt-4 pt-4 border-t">
+        <div class="text-xs text-gray-500 mb-2">Áp dụng cho Source IDs</div>
+        <div class="text-sm text-gray-700 font-mono">{{ promotion.order_source_ids|join:", " }}</div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Condition Items -->
+{% for ci in promotion.condition_items %}
+<div class="bg-white p-6 rounded-lg border shadow-sm mb-6">
+    <h2 class="text-md font-semibold text-gray-800 mb-4">
+        Điều kiện #{{ forloop.counter }}
+        {% if ci.multiple %}
+        <span class="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">Áp dụng 1 lần</span>
+        {% else %}
+        <span class="ml-2 px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">Áp dụng nhiều lần</span>
+        {% endif %}
+    </h2>
+
+    <!-- Conditions -->
+    {% for condition in ci.conditions %}
+    <div class="mb-6 pb-6 border-b last:border-b-0">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">Yêu cầu sản phẩm</h3>
+
+        <div class="mb-3">
+            <div class="text-xs text-gray-500 mb-1">Số lượng tối thiểu</div>
+            <div class="text-sm text-gray-800">
+                {% if condition.goods_range_from %}
+                Mua từ {{ condition.goods_range_from }} sản phẩm
+                {% else %}
+                Không giới hạn
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <div class="text-xs text-gray-500 mb-2">Sản phẩm áp dụng</div>
+            <div class="max-h-48 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700">Variant ID</th>
+                            <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700">Tên sản phẩm</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y">
+                        {% for label in condition.goods_condition_labels %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 font-mono text-gray-600">{{ label.goods_id }}</td>
+                            <td class="px-3 py-2 text-gray-800">{{ label.goods_label }}</td>
+                        </tr>
+                        {% empty %}
+                        {% for vid in condition.goods_condition %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 font-mono text-gray-600">{{ vid }}</td>
+                            <td class="px-3 py-2 text-gray-400">-</td>
+                        </tr>
+                        {% endfor %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Gifts -->
+    <div class="mt-6 pt-6 border-t">
+        <h3 class="text-sm font-semibold text-gray-700 mb-3">🎁 Quà tặng</h3>
+        <div class="space-y-2">
+            {% for gift in ci.gifts %}
+            <div class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex-1">
+                    <div class="text-sm font-medium text-green-800">{{ gift.variant_name }}</div>
+                    <div class="text-xs text-green-600 mt-0.5 font-mono">Variant ID: {{ gift.variant_id }}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-lg font-bold text-green-700">x{{ gift.quantity }}</div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-sm text-gray-500">Không có quà tặng</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="bg-white p-6 rounded-lg border shadow-sm">
+    <p class="text-sm text-gray-500">Chương trình này chưa có điều kiện và quà tặng.</p>
+</div>
+{% endfor %}
+
+{% endblock %}

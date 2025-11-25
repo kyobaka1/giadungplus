@@ -41,7 +41,7 @@ def debug(*args):
 # CONFIG FILE KÊNH DVVC
 # =========================
 
-CHANNELS_FILE = Path("logs") / "dvvc_shopee.json"
+CHANNELS_FILE = Path("settings") / "logs/dvvc_shopee.json"
 
 
 def _load_shipping_channels() -> Dict[int, Dict[str, Any]]:
@@ -110,18 +110,25 @@ def detect_carrier_type(shipping_carrier_name: str) -> str:
     
     return "khac"
 
-def _build_mvd_overlay_page(channel_order_number: str, shipping_carrier_name: str):
+def _build_mvd_overlay_page(
+    channel_order_number: str, 
+    shipping_carrier_name: str,
+    order_dto: OrderDTO | None = None  # NEW: Accept OrderDTO from caller
+):
     """
     Tạo trang MVD overlay – in mã đơn + shop lên trên label.
+    
+    Args:
+        order_dto: OrderDTO with gifts already applied (optional, will fetch if not provided)
     """
-    core_service = SapoCoreOrderService()
-    try:
-        order_dto: OrderDTO = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-    except Exception as e:
-        debug(f"[MVD] Lỗi get_order_dto_from_shopee_sn({channel_order_number}): {e}")
-        # Tuỳ mày chọn: hoặc raise, hoặc return trang trống, hoặc fallback
-        # Ở đây tao cho raise để bên ngoài log được luôn:
-        raise
+    # Use provided DTO or fetch new one
+    if order_dto is None:
+        core_service = SapoCoreOrderService()
+        try:
+            order_dto: OrderDTO = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+        except Exception as e:
+            debug(f"[MVD] Lỗi get_order_dto_from_shopee_sn({channel_order_number}): {e}")
+            raise
 
     debug("→ Build MVD overlay:", channel_order_number)
 
@@ -239,7 +246,7 @@ def _render_mvd_overlay(
         c.rotate(270)
 
     """
-    In sản phẩm
+    In sản phẩm trong đơn hàng.
     """
 
     config = {
@@ -267,7 +274,7 @@ def _render_mvd_overlay(
     }
     y_value = config[sc]["y_start_1"]
 
-    count_line = len(order.order_line_items)
+    count_line = len(order.order_line_items) + len(order.gifts)
     line_spacing = 12 if count_line > 6 else int(60 / max(1, count_line))
     if line_spacing < 11:
         line_spacing = 10
@@ -292,6 +299,33 @@ def _render_mvd_overlay(
 
         count += 1
 
+    """
+    In quà tặng có trong đơn hàng.
+    """
+    if len(order.gifts) > 0:
+        line_order = f"---  QUÀ TẶNG KÈM TRONG ĐƠN  ---"
+        c.setFont('Arial', 8)
+        c.drawString(-32, y_value, line_order)
+        y_value -= line_spacing
+
+    for x in order.gifts:
+        # Sử dụng thông tin từ GiftItemDTO (sku, unit, opt1 đã được fetch từ variant)
+        unit_str = x.unit or "cái"  # Fallback về "cái" nếu không có unit
+        sku_str = x.sku or ""  # SKU từ variant
+        opt1_str = x.opt1 or ""  # Option 1 từ variant
+        
+        # Format: ** QUÀ TẶNG: {quantity} {unit} - {sku} - {opt1}
+        line_order = f"** {int(x.quantity)} {unit_str}"
+        if sku_str:
+            line_order += f" - {sku_str}"
+        if opt1_str:
+            line_order += f" - {opt1_str}"
+        
+        line_order = line_order[:53]
+        c.setFont('Arial', 8)
+        c.drawString(-32, y_value, line_order)
+        y_value -= line_spacing
+        
     if count > 10:
         c.setFont('UTM Avo Bold', 8)
         c.drawString(-32, y_value, "** ĐƠN DÀI - QUÉT SAPO để xem thêm.")
@@ -337,7 +371,7 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
     """
     debug("→ Resolve cover path:", shop_name, shipping_carrier)
 
-    base_dir = Path("logs") / "print-cover" / shop_name
+    base_dir = Path("settings") / "logs/print-cover" / shop_name
     sc = (shipping_carrier or "").lower()
 
     if any(x in sc for x in ["grab", "instant", "ahamove", "bedelivery"]):
@@ -367,6 +401,7 @@ def generate_label_pdf_for_channel_order(
     connection_id: int,
     channel_order_number: str,
     shipping_carrier: str | None = None,
+    order_dto: OrderDTO | None = None,  # NEW: OrderDTO với gifts đã apply
 ) -> bytes:
     """
     Lấy bill Shopee (Nguồn A) rồi xử lý lại:
@@ -376,6 +411,9 @@ def generate_label_pdf_for_channel_order(
     - Gọi /logistics/create_sd_jobs + /download_sd_job để lấy file PDF vận đơn
     - Đắp cover + MVD custom (overlay) lên
     - Trả về bytes PDF cuối cùng
+    
+    Args:
+        order_dto: OrderDTO with gifts already applied (optional, will fetch if not provided)
     """
 
     debug("===============================")
@@ -462,8 +500,12 @@ def generate_label_pdf_for_channel_order(
     else:
         debug("→ NO COVER FOUND.")
 
-    mvd_page = _build_mvd_overlay_page(channel_order_number, resolved_carrier)
-    debug(f"→ MVD overlay built.",channel_order_number,resolved_carrier )
+    mvd_page = _build_mvd_overlay_page(
+        channel_order_number, 
+        resolved_carrier,
+        order_dto=order_dto  # Pass OrderDTO với gifts
+    )
+    debug(f"→ MVD overlay built.", channel_order_number, resolved_carrier)
 
     # ----------------------------------------------------------
     # 5. LOOP PACKAGE → GET LABEL → MERGE

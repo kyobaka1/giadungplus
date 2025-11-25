@@ -131,6 +131,19 @@ class RealItemDTO(BaseDTO):
     variant_dto: Optional[Any] = None  # Type: ProductVariantDTO (import sau để tránh circular import)
 
 
+class GiftItemDTO(BaseDTO):
+    """
+    Quà tặng được tự động áp dụng cho đơn hàng dựa trên promotions.
+    """
+    variant_id: int
+    variant_name: str
+    quantity: int
+    promotion_name: str  # Tên chương trình khuyến mãi áp dụng
+    sku: Optional[str] = None  # SKU của variant
+    unit: Optional[str] = None  # Đơn vị tính
+    opt1: Optional[str] = None  # Option 1 (phân loại 1)
+
+
 # ========================= FULFILLMENT & SHIPMENT =========================
 
 class FulfillmentLineItemDTO(BaseDTO):
@@ -254,6 +267,9 @@ class OrderDTO(BaseDTO):
     
     # Real items (qui đổi từ combo/packsize thành sản phẩm đơn lẻ)
     real_items: List[RealItemDTO] = Field(default_factory=list)
+    
+    # Gifts (quà tặng tự động từ promotions)
+    gifts: List[GiftItemDTO] = Field(default_factory=list)
     
     # Raw data (backup)
     raw: Dict[str, Any] = Field(default_factory=dict)
@@ -539,6 +555,8 @@ __all__ = [
     # Line items
     'OrderLineDiscountDTO',
     'OrderLineItemDTO',
+    'RealItemDTO',
+    'GiftItemDTO',
     
     # Fulfillment
     'FulfillmentLineItemDTO',

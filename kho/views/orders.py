@@ -35,7 +35,7 @@ LOCATION_BY_KHO = {
     "geleximco": 241737,  # HN
     "toky": 548744,       # HCM
 }
-BILL_DIR = "logs/bill"
+BILL_DIR = "settings/logs/bill"
 DEBUG_PRINT_ENABLED = True
 
 def debug_print(*args, **kwargs):
@@ -605,7 +605,6 @@ def sapo_orders(request):
         try:
             # Convert raw order sang DTO
             order_dto: OrderDTO = factory.from_sapo_json(raw_order, sapo_client=sapo)
-            
             # Track variant API calls (nếu có)
             if api_call_count["get_variant"] > variant_api_calls_before:
                 variant_api_calls_before = api_call_count["get_variant"]
@@ -1142,6 +1141,30 @@ def print_now(request: HttpRequest):
         channel_order_number = meta["channel_order_number"]
         connection_id = meta["connection_id"]
 
+        # --- BƯỚC 1: Lấy DTO và apply gifts TRƯỚC KHI generate PDF ---
+        dto = None
+        try:
+            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            
+            # --- APPLY GIFTS FROM PROMOTIONS ---
+            if dto:
+                try:
+                    from core.sapo_client import get_sapo_client
+                    from orders.services.promotion_service import PromotionService
+                    
+                    sapo_for_promo = get_sapo_client()
+                    promo_service = PromotionService(sapo_for_promo)
+                    dto = promo_service.apply_gifts_to_order(dto)
+                    
+                    if dto.gifts:
+                        debug_print(f"✓ Applied {len(dto.gifts)} gift(s) to order {channel_order_number}")
+                except Exception as gift_err:
+                    logger.warning(f"Failed to apply gifts for order {channel_order_number}: {gift_err}")
+                    debug_print(f"⚠️ Gift application error: {gift_err}")
+        except Exception as dto_err:
+            debug_print(f"⚠️ Could not get DTO for order {channel_order_number}: {dto_err}")
+            # Vẫn tiếp tục, hàm generate_label_pdf_for_channel_order có thể tự fetch nếu cần
+
         # --- Logic mới: Check PROCESSED hoặc fallback ---
         # 1. Check nếu đơn bị PROCESSED (init_fail) -> ưu tiên lấy từ file cũ
         is_processed = False
@@ -1169,6 +1192,7 @@ def print_now(request: HttpRequest):
                     connection_id=connection_id,
                     channel_order_number=channel_order_number,
                     shipping_carrier=shipping_carrier,
+                    order_dto=dto,  # Pass DTO với gifts đã apply (có thể None nếu lỗi)
                 )
             except Exception as e:
                 # Fallback cuối cùng: thử đọc file log lần nữa (có thể do lỗi mạng nhưng file cũ vẫn còn)
@@ -1238,179 +1262,185 @@ def print_now(request: HttpRequest):
                 )
             continue
 
-
         # --- UPDATE FULFILLMENT PACKING STATUS ---
         # Handle case where Sapo MP and Sapo Core are not yet synced
-        try:
-            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-            
-            # Check if dto exists and has tracking code (from MP) but no fulfillments yet
-            if dto and not dto.fulfillments:
-                # Sync order from MP to ensure fulfillments are created
-                debug_print(f"⚠️ No fulfillments for order {channel_order_number}, syncing...")
-                try:
-                    from core.sapo_client import get_sapo_client
-                    sapo = get_sapo_client()
-                    
-                    # Ensure marketplace session is initialized
-                    _ = sapo.marketplace  # This will trigger _ensure_tmdt_headers()
-                    
-                    # Sync the order using tmdt_session
-                    sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
-                    sync_response = sapo.tmdt_session.put(sync_url)
-                    
-                    if sync_response.status_code == 200:
-                        debug_print(f"✅ Synced order {mp_order_id} successfully")
-                    else:
-                        debug_print(f"⚠️ Sync returned status {sync_response.status_code}")
-
-                    
-                    # Wait and retry to check if fulfillments are created
-                    import time
-                    max_retries = 5
-                    retry_delay = 2.0
-                    
-                    for retry in range(max_retries):
-                        time.sleep(retry_delay)
-                        dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-                        
-                        if dto and dto.fulfillments:
-                            debug_print(f"✅ Fulfillments created after sync (retry {retry + 1})")
-                            break
-                        else:
-                            debug_print(f"⏳ Waiting for fulfillments... (retry {retry + 1}/{max_retries})")
-                    
-                except Exception as sync_error:
-                    debug_print(f"❌ Sync error: {sync_error}")
-                    debug_info.setdefault("logs", []).append(f"Sync error: {sync_error}")
-            
-            
-            # Get package count (split) and resolve shipping carrier from Shopee
-            split_count = None
-            resolved_carrier = None
-            
+        # DTO đã được lấy ở trên, nếu chưa có thì thử lấy lại
+        if not dto:
             try:
-                from orders.services.shopee_print_service import ShopeeClient, _load_shipping_channels
-                from core.system_settings import get_shop_by_connection_id
+                dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            except Exception as dto_err:
+                debug_print(f"⚠️ Could not get DTO for packing status update: {dto_err}")
+                dto = None
+
+        if dto:
+            try:
+                # Check if dto exists and has tracking code (from MP) but no fulfillments yet
+                if not dto.fulfillments:
+                    # Sync order from MP to ensure fulfillments are created
+                    debug_print(f"⚠️ No fulfillments for order {channel_order_number}, syncing...")
+                    try:
+                        from core.sapo_client import get_sapo_client
+                        sapo = get_sapo_client()
+                        
+                        # Ensure marketplace session is initialized
+                        _ = sapo.marketplace  # This will trigger _ensure_tmdt_headers()
+                        
+                        # Sync the order using tmdt_session
+                        sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
+                        sync_response = sapo.tmdt_session.put(sync_url)
+                        
+                        if sync_response.status_code == 200:
+                            debug_print(f"✅ Synced order {mp_order_id} successfully")
+                        else:
+                            debug_print(f"⚠️ Sync returned status {sync_response.status_code}")
+
+                        
+                        # Wait and retry to check if fulfillments are created
+                        import time
+                        max_retries = 5
+                        retry_delay = 2.0
+                        
+                        for retry in range(max_retries):
+                            time.sleep(retry_delay)
+                            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+                            
+                            if dto and dto.fulfillments:
+                                debug_print(f"✅ Fulfillments created after sync (retry {retry + 1})")
+                                break
+                            else:
+                                debug_print(f"⏳ Waiting for fulfillments... (retry {retry + 1}/{max_retries})")
+                        
+                    except Exception as sync_error:
+                        debug_print(f"❌ Sync error: {sync_error}")
+                        debug_info.setdefault("logs", []).append(f"Sync error: {sync_error}")
                 
-                shop_cfg = get_shop_by_connection_id(connection_id)
-                if shop_cfg:
-                    shop_name = shop_cfg["name"]
-                    client = ShopeeClient(shop_name)
+                
+                # Get package count (split) and resolve shipping carrier from Shopee
+                split_count = None
+                resolved_carrier = None
+                
+                try:
+                    from orders.services.shopee_print_service import ShopeeClient, _load_shipping_channels
+                    from core.system_settings import get_shop_by_connection_id
                     
-                    # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
-                    shopee_order_info = client.get_shopee_order_id(channel_order_number)
-                    shopee_order_id = shopee_order_info["order_id"]
+                    shop_cfg = get_shop_by_connection_id(connection_id)
+                    if shop_cfg:
+                        shop_name = shop_cfg["name"]
+                        client = ShopeeClient(shop_name)
+                        
+                        # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
+                        shopee_order_info = client.get_shopee_order_id(channel_order_number)
+                        shopee_order_id = shopee_order_info["order_id"]
+                        
+                        # Add shop_name and connection_id for email API call
+                        shopee_order_info["shop_name"] = shop_name
+                        shopee_order_info["connection_id"] = connection_id
+                        
+                        logger.debug(f"✅ Got Shopee order ID: {shopee_order_id}")
+                        
+                        # Auto-update customer info from Shopee data (non-blocking)
+                        if pdf_bytes and dto and dto.customer_id:
+                            try:
+                                from orders.services.customer_update_helper import update_customer_from_shopee_data
+                                update_customer_from_shopee_data(
+                                    customer_id=dto.customer_id,
+                                    shopee_order_info=shopee_order_info,
+                                    pdf_bytes=pdf_bytes
+                                )
+                            except Exception as e:
+                                logger.warning(f"Customer auto-update failed (non-blocking): {e}")
+                        
+                        package_info = client.get_package_info(shopee_order_id)
+                        package_list = package_info.get("package_list", [])
+                        split_count = len(package_list) if package_list else 1
+                        debug_print(f"📦 Package count (split): {split_count}")
+                        
+                        # Resolve shipping carrier name from channels mapping file
+                        if package_list:
+                            first_pack = package_list[0]
+
+                            channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
+                            
+                            # Load shipping channels map from JSON
+                            channels_map = _load_shipping_channels()
+                            base_carrier = meta.get("shipping_carrier") or ""
+                            resolved_carrier = base_carrier  # Start with base value
+                            
+                            if not resolved_carrier and channels_map and channel_id:
+                                # Try to get from JSON mapping
+                                ch = channels_map.get(int(channel_id))
+                                if ch:
+                                    resolved_carrier = ch.get("display_name") or ch.get("name")
+                                    debug_print(f"🚚 Resolved DVVC from channels file: {resolved_carrier}")
+                            
+                            if not resolved_carrier:
+                                # Fallback to package data
+                                resolved_carrier = (
+                                    first_pack.get("fulfillment_carrier_name")
+                                    or first_pack.get("checkout_carrier_name")
+                                    or ""
+                                )
+                                debug_print(f"🚚 Fallback DVVC from package: {resolved_carrier}")
+                            
+                            debug_print(f"🚚 Final shipping carrier: {resolved_carrier}")
+                            
+                except Exception as split_error:
+                    debug_print(f"⚠️ Could not get split count or resolve carrier: {split_error}")
+                    split_count = None
+                    resolved_carrier = meta.get("shipping_carrier") or ""
                     
-                    # Add shop_name and connection_id for email API call
-                    shopee_order_info["shop_name"] = shop_name
-                    shopee_order_info["connection_id"] = connection_id
-                    
-                    logger.debug(f"✅ Got Shopee order ID: {shopee_order_id}")
-                    
-                    # Auto-update customer info from Shopee data (non-blocking)
+                    # Fallback: Update customer from PDF only (cho express orders không phải Shopee)
                     if pdf_bytes and dto and dto.customer_id:
                         try:
-                            from orders.services.customer_update_helper import update_customer_from_shopee_data
-                            update_customer_from_shopee_data(
+                            from orders.services.customer_update_helper import update_customer_from_pdf_only
+                            logger.debug(f"Express order - updating customer from PDF only (order: {channel_order_number})")
+                            update_customer_from_pdf_only(
                                 customer_id=dto.customer_id,
-                                shopee_order_info=shopee_order_info,
                                 pdf_bytes=pdf_bytes
                             )
                         except Exception as e:
-                            logger.warning(f"Customer auto-update failed (non-blocking): {e}")
-                    
-                    package_info = client.get_package_info(shopee_order_id)
-                    package_list = package_info.get("package_list", [])
-                    split_count = len(package_list) if package_list else 1
-                    debug_print(f"📦 Package count (split): {split_count}")
-                    
-                    # Resolve shipping carrier name from channels mapping file
-                    if package_list:
-                        first_pack = package_list[0]
-
-                        channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
-                        
-                        # Load shipping channels map from JSON
-                        channels_map = _load_shipping_channels()
-                        base_carrier = meta.get("shipping_carrier") or ""
-                        resolved_carrier = base_carrier  # Start with base value
-                        
-                        if not resolved_carrier and channels_map and channel_id:
-                            # Try to get from JSON mapping
-                            ch = channels_map.get(int(channel_id))
-                            if ch:
-                                resolved_carrier = ch.get("display_name") or ch.get("name")
-                                debug_print(f"🚚 Resolved DVVC from channels file: {resolved_carrier}")
-                        
-                        if not resolved_carrier:
-                            # Fallback to package data
-                            resolved_carrier = (
-                                first_pack.get("fulfillment_carrier_name")
-                                or first_pack.get("checkout_carrier_name")
-                                or ""
-                            )
-                            debug_print(f"🚚 Fallback DVVC from package: {resolved_carrier}")
-                        
-                        debug_print(f"🚚 Final shipping carrier: {resolved_carrier}")
-                        
-            except Exception as split_error:
-                debug_print(f"⚠️ Could not get split count or resolve carrier: {split_error}")
-                split_count = None
-                resolved_carrier = meta.get("shipping_carrier") or ""
+                            logger.warning(f"Customer auto-update from PDF failed (non-blocking): {e}")
                 
-                # Fallback: Update customer from PDF only (cho express orders không phải Shopee)
-                if pdf_bytes and dto and dto.customer_id:
-                    try:
-                        from orders.services.customer_update_helper import update_customer_from_pdf_only
-                        logger.debug(f"Express order - updating customer from PDF only (order: {channel_order_number})")
-                        update_customer_from_pdf_only(
-                            customer_id=dto.customer_id,
-                            pdf_bytes=pdf_bytes
-                        )
-                    except Exception as e:
-                        logger.warning(f"Customer auto-update from PDF failed (non-blocking): {e}")
-            
-            # Now update packing status if fulfillments exist
-            if dto and dto.fulfillments and len(dto.fulfillments) > 0:
-                last_ff = dto.fulfillments[-1]
-                if last_ff.id and dto.id:
-                    # Kiểm tra packing_status hiện tại
-                    current_packing_status = dto.packing_status or 0
-                    
-                    # Chỉ update nếu packing_status < 2 (giữ nguyên nếu >= 2)
-                    if current_packing_status < 2:
-                        # Use resolved carrier name (already resolved above)
-                        shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
+                # Now update packing status if fulfillments exist
+                if dto and dto.fulfillments and len(dto.fulfillments) > 0:
+                    last_ff = dto.fulfillments[-1]
+                    if last_ff.id and dto.id:
+                        # Kiểm tra packing_status hiện tại
+                        current_packing_status = dto.packing_status or 0
                         
-                        success = core_service.update_fulfillment_packing_status(
-                            order_id=dto.id,
-                            fulfillment_id=last_ff.id,
-                            packing_status=1,
-                            shopee_id=channel_order_number,  # Shopee order number
-                            split=split_count,  # Package count
-                            dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
-                        )
-                        if success:
-                            debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                        # Chỉ update nếu packing_status < 2 (giữ nguyên nếu >= 2)
+                        if current_packing_status < 2:
+                            # Use resolved carrier name (already resolved above)
+                            shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
+                            
+                            success = core_service.update_fulfillment_packing_status(
+                                order_id=dto.id,
+                                fulfillment_id=last_ff.id,
+                                packing_status=1,
+                                shopee_id=channel_order_number,  # Shopee order number
+                                split=split_count,  # Package count
+                                dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
+                            )
+                            if success:
+                                debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                                debug_info.setdefault("logs", []).append(
+                                    f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                                )
+                        else:
+                            # Giữ nguyên packing_status hiện tại (>= 2)
+                            debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 2, keeping unchanged)")
                             debug_info.setdefault("logs", []).append(
-                                f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                                f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 2, keeping unchanged)"
                             )
-                    else:
-                        # Giữ nguyên packing_status hiện tại (>= 2)
-                        debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 2, keeping unchanged)")
-                        debug_info.setdefault("logs", []).append(
-                            f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 2, keeping unchanged)"
-                        )
-            else:
-                debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")
-                debug_info.setdefault("logs", []).append(
-                    f"Cannot update packing_status for {channel_order_number}: fulfillments not available"
-                )
-                
-        except Exception as e:
-            debug_print(f"❌ Update packing_status error: {e}")
-            debug_info.setdefault("logs", []).append(f"Update packing_status error: {e}")
+                else:
+                    debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")
+                    debug_info.setdefault("logs", []).append(
+                        f"Cannot update packing_status for {channel_order_number}: fulfillments not available"
+                    )
+                    
+            except Exception as e:
+                debug_print(f"❌ Update packing_status error: {e}")
+                debug_info.setdefault("logs", []).append(f"Update packing_status error: {e}")
 
 
 
