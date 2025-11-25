@@ -6,10 +6,17 @@ Chủ yếu dùng để lấy hình ảnh sản phẩm cho đơn hàng.
 
 from typing import Dict, Optional, Set
 import logging
+import time
 
 from core.sapo_client import get_sapo_client
 
 logger = logging.getLogger(__name__)
+
+# Debug print function
+DEBUG_PRINT_ENABLED = True
+def debug_print(*args, **kwargs):
+    if DEBUG_PRINT_ENABLED:
+        print("[DEBUG]", *args, **kwargs)
 
 # Cache mapping variant_id -> image_url
 _variant_image_cache: Dict[int, str] = {}
@@ -35,9 +42,15 @@ def load_all_products(force_reload: bool = False) -> Dict[int, str]:
     
     # Nếu đã load và không force reload, trả về cache
     if _products_loaded and not force_reload:
+        debug_print("[ProductService] Using cached products (already loaded)")
         return _variant_image_cache
     
-    logger.info("[ProductService] Loading all products from Sapo API...")
+    # ========== DEBUG: Track thời gian ==========
+    start_time = time.time()
+    api_call_count = 0
+    processing_time_total = 0
+    
+    debug_print("[ProductService] Loading all products from Sapo API...")
     
     sapo = get_sapo_client()
     core_repo = sapo.core
@@ -54,21 +67,29 @@ def load_all_products(force_reload: bool = False) -> Dict[int, str]:
     total_products = 0
     total_variants = 0
     
+    debug_print(f"[ProductService] Starting to fetch products (max {max_pages} pages, {limit} per page)...")
+    
     while page <= max_pages:
         try:
             # Lấy products với pagination
+            api_start = time.time()
             response = core_repo.list_products_raw(
                 page=page,
                 limit=limit,
                 status="active"  # Chỉ lấy products active
             )
+            api_time = time.time() - api_start
+            api_call_count += 1
+            debug_print(f"[ProductService] Page {page} API call took {api_time:.2f}s")
             
             products = response.get("products", [])
             
             if not products:
+                debug_print(f"[ProductService] Page {page} returned no products, stopping pagination")
                 break
             
             # Process từng product
+            process_start = time.time()
             for product in products:
                 total_products += 1
                 
@@ -98,6 +119,9 @@ def load_all_products(force_reload: bool = False) -> Dict[int, str]:
                     if image_url:
                         variant_image_map[variant_id] = image_url
             
+            process_time = time.time() - process_start
+            processing_time_total += process_time
+            debug_print(f"[ProductService] Page {page} - {len(products)} products, {total_variants} variants processed in {process_time:.2f}s")
             logger.debug(f"[ProductService] Loaded page {page}: {len(products)} products, total variants mapped: {len(variant_image_map)}")
             
             # Check nếu hết products (ít hơn limit)
@@ -111,9 +135,20 @@ def load_all_products(force_reload: bool = False) -> Dict[int, str]:
             break
     
     # Update cache
+    cache_start = time.time()
     _variant_image_cache.update(variant_image_map)
+    cache_time = time.time() - cache_start
     _products_loaded = True
     
+    total_time = time.time() - start_time
+    debug_print(f"[ProductService] TOTAL TIME: {total_time:.2f}s | "
+                f"API calls: {api_call_count} | "
+                f"API time: {total_time - processing_time_total - cache_time:.2f}s | "
+                f"Processing time: {processing_time_total:.2f}s | "
+                f"Cache update: {cache_time:.2f}s | "
+                f"Products: {total_products} | "
+                f"Variants: {total_variants} | "
+                f"Variants with images: {len(variant_image_map)}")
     logger.info(f"[ProductService] Loaded {total_products} products, {total_variants} variants, {len(variant_image_map)} variants with images")
     
     return _variant_image_cache

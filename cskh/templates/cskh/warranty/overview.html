@@ -1,0 +1,40 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Tổng quan Bảo hành – CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Bảo hành - Tổng quan</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">Thống kê bảo hành sản phẩm</p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Đang hoạt động</div>
+            <div class="text-3xl font-bold text-green-600">{{ metrics.active_warranties }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Sắp hết hạn</div>
+            <div class="text-3xl font-bold text-orange-600">{{ metrics.expiring_soon }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Kích hoạt mới</div>
+            <div class="text-3xl font-bold text-blue-600">{{ metrics.newly_activated }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Yêu cầu đang chờ</div>
+            <div class="text-3xl font-bold text-yellow-600">{{ metrics.pending_claims }}</div>
+        </div>
+    </div>
+
+    <div class="flex gap-4">
+        <a href="{% url 'cskh:warranty_list' %}"
+            class="flex-1 px-6 py-3 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center font-semibold">
+            Xem danh sách bảo hành
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Tổng quan Tickets – CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket - Tổng quan</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">Thống kê và phân tích tickets CSKH</p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 space-y-6">
+
+    <!-- Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Chưa xử lý</div>
+            <div class="text-3xl font-bold text-red-600">{{ metrics.unprocessed }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Quá hạn SLA</div>
+            <div class="text-3xl font-bold text-orange-600">{{ metrics.overdue_sla }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Đang xử lý</div>
+            <div class="text-3xl font-bold text-blue-600">{{ metrics.processing }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Hoàn thành hôm nay</div>
+            <div class="text-3xl font-bold text-green-600">{{ metrics.completed_today }}</div>
+        </div>
+    </div>
+
+    <!-- Category Breakdown -->
+    <div class="bg-white border rounded-xl p-6 shadow-sm">
+        <h3 class="text-base font-semibold text-gray-800 mb-4">Phân loại Tickets</h3>
+        <div class="space-y-3">
+            {% for category in category_breakdown %}
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-sm font-medium text-gray-700">{{ category.name }}</span>
+                    <span class="text-sm text-gray-600">{{ category.count }} ({{ category.percentage }}%)</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-brand h-2 rounded-full" style="width: {{ category.percentage }}%"></div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="flex gap-4">
+        <a href="{% url 'cskh:ticket_list' %}"
+            class="flex-1 px-6 py-3 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center font-semibold">
+            Xem tất cả Tickets
+        </a>
+        <a href="{% url 'cskh:ticket_create' %}"
+            class="flex-1 px-6 py-3 bg-white border-2 border-brand text-brand rounded-lg hover:bg-brandlight transition text-center font-semibold">
+            Tạo Ticket mới
+        </a>
+    </div>
+
+</div>
+{% endblock %}

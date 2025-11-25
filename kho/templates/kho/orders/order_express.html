@@ -443,7 +443,9 @@
             {% endif %}
         </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <!-- File: templates/kho/orders/express.html -->
 <script>
     /**
@@ -550,7 +552,7 @@
 <script>
     /**
      * Lọc tất cả đơn hàng theo nội dung nhập ở ô search.
-     * So khớp trên toàn bộ text của từng dòng đơn (innerText).
+     * So khớp trên toàn bộ text của từng dòng đơn (innerText hoặc textContent).
      */
     function filterOrders() {
         const input = document.getElementById('order-search-input');
@@ -561,15 +563,10 @@
 
         if (!rows.length) return;
 
-        if (!q) {
-            // Không nhập gì -> hiện tất cả
-            rows.forEach(row => row.classList.remove('hidden'));
-            return;
-        }
-
         rows.forEach(row => {
-            const text = (row.innerText || '').toLowerCase();
-            if (text.includes(q)) {
+            // Sử dụng innerText hoặc textContent để lấy toàn bộ text content (không bao gồm HTML tags)
+            const text = (row.innerText || row.textContent || '').toLowerCase();
+            if (!q || text.includes(q)) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');

@@ -1,0 +1,1367 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Test Header - Thegioididong Style</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .banner-media {
+            background-color: #c22026;
+        }
+        
+        .header-top-bar {
+            max-height: 44px;
+            overflow: hidden;
+        }
+        
+        .header__top {
+            height: 52px;
+        }
+        
+        .header__main {
+            height: 44px;
+        }
+        
+        .main-menu {
+            font-size: 14px;
+            line-height: 18px;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .main-menu-item {
+            font-size: 14px;
+            line-height: 18px;
+            white-space: nowrap;
+        }
+        
+        .body-home {
+            background: url(https://cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/BlackFriday/2025/TGDD/bg-mainv2.png) no-repeat;
+            background-size: cover;
+            background-position: center top;
+            background-attachment: fixed;
+            padding: 20px 0;
+            position: relative;
+        }
+        
+        .label-left,
+        .label-right,
+        .bottom-left,
+        .bottom-right {
+            position: fixed;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .label-left {
+            left: 0;
+            top: 140px;
+        }
+        
+        .label-right {
+            right: 0;
+            top: 140px;
+        }
+        
+        .bottom-left {
+            left: 0;
+            bottom: 0;
+        }
+        
+        .bottom-right {
+            right: 0;
+            bottom: 0;
+        }
+        
+        @media (max-width: 1920px) {
+            .label-left,
+            .label-right,
+            .bottom-left,
+            .bottom-right {
+                display: none;
+            }
+        }
+        
+        .main-container {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        
+        .hot-promotion h3 {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+        
+        .products-tabs {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        .products-tabs::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .box-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: thin;
+        }
+        
+        .box-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .box-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .box-scroll::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .box-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .recommend-section,
+        .monopoly-product-block,
+        .banner-offers,
+        .home-news,
+        .search-trend {
+            margin-top: 2rem;
+        }
+        
+        .monopoly-product-block .listproduct {
+            -ms-overflow-style: none;
+            scrollbar-width: thin;
+        }
+        
+        .monopoly-product-block .listproduct::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .monopoly-product-block .listproduct::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .monopoly-product-block .listproduct::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .listing-news {
+            -ms-overflow-style: none;
+            scrollbar-width: thin;
+        }
+        
+        .listing-news::-webkit-scrollbar {
+            height: 6px;
+        }
+        
+        .listing-news::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .listing-news::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+
+<body style="background-color: #c22026;">
+    
+    <!-- Top Promotional Banner -->
+    <div class="header-top-bar">
+        <div class="banner-media" style="background-color: #c22026;">
+            <div class="mx-auto" style="max-width: 1200px;">
+                <div class="media-slider" data-size="1">
+                    <div class="item visible" data-background-color="#c22026" data-order="1">
+                        <a aria-label="slide" data-cate="0" data-place="7994" href="#">
+                            <img 
+                                width="1200" 
+                                height="44" 
+                                loading="lazy" 
+                                class="w-full h-auto" 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/70/c8/70c8bad73e7ef21fd85569fbf0eae4b0.png" 
+                                alt="Banner topbar Thứ 4"
+                            >
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Bar -->
+    <div class="header__top border-b" style="background-color: #c22026; border-color: #c22026;">
+        <div class="mx-auto px-4 flex items-center h-full" style="max-width: 1200px;">
+            <div class="flex items-center justify-between gap-4">
+                <!-- Logo -->
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <img 
+                        src="https://cdn.tgdd.vn/2020/3/Logo/logo-tgdd-1-200x200.png" 
+                        alt="Logo" 
+                        class="w-10 h-10 object-contain"
+                    >
+                    <span class="text-white font-bold text-lg">thegioididong.com</span>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="flex-1 max-w-2xl">
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            placeholder="Vivo X300 Series" 
+                            class="w-full bg-white rounded-lg px-4 py-2 pl-10 text-gray-800 placeholder-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-400 text-sm"
+                            style="height: 36px;"
+                        >
+                        <img 
+                            src="https://cdn.tgdd.vn/2020/3/icon/icon-search-200x200.png" 
+                            alt="Search" 
+                            class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
+                        >
+                    </div>
+                </div>
+                
+                <!-- User Options -->
+                <div class="flex items-center gap-6 flex-shrink-0">
+                    <!-- Login -->
+                    <div class="flex items-center gap-2 cursor-pointer hover:opacity-80">
+                        <img 
+                            src="https://cdn.tgdd.vn/2020/3/icon/icon-user-200x200.png" 
+                            alt="Đăng nhập" 
+                            class="w-6 h-6"
+                        >
+                        <span class="text-white font-medium">Đăng nhập</span>
+                    </div>
+                    
+                    <!-- Cart -->
+                    <div class="flex items-center gap-2 cursor-pointer hover:opacity-80">
+                        <img 
+                            src="https://cdn.tgdd.vn/2020/3/icon/icon-cart-200x200.png" 
+                            alt="Giỏ hàng" 
+                            class="w-6 h-6"
+                        >
+                        <span class="text-white font-medium">Giỏ hàng</span>
+                    </div>
+                    
+                    <!-- Location -->
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition" style="background-color: #c22026;" onmouseover="this.style.backgroundColor='#a01d22'" onmouseout="this.style.backgroundColor='#c22026'">
+                        <img 
+                            src="https://cdn.tgdd.vn/2020/3/icon/icon-location-200x200.png" 
+                            alt="Location" 
+                            class="w-5 h-5"
+                        >
+                        <span class="text-white font-medium">Hồ Chí Minh</span>
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Menu Bar -->
+    <div class="header__main border-b" style="background-color: #c22026; border-color: #c22026;">
+        <div class="mx-auto px-4 flex items-center h-full" style="max-width: 1200px;">
+            <ul class="main-menu flex items-center gap-6 list-none m-0 p-0">
+                <!-- Phone -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/phonne-24x24.png" 
+                        alt="icon Điện thoại" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Điện thoại</span>
+                </li>
+                
+                <!-- Laptop -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/laptop-24x24.png" 
+                        alt="icon Laptop" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Laptop</span>
+                </li>
+                
+                <!-- Accessories -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/phu-kien-24x24.png" 
+                        alt="icon Phụ kiện" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Phụ kiện</span>
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </li>
+                
+                <!-- Smartwatch -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/smartwatch-24x24.png" 
+                        alt="icon Smartwatch" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Smartwatch</span>
+                </li>
+                
+                <!-- Watch -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/watch-24x24.png" 
+                        alt="icon Đồng hồ" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Đồng hồ</span>
+                </li>
+                
+                <!-- Tablet -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/tablet-24x24.png" 
+                        alt="icon Tablet" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Tablet</span>
+                </li>
+                
+                <!-- Used Devices -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/may-cu-24x24.png" 
+                        alt="icon Máy cũ, Thu cũ" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Máy cũ, Thu cũ</span>
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </li>
+                
+                <!-- Monitors, Printers -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/PC-24x24.png" 
+                        alt="icon Màn hình, Máy in" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Màn hình, Máy in</span>
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </li>
+                
+                <!-- SIM, Scratch cards -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/sim-24x24.png" 
+                        alt="icon Sim, Thẻ cào" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Sim, Thẻ cào</span>
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </li>
+                
+                <!-- Utilities -->
+                <li class="main-menu-item flex items-center gap-1.5 cursor-pointer hover:opacity-80">
+                    <img 
+                        src="https://cdn.tgdd.vn/content/tien-ich-24x24.png" 
+                        alt="icon Dịch vụ tiện ích" 
+                        width="24" 
+                        height="24"
+                    >
+                    <span class="text-white font-medium">Dịch vụ tiện ích</span>
+                    <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Body Home -->
+    <div class="body-home">
+        <!-- Decorative Labels -->
+        <img 
+            src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/BlackFriday/2025/TGDD/label-leftv2.gif" 
+            width="360" 
+            height="400" 
+            class="label-left" 
+            alt="Label Left"
+        >
+        <img 
+            src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/BlackFriday/2025/TGDD/label-right.gif" 
+            width="360" 
+            height="400" 
+            class="label-right" 
+            alt="Label Right"
+        >
+        <img 
+            src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/BlackFriday/2025/TGDD/bottom-left.png" 
+            width="360" 
+            height="360" 
+            class="bottom-left" 
+            alt="Bottom Left"
+        >
+        <img 
+            src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/BlackFriday/2025/TGDD/bottom-right.png" 
+            width="360" 
+            height="360" 
+            class="bottom-right" 
+            alt="Bottom Right"
+        >
+        
+        <!-- Big Banner -->
+        <div class="big-banner flex justify-center py-4" style="max-width: 1200px; margin: 0 auto;">
+            <a href="#" aria-label="slide">
+                <img 
+                    width="1200" 
+                    height="260" 
+                    src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/f8/c8/f8c83e1e525cb78208eaf6f64a2d4701.png" 
+                    alt="PK Camera"
+                    class="w-full h-auto"
+                >
+            </a>
+        </div>
+
+        <!-- Main Container -->
+        <div class="main-container mx-auto px-4" style="max-width: 1200px;">
+            
+            <!-- Hot Promotion Section -->
+            <div class="hot-promotion homeproducts-block mt-6">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Khuyến mãi online</h3>
+                
+                <!-- Products Tabs -->
+                <ul class="products-tabs flex gap-2 mb-4 overflow-x-auto" style="scrollbar-width: none;">
+                    <li class="active-tab flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 rounded-lg p-2" style="border-color: #F79009; background-color: #FFF6E3;">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/common/Campaign/e7/10/e710886de6b43d97ae6e06f79b3c5e1c.png" 
+                                alt="FlashSale" 
+                                class="h-8 w-auto"
+                            >
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg p-2 hover:border-orange-400">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/common/Campaign/7a/e0/7ae0723d3d978fd4c8a2c77f3bf4bd3a.png" 
+                                alt="Online Only" 
+                                class="h-8 w-auto"
+                            >
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">Điện Thoại</span>
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">Apple</span>
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">Laptop</span>
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">Phụ Kiện</span>
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">Đồng Hồ</span>
+                        </a>
+                    </li>
+                    <li class="flex-shrink-0">
+                        <a href="javascript:;" class="fs-new-item-title block border-2 border-gray-300 rounded-lg px-4 py-2 hover:border-orange-400">
+                            <span class="text-sm font-medium text-gray-700">PC, Máy in</span>
+                        </a>
+                    </li>
+                </ul>
+
+                <!-- Flashsale Block -->
+                <div class="block-products relative has-flashsale bg-white rounded-lg p-4">
+                    <!-- Timeline Title -->
+                    <div class="timeline-title mb-4">
+                        <div class="listing-timeline flex gap-2">
+                            <a href="javascript:;" class="active flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style="background-color: #FEA200; color: #FFFFFF;">
+                                <span class="title-end">Chỉ còn: <br></span>
+                                <span class="countdown-timer flex gap-1">
+                                    <label class="px-2 py-1 rounded" style="background-color: #FFFFFF; color: #FEA200;">01</label>
+                                    <label class="px-2 py-1 rounded" style="background-color: #FFFFFF; color: #FEA200;">44</label>
+                                    <label class="px-2 py-1 rounded" style="background-color: #FFFFFF; color: #FEA200;">53</label>
+                                </span>
+                            </a>
+                            <a href="javascript:;" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style="background-color: #F2F4F7; color: #344054;">
+                                <span>Sắp diễn ra </span>
+                                <span>18:00</span>
+                            </a>
+                            <a href="javascript:;" class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium" style="background-color: #F2F4F7; color: #344054;">
+                                <span>Sắp diễn ra </span>
+                                <span>21:30</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Product List -->
+                    <div class="box-scroll overflow-x-auto" style="scrollbar-width: thin;">
+                        <div class="listproduct flex gap-4 pb-4">
+                            <!-- Product Item 1 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 194px;">
+                                <a href="#" class="block">
+                                    <div class="item-img mb-2">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/42/336625/realme-14-5g-xam-thumb-600x600.jpg" 
+                                            alt="realme 14 5G 8GB/256GB" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">realme 14 5G 8GB/256GB</h3>
+                                    <strong class="price block mb-1">
+                                        <span class="text-red-600 font-bold text-base">6.720.000₫</span>
+                                        <span class="price-and-discount flex items-center gap-2">
+                                            <label class="price-old text-gray-500 text-xs line-through">9.320.000₫</label>
+                                            <small class="text-red-600 text-xs font-medium">-27%</small>
+                                        </span>
+                                    </strong>
+                                    <div class="fs-contain flex items-center gap-2 mt-2 text-xs">
+                                        <img width="15" height="15" src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/flash-sale.png" alt="icon flashsale">
+                                        <span class="rq_count text-orange-600 font-medium">
+                                            <b>Còn 4/10 suất</b>
+                                        </span>
+                                    </div>
+                                </a>
+                                <div class="btn-buy mt-2">
+                                    <a href="#" class="buy-now block w-full bg-red-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
+                                        Mua ngay
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Product Item 2 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 194px;">
+                                <a href="#" class="block">
+                                    <div class="item-img mb-2">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/42/339179/vivo-y39-xanh-thumb-600x600.jpg" 
+                                            alt="vivo Y39 5G 8GB/256GB" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">vivo Y39 5G 8GB/256GB</h3>
+                                    <strong class="price block mb-1">
+                                        <span class="text-red-600 font-bold text-base">8.140.000₫</span>
+                                        <span class="price-and-discount flex items-center gap-2">
+                                            <label class="price-old text-gray-500 text-xs line-through">8.340.000₫</label>
+                                        </span>
+                                    </strong>
+                                    <div class="fs-contain flex items-center gap-2 mt-2 text-xs">
+                                        <img width="15" height="15" src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/flash-sale.png" alt="icon flashsale">
+                                        <span class="rq_count text-orange-600 font-medium">
+                                            <b>Còn 9/10 suất</b>
+                                        </span>
+                                    </div>
+                                </a>
+                                <div class="btn-buy mt-2">
+                                    <a href="#" class="buy-now block w-full bg-red-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
+                                        Mua ngay
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Product Item 3 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 194px;">
+                                <a href="#" class="block">
+                                    <div class="item-img mb-2">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/42/325799/redmi-13-yellow-thumb-600x600.jpg" 
+                                            alt="Xiaomi Redmi 13 8GB/128GB" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Xiaomi Redmi 13 8GB/128GB</h3>
+                                    <strong class="price block mb-1">
+                                        <span class="text-red-600 font-bold text-base">3.310.000₫</span>
+                                        <span class="price-and-discount flex items-center gap-2">
+                                            <label class="price-old text-gray-500 text-xs line-through">4.610.000₫</label>
+                                            <small class="text-red-600 text-xs font-medium">-28%</small>
+                                        </span>
+                                    </strong>
+                                    <div class="fs-contain flex items-center gap-2 mt-2 text-xs">
+                                        <img width="15" height="15" src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/flash-sale.png" alt="icon flashsale">
+                                        <span class="rq_count text-orange-600 font-medium">
+                                            <b>Còn 13/30 suất</b>
+                                        </span>
+                                    </div>
+                                </a>
+                                <div class="btn-buy mt-2">
+                                    <a href="#" class="buy-now block w-full bg-red-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
+                                        Mua ngay
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Product Item 4 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 194px;">
+                                <a href="#" class="block">
+                                    <div class="item-img mb-2">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/7077/329706/apple-watch-s10-lte-day-vai-vang-hong-tb-600x600.jpg" 
+                                            alt="Apple Watch Series 10" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Apple Watch Series 10 GPS + Cellular 46mm</h3>
+                                    <strong class="price block mb-1">
+                                        <span class="text-red-600 font-bold text-base">13.390.000₫</span>
+                                        <span class="price-and-discount flex items-center gap-2">
+                                            <label class="price-old text-gray-500 text-xs line-through">14.090.000₫</label>
+                                        </span>
+                                    </strong>
+                                    <div class="fs-contain flex items-center gap-2 mt-2 text-xs">
+                                        <img width="15" height="15" src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/flash-sale.png" alt="icon flashsale">
+                                        <span class="rq_count text-orange-600 font-medium">
+                                            <b>Còn 3/3 suất</b>
+                                        </span>
+                                    </div>
+                                </a>
+                                <div class="btn-buy mt-2">
+                                    <a href="#" class="buy-now block w-full bg-red-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
+                                        Mua ngay
+                                    </a>
+                                </div>
+                            </div>
+
+                            <!-- Product Item 5 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 194px;">
+                                <a href="#" class="block">
+                                    <div class="item-img mb-2">
+                                        <img 
+                                            src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/323585/hp-omen-16-xf0071ax-r7-8w946pa-638763551717150025-600x600.jpg" 
+                                            alt="HP OMEN 16" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">HP OMEN 16 xf0071AX R7 7840HS</h3>
+                                    <strong class="price block mb-1">
+                                        <span class="text-red-600 font-bold text-base">39.190.000₫</span>
+                                        <span class="price-and-discount flex items-center gap-2">
+                                            <label class="price-old text-gray-500 text-xs line-through">57.790.000₫</label>
+                                            <small class="text-red-600 text-xs font-medium">-32%</small>
+                                        </span>
+                                    </strong>
+                                    <div class="fs-contain flex items-center gap-2 mt-2 text-xs">
+                                        <img width="15" height="15" src="//cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/flash-sale.png" alt="icon flashsale">
+                                        <span class="rq_count text-orange-600 font-medium">
+                                            <b>Còn 5/5 suất</b>
+                                        </span>
+                                    </div>
+                                </a>
+                                <div class="btn-buy mt-2">
+                                    <a href="#" class="buy-now block w-full bg-red-600 text-white text-center py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
+                                        Mua ngay
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gợi ý cho bạn Section -->
+            <div class="recommend-section mt-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Gợi ý cho bạn</h3>
+                <div class="block-products relative bg-white rounded-lg p-4">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <!-- Product Item 1 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0%</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdn.tgdd.vn/Products/Images/7077/334436/huawei-watch-fit-4-den-tb-600x600.jpg" 
+                                        alt="Huawei Watch Fit 4" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Huawei Watch Fit 4 43mm dây silicone</h3>
+                                <p class="item-txt-online text-xs text-orange-600 mb-1">
+                                    <span>Online giá rẻ quá</span>
+                                </p>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">2.520.000₫</strong>
+                                <div class="box-p flex items-center gap-2">
+                                    <p class="price-old text-gray-500 text-xs line-through">3.030.000₫</p>
+                                    <span class="percent text-red-600 text-xs font-medium">-16%</span>
+                                </div>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>4.9</b>
+                                    </div>
+                                    <span>• Đã bán 10,5k</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <!-- Product Item 2 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0%</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdn.tgdd.vn/Products/Images/522/335308/ipad-11-wifi-sliver-thumb-600x600.jpg" 
+                                        alt="iPad A16 WiFi 128GB" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">iPad A16 WiFi 128GB</h3>
+                                <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                    <span>Retina IPS LCD</span> • <span>11"</span>
+                                </div>
+                                <p class="item-txt-online text-xs text-orange-600 mb-1">
+                                    <span>Online giá rẻ quá</span>
+                                </p>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">8.790.000₫</strong>
+                                <div class="box-p flex items-center gap-2">
+                                    <p class="price-old text-gray-500 text-xs line-through">9.790.000₫</p>
+                                    <span class="percent text-red-600 text-xs font-medium">-10%</span>
+                                </div>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>4.9</b>
+                                    </div>
+                                    <span>• Đã bán 21,2k</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <!-- Product Item 3 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0% trả trước 0đ</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/340562/dell-15-dc15250-i7-dc5i7748w1-638900114799182560-600x600.jpg" 
+                                        alt="Dell 15 DC15250" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Dell 15 DC15250 i7 1355U</h3>
+                                <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                    <span>RAM 16 GB</span> • <span>SSD 512 GB</span>
+                                </div>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">20.990.000₫</strong>
+                                <div class="box-p flex items-center gap-2">
+                                    <p class="price-old text-gray-500 text-xs line-through">21.390.000₫</p>
+                                </div>
+                                <p class="item-gift text-xs text-orange-600 mt-1">Quà <b>100.000₫</b></p>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>5</b>
+                                    </div>
+                                    <span>• Đã bán 812</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <!-- Product Item 4 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0%</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdn.tgdd.vn/Products/Images/42/329149/iphone-16-pro-max-titan-sa-mac-thumb-600x600.jpg" 
+                                        alt="iPhone 16 Pro Max" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">iPhone 16 Pro Max 256GB</h3>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">30.590.000₫</strong>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>4.9</b>
+                                    </div>
+                                    <span>• Đã bán 15,2k</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <!-- Product Item 5 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0%</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdn.tgdd.vn/Products/Images/44/323585/hp-omen-16-xf0071ax-r7-8w946pa-638763551717150025-600x600.jpg" 
+                                        alt="HP OMEN 16" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">HP OMEN 16 xf0071AX</h3>
+                                <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                    <span>RAM 32 GB</span> • <span>SSD 1TB</span>
+                                </div>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">39.190.000₫</strong>
+                                <div class="box-p flex items-center gap-2">
+                                    <p class="price-old text-gray-500 text-xs line-through">57.790.000₫</p>
+                                    <span class="percent text-red-600 text-xs font-medium">-32%</span>
+                                </div>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>4.8</b>
+                                    </div>
+                                    <span>• Đã bán 2,1k</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <!-- Product Item 6 -->
+                        <div class="item bg-white rounded-lg border border-gray-200 p-3 hover:shadow-lg transition">
+                            <a href="#" class="block">
+                                <div class="item-label mb-2">
+                                    <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0%</span>
+                                </div>
+                                <div class="item-img mb-2">
+                                    <img 
+                                        src="https://cdn.tgdd.vn/Products/Images/54/327988/tai-nghe-bluetooth-true-wireless-ava-buds-life-air-2-pro-230824-105551-600x600.jpg" 
+                                        alt="Tai nghe TWS AVA+" 
+                                        class="w-full h-auto rounded"
+                                    >
+                                </div>
+                                <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Tai nghe TWS AVA+ Buds Life Air 2 Pro</h3>
+                                <strong class="price block text-red-600 font-bold text-base mb-1">400.000₫</strong>
+                                <div class="box-p flex items-center gap-2">
+                                    <p class="price-old text-gray-500 text-xs line-through">490.000₫</p>
+                                    <span class="percent text-red-600 text-xs font-medium">-18%</span>
+                                </div>
+                                <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                    <div class="vote-txt flex items-center gap-1">
+                                        <span class="text-yellow-500">★</span>
+                                        <b>4.7</b>
+                                    </div>
+                                    <span>• Đã bán 8,5k</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lễ Hội Trả Chậm Section -->
+            <div class="monopoly-product-block mt-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Lễ Hội Trả Chậm</h3>
+                <div class="flex gap-4">
+                    <!-- Banner -->
+                    <div class="flex-shrink-0">
+                        <a href="#" class="block">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/a5/40/a5404e2e81d6dc9055aee4b3837eff58.jpg" 
+                                alt="Lễ Hội Trả Chậm" 
+                                width="760" 
+                                height="1000"
+                                class="rounded-lg"
+                            >
+                        </a>
+                    </div>
+                    <!-- Product Slider -->
+                    <div class="flex-1 overflow-x-auto" style="scrollbar-width: thin;">
+                        <div class="listproduct flex gap-4">
+                            <!-- Product Item 1 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 185px;">
+                                <a href="#" class="block">
+                                    <div class="item-label mb-2">
+                                        <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0% trả trước 0đ</span>
+                                    </div>
+                                    <div class="item-img mb-2 relative">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/42/342565/samsung-galaxy-s25-fe-navy-thumbai-600x600.jpg" 
+                                            alt="Samsung Galaxy S25 FE" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                        <img 
+                                            src="https://cdn.tgdd.vn/2023/10/campaign/label-tgdd-200x200.png" 
+                                            alt="label" 
+                                            width="40" 
+                                            height="40"
+                                            class="absolute top-0 right-0"
+                                        >
+                                    </div>
+                                    <p class="result-label bg-red-600 text-white text-xs px-2 py-1 rounded mb-2 inline-block">
+                                        <span>THỨ 4 SALE SẬP SÀN</span>
+                                    </p>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Samsung Galaxy S25 FE 5G 8GB/256GB</h3>
+                                    <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                        <span>Full HD+</span> • <span>6.7"</span>
+                                    </div>
+                                    <strong class="price block text-red-600 font-bold text-base mb-1">16.490.000₫</strong>
+                                    <div class="box-p flex items-center gap-2">
+                                        <p class="price-old text-gray-500 text-xs line-through">18.490.000₫</p>
+                                        <span class="percent text-red-600 text-xs font-medium">-10%</span>
+                                    </div>
+                                    <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                        <div class="vote-txt flex items-center gap-1">
+                                            <span class="text-yellow-500">★</span>
+                                            <b>4.9</b>
+                                        </div>
+                                        <span>• Đã bán 4,3k</span>
+                                    </div>
+                                </a>
+                            </div>
+
+                            <!-- Product Item 2 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 185px;">
+                                <a href="#" class="block">
+                                    <div class="item-label mb-2">
+                                        <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0% trả trước 0đ</span>
+                                    </div>
+                                    <div class="item-img mb-2 relative">
+                                        <img 
+                                            src="https://cdn.tgdd.vn/Products/Images/42/343124/oppo-a6-pro-5g-blue-thumbai-600x600.jpg" 
+                                            alt="OPPO A6 Pro" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                        <img 
+                                            src="https://cdn.tgdd.vn/2023/10/campaign/label-tgdd-200x200.png" 
+                                            alt="label" 
+                                            width="40" 
+                                            height="40"
+                                            class="absolute top-0 right-0"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">OPPO A6 Pro 5G 8GB/256GB</h3>
+                                    <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                        <span>Full HD+</span> • <span>6.57"</span>
+                                    </div>
+                                    <strong class="price block text-red-600 font-bold text-base mb-1">9.290.000₫</strong>
+                                    <p class="item-gift text-xs text-orange-600 mt-1">Quà <b>350.000₫</b></p>
+                                    <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                        <div class="vote-txt flex items-center gap-1">
+                                            <span class="text-yellow-500">★</span>
+                                            <b>4.9</b>
+                                        </div>
+                                        <span>• Đã bán 3,6k</span>
+                                    </div>
+                                </a>
+                            </div>
+
+                            <!-- Product Item 3 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 185px;">
+                                <a href="#" class="block">
+                                    <div class="item-label mb-2">
+                                        <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0% trả trước 0đ</span>
+                                    </div>
+                                    <div class="item-img mb-2 relative">
+                                        <img 
+                                            src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/338323/asus-x1504va-core-5-bq185ws-thumb2-638929335505560781-600x600.jpg" 
+                                            alt="Asus Vivobook 15" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                        <img 
+                                            src="https://cdn.tgdd.vn/2023/10/campaign/label-tgdd-200x200.png" 
+                                            alt="label" 
+                                            width="40" 
+                                            height="40"
+                                            class="absolute top-0 right-0"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">Asus Vivobook 15 X1504VA Core 5 120U</h3>
+                                    <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                        <span>RAM 16 GB</span> • <span>SSD 512 GB</span>
+                                    </div>
+                                    <strong class="price block text-red-600 font-bold text-base mb-1">17.490.000₫</strong>
+                                    <div class="box-p flex items-center gap-2">
+                                        <p class="price-old text-gray-500 text-xs line-through">19.190.000₫</p>
+                                        <span class="percent text-red-600 text-xs font-medium">-8%</span>
+                                    </div>
+                                    <p class="item-gift text-xs text-orange-600 mt-1">Quà <b>500.000₫</b></p>
+                                    <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                        <div class="vote-txt flex items-center gap-1">
+                                            <span class="text-yellow-500">★</span>
+                                            <b>5</b>
+                                        </div>
+                                        <span>• Đã bán 2k</span>
+                                    </div>
+                                </a>
+                            </div>
+
+                            <!-- Product Item 4 -->
+                            <div class="item flex-shrink-0 bg-white rounded-lg border border-gray-200 p-3" style="width: 185px;">
+                                <a href="#" class="block">
+                                    <div class="item-label mb-2">
+                                        <span class="bg-orange-500 text-white text-xs px-2 py-1 rounded">Trả chậm 0% trả trước 0đ</span>
+                                    </div>
+                                    <div class="item-img mb-2 relative">
+                                        <img 
+                                            src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Products/Images/44/341270/hp-15-fd0234tu-core-5-120u-9q969pa-120u-230725-094819-122-600x600.jpg" 
+                                            alt="HP 15 fd0234TU" 
+                                            class="w-full h-auto rounded"
+                                        >
+                                        <img 
+                                            src="https://cdn.tgdd.vn/2023/10/campaign/label-tgdd-200x200.png" 
+                                            alt="label" 
+                                            width="40" 
+                                            height="40"
+                                            class="absolute top-0 right-0"
+                                        >
+                                    </div>
+                                    <h3 class="text-sm font-medium text-gray-800 mb-2 line-clamp-2" style="min-height: 40px;">HP 15 fd0234TU Core 5 120U</h3>
+                                    <div class="item-compare bg-gray-100 text-xs text-gray-600 px-2 py-1 rounded mb-1">
+                                        <span>RAM 16 GB</span> • <span>SSD 512 GB</span>
+                                    </div>
+                                    <strong class="price block text-red-600 font-bold text-base mb-1">16.790.000₫</strong>
+                                    <div class="box-p flex items-center gap-2">
+                                        <p class="price-old text-gray-500 text-xs line-through">18.290.000₫</p>
+                                        <span class="percent text-red-600 text-xs font-medium">-8%</span>
+                                    </div>
+                                    <p class="item-gift text-xs text-orange-600 mt-1">Quà <b>2.590.000₫</b></p>
+                                    <div class="rating_Compare mt-2 flex items-center gap-2 text-xs text-gray-600">
+                                        <div class="vote-txt flex items-center gap-1">
+                                            <span class="text-yellow-500">★</span>
+                                            <b>5</b>
+                                        </div>
+                                        <span>• Đã bán 1,8k</span>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gian Hàng Ưu Đãi Section -->
+            <div class="banner-offers mt-8">
+                <div class="box-banner-title text-xl font-bold mb-4 text-gray-800">Gian Hàng Ưu Đãi</div>
+                <div class="box-banner-offers grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="banner-offers-item">
+                        <a href="#" class="block rounded-lg overflow-hidden hover:opacity-90 transition">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/13/57/1357e2441031899379e17eeca01f37b7.png" 
+                                alt="Gian Hàng Ưu Đãi" 
+                                class="w-full h-auto"
+                            >
+                        </a>
+                    </div>
+                    <div class="banner-offers-item">
+                        <a href="#" class="block rounded-lg overflow-hidden hover:opacity-90 transition">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/1a/82/1a82feb68ebc5e3249e3f376ccdda8ac.png" 
+                                alt="Gian hàng ưu đãi" 
+                                class="w-full h-auto"
+                            >
+                        </a>
+                    </div>
+                    <div class="banner-offers-item">
+                        <a href="#" class="block rounded-lg overflow-hidden hover:opacity-90 transition">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/69/24/692481985b335acaf989a8e9ccc3c875.png" 
+                                alt="Gian Hàng Ưu Đãi" 
+                                class="w-full h-auto"
+                            >
+                        </a>
+                    </div>
+                    <div class="banner-offers-item">
+                        <a href="#" class="block rounded-lg overflow-hidden hover:opacity-90 transition">
+                            <img 
+                                src="https://cdnv2.tgdd.vn/mwg-static/tgdd/Banner/49/73/4973953a1603a9038a8e409494ed6a1e.jpg" 
+                                alt="Gian hàng ưu đãi" 
+                                class="w-full h-auto"
+                            >
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mạng xã hội thegioididong.com Section -->
+            <div class="home-news mt-8">
+                <h2 class="title-news text-xl font-bold mb-4 text-gray-800">Mạng xã hội thegioididong.com</h2>
+                <div class="box-listing-news">
+                    <div class="listing-news overflow-x-auto" style="scrollbar-width: thin;">
+                        <div class="flex gap-4 pb-4">
+                            <!-- News Item 1 -->
+                            <div class="item-news flex-shrink-0 bg-white rounded-lg border border-gray-200 overflow-hidden" style="width: 282px;">
+                                <a href="#" class="block">
+                                    <img 
+                                        src="https://cdnv2.tgdd.vn/mwg-static/tgdd/News/Thumb/1586151/OTG12638995710551176245.jpg" 
+                                        alt="News" 
+                                        class="w-full h-40 object-cover"
+                                    >
+                                    <p class="p-3 text-sm text-gray-800 line-clamp-2">OPPO Reno15 Pro và OPPO Reno15 F đồng loạt đạt chứng nhận, sẵn sàng ra mắt toàn cầu</p>
+                                </a>
+                            </div>
+
+                            <!-- News Item 2 -->
+                            <div class="item-news flex-shrink-0 bg-white rounded-lg border border-gray-200 overflow-hidden" style="width: 282px;">
+                                <a href="#" class="block">
+                                    <img 
+                                        src="https://cdnv2.tgdd.vn/mwg-static/common/Common/sua-man-hinh-iphone-bi-lem-muc-bao-nhieu-tien-thumb.jpg" 
+                                        alt="News" 
+                                        class="w-full h-40 object-cover"
+                                    >
+                                    <p class="p-3 text-sm text-gray-800 line-clamp-2">Sửa màn hình iPhone bị lem mực bao nhiêu tiền? Bảng giá 2025</p>
+                                </a>
+                            </div>
+
+                            <!-- News Item 3 -->
+                            <div class="item-news flex-shrink-0 bg-white rounded-lg border border-gray-200 overflow-hidden" style="width: 282px;">
+                                <a href="#" class="block">
+                                    <img 
+                                        src="https://cdnv2.tgdd.vn/mwg-static/tgdd/News/Thumb/1586169/ATN57638995824271025458.jpg" 
+                                        alt="News" 
+                                        class="w-full h-40 object-cover"
+                                    >
+                                    <p class="p-3 text-sm text-gray-800 line-clamp-2">realme 16 Pro lộ diện màu sắc, cấu hình và tùy chọn bộ nhớ trước thềm trình làng</p>
+                                </a>
+                            </div>
+
+                            <!-- News Item 4 -->
+                            <div class="item-news flex-shrink-0 bg-white rounded-lg border border-gray-200 overflow-hidden" style="width: 282px;">
+                                <a href="#" class="block">
+                                    <img 
+                                        src="https://cdnv2.tgdd.vn/mwg-static/common/Common/cach-tao-id-apple-tren-web-thumb.jpg" 
+                                        alt="News" 
+                                        class="w-full h-40 object-cover"
+                                    >
+                                    <p class="p-3 text-sm text-gray-800 line-clamp-2">Cách tạo ID Apple trên web, máy tính đơn giản, nhanh chóng nhất</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="show-more-news mt-4 text-center">
+                        <a href="/tin-tuc" class="text-blue-600 hover:underline font-semibold">Xem thêm</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mọi người cũng tìm kiếm Section -->
+            <div class="search-trend mt-8 mb-8">
+                <div class="bottom-search bg-white rounded-lg p-6">
+                    <p class="bottom-search__title text-lg font-bold mb-4 text-gray-800">Mọi người cũng tìm kiếm</p>
+                    <div class="bottom-search__container">
+                        <ul class="flex flex-wrap gap-2">
+                            <li><a href="/laptop" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">laptop</a></li>
+                            <li><a href="/tai-nghe" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">tai nghe</a></li>
+                            <li><a href="/dong-ho-deo-tay" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">đồng hồ</a></li>
+                            <li><a href="/may-tinh-de-ban" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">pc</a></li>
+                            <li><a href="/laptop-apple-macbook" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">macbook</a></li>
+                            <li><a href="/laptop-dell" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">dell</a></li>
+                            <li><a href="/laptop-asus" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">asus</a></li>
+                            <li><a href="/dtdd-xiaomi" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">xiaomi</a></li>
+                            <li><a href="/dtdd-apple-iphone-17-series" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">iphone 17</a></li>
+                            <li><a href="/chuot-may-tinh-chuot-gaming" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">chuột gaming</a></li>
+                            <li><a href="/laptop?g=laptop-gaming" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">laptop gaming</a></li>
+                            <li><a href="/dtdd-apple-iphone-16-series" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">iphone 16</a></li>
+                            <li><a href="/dtdd-apple-iphone-15-series" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">iphone 15</a></li>
+                            <li><a href="/loa-laptop-jbl" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">loa jbl</a></li>
+                            <li><a href="/loa-laptop-marshall" class="text-sm text-gray-600 hover:text-blue-600 px-3 py-1 bg-gray-100 rounded-full hover:bg-gray-200 transition">loa marshall</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer bg-gray-100 border-t border-gray-200 mt-8">
+        <section class="footer__top py-8">
+            <div class="mx-auto px-4" style="max-width: 1200px;">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <!-- Column 1: Tổng đài hỗ trợ -->
+                    <div class="footer__col">
+                        <div class="f-listtel">
+                            <p class="f-listtel__title mb-4">
+                                <strong class="text-base font-bold text-gray-800">Tổng đài hỗ trợ</strong>
+                            </p>
+                            <p class="f-listtel__content mb-2 text-sm text-gray-600">
+                                <span>Gọi mua:</span> <a href="tel:1900232460" class="text-blue-600 hover:underline">1900 232 460</a>
+                                <span class="text-gray-500"> (8:00 - 21:30)</span>
+                            </p>
+                            <p class="f-listtel__content mb-2 text-sm text-gray-600">
+                                <span>Khiếu nại:</span> <a href="tel:18001062" class="text-blue-600 hover:underline">1800.1062</a>
+                                <span class="text-gray-500"> (8:00 - 21:30)</span>
+                            </p>
+                            <p class="f-listtel__content mb-2 text-sm text-gray-600">
+                                <span>Bảo hành:</span> <a href="tel:1900232464" class="text-blue-600 hover:underline">1900 232 464</a>
+                                <span class="text-gray-500"> (8:00 - 21:00)</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Về công ty -->
+                    <div class="footer__col">
+                        <div class="f-listtel mb-4">
+                            <p class="f-listtel__title">
+                                <strong class="text-base font-bold text-gray-800">Về công ty</strong>
+                            </p>
+                        </div>
+                        <ul class="f-listmenu space-y-2">
+                            <li><a href="https://mwg.vn" target="_blank" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Giới thiệu công ty (MWG.vn)</a></li>
+                            <li><a href="https://vieclam.thegioididong.com" target="_blank" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Tuyển dụng</a></li>
+                            <li><a href="/lien-he" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Gửi góp ý, khiếu nại</a></li>
+                            <li><a href="/he-thong-sieu-thi-the-gioi-di-dong" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Tìm siêu thị (2.960 shop)</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Column 3: Thông tin khác -->
+                    <div class="footer__col">
+                        <div class="f-listtel mb-4">
+                            <p class="f-listtel__title">
+                                <strong class="text-base font-bold text-gray-800">Thông tin khác</strong>
+                            </p>
+                        </div>
+                        <ul class="f-listmenu space-y-2">
+                            <li><a href="/tin-tuc/tat-tan-tat-ve-chuong-trinh-uu-dai-app-qua-tang-vip-link-tai-va-cach-su-dung-1481677#gioithieu" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Tích điểm Quà tặng VIP</a></li>
+                            <li><a href="/lich-su-mua-hang" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Lịch sử mua hàng</a></li>
+                            <li><a href="https://www.dienmayxanh.com/ctv-ban-hang" target="_blank" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Đăng ký bán hàng CTV chiết khấu cao</a></li>
+                            <li><a href="/tra-gop" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Tìm hiểu về mua trả chậm</a></li>
+                            <li><a href="/bao-hanh" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Chính sách bảo hành</a></li>
+                            <li><a href="/chinh-sach-bao-hanh-san-pham" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Chính sách đổi trả</a></li>
+                            <li><a href="/giao-hang" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Giao hàng & Thanh toán</a></li>
+                            <li><a href="/huong-dan-mua-hang" rel="nofollow" class="text-sm text-gray-600 hover:text-blue-600">Hướng dẫn mua online</a></li>
+                        </ul>
+                    </div>
+
+                    <!-- Column 4: Website cùng tập đoàn -->
+                    <div class="footer__col">
+                        <div class="f-website">
+                            <div class="footer__logo mb-6">
+                                <p class="footer__logo-hd text-sm font-semibold text-gray-700 mb-3">Website cùng tập đoàn</p>
+                                <ul class="footer__logo-list grid grid-cols-4 gap-3">
+                                    <li>
+                                        <a href="https://www.topzone.vn/" target="_blank" title="Chuỗi cửa hàng cao cấp Apple" aria-label="logo topzone" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-topzone-200x200.png" alt="Topzone" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.dienmayxanh.com/" target="_blank" aria-label="logo dienmayxanh" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-dienmayxanh-200x200.png" alt="Điện máy xanh" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.bachhoaxanh.com/" target="_blank" aria-label="logo bachhoaxanh" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-bachhoaxanh-200x200.png" alt="Bách hóa xanh" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.nhathuocankhang.com/" target="_blank" title="Chuỗi nhà thuốc chuẩn GPP" aria-label="logo ankhang" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-ankhang-200x200.png" alt="An Khang" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://www.avakids.com/" target="_blank" title="Chuỗi cửa hàng mẹ và bé" aria-label="logo avakids" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-avakids-200x200.png" alt="AvaKids" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="https://vieclam.thegioididong.com/" target="_blank" title="Trang tuyển dụng" aria-label="logo vieclam" class="block">
+                                            <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-vieclam-200x200.png" alt="Việc làm" class="w-16 h-8 object-contain">
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                            <div class="f-social mb-6">
+                                <a href="https://www.facebook.com/thegioididongcom" class="link-fb flex items-center gap-2 mb-2 text-sm text-gray-600 hover:text-blue-600" rel="nofollow">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                                    </svg>
+                                    3886.8k Fan
+                                </a>
+                                <a href="https://www.youtube.com/user/TGDDVideoReviews" class="link-ytb flex items-center gap-2 mb-2 text-sm text-gray-600 hover:text-red-600" rel="nofollow">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                    </svg>
+                                    875k Đăng ký
+                                </a>
+                                <a href="https://zalo.me/936590283559458736" target="_blank" class="imgzalo flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600" rel="nofollow">
+                                    <img src="https://cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/icon_zalo.png" alt="zalo" width="18" height="18">
+                                    Zalo TGDĐ
+                                </a>
+                            </div>
+                            <div class="f-certify flex gap-4">
+                                <a href="http://online.gov.vn/Home/WebDetails/20090" target="_blank" aria-label="logo congthuong" rel="nofollow" class="block">
+                                    <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-congthuong-200x200.png" alt="Công thương" class="h-8 w-auto">
+                                </a>
+                                <a href="/tos#giai-quyet-khieu-nai" target="_blank" aria-label="logo khieunai" rel="nofollow" class="block">
+                                    <img src="https://cdn.tgdd.vn/2020/3/Logo/logo-khieunai-200x200.png" alt="Khiếu nại" class="h-8 w-auto">
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Copyright -->
+        <div class="copyright bg-gray-200 py-4">
+            <section>
+                <div class="mx-auto px-4" style="max-width: 1200px;">
+                    <p class="text-xs text-gray-600 leading-relaxed">
+                        © 2018. Công ty cổ phần Thế Giới Di Động. GPDKKD: 0303217354 do sở KH & ĐT TP.HCM cấp ngày 02/01/2007. GPMXH: 21/GP-BTTTT do Bộ Thông Tin và Truyền Thông cấp ngày 11/01/2021.<br>
+                        Địa chỉ: 128 Trần Quang Khải, P.Tân Định, TP. Hồ Chí Minh. Địa chỉ liên hệ và gửi chứng từ: Lô T2-1.2, Đường D1, P.Tăng Nhơn Phú, TP.Hồ Chí Minh. Điện thoại: 028 38125960. Email: hotrotmdt@thegioididong.com.<br>
+                        Chịu trách nhiệm nội dung: Huỳnh Văn Tốt. Đại diện ủy quyền giải quyết các vấn đề liên quan bảo vệ quyền lợi người tiêu dùng: Huỳnh Văn Tốt. Email: hotrotmdt@thegioididong.com. <a href="/thoa-thuan-su-dung-trang-mxh" rel="nofollow" class="text-blue-600 hover:underline">Xem chính sách sử dụng</a>
+                    </p>
+                </div>
+            </section>
+        </div>
+    </footer>
+
+</body>
+
+</html>
+

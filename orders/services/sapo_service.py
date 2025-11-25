@@ -49,8 +49,23 @@ class SapoCoreOrderService:
         return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
 
     def get_order_dto(self, order_id: int) -> OrderDTO:
+        import logging
+        logger = logging.getLogger(__name__)
+        import time
+        
+        api_start = time.time()
+        logger.debug(f"[SapoCoreOrderService] Calling API: GET /orders/{order_id}.json")
         payload = self._core_api.get_order_raw(order_id)
-        return build_order_from_sapo(payload)
+        api_time = time.time() - api_start
+        logger.info(f"[PERF] SapoCoreOrderService.get_order_dto({order_id}): API call took {api_time:.2f}s")
+        
+        build_start = time.time()
+        result = build_order_from_sapo(payload)
+        build_time = time.time() - build_start
+        if build_time > 0.1:  # Log nếu build chậm hơn 0.1s
+            logger.info(f"[PERF] SapoCoreOrderService.get_order_dto({order_id}): build_order_from_sapo took {build_time:.2f}s")
+        
+        return result
 
     def get_order_dto_from_shopee_sn(self, shopee_sn: str) -> Optional[OrderDTO]:
         payload = self._core_api.get_order_by_reference_number(shopee_sn)

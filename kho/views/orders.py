@@ -13,8 +13,10 @@ from orders.services.sapo_service import (
     SapoCoreOrderService,
 )
 from orders.services.dto import OrderDTO
+from orders.services.order_builder import build_order_from_sapo
 import os
 from io import BytesIO
+import time
 
 from PyPDF2 import PdfReader, PdfWriter  # pip install PyPDF2
 from orders.services.sapo_service import SapoMarketplaceService
@@ -172,6 +174,9 @@ def shopee_orders(request):
     - Lọc theo kho đang chọn trong session (geleximco / toky)
     - Gắn thêm thông tin Sapo core order (location_id, shipment, customer...)
     """
+    # ========== DEBUG: Track thời gian ==========
+    start_time = time.time()
+    api_call_count = {"marketplace": 0, "get_order": 0, "get_variant": 0}
 
     context = {
         "title": "ĐƠN SHOPEE - GIA DỤNG PLUS",
@@ -191,9 +196,13 @@ def shopee_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Filter cho Marketplace orders
+    step_start = time.time()
     all_orders = []
     page = 1
     limit = 250
+    
+    debug_print(f"shopee_orders Starting to fetch marketplace orders (limit {limit} per page)...")
+    logger.info(f"[PERF] shopee_orders: Starting to fetch marketplace orders...")
     
     while True:
         mp_filter = BaseFilter(params={ 
@@ -206,23 +215,113 @@ def shopee_orders(request):
             "orderBy": "desc", 
         })
         
+        page_start = time.time()
         mp_resp = mp_service.list_orders(mp_filter)
+        api_call_count["marketplace"] += 1
+        page_time = time.time() - page_start
+        logger.info(f"[PERF] shopee_orders: Page {page} marketplace API call took {page_time:.2f}s")
+        
         orders = mp_resp.get("orders", [])
         metadata = mp_resp.get("metadata", {})
         total = metadata.get("total", 0)
         
         all_orders.extend(orders)
-        debug_print(f"shopee_orders fetched page {page}: {len(orders)} orders. Total so far: {len(all_orders)}/{total}")
+        debug_print(f"shopee_orders fetched page {page}: {len(orders)} orders in {page_time:.2f}s. Total so far: {len(all_orders)}/{total}")
         
         if not orders or len(all_orders) >= total:
             break
             
         page += 1
         
+    fetch_time = time.time() - step_start
     mp_orders = all_orders
-    debug_print(f"shopee_orders finished fetching. Total: {len(mp_orders)} orders")
+    debug_print(f"shopee_orders finished fetching. Total: {len(mp_orders)} orders in {fetch_time:.2f}s")
+    logger.info(f"[PERF] shopee_orders: Fetched {len(mp_orders)} marketplace orders in {fetch_time:.2f}s ({api_call_count['marketplace']} API calls)")
 
+    # ========== OPTIMIZATION: Fetch list orders trước để cache ==========
+    step_start = time.time()
+    debug_print(f"shopee_orders Pre-fetching recent orders from Sapo Core API to cache...")
+    logger.info(f"[PERF] shopee_orders: Pre-fetching recent orders to cache...")
+    
+    # Collect tất cả sapo_order_ids cần fetch
+    sapo_order_ids = set()
+    for o in mp_orders:
+        sapo_order_id = o.get("sapo_order_id")
+        if sapo_order_id:
+            sapo_order_ids.add(sapo_order_id)
+    
+    debug_print(f"shopee_orders Need to fetch {len(sapo_order_ids)} unique orders")
+    
+    # Fetch list orders từ Sapo Core API (1500 orders gần nhất = 6 pages)
+    orders_cache: Dict[int, Dict[str, Any]] = {}  # {order_id: raw_order_data}
+    cache_fetch_start = time.time()
+    page = 1
+    limit = 250
+    max_pages = 6  # 6 pages = 1500 orders
+    
+    cache_api_calls = 0
+    while page <= max_pages:
+        try:
+            filters = {
+                "status": "draft,finalized",  # Lấy cả draft và finalized
+                "limit": limit,
+                "page": page,
+            }
+            
+            # Thêm location_id filter nếu có
+            if allowed_location_id:
+                filters["location_id"] = allowed_location_id
+            
+            page_start = time.time()
+            raw_response = core_service._core_api.list_orders_raw(**filters)
+            cache_api_calls += 1
+            page_time = time.time() - page_start
+            logger.info(f"[PERF] shopee_orders: Cache fetch page {page} took {page_time:.2f}s")
+            
+            orders_data = raw_response.get("orders", [])
+            
+            if not orders_data:
+                break
+            
+            # Cache orders vào dict
+            for order_data in orders_data:
+                order_id = order_data.get("id")
+                if order_id and order_id in sapo_order_ids:
+                    orders_cache[order_id] = order_data
+            
+            debug_print(f"shopee_orders Cache page {page}: {len(orders_data)} orders, matched {len([o for o in orders_data if o.get('id') in sapo_order_ids])} needed orders")
+            
+            # Check nếu đã cache đủ orders cần thiết
+            if len(orders_cache) >= len(sapo_order_ids):
+                debug_print(f"shopee_orders Cache complete: {len(orders_cache)}/{len(sapo_order_ids)} orders found")
+                break
+            
+            # Check nếu hết orders
+            if len(orders_data) < limit:
+                break
+            
+            page += 1
+            
+        except Exception as e:
+            logger.error(f"shopee_orders Error fetching cache page {page}: {e}", exc_info=True)
+            break
+    
+    cache_fetch_time = time.time() - cache_fetch_start
+    debug_print(f"shopee_orders Cache fetch completed: {len(orders_cache)}/{len(sapo_order_ids)} orders in {cache_fetch_time:.2f}s ({cache_api_calls} API calls)")
+    logger.info(f"[PERF] shopee_orders: Cache fetch completed: {len(orders_cache)}/{len(sapo_order_ids)} orders in {cache_fetch_time:.2f}s")
+    
+    # Convert orders sang DTO và filter
+    convert_start = time.time()
     filtered_orders = []
+    convert_errors = 0
+    skipped_no_sapo_id = 0
+    skipped_location = 0
+    skipped_packed = 0
+    cache_hits = 0
+    cache_misses = 0
+    
+    debug_print(f"shopee_orders Starting to convert {len(mp_orders)} orders to DTO...")
+    logger.info(f"[PERF] shopee_orders: Starting to convert {len(mp_orders)} orders to DTO...")
 
     for o in mp_orders:
         if o["sapo_order_id"]:
@@ -246,23 +345,57 @@ def shopee_orders(request):
         sapo_order_id = o.get("sapo_order_id")
         if not sapo_order_id:
             # Không map được về đơn core → bỏ qua
+            skipped_no_sapo_id += 1
             debug_print(f"shopee_orders Skip order {o.get('id')} - No sapo_order_id")
             continue
 
         try:
-            order_dto: OrderDTO = core_service.get_order_dto(sapo_order_id)
+            import threading
+            # Setup thread-local counter để track variant API calls
+            if not hasattr(threading.current_thread(), 'variant_api_counter'):
+                threading.current_thread().variant_api_counter = 0
+            
+            dto_start = time.time()
+            variant_api_calls_before = threading.current_thread().variant_api_counter
+            
+            # Check cache trước
+            if sapo_order_id in orders_cache:
+                # Dùng data từ cache
+                cache_hits += 1
+                cached_data = orders_cache[sapo_order_id]
+                debug_print(f"shopee_orders Using cached data for order {sapo_order_id}")
+                order_dto: OrderDTO = build_order_from_sapo(cached_data, sapo_client=core_service._sapo)
+            else:
+                # Không có trong cache, gọi API riêng lẻ
+                cache_misses += 1
+                debug_print(f"shopee_orders Cache miss, calling API: GET /orders/{sapo_order_id}.json")
+                order_dto: OrderDTO = core_service.get_order_dto(sapo_order_id)
+                api_call_count["get_order"] += 1
+            
+            dto_time = time.time() - dto_start
+            variant_api_calls_during = threading.current_thread().variant_api_counter - variant_api_calls_before
+            api_call_count["get_variant"] += variant_api_calls_during
+            
+            # Log chi tiết cho mỗi order
+            if variant_api_calls_during > 0:
+                debug_print(f"shopee_orders Order {sapo_order_id} DTO conversion took {dto_time:.2f}s (variant API calls: {variant_api_calls_during})")
+            else:
+                debug_print(f"shopee_orders Order {sapo_order_id} DTO conversion took {dto_time:.2f}s (no additional API calls)")
         except Exception as e:
             # Nếu lỗi gọi API / parse thì bỏ qua đơn này
+            convert_errors += 1
             debug_print(f"shopee_orders Skip order {o.get('id')} - Error getting DTO: {e}")
             continue
 
         # 3) Lọc theo kho (location_id)
         # Location filter disabled to show all orders
         if allowed_location_id and order_dto.location_id != allowed_location_id:
+            skipped_location += 1
             continue
 
         # 3) Lọc theo packing_status
         if order_dto.packing_status and order_dto.packing_status != 0:
+            skipped_packed += 1
             debug_print(f"shopee_orders Skip order {o.get('id')} - Already packed (status={order_dto.packing_status})")
             continue
 
@@ -314,6 +447,27 @@ def shopee_orders(request):
         
         filtered_orders.append(o)
 
+    convert_time = time.time() - convert_start
+    debug_print(f"shopee_orders Converted {len(filtered_orders)} orders in {convert_time:.2f}s "
+                f"(errors: {convert_errors}, cache_hits: {cache_hits}, cache_misses: {cache_misses}, "
+                f"skipped: no_sapo_id={skipped_no_sapo_id}, location={skipped_location}, packed={skipped_packed})")
+    logger.info(f"[PERF] shopee_orders: Converted {len(filtered_orders)} orders in {convert_time:.2f}s "
+                f"(errors: {convert_errors}, cache_hits: {cache_hits}, cache_misses: {cache_misses}, "
+                f"skipped: no_sapo_id={skipped_no_sapo_id}, location={skipped_location}, packed={skipped_packed})")
+
+    # Tổng kết
+    total_time = time.time() - start_time
+    debug_print(f"shopee_orders TOTAL TIME: {total_time:.2f}s | "
+                f"API calls: marketplace={api_call_count['marketplace']}, cache_fetch={cache_api_calls}, get_order={api_call_count['get_order']} | "
+                f"Orders: fetched={len(mp_orders)}, converted={len(filtered_orders)}, "
+                f"cache_hits={cache_hits}, cache_misses={cache_misses}, "
+                f"errors={convert_errors}, skipped={skipped_no_sapo_id + skipped_location + skipped_packed}")
+    logger.info(f"[PERF] shopee_orders: TOTAL TIME: {total_time:.2f}s | "
+                f"API calls: marketplace={api_call_count['marketplace']}, cache_fetch={cache_api_calls}, get_order={api_call_count['get_order']} | "
+                f"Orders: fetched={len(mp_orders)}, converted={len(filtered_orders)}, "
+                f"cache_hits={cache_hits}, cache_misses={cache_misses}, "
+                f"errors={convert_errors}, skipped={skipped_no_sapo_id + skipped_location + skipped_packed}")
+
     context["orders"] = filtered_orders[::-1]
     context["current_kho"] = current_kho
 
@@ -336,6 +490,10 @@ def sapo_orders(request):
     from kho.services.order_source_service import load_all_order_sources
     from kho.services.delivery_provider_service import get_provider_name
 
+    # ========== DEBUG: Track thời gian ==========
+    start_time = time.time()
+    api_call_count = {"list_orders": 0, "get_variant": 0}
+    
     context = {
         "title": "ĐƠN SAPO - GIA DỤNG PLUS",
         "orders": [],
@@ -351,21 +509,31 @@ def sapo_orders(request):
     factory = OrderDTOFactory()
     
     # Load products với images để map vào line items
+    step_start = time.time()
     debug_print("sapo_orders Loading products with images...")
+    logger.info("[PERF] sapo_orders: Starting load_all_products...")
     try:
         load_all_products()
-        debug_print("sapo_orders Products loaded successfully")
+        step_time = time.time() - step_start
+        debug_print(f"sapo_orders Products loaded successfully in {step_time:.2f}s")
+        logger.info(f"[PERF] sapo_orders: load_all_products completed in {step_time:.2f}s")
     except Exception as e:
-        logger.warning(f"sapo_orders Error loading products: {e}", exc_info=True)
+        step_time = time.time() - step_start
+        logger.warning(f"sapo_orders Error loading products: {e} (took {step_time:.2f}s)", exc_info=True)
         debug_print(f"sapo_orders Error loading products: {e}")
     
     # Load order sources để map source_id -> source_name
+    step_start = time.time()
     debug_print("sapo_orders Loading order sources...")
+    logger.info("[PERF] sapo_orders: Starting load_all_order_sources...")
     try:
         load_all_order_sources()
-        debug_print("sapo_orders Order sources loaded successfully")
+        step_time = time.time() - step_start
+        debug_print(f"sapo_orders Order sources loaded successfully in {step_time:.2f}s")
+        logger.info(f"[PERF] sapo_orders: load_all_order_sources completed in {step_time:.2f}s")
     except Exception as e:
-        logger.warning(f"sapo_orders Error loading order sources: {e}", exc_info=True)
+        step_time = time.time() - step_start
+        logger.warning(f"sapo_orders Error loading order sources: {e} (took {step_time:.2f}s)", exc_info=True)
         debug_print(f"sapo_orders Error loading order sources: {e}")
 
     # Kho hiện tại từ session
@@ -373,10 +541,14 @@ def sapo_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Lấy orders từ Sapo Core API với filter
+    step_start = time.time()
     all_orders = []
     page = 1
     limit = 250
     max_pages = 15  # Giới hạn 15 trang như user code
+    
+    logger.info(f"[PERF] sapo_orders: Starting to fetch orders (max {max_pages} pages, {limit} per page)...")
+    debug_print(f"sapo_orders Starting to fetch orders (max {max_pages} pages, {limit} per page)...")
     
     while page <= max_pages:
         try:
@@ -394,14 +566,21 @@ def sapo_orders(request):
             if allowed_location_id:
                 filters["location_id"] = allowed_location_id
             
+            page_start = time.time()
+            logger.info(f"[PERF] sapo_orders: Fetching page {page} with filters: {filters}")
             raw_response = core_repo.list_orders_raw(**filters)
+            api_call_count["list_orders"] += 1
+            page_time = time.time() - page_start
+            logger.info(f"[PERF] sapo_orders: Page {page} fetched in {page_time:.2f}s")
+            
             orders_data = raw_response.get("orders", [])
             
             if not orders_data:
+                logger.info(f"[PERF] sapo_orders: Page {page} returned no orders, stopping pagination")
                 break
             
             all_orders.extend(orders_data)
-            debug_print(f"sapo_orders fetched page {page}: {len(orders_data)} orders. Total so far: {len(all_orders)}")
+            debug_print(f"sapo_orders fetched page {page}: {len(orders_data)} orders in {page_time:.2f}s. Total so far: {len(all_orders)}")
             
             page += 1
             
@@ -409,15 +588,29 @@ def sapo_orders(request):
             logger.error(f"sapo_orders Error fetching page {page}: {e}", exc_info=True)
             break
     
-    debug_print(f"sapo_orders finished fetching. Total: {len(all_orders)} orders")
+    fetch_time = time.time() - step_start
+    debug_print(f"sapo_orders finished fetching. Total: {len(all_orders)} orders in {fetch_time:.2f}s")
+    logger.info(f"[PERF] sapo_orders: Fetched {len(all_orders)} orders in {fetch_time:.2f}s ({api_call_count['list_orders']} API calls)")
 
+    # Convert orders sang DTO
+    step_start = time.time()
     filtered_orders = []
+    convert_errors = 0
+    variant_api_calls_before = api_call_count["get_variant"]
+    
+    logger.info(f"[PERF] sapo_orders: Starting to convert {len(all_orders)} orders to DTO...")
+    debug_print(f"sapo_orders Starting to convert {len(all_orders)} orders to DTO...")
 
-    for raw_order in all_orders:
+    for idx, raw_order in enumerate(all_orders):
         try:
             # Convert raw order sang DTO
-            order_dto: OrderDTO = factory.from_sapo_json(raw_order)
+            order_dto: OrderDTO = factory.from_sapo_json(raw_order, sapo_client=sapo)
+            
+            # Track variant API calls (nếu có)
+            if api_call_count["get_variant"] > variant_api_calls_before:
+                variant_api_calls_before = api_call_count["get_variant"]
         except Exception as e:
+            convert_errors += 1
             logger.warning(f"sapo_orders Skip order {raw_order.get('id')} - Error parsing DTO: {e}")
             continue
 
@@ -540,6 +733,22 @@ def sapo_orders(request):
         o["sapo_order_dto"] = order_dto
         
         filtered_orders.append(o)
+
+    convert_time = time.time() - step_start
+    variant_api_calls_during_convert = api_call_count["get_variant"] - variant_api_calls_before
+    logger.info(f"[PERF] sapo_orders: Converted {len(filtered_orders)} orders in {convert_time:.2f}s "
+                f"(errors: {convert_errors}, variant API calls: {variant_api_calls_during_convert})")
+    debug_print(f"sapo_orders Converted {len(filtered_orders)} orders in {convert_time:.2f}s "
+                f"(errors: {convert_errors}, variant API calls: {variant_api_calls_during_convert})")
+
+    # Tổng kết
+    total_time = time.time() - start_time
+    logger.info(f"[PERF] sapo_orders: TOTAL TIME: {total_time:.2f}s | "
+                f"API calls: list_orders={api_call_count['list_orders']}, get_variant={api_call_count['get_variant']} | "
+                f"Orders: fetched={len(all_orders)}, converted={len(filtered_orders)}, errors={convert_errors}")
+    debug_print(f"sapo_orders TOTAL TIME: {total_time:.2f}s | "
+                f"API calls: list_orders={api_call_count['list_orders']}, get_variant={api_call_count['get_variant']} | "
+                f"Orders: fetched={len(all_orders)}, converted={len(filtered_orders)}, errors={convert_errors}")
 
     context["orders"] = filtered_orders[::-1]
     context["current_kho"] = current_kho

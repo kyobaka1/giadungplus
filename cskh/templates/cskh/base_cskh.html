@@ -1,0 +1,422 @@
+{% load static %}
+{% load humanize %}
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Language" content="en">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="CSKH - Chăm sóc khách hàng">
+    <link rel="icon" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.png" />
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <title>{% block title %}CSKH – Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind -->
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Averta -->
+    <style>
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        * {
+            font-family: 'Averta', sans-serif;
+        }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: "#db0d29",
+                        brandlight: "#fff1eb"
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Tăng kích thước cho màn hình 2K (tương đương zoom 110%) */
+        @media (min-width: 1920px) {
+            html {
+                font-size: 110%;
+            }
+
+            .right-panel-placeholder {
+                display: block;
+            }
+        }
+
+        .right-panel-placeholder {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-100 text-gray-900 antialiased text-[14px] sm:text-[15px] md:text-[16px] lg:text-[17px]">
+
+    <div class="min-h-screen flex flex-col">
+
+        <!-- █▀ TOP BAR ───────────────────────────── -->
+        <header class="h-16 md:h-14 bg-white border-b shadow-sm flex items-center justify-between px-4 md:px-6">
+            <a href="/cskh/" class="flex items-center gap-2 hover:opacity-90 transition">
+                <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
+                    <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
+                </div>
+
+                <div>
+                    <div class="text-base md:text-sm font-semibold">Gia Dụng Plus – CSKH</div>
+                    <div class="text-xs md:text-[11px] text-gray-500 -mt-1">Chăm Sóc Khách Hàng</div>
+                </div>
+            </a>
+
+            <div class="flex items-center gap-4">
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuToggle" class="md:hidden p-2 rounded-full hover:bg-slate-100 text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                        stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                    </svg>
+                </button>
+
+                <!-- User Info -->
+                <div class="flex items-center gap-2">
+                    <div
+                        class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-600">
+                        {% if request.user.is_authenticated %}
+                        {{ request.user.get_full_name|first|upper }}
+                        {% else %}
+                        U
+                        {% endif %}
+                    </div>
+                    <div class="hidden sm:block text-xs leading-tight">
+                        <div class="font-medium text-sm">
+                            {% if request.user.is_authenticated %}
+                            {{ request.user.get_full_name }}
+                            {% else %}
+                            Guest
+                            {% endif %}
+                        </div>
+                        <div class="text-gray-500">CSKH Staff</div>
+                    </div>
+                </div>
+
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        <!-- Mobile Menu Overlay -->
+        <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+
+        <!-- █▀ MAIN LAYOUT ───────────────────────── -->
+        <div class="flex flex-1 overflow-hidden">
+
+            <!-- SIDEBAR -->
+            <aside id="sidebar" class="bg-white border-r overflow-y-auto flex-shrink-0
+                   fixed md:relative top-16 md:top-0 left-0 h-[calc(100vh-4rem)] md:h-auto
+                   w-1/2 md:w-16 lg:w-32 xl:w-48
+                   -translate-x-full md:translate-x-0
+                   transition-transform duration-300 ease-in-out z-40
+                   text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]">
+                <nav class="py-4 space-y-4">
+
+                    <!-- Dashboard -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <a href="{% url 'cskh:dashboard' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
+                              hover:bg-brandlight hover:text-brand sidebar-link font-semibold text-gray-700">
+                            Dashboard
+                        </a>
+                    </div>
+
+                    <!-- GROUP: Ticket -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-ticket">
+                            <span>Ticket</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-ticket" class="space-y-1">
+                            <li>
+                                <a href="{% url 'cskh:ticket_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Tổng quan</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:ticket_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Danh sách</span>
+                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- GROUP: Warranty -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-warranty">
+                            <span>Bảo hành</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-warranty" class="space-y-1">
+                            <li>
+                                <a href="{% url 'cskh:warranty_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Tổng quan</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:warranty_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Danh sách</span>
+                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- GROUP: Review -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-review">
+                            <span>Đánh giá</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-review" class="space-y-1">
+                            <li>
+                                <a href="{% url 'cskh:review_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Tổng quan</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:review_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Danh sách</span>
+                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- GROUP: Tra cứu -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-lookup">
+                            <span>Tra cứu</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-lookup" class="space-y-1 pb-2">
+                            <li>
+                                <a href="{% url 'cskh:orders_view' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Đơn hàng
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:products_view' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    Sản phẩm
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </nav>
+            </aside>
+
+            <!-- █▀ MAIN CONTENT -->
+            <main class="flex-1 overflow-y-auto">
+                <div class="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
+
+                    <!-- █▀ OVERVIEW BLOCK -->
+                    {% block overview %}
+                    <section>
+                        <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+                            Tổng quan CSKH
+                        </h1>
+                        <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+                            Hôm nay (GMT+7). Dữ liệu tạm thời.
+                        </p>
+                    </section>
+                    {% endblock %}
+
+                    <!-- █▀ CONTENT LAYOUT -->
+                    {% block content_layout %}
+                    <div class="flex gap-4 md:gap-6">
+                        <!-- MAIN CONTENT -->
+                        {% block main_content %}
+                        <div class="flex-1 min-w-0">
+                            {% block content %}
+                            <section>
+                                <div
+                                    class="p-6 md:p-8 bg-white border rounded-xl shadow-sm text-base md:text-sm text-gray-500">
+                                    Nội dung trang CSKH.
+                                </div>
+                            </section>
+                            {% endblock %}
+                        </div>
+                        {% endblock %}
+
+                        <!-- RIGHT PANEL -->
+                        <div id="rightPanelContainer">
+                            {% block right_panel %}
+                            {% endblock %}
+                        </div>
+
+                        <div id="rightPanelPlaceholder"
+                            class="right-panel-placeholder w-full lg:w-[280px] xl:w-[320px] shrink-0"></div>
+                    </div>
+                    {% endblock %}
+
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- JS toggle sidebar group -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggles = document.querySelectorAll('.collapse-toggle');
+
+            toggles.forEach(function (btn) {
+                const id = btn.getAttribute('data-collapse-id');
+                const body = document.getElementById(id);
+                const arrow = btn.querySelector('.collapse-arrow');
+
+                if (!body) return;
+
+                btn.addEventListener('click', function () {
+                    const isHidden = body.classList.toggle('hidden');
+                    if (arrow) {
+                        if (isHidden) {
+                            arrow.classList.add('-rotate-90');
+                        } else {
+                            arrow.classList.remove('-rotate-90');
+                        }
+                    }
+                });
+            });
+
+            // Mobile menu toggle
+            const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+            const sidebar = document.getElementById('sidebar');
+            const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+
+            if (mobileMenuToggle && sidebar && mobileMenuOverlay) {
+                mobileMenuToggle.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    sidebar.classList.toggle('-translate-x-full');
+                    mobileMenuOverlay.classList.toggle('hidden');
+                });
+
+                mobileMenuOverlay.addEventListener('click', function () {
+                    sidebar.classList.add('-translate-x-full');
+                    mobileMenuOverlay.classList.add('hidden');
+                });
+
+                sidebar.addEventListener('click', function (e) {
+                    if (e.target.closest('a')) {
+                        setTimeout(() => {
+                            sidebar.classList.add('-translate-x-full');
+                            mobileMenuOverlay.classList.add('hidden');
+                        }, 100);
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentURL = window.location.pathname;
+            const links = document.querySelectorAll('.sidebar-link');
+
+            links.forEach(link => {
+                if (link.getAttribute('href') === currentURL) {
+                    link.classList.add("bg-brandlight", "text-brand", "font-semibold");
+
+                    let parent = link.closest("ul");
+                    if (parent) {
+                        parent.classList.remove('hidden');
+                        const button = parent.previousElementSibling;
+                        if (button && button.querySelector('.collapse-arrow')) {
+                            button.querySelector('.collapse-arrow').classList.remove('-rotate-90');
+                        }
+                    }
+                }
+            });
+
+            // Right panel placeholder control
+            function checkRightPanel() {
+                const rightPanelContainer = document.getElementById('rightPanelContainer');
+                const placeholder = document.getElementById('rightPanelPlaceholder');
+
+                if (!rightPanelContainer || !placeholder) return;
+
+                const hasContent = Array.from(rightPanelContainer.children).some(child => {
+                    return child.nodeType === 1 && child.offsetHeight > 0;
+                }) || (rightPanelContainer.textContent.trim().length > 0 &&
+                    rightPanelContainer.querySelector('div, span, p, button, form, input, select, textarea'));
+
+                const is2KOrLarger = window.innerWidth >= 1920;
+
+                if (hasContent) {
+                    placeholder.style.display = 'none';
+                } else if (is2KOrLarger) {
+                    placeholder.style.display = 'block';
+                } else {
+                    placeholder.style.display = 'none';
+                }
+            }
+
+            checkRightPanel();
+            window.addEventListener('resize', checkRightPanel);
+        });
+    </script>
+
+</body>
+
+</html>

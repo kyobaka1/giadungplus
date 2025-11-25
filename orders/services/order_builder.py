@@ -12,7 +12,7 @@ import logging
 
 from .dto import (
     OrderDTO, AddressDTO, OrderLineItemDTO, OrderLineDiscountDTO,
-    FulfillmentDTO, FulfillmentLineItemDTO, ShipmentDTO
+    FulfillmentDTO, FulfillmentLineItemDTO, ShipmentDTO, RealItemDTO
 )
 # Import CustomerDTO from customers module (single source of truth)
 from customers.services.dto import CustomerDTO, CustomerGroupDTO, CustomerSaleOrderStatsDTO
@@ -31,13 +31,18 @@ class OrderDTOFactory:
         order = factory.from_sapo_json(raw_order_dict)
     """
     
-    def from_sapo_json(self, payload: Dict[str, Any]) -> OrderDTO:
+    def from_sapo_json(
+        self, 
+        payload: Dict[str, Any],
+        sapo_client: Optional[Any] = None  # SapoClient để fetch variant info (optional)
+    ) -> OrderDTO:
         """
         Convert JSON từ Sapo API sang OrderDTO.
         
         Args:
             payload: Raw JSON từ /admin/orders/{id}.json
                     Có thể có key "order" bao ngoài hoặc không
+            sapo_client: SapoClient instance để fetch variant info khi cần (optional)
                     
         Returns:
             OrderDTO instance với full validation
@@ -55,6 +60,9 @@ class OrderDTOFactory:
         customer = self._build_customer(raw_order.get("customer_data"))
         billing_addr = self._build_address(raw_order.get("billing_address"))
         shipping_addr = self._build_address(raw_order.get("shipping_address"))
+        
+        # Build real_items (qui đổi từ combo/packsize)
+        real_items = self._build_real_items(order_line_items, sapo_client)
         
         # Extract packing data
         packing_data = self._extract_packing_data(raw_order)
@@ -115,6 +123,7 @@ class OrderDTOFactory:
             
             order_line_items=order_line_items,
             fulfillments=fulfillments,
+            real_items=real_items,
             
             raw=raw_order,
             
@@ -214,6 +223,26 @@ class OrderDTOFactory:
                 # Product type có thể None
                 product_type = d.get("product_type") or "normal"
                 
+                # Parse packsize fields
+                is_packsize = bool(d.get("is_packsize", False))
+                pack_size_quantity = d.get("pack_size_quantity")
+                if pack_size_quantity is not None:
+                    try:
+                        pack_size_quantity = int(pack_size_quantity)
+                    except (ValueError, TypeError):
+                        pack_size_quantity = None
+                pack_size_root_id = d.get("pack_size_root_id")
+                if pack_size_root_id is not None:
+                    try:
+                        pack_size_root_id = int(pack_size_root_id)
+                    except (ValueError, TypeError):
+                        pack_size_root_id = None
+                
+                # Parse composite fields
+                composite_item_domains = d.get("composite_item_domains", [])
+                if not isinstance(composite_item_domains, list):
+                    composite_item_domains = []
+                
                 result.append(OrderLineItemDTO(
                     id=d["id"],
                     product_id=product_id,
@@ -237,6 +266,12 @@ class OrderDTOFactory:
                     discount_items=discount_items,
                     # Map shopee_variation_id nếu có (từ Marketplace API)
                     shopee_variation_id=d.get("variation_id") or d.get("shopee_variation_id"),
+                    # Packsize fields
+                    is_packsize=is_packsize,
+                    pack_size_quantity=pack_size_quantity,
+                    pack_size_root_id=pack_size_root_id,
+                    # Composite fields
+                    composite_item_domains=composite_item_domains,
                 ))
             except Exception as e:
                 logger.warning(f"Failed to build OrderLineItemDTO for line item {d.get('id')}: {e}")
@@ -245,15 +280,206 @@ class OrderDTOFactory:
         
         return result
     
+    def _build_real_items(
+        self, 
+        order_line_items: List[OrderLineItemDTO],
+        sapo_client: Optional[Any] = None  # SapoClient để fetch variant info
+    ) -> List[RealItemDTO]:
+        """
+        Qui đổi order_line_items thành real_items (sản phẩm đơn lẻ).
+        
+        Logic:
+        1. Normal + is_packsize=False: Giữ nguyên, add vào real_items
+        2. Normal + is_packsize=True: Qui đổi theo pack_size_quantity, add pack_size_root_id
+        3. Composite: Lấy từ composite_item_domains, add vào real_items
+        
+        Args:
+            order_line_items: Danh sách OrderLineItemDTO từ đơn hàng
+            sapo_client: SapoClient để fetch variant info (optional)
+            
+        Returns:
+            List[RealItemDTO] đã được gộp theo variant_id và sắp xếp theo SKU
+        """
+        real_items_map: Dict[int, RealItemDTO] = {}  # {variant_id: RealItemDTO}
+        
+        for line_item in order_line_items:
+            # Extract product_name (lấy phần trước '/')
+            pr_name = ""
+            if line_item.product_name and '/' in line_item.product_name:
+                pr_name = line_item.product_name.split('/')[0]
+            
+            unit = line_item.unit or "cái"
+            
+            # Case 1: Normal + is_packsize=False
+            if line_item.product_type == "normal" and not line_item.is_packsize:
+                variant_id = line_item.variant_id
+                if variant_id:
+                    if variant_id in real_items_map:
+                        # Cộng dồn số lượng
+                        real_items_map[variant_id].quantity += line_item.quantity
+                    else:
+                        # Tạo mới
+                        real_items_map[variant_id] = RealItemDTO(
+                            variant_id=variant_id,
+                            old_id=0,  # Sản phẩm thường không có old_id
+                            product_id=line_item.product_id,
+                            sku=line_item.sku,
+                            barcode=line_item.barcode,
+                            variant_options=line_item.variant_options,
+                            quantity=line_item.quantity,
+                            unit=unit,
+                            product_name=pr_name
+                        )
+            
+            # Case 2: Normal + is_packsize=True
+            elif line_item.product_type == "normal" and line_item.is_packsize:
+                if not line_item.pack_size_root_id:
+                    # Không có pack_size_root_id -> skip
+                    logger.warning(f"Packsize item {line_item.id} missing pack_size_root_id")
+                    continue
+                
+                root_variant_id = line_item.pack_size_root_id
+                pack_qty = line_item.pack_size_quantity or 1
+                converted_quantity = int(line_item.quantity * pack_qty)
+                
+                if root_variant_id in real_items_map:
+                    real_items_map[root_variant_id].quantity += converted_quantity
+                else:
+                    # Fetch variant info từ Sapo API
+                    variant_info = self._fetch_variant_info(root_variant_id, sapo_client)
+                    
+                    real_items_map[root_variant_id] = RealItemDTO(
+                        variant_id=root_variant_id,
+                        old_id=line_item.variant_id,  # Lưu variant_id gốc (packsize)
+                        product_id=variant_info.get("product_id"),
+                        sku=variant_info.get("sku", ""),
+                        barcode=variant_info.get("barcode"),
+                        variant_options=variant_info.get("opt1"),
+                        quantity=converted_quantity,
+                        unit="cái",  # Packsize luôn qui đổi về "cái"
+                        product_name=pr_name
+                    )
+            
+            # Case 3: Composite
+            elif line_item.product_type == "composite":
+                for composite_item in line_item.composite_item_domains:
+                    comp_variant_id = composite_item.get("variant_id")
+                    comp_quantity = composite_item.get("quantity", 0)
+                    
+                    if not comp_variant_id:
+                        continue
+                    
+                    try:
+                        comp_quantity = int(comp_quantity)
+                    except (ValueError, TypeError):
+                        comp_quantity = 0
+                    
+                    if comp_quantity <= 0:
+                        continue
+                    
+                    if comp_variant_id in real_items_map:
+                        real_items_map[comp_variant_id].quantity += comp_quantity
+                    else:
+                        # Fetch variant info từ Sapo API
+                        variant_info = self._fetch_variant_info(comp_variant_id, sapo_client)
+                        
+                        real_items_map[comp_variant_id] = RealItemDTO(
+                            variant_id=comp_variant_id,
+                            old_id=line_item.variant_id,  # Lưu variant_id gốc (composite)
+                            product_id=variant_info.get("product_id"),
+                            sku=variant_info.get("sku", ""),
+                            barcode=variant_info.get("barcode"),
+                            variant_options=variant_info.get("opt1"),
+                            quantity=comp_quantity,
+                            unit="cái",
+                            product_name=pr_name
+                        )
+        
+        # Convert dict to list
+        real_items = list(real_items_map.values())
+        
+        # Sắp xếp theo SKU (phần số trước dấu '-')
+        real_items.sort(key=lambda item: self._get_sku_sort_key(item.sku))
+        
+        return real_items
+    
+    def _fetch_variant_info(self, variant_id: int, sapo_client: Optional[Any]) -> Dict[str, Any]:
+        """
+        Fetch variant info từ Sapo API hoặc cache.
+        Fallback về empty dict nếu không fetch được.
+        
+        Args:
+            variant_id: Variant ID cần fetch
+            sapo_client: SapoClient instance (optional)
+            
+        Returns:
+            Dict với keys: product_id, sku, barcode, opt1
+        """
+        if not sapo_client:
+            return {}
+        
+        try:
+            # Sử dụng core repository để fetch variant (logging đã có trong get_variant_raw)
+            logger.debug(f"[OrderDTOFactory] Fetching variant {variant_id} from API...")
+            variant_data = sapo_client.core.get_variant_raw(variant_id)
+            variant = variant_data.get("variant", {})
+            
+            logger.debug(f"[OrderDTOFactory] Fetched variant {variant_id} successfully")
+            return {
+                "product_id": variant.get("product_id"),
+                "sku": variant.get("sku", ""),
+                "barcode": variant.get("barcode"),
+                "opt1": variant.get("opt1")
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch variant {variant_id}: {e}")
+            return {}
+    
+    def _get_sku_sort_key(self, sku: str) -> float:
+        """
+        Lấy phần số từ SKU trước dấu '-' để sort.
+        Returns float('inf') nếu không phải số.
+        
+        Args:
+            sku: SKU string (ví dụ: "SQ-0101-BS")
+            
+        Returns:
+            int nếu là số, float('inf') nếu không phải số
+        """
+        try:
+            sku_number = sku.split('-')[0]
+            if sku_number.isdigit():
+                return int(sku_number)
+            return float('inf')
+        except Exception:
+            return float('inf')
+    
     def _build_fulfillments(self, data_list: List[Dict[str, Any]]) -> List[FulfillmentDTO]:
         """Build list of FulfillmentDTO."""
         result = []
         
         for d in (data_list or []):
-            fl_items = [
-                FulfillmentLineItemDTO.from_dict(item)
-                for item in (d.get("fulfillment_line_items") or [])
-            ]
+            # Build fulfillment line items với error handling
+            fl_items = []
+            for item in (d.get("fulfillment_line_items") or []):
+                try:
+                    # Xử lý None values cho product_id và variant_id
+                    if item.get("product_id") is None:
+                        item = item.copy()
+                        item["product_id"] = None
+                    if item.get("variant_id") is None:
+                        item = item.copy()
+                        item["variant_id"] = None
+                    if not item.get("sku"):
+                        item = item.copy()
+                        item["sku"] = ""
+                    
+                    fl_item = FulfillmentLineItemDTO.from_dict(item)
+                    fl_items.append(fl_item)
+                except Exception as e:
+                    logger.warning(f"Failed to build FulfillmentLineItemDTO for item {item.get('id')}: {e}")
+                    # Skip line item nếu có lỗi (không crash toàn bộ fulfillment)
+                    continue
             
             shipment_raw = d.get("shipment")
             shipment = ShipmentDTO.from_dict(shipment_raw) if shipment_raw else None
@@ -385,10 +611,14 @@ class OrderDTOFactory:
 
 
 # Backward compatibility: Keep old function name
-def build_order_from_sapo(payload: Dict[str, Any]) -> OrderDTO:
+def build_order_from_sapo(payload: Dict[str, Any], sapo_client: Optional[Any] = None) -> OrderDTO:
     """
     Deprecated: Use OrderDTOFactory instead.
     Kept for backward compatibility.
+    
+    Args:
+        payload: Raw order data from Sapo API
+        sapo_client: Optional SapoClient instance for fetching variant info (for packsize/composite)
     """
     factory = OrderDTOFactory()
-    return factory.from_sapo_json(payload)
+    return factory.from_sapo_json(payload, sapo_client=sapo_client)

@@ -100,6 +100,35 @@ class OrderLineItemDTO(BaseDTO):
     product_type: str = "normal"
     discount_items: List[OrderLineDiscountDTO] = Field(default_factory=list)
     shopee_variation_id: Optional[str] = None
+    
+    # Packsize fields
+    is_packsize: bool = False
+    pack_size_quantity: Optional[int] = None      # Số lượng trong pack
+    pack_size_root_id: Optional[int] = None       # Variant ID gốc (đơn lẻ)
+    
+    # Composite fields
+    composite_item_domains: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+# ========================= REAL ITEMS (Qui đổi từ combo/packsize) =========================
+
+class RealItemDTO(BaseDTO):
+    """
+    Sản phẩm đơn lẻ sau khi qui đổi từ combo/packsize.
+    Dùng cho việc đóng gói, in phiếu, tracking.
+    """
+    variant_id: int                    # ID variant đơn lẻ
+    old_id: int = 0                    # ID variant gốc (combo/packsize) - 0 nếu là sản phẩm thường
+    product_id: Optional[int] = None
+    sku: str
+    barcode: Optional[str] = None
+    variant_options: Optional[str] = None
+    quantity: float
+    unit: str = "cái"
+    product_name: str = ""             # Tên sản phẩm (lấy từ product_name, split '/')
+    
+    # Optional: Reference to ProductVariantDTO (lazy load khi cần)
+    variant_dto: Optional[Any] = None  # Type: ProductVariantDTO (import sau để tránh circular import)
 
 
 # ========================= FULFILLMENT & SHIPMENT =========================
@@ -108,9 +137,9 @@ class FulfillmentLineItemDTO(BaseDTO):
     """Line item trong fulfillment (đóng gói)"""
     id: int
     order_line_item_id: int
-    product_id: int
-    variant_id: int
-    sku: str
+    product_id: Optional[int] = None  # Có thể None cho các line items đặc biệt (shipping, discount, etc.)
+    variant_id: Optional[int] = None  # Có thể None cho các line items đặc biệt
+    sku: str = ""  # Có thể empty nếu không có product/variant
     barcode: Optional[str] = None
     unit: Optional[str] = None
     variant_options: Optional[str] = None
@@ -222,6 +251,9 @@ class OrderDTO(BaseDTO):
     # Line items & fulfillments
     order_line_items: List[OrderLineItemDTO] = Field(default_factory=list, alias="line_items")
     fulfillments: List[FulfillmentDTO] = Field(default_factory=list)
+    
+    # Real items (qui đổi từ combo/packsize thành sản phẩm đơn lẻ)
+    real_items: List[RealItemDTO] = Field(default_factory=list)
     
     # Raw data (backup)
     raw: Dict[str, Any] = Field(default_factory=dict)
@@ -351,6 +383,19 @@ class OrderDTO(BaseDTO):
     def is_offline_order(self) -> bool:
         """Đơn ngoài sàn (ngược lại với is_marketplace_order)"""
         return not self.is_marketplace_order
+    
+    @computed_field
+    @property
+    def total_quantity(self) -> int:
+        """
+        Tổng số lượng sản phẩm từ real_items (exclude SKU='KEO').
+        Dùng cho việc tính tổng số lượng đã qui đổi.
+        """
+        return sum(
+            int(item.quantity) 
+            for item in self.real_items 
+            if item.sku != 'KEO'
+        )
     
     @computed_field
     @property

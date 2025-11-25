@@ -1,0 +1,59 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Tổng quan Đánh giá – CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Đánh giá - Tổng quan</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">Thống kê và phân tích đánh giá từ Shopee</p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Tổng đánh giá</div>
+            <div class="text-3xl font-bold text-gray-900">{{ metrics.total_reviews }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Trung bình</div>
+            <div class="text-3xl font-bold text-yellow-600">{{ metrics.average_rating }}/5</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Tích cực</div>
+            <div class="text-3xl font-bold text-green-600">{{ metrics.positive_count }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Tiêu cực</div>
+            <div class="text-3xl font-bold text-red-600">{{ metrics.negative_count }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-sm text-gray-600 mb-1">Chờ phản hồi</div>
+            <div class="text-3xl font-bold text-orange-600">{{ metrics.pending_response }}</div>
+        </div>
+    </div>
+
+    <div class="bg-white border rounded-xl p-6 shadow-sm">
+        <h3 class="text-base font-semibold text-gray-800 mb-4">Phân bố đánh giá</h3>
+        <div class="space-y-3">
+            {% for rating in rating_breakdown %}
+            <div class="flex items-center gap-4">
+                <div class="w-16 text-sm font-medium">{{ rating.stars }} sao</div>
+                <div class="flex-1">
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-yellow-500 h-2 rounded-full" style="width: {{ rating.percentage }}%"></div>
+                    </div>
+                </div>
+                <div class="w-20 text-sm text-gray-600 text-right">{{ rating.count }} ({{ rating.percentage }}%)</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <a href="{% url 'cskh:review_list' %}"
+        class="block px-6 py-3 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center font-semibold">
+        Xem tất cả đánh giá
+    </a>
+</div>
+{% endblock %}

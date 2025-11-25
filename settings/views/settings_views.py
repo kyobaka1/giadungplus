@@ -78,3 +78,9 @@ def shopee_cookie_view(request, shop_name):
         'shop': shop,
         'current_cookie': current_cookie
     })
+
+def test_view(request):
+    """
+    Trang test header template
+    """
+    return render(request, 'settings/test.html')

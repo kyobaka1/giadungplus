@@ -81,6 +81,7 @@ class BaseRepository(ABC):
         
         for attempt in range(retry):
             try:
+                request_start = time.time()
                 logger.debug(f"[{method}] {url} (attempt {attempt + 1}/{retry})")
                 
                 response = self.session.request(
@@ -90,8 +91,13 @@ class BaseRepository(ABC):
                     **kwargs
                 )
                 
-                # Log response status
-                logger.debug(f"Response: {response.status_code}")
+                request_time = time.time() - request_start
+                # Log response status và thời gian
+                logger.debug(f"Response: {response.status_code} (took {request_time:.2f}s)")
+                
+                # Log performance cho các API calls quan trọng
+                if path.startswith("orders") or path.startswith("variants"):
+                    logger.info(f"[PERF] API {method} {path}: {response.status_code} in {request_time:.2f}s")
                 
                 return response
                 
