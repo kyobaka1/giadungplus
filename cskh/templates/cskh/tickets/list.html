@@ -1,0 +1,109 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Danh sách Tickets – CSKH{% endblock %}
+
+{% block overview %}
+<section class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Danh sách Tickets</h1>
+        <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} tickets</p>
+    </div>
+    <a href="{% url 'cskh:ticket_create' %}"
+        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+        + Tạo Ticket
+    </a>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0">
+
+    <!-- Filters & Search -->
+    <div class="bg-white border rounded-xl p-4 shadow-sm mb-4">
+        <div class="flex flex-col md:flex-row gap-4">
+            <input type="text" placeholder="Tìm kiếm tickets..."
+                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+            <select class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                <option value="">Tất cả trạng thái</option>
+                <option value="new">Mới</option>
+                <option value="processing">Đang xử lý</option>
+                <option value="overdue">Quá hạn</option>
+                <option value="completed">Hoàn thành</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Phân loại</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tiêu đề</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Khách hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Độ ưu tiên</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Người phụ trách
+                        </th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for ticket in tickets %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ ticket.code }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.category }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900">
+                            <div class="max-w-xs truncate">{{ ticket.title }}</div>
+                            <div class="text-xs text-gray-500">{{ ticket.order_code }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.customer_name }}</td>
+                        <td class="px-4 py-3">
+                            {% if ticket.priority == 'high' or ticket.priority == 'urgent' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">{{
+                                ticket.priority }}</span>
+                            {% elif ticket.priority == 'medium' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 font-medium">{{
+                                ticket.priority }}</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700 font-medium">{{
+                                ticket.priority }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            {% if ticket.status == 'new' %}
+                            <span
+                                class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">Mới</span>
+                            {% elif ticket.status == 'processing' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 font-medium">Đang
+                                xử lý</span>
+                            {% elif ticket.status == 'overdue' %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">Quá
+                                hạn</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">Hoàn
+                                thành</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.assignee }}</td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'cskh:ticket_detail' ticket.id %}"
+                                class="text-brand hover:text-red-700 font-medium text-sm">
+                                Xem
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">Không tìm thấy tickets</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

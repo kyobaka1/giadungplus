@@ -1,0 +1,289 @@
+{% extends "settings/base_settings.html" %}
+
+{% block title %}{% if is_edit %}Sửa{% else %}Tạo{% endif %} Gift Rule - Settings{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">
+        {% if is_edit %}Sửa Gift Rule{% else %}Tạo Gift Rule Mới{% endif %}
+    </h1>
+    <p class="text-xs text-gray-500 mt-1">
+        Cấu hình chương trình khuyến mãi và quà tặng
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+
+<div class="max-w-4xl">
+    <form method="post" class="bg-white rounded-lg border shadow-sm p-6 space-y-6">
+        {% csrf_token %}
+
+        <!-- Basic Info -->
+        <div class="space-y-4">
+            <h3 class="text-md font-semibold text-gray-800 border-b pb-2">Thông tin cơ bản</h3>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Tên chương trình <span class="text-red-500">*</span>
+                </label>
+                <input type="text" name="name" required
+                    value="{% if is_edit %}{{ rule.name }}{% else %}{% if form_data %}{{ form_data.name }}{% endif %}{% endif %}"
+                    class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: Mua A SL=1 tặng B">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Phạm vi áp dụng <span class="text-red-500">*</span>
+                </label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="scope" value="order" required {% if is_edit and rule.scope == 'order' %}checked{% else %}{% if form_data.scope == 'order' %}checked{% endif %}{% endif %} class="text-brand focus:ring-brand" onchange="toggleScopeFields()">
+                        <span class="text-sm">Theo đơn hàng (Order-level)</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="scope" value="line" required {% if is_edit and rule.scope == 'line' %}checked{% else %}{% if form_data.scope == 'line' %}checked{% else %}{% if not is_edit and not form_data %}checked{% endif %}{% endif %}{% endif %} class="text-brand focus:ring-brand" onchange="toggleScopeFields()">
+                        <span class="text-sm">Theo sản phẩm (Line-level)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Mã shop (optional)
+                </label>
+                <input type="text" name="shop_code"
+                    value="{% if is_edit %}{{ rule.shop_code|default:'' }}{% else %}{% if form_data %}{{ form_data.shop_code|default:'' }}{% endif %}{% endif %}"
+                    class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                    placeholder="Để trống nếu áp dụng cho tất cả shop">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Độ ưu tiên</label>
+                    <input type="number" name="priority"
+                        value="{% if is_edit %}{{ rule.priority }}{% else %}{% if form_data %}{{ form_data.priority }}{% else %}0{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand">
+                    <p class="text-xs text-gray-500 mt-1">Số càng cao càng ưu tiên</p>
+                </div>
+                <div class="flex items-center gap-4 pt-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_active" {% if is_edit and rule.is_active %}checked{% else %}{% if form_data.is_active %}checked{% else %}{% if not is_edit %}checked{% endif %}{% endif %}{% endif %} class="text-brand focus:ring-brand rounded">
+                        <span class="text-sm font-medium text-gray-700">Đang hoạt động</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="stop_further" {% if is_edit and rule.stop_further %}checked{% else %}{% if form_data.stop_further %}checked{% endif %}{% endif %} class="text-brand focus:ring-brand rounded">
+                        <span class="text-sm font-medium text-gray-700">Dừng xét rule khác</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order-level Conditions -->
+        <div id="order-conditions" class="space-y-4" style="display: none;">
+            <h3 class="text-md font-semibold text-gray-800 border-b pb-2">Điều kiện đơn hàng</h3>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Giá trị đơn tối thiểu (đồng)</label>
+                    <input type="number" name="min_order_total"
+                        value="{% if is_edit and rule.scope == 'order' %}{{ rule.min_order_total|default:'' }}{% else %}{% if form_data %}{{ form_data.min_order_total|default:'' }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        placeholder="Ví dụ: 250000">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Giá trị đơn tối đa (đồng)</label>
+                    <input type="number" name="max_order_total"
+                        value="{% if is_edit and rule.scope == 'order' %}{{ rule.max_order_total|default:'' }}{% else %}{% if form_data %}{{ form_data.max_order_total|default:'' }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        placeholder="Để trống nếu không giới hạn">
+                </div>
+            </div>
+        </div>
+
+        <!-- Line-level Conditions -->
+        <div id="line-conditions" class="space-y-4" style="display: none;">
+            <h3 class="text-md font-semibold text-gray-800 border-b pb-2">Điều kiện sản phẩm</h3>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Variant IDs sản phẩm yêu cầu <span class="text-red-500">*</span>
+                </label>
+                <textarea name="required_variant_ids" rows="4"
+                    class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand font-mono"
+                    placeholder="Nhập mỗi Variant ID trên một dòng, ví dụ:&#10;12345678&#10;87654321&#10;11223344">{% if is_edit and rule.scope == 'line' %}{% for vid in rule.required_variant_ids %}{{ vid }}
+{% endfor %}{% else %}{% if form_data.required_variant_ids %}{% for vid in form_data.required_variant_ids %}{{ vid }}
+{% endfor %}{% endif %}{% endif %}</textarea>
+                <p class="text-xs text-gray-500 mt-1">Mỗi Variant ID trên một dòng. Nhấn Enter để xuống dòng mới.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Số lượng tối thiểu <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" name="required_min_qty"
+                        value="{% if is_edit and rule.scope == 'line' %}{{ rule.required_min_qty|default:'' }}{% else %}{% if form_data %}{{ form_data.required_min_qty|default:'' }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        placeholder="Ví dụ: 1">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Số lượng tối đa</label>
+                    <input type="number" name="required_max_qty"
+                        value="{% if is_edit and rule.scope == 'line' %}{{ rule.required_max_qty|default:'' }}{% else %}{% if form_data %}{{ form_data.required_max_qty|default:'' }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        placeholder="Để trống nếu không giới hạn">
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Range -->
+        <div class="space-y-4">
+            <h3 class="text-md font-semibold text-gray-800 border-b pb-2">Thời gian hiệu lực</h3>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Thời gian bắt đầu</label>
+                    <input type="datetime-local" name="start_at"
+                        value="{% if is_edit and rule.start_at %}{{ rule.start_at|date:'Y-m-d\TH:i' }}{% else %}{% if form_data.start_at %}{{ form_data.start_at }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Thời gian kết thúc</label>
+                    <input type="datetime-local" name="end_at"
+                        value="{% if is_edit and rule.end_at %}{{ rule.end_at|date:'Y-m-d\TH:i' }}{% else %}{% if form_data.end_at %}{{ form_data.end_at }}{% endif %}{% endif %}"
+                        class="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-brand focus:border-brand">
+                </div>
+            </div>
+        </div>
+
+        <!-- Gifts -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between border-b pb-2">
+                <h3 class="text-md font-semibold text-gray-800">Danh sách quà tặng</h3>
+                <button type="button" onclick="addGiftRow()"
+                    class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition">
+                    + Thêm quà
+                </button>
+            </div>
+
+            <div id="gifts-container" class="space-y-3">
+                {% if is_edit %}
+                {% for gift in rule.gifts.all %}
+                <div class="gift-row flex gap-3 items-start p-3 bg-gray-50 rounded border">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Variant ID <span class="text-red-500">*</span></label>
+                        <input type="number" name="gift_variant_id[]" value="{{ gift.gift_variant_id }}" required class="w-full px-3 py-2 border rounded-md text-sm">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
+                        <input type="number" name="gift_qty[]" value="{{ gift.gift_qty }}" required min="1" class="w-full px-3 py-2 border rounded-md text-sm">
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="match_quantity[]" value="1" {% if gift.match_quantity %}checked{% endif %} class="text-brand focus:ring-brand rounded">
+                            <span class="text-xs text-gray-700">1:1</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <button type="button" onclick="removeGiftRow(this)" class="px-3 py-2 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition">Xóa</button>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="gift-row flex gap-3 items-start p-3 bg-gray-50 rounded border">
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Variant ID <span class="text-red-500">*</span></label>
+                        <input type="number" name="gift_variant_id[]" required class="w-full px-3 py-2 border rounded-md text-sm">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
+                        <input type="number" name="gift_qty[]" required min="1" value="1" class="w-full px-3 py-2 border rounded-md text-sm">
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="match_quantity[]" value="1" class="text-brand focus:ring-brand rounded">
+                            <span class="text-xs text-gray-700">1:1</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <button type="button" onclick="removeGiftRow(this)" class="px-3 py-2 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition">Xóa</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="flex gap-3 justify-end pt-4 border-t">
+            <a href="{% url 'gift_list' %}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 transition">
+                Hủy
+            </a>
+            <button type="submit" class="px-4 py-2 bg-brand text-white rounded-md text-sm hover:bg-red-700 transition font-medium">
+                {% if is_edit %}Cập nhật{% else %}Tạo mới{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleScopeFields() {
+        const scope = document.querySelector('input[name="scope"]:checked').value;
+        const orderConditions = document.getElementById('order-conditions');
+        const lineConditions = document.getElementById('line-conditions');
+        
+        if (scope === 'order') {
+            orderConditions.style.display = 'block';
+            lineConditions.style.display = 'none';
+        } else {
+            orderConditions.style.display = 'none';
+            lineConditions.style.display = 'block';
+        }
+    }
+
+    function addGiftRow() {
+        const container = document.getElementById('gifts-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'gift-row flex gap-3 items-start p-3 bg-gray-50 rounded border';
+        newRow.innerHTML = `
+            <div class="flex-1">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Variant ID <span class="text-red-500">*</span></label>
+                <input type="number" name="gift_variant_id[]" required class="w-full px-3 py-2 border rounded-md text-sm">
+            </div>
+            <div class="flex-1">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Số lượng <span class="text-red-500">*</span></label>
+                <input type="number" name="gift_qty[]" required min="1" value="1" class="w-full px-3 py-2 border rounded-md text-sm">
+            </div>
+            <div class="flex items-center pt-6">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" name="match_quantity[]" value="1" class="text-brand focus:ring-brand rounded">
+                    <span class="text-xs text-gray-700">1:1</span>
+                </label>
+            </div>
+            <div class="flex items-center pt-6">
+                <button type="button" onclick="removeGiftRow(this)" class="px-3 py-2 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition">Xóa</button>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+
+    function removeGiftRow(button) {
+        const container = document.getElementById('gifts-container');
+        const rows = container.querySelectorAll('.gift-row');
+        
+        if (rows.length > 1) {
+            button.closest('.gift-row').remove();
+        } else {
+            alert('Phải có ít nhất 1 quà tặng!');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        toggleScopeFields();
+    });
+</script>
+{% endblock %}

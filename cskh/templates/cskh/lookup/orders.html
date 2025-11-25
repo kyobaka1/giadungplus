@@ -1,0 +1,27 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Tra cứu Đơn hàng – CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Tra cứu Đơn hàng</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">Tìm kiếm thông tin đơn hàng</p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0">
+    <div class="bg-white border rounded-xl p-6 shadow-sm">
+        <input type="text" placeholder="{{ search_placeholder }}"
+            class="w-full px-4 py-3 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-lg">
+
+        <div class="mt-8 text-center text-gray-500">
+            <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <p>Nhập mã đơn hàng, SĐT hoặc tên khách hàng để tra cứu</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

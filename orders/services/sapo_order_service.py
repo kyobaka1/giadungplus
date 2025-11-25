@@ -63,7 +63,7 @@ class SapoOrderService:
         raw = self.sapo.core.get_order_raw(order_id)
         order_data = raw.get("order", {})
         
-        return self.factory.from_sapo_json(order_data)
+        return self.factory.from_sapo_json(order_data, sapo_client=self.sapo)
     
     def get_order_by_reference(self, reference_number: str) -> Optional[OrderDTO]:
         """
@@ -83,7 +83,7 @@ class SapoOrderService:
             logger.warning(f"[SapoOrderService] Order not found: {reference_number}")
             return None
         
-        return self.factory.from_sapo_json(raw_order)
+        return self.factory.from_sapo_json(raw_order, sapo_client=self.sapo)
     
     def list_orders(self, **filters) -> List[OrderDTO]:
         """
@@ -106,7 +106,7 @@ class SapoOrderService:
         raw = self.sapo.core.list_orders_raw(**filters)
         orders_data = raw.get("orders", [])
         
-        orders = [self.factory.from_sapo_json(o) for o in orders_data]
+        orders = [self.factory.from_sapo_json(o, sapo_client=self.sapo) for o in orders_data]
         
         logger.info(f"[SapoOrderService] Retrieved {len(orders)} orders")
         return orders

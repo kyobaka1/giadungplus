@@ -384,6 +384,7 @@
 </div>
 {% endblock %}
 
+{% block extra_js %}
 <!-- JS: GỬI YÊU CẦU TÌM SHIP -->
 <script>
     function timShip(mp_order_id) {
@@ -438,6 +439,33 @@
         product: null  // Keyword sản phẩm đang được filter
     };
 
+    // Hàm filterOrders - được định nghĩa sớm để có thể gọi từ inline event handler
+    function filterOrders() {
+        // Luôn gọi applyFilters nếu có, vì nó xử lý tất cả các filter (carrier, product, search)
+        if (typeof applyFilters === 'function') {
+            applyFilters();
+        } else {
+            // Fallback nếu applyFilters chưa được định nghĩa (chỉ xử lý search)
+            const input = document.getElementById('order-search-input');
+            if (!input) return;
+
+            const q = (input.value || '').trim().toLowerCase();
+            const rows = document.querySelectorAll('.js-order-row');
+
+            if (!rows.length) return;
+
+            rows.forEach(row => {
+                // Sử dụng innerText hoặc textContent để lấy toàn bộ text content (không bao gồm HTML tags)
+                const text = (row.innerText || row.textContent || '').toLowerCase();
+                if (!q || text.includes(q)) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        }
+    }
+
     // Thu thập số lượng từ TẤT CẢ đơn (không filter carrier, chỉ filter search nếu có)
     // Hàm này đếm từ DOM, không quan tâm đến filter carrier (chỉ quan tâm search)
     function collectAllData() {
@@ -451,7 +479,7 @@
 
         allRows.forEach(row => {
             // Chỉ bỏ qua nếu không match search (không quan tâm đến filter carrier)
-            const rowText = (row.innerText || '').toLowerCase();
+            const rowText = (row.innerText || row.textContent || '').toLowerCase();
             const matchesSearch = !searchQuery || rowText.includes(searchQuery);
             
             if (!matchesSearch) return; // Bỏ qua nếu không match search
@@ -600,7 +628,8 @@
 
         rows.forEach(row => {
             const carrierName = row.dataset.shippingCarrier || '';
-            const rowText = (row.innerText || '').toLowerCase();
+            // Sử dụng innerText hoặc textContent để lấy toàn bộ text content (không bao gồm HTML tags)
+            const rowText = (row.innerText || row.textContent || '').toLowerCase();
 
             // Check filter conditions
             let matchesCarrier = !activeFilters.carrier || carrierName === activeFilters.carrier;
@@ -688,35 +717,7 @@
 
 <!-- JS: LỌC ĐƠN HÀNG (Search) -->
 <script>
-    function filterOrders() {
-        // Apply filters (includes search)
-        if (typeof applyFilters === 'function') {
-            applyFilters();
-        } else {
-            // Fallback nếu applyFilters chưa được định nghĩa
-        const input = document.getElementById('order-search-input');
-        if (!input) return;
-
-        const q = (input.value || '').trim().toLowerCase();
-        const rows = document.querySelectorAll('.js-order-row');
-
-        if (!rows.length) return;
-
-        if (!q) {
-            rows.forEach(row => row.classList.remove('hidden'));
-            return;
-        }
-
-        rows.forEach(row => {
-            const text = (row.innerText || '').toLowerCase();
-            if (text.includes(q)) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-                }
-            });
-        }
-    }
+    // filterOrders() đã được định nghĩa ở script block trước đó
     
     // Toggle product filter (click vào tag sản phẩm)
     function toggleProductFilter(keyword) {
@@ -1043,3 +1044,4 @@
         });
     });
 </script>
+{% endblock %}

@@ -475,7 +475,384 @@
                 </div>
     </div>
 </div>
+
 {% endblock %}
+
+{% block extra_js %}
+<!-- JS: ĐỊNH NGHĨA CÁC HÀM GLOBAL TRƯỚC KHI HTML SỬ DỤNG -->
+<script>
+    // DEBUG FLAG - Set to true để bật log
+    const DEBUG_FILTERS = false;
+    
+    // Helper function để log chỉ khi DEBUG_FILTERS = true
+    function debugLog(...args) {
+        if (DEBUG_FILTERS) {
+            console.log(...args);
+        }
+    }
+    
+    // State của bộ lọc - phải được định nghĩa sớm
+    let activeFilters = {
+        shop: null,
+        carrier: null,
+        product: null
+    };
+
+    // Filter orders function - Định nghĩa trong global scope ngay từ đầu
+    window.filterOrders = function() {
+        // Luôn gọi applyFilters nếu có, vì nó xử lý tất cả các filter (shop, carrier, product, search)
+        if (typeof window.applyFilters === 'function') {
+            window.applyFilters();
+        } else {
+            // Fallback nếu applyFilters chưa được định nghĩa (chỉ xử lý search)
+            const input = document.getElementById('order-search-input');
+            if (!input) return;
+
+            const q = (input.value || '').trim().toLowerCase();
+            const rows = document.querySelectorAll('.js-order-row');
+
+            if (!rows.length) return;
+
+            rows.forEach(row => {
+                // Sử dụng innerText hoặc textContent để lấy toàn bộ text content (không bao gồm HTML tags)
+                const text = (row.innerText || row.textContent || '').toLowerCase();
+                if (!q || text.includes(q)) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        }
+    };
+
+    // Apply filters to rows - Định nghĩa sớm để toggleProductFilter có thể gọi
+    window.applyFilters = function() {
+        const rows = document.querySelectorAll('.js-order-row');
+        const searchInput = document.getElementById('order-search-input');
+        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
+        const productKeyword = activeFilters.product ? activeFilters.product.toLowerCase() : '';
+
+        rows.forEach((row) => {
+            // Lấy shopName và carrierName từ data attributes
+            const shopName = (row.getAttribute('data-shop-name') || row.dataset.shopName || '').trim();
+            const carrierName = (row.getAttribute('data-shipping-carrier') || row.dataset.shippingCarrier || '').trim();
+            const rowText = (row.innerText || row.textContent || '').toLowerCase();
+
+            // Check filter conditions
+            let matchesShop = !activeFilters.shop || shopName === activeFilters.shop;
+            let matchesCarrier = !activeFilters.carrier || carrierName === activeFilters.carrier;
+            let matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            // Filter theo tên sản phẩm: tìm trong các span có data-product-name
+            let matchesProduct = true;
+            if (productKeyword) {
+                matchesProduct = false;
+                const productSpans = row.querySelectorAll('span[data-product-name]');
+                for (let span of productSpans) {
+                    const productName = (span.dataset.productName || '').toLowerCase();
+                    if (productName && productName.includes(productKeyword)) {
+                        matchesProduct = true;
+                        break;
+                    }
+                }
+            }
+
+            // Show/hide row
+            if (matchesShop && matchesCarrier && matchesSearch && matchesProduct) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+        
+        // Update checkbox states after filtering
+        if (typeof window.syncSelectAllState === 'function') {
+            window.syncSelectAllState();
+        }
+        
+        // Update filter button counts sau khi filter
+        if (typeof updateFilterCounts === 'function') {
+            updateFilterCounts();
+        }
+    };
+
+    // Update product tag button active states - Định nghĩa sớm để toggleProductFilter có thể gọi
+    window.updateProductTagButtons = function() {
+        const productTagButtons = document.querySelectorAll('.product-tag-btn');
+        productTagButtons.forEach(btn => {
+            const keyword = btn.dataset.productKeyword || '';
+            if (activeFilters.product === keyword) {
+                // Active state
+                btn.classList.add('bg-red-500', 'text-white', 'border-orange-500');
+                btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            } else {
+                // Inactive state
+                btn.classList.remove('bg-red-500', 'text-white', 'border-orange-500');
+                btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        });
+    };
+
+    // Toggle product filter - Định nghĩa trong global scope ngay từ đầu
+    window.toggleProductFilter = function(keyword) {
+        // Nếu click vào "Tất cả" hoặc click vào tag đang active -> bỏ filter
+        if (!keyword || activeFilters.product === keyword) {
+            activeFilters.product = null;
+        } else {
+            activeFilters.product = keyword;
+        }
+
+        // Apply filters
+        if (typeof window.applyFilters === 'function') {
+            window.applyFilters();
+        }
+        
+        // Update product tag active states
+        if (typeof window.updateProductTagButtons === 'function') {
+            window.updateProductTagButtons();
+        }
+    };
+
+    // Thu thập số lượng từ TẤT CẢ đơn - Định nghĩa sớm và gắn vào window
+    window.collectAllData = function() {
+        debugLog('=== collectAllData START ===');
+        const allRows = document.querySelectorAll('.js-order-row');
+        debugLog('Total rows found:', allRows.length);
+        
+        const shops = new Map(); // {shopName: count}
+        const carriers = new Map(); // {carrierName: count}
+        let totalCount = 0;
+
+        // Kiểm tra search query
+        const searchInput = document.getElementById('order-search-input');
+        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
+        debugLog('searchQuery:', searchQuery);
+
+        allRows.forEach((row, index) => {
+            // Chỉ bỏ qua nếu không match search (không quan tâm đến filter shop/carrier)
+            const rowText = (row.innerText || row.textContent || '').toLowerCase();
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            if (!matchesSearch) return; // Bỏ qua nếu không match search
+
+            // Đếm từ tất cả đơn (không check isHidden vì có thể bị hidden bởi filter shop/carrier)
+            // Lấy shopName và carrierName từ data attributes
+            // Sử dụng getAttribute để đảm bảo đọc đúng (dataset có thể không hoạt động với một số trình duyệt)
+            const shopNameAttr = row.getAttribute('data-shop-name') || row.dataset.shopName || '';
+            const carrierNameAttr = row.getAttribute('data-shipping-carrier') || row.dataset.shippingCarrier || '';
+            const shopName = shopNameAttr.trim();
+            const carrierName = carrierNameAttr.trim();
+            
+            if (index < 3 && DEBUG_FILTERS) { // Log first 3 rows for debugging
+                debugLog(`Row ${index}: shopName="${shopName}", carrierName="${carrierName}"`);
+                debugLog(`Row ${index}: getAttribute data-shop-name="${row.getAttribute('data-shop-name')}", getAttribute data-shipping-carrier="${row.getAttribute('data-shipping-carrier')}"`);
+            }
+
+            if (shopName) {
+                shops.set(shopName, (shops.get(shopName) || 0) + 1);
+            }
+            if (carrierName) {
+                carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
+            }
+            totalCount++;
+        });
+
+        debugLog('Shops found:', Array.from(shops.entries()));
+        debugLog('Carriers found:', Array.from(carriers.entries()));
+        debugLog('Total count:', totalCount);
+        debugLog('=== collectAllData END ===');
+
+        return { shops, carriers, total: totalCount };
+    };
+
+    // Tạo filter buttons - Định nghĩa sớm
+    window.renderFilterButtons = function() {
+        debugLog('=== renderFilterButtons START ===');
+        debugLog('window.collectAllData type:', typeof window.collectAllData);
+        
+        // Khi khởi tạo, chưa có filter, nên dùng collectAllData() để lấy số lượng từ tất cả đơn
+        if (typeof window.collectAllData !== 'function') {
+            if (DEBUG_FILTERS) console.error('window.collectAllData is not a function!');
+            return;
+        }
+        
+        const allData = window.collectAllData();
+        const { shops, carriers } = allData;
+        
+        debugLog('renderFilterButtons - shops:', Array.from(shops.entries()));
+        debugLog('renderFilterButtons - carriers:', Array.from(carriers.entries()));
+
+        // Tính tổng số đơn của TẤT CẢ các shop
+        let totalShops = 0;
+        shops.forEach((count) => {
+            totalShops += count;
+        });
+
+        // Tính tổng số đơn của TẤT CẢ các carrier
+        let totalCarriers = 0;
+        carriers.forEach((count) => {
+            totalCarriers += count;
+        });
+
+        // Update shop "Tất cả" count - Tổng số đơn của TẤT CẢ các shop
+        // CHỈ cập nhật số lượng trong span
+        const shopAllCount = document.getElementById('filter-shop-all-count');
+        if (shopAllCount) {
+            shopAllCount.textContent = totalShops;
+        }
+
+        // Render shop filters
+        const shopContainer = document.getElementById('filter-shop-container');
+        if (shopContainer) {
+            shopContainer.innerHTML = '';
+            const sortedShops = Array.from(shops.entries()).sort((a, b) => b[1] - a[1]);
+            
+            sortedShops.forEach(([shopName, count]) => {
+                if (!shopName) return; // Bỏ qua shop name rỗng
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn filter-shop-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
+                btn.dataset.filterType = 'shop';
+                btn.dataset.filterValue = shopName;
+                btn.textContent = `${shopName} (${count})`;
+                btn.addEventListener('click', () => {
+                    if (typeof toggleFilter === 'function') {
+                        toggleFilter('shop', shopName);
+                    }
+                });
+                shopContainer.appendChild(btn);
+            });
+        }
+
+        // Update carrier "Tất cả" count - Tổng số đơn của TẤT CẢ các carrier
+        // CHỈ cập nhật số lượng trong span
+        const carrierAllCount = document.getElementById('filter-carrier-all-count');
+        if (carrierAllCount) {
+            carrierAllCount.textContent = totalCarriers;
+        }
+
+        // Render carrier filters
+        const carrierContainer = document.getElementById('filter-carrier-container');
+        if (carrierContainer) {
+            carrierContainer.innerHTML = '';
+            const sortedCarriers = Array.from(carriers.entries()).sort((a, b) => b[1] - a[1]);
+            
+            sortedCarriers.forEach(([carrierName, count]) => {
+                if (!carrierName) return; // Bỏ qua carrier name rỗng
+                const btn = document.createElement('button');
+                btn.className = 'filter-btn filter-carrier-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
+                btn.dataset.filterType = 'carrier';
+                btn.dataset.filterValue = carrierName;
+                btn.textContent = `${carrierName} (${count})`;
+                btn.addEventListener('click', () => {
+                    if (typeof toggleFilter === 'function') {
+                        toggleFilter('carrier', carrierName);
+                    }
+                });
+                carrierContainer.appendChild(btn);
+            });
+        }
+        
+        debugLog('=== renderFilterButtons END ===');
+    };
+</script>
+
+<!-- Script inline để đảm bảo initialization chạy sau khi tất cả script blocks đã load -->
+<script>
+    // Hàm khởi tạo filters - đợi script đầu tiên load xong
+    function initFiltersInline() {
+        debugLog('=== initFiltersInline START ===');
+        
+        // Kiểm tra các hàm cần thiết - đợi đến khi có
+        let retries = 0;
+        const maxRetries = 10;
+        const checkInterval = 100;
+        
+        function checkAndInit() {
+            debugLog(`Checking functions (retry ${retries}/${maxRetries})...`);
+            debugLog('window.collectAllData type:', typeof window.collectAllData);
+            debugLog('window.renderFilterButtons type:', typeof window.renderFilterButtons);
+            
+            if (typeof window.collectAllData !== 'function' || typeof window.renderFilterButtons !== 'function') {
+                retries++;
+                if (retries < maxRetries) {
+                    setTimeout(checkAndInit, checkInterval);
+                    return;
+                } else {
+                    if (DEBUG_FILTERS) console.error('ERROR: Functions not available after all retries!');
+                    debugLog('Available window functions:', Object.keys(window).filter(k => k.includes('collect') || k.includes('Filter') || k.includes('render')));
+                    return;
+                }
+            }
+            
+            // Các hàm đã sẵn sàng, tiếp tục
+            const rows = document.querySelectorAll('.js-order-row');
+            debugLog('Rows found:', rows.length);
+            
+            if (rows.length === 0) {
+                if (DEBUG_FILTERS) console.warn('No rows found! Cannot initialize filters.');
+                return;
+            }
+            
+            if (rows.length > 0 && DEBUG_FILTERS) {
+                const firstRow = rows[0];
+                debugLog('First row shopName (getAttribute):', firstRow.getAttribute('data-shop-name'));
+                debugLog('First row carrierName (getAttribute):', firstRow.getAttribute('data-shipping-carrier'));
+            }
+            
+            // Gọi renderFilterButtons
+            debugLog('Calling window.renderFilterButtons...');
+            try {
+                window.renderFilterButtons();
+            } catch (error) {
+                if (DEBUG_FILTERS) console.error('Error calling renderFilterButtons:', error);
+            }
+            
+            // Gọi updateFilterButtons nếu có
+            if (typeof updateFilterButtons === 'function') {
+                updateFilterButtons();
+            }
+            
+            // Update product tag buttons
+            if (typeof window.updateProductTagButtons === 'function') {
+                window.updateProductTagButtons();
+            }
+            
+            debugLog('=== initFiltersInline END ===');
+        }
+        
+        // Bắt đầu check
+        checkAndInit();
+    }
+    
+    // Thử gọi ngay nếu DOM đã ready
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        debugLog('DOM already ready, calling initFiltersInline...');
+        setTimeout(initFiltersInline, 300);
+    } else {
+        debugLog('DOM not ready yet, waiting for DOMContentLoaded...');
+        document.addEventListener('DOMContentLoaded', function() {
+            debugLog('DOMContentLoaded fired in inline script');
+            setTimeout(initFiltersInline, 300);
+        });
+    }
+    
+    // Backup với window.load
+    window.addEventListener('load', function() {
+        debugLog('Window.load fired in inline script');
+        setTimeout(function() {
+            const shopContainer = document.getElementById('filter-shop-container');
+            const shopAllCount = document.getElementById('filter-shop-all-count');
+            const shopAllValue = shopAllCount ? parseInt(shopAllCount.textContent) || 0 : 0;
+            
+            if (shopContainer && (shopContainer.children.length === 0 || shopAllValue === 0)) {
+                debugLog('Filters not initialized, calling initFiltersInline from window.load...');
+                initFiltersInline();
+            } else {
+                debugLog('Filters already initialized (shop buttons:', shopContainer ? shopContainer.children.length : 0, ', total:', shopAllValue, ')');
+            }
+        }, 1000);
+    });
+</script>
 
 <!-- JS: GỬI YÊU CẦU TÌM SHIP -->
 <script>
@@ -525,57 +902,31 @@
 
 <!-- JS: BỘ LỌC ĐƠN HÀNG -->
 <script>
-    // State của bộ lọc
-    let activeFilters = {
-        shop: null,
-        carrier: null,
-        product: null  // Keyword sản phẩm đang được filter
-    };
-
-    // Thu thập số lượng từ TẤT CẢ đơn (không filter shop/carrier, chỉ filter search nếu có)
-    // Hàm này đếm từ DOM, không quan tâm đến filter shop/carrier (chỉ quan tâm search)
-    function collectAllData() {
-        const allRows = document.querySelectorAll('.js-order-row');
-        const shops = new Map(); // {shopName: count}
-        const carriers = new Map(); // {carrierName: count}
-        let totalCount = 0;
-
-        // Kiểm tra search query
-        const searchInput = document.getElementById('order-search-input');
-        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
-
-        allRows.forEach(row => {
-            // Chỉ bỏ qua nếu không match search (không quan tâm đến filter shop/carrier)
-            const rowText = (row.innerText || '').toLowerCase();
-            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
-            
-            if (!matchesSearch) return; // Bỏ qua nếu không match search
-
-            // Đếm từ tất cả đơn (không check isHidden vì có thể bị hidden bởi filter shop/carrier)
-            const shopName = row.dataset.shopName || '';
-            const carrierName = row.dataset.shippingCarrier || '';
-
-            if (shopName) {
-                shops.set(shopName, (shops.get(shopName) || 0) + 1);
-            }
-            if (carrierName) {
-                carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
-            }
-            totalCount++;
-        });
-
-        return { shops, carriers, total: totalCount };
+    // activeFilters đã được định nghĩa ở đầu file, chỉ khởi tạo lại nếu chưa có
+    if (typeof activeFilters === 'undefined') {
+        activeFilters = {
+            shop: null,
+            carrier: null,
+            product: null
+        };
     }
+
+    // collectAllData đã được định nghĩa ở đầu file trong global scope
+    // Không cần định nghĩa lại ở đây
 
     // Thu thập danh sách shop và carrier từ các đơn hiện tại (dựa trên filter hiện tại)
     function collectFilterData() {
         const allRows = document.querySelectorAll('.js-order-row');
-        const allData = collectAllData(); // Lấy số lượng từ tất cả đơn (chỉ filter bởi search)
+        if (typeof window.collectAllData !== 'function') {
+            if (DEBUG_FILTERS) console.error('window.collectAllData is not available in collectFilterData!');
+            return { shops: new Map(), carriers: new Map(), total: 0 };
+        }
+        const allData = window.collectAllData(); // Lấy số lượng từ tất cả đơn (chỉ filter bởi search)
         const shops = new Map(); // {shopName: count}
         const carriers = new Map(); // {carrierName: count}
         let visibleCount = 0;
 
-        // Đếm số đơn đang visible (không bị hidden)
+            // Đếm số đơn đang visible (không bị hidden)
         allRows.forEach(row => {
             const isHidden = row.classList.contains('hidden');
             if (!isHidden) {
@@ -598,8 +949,8 @@
             // Đếm DVVC từ các đơn của shop được filter (chỉ đếm các row visible)
             allRows.forEach(row => {
                 if (row.classList.contains('hidden')) return;
-                const shopName = row.dataset.shopName || '';
-                const carrierName = row.dataset.shippingCarrier || '';
+                const shopName = (row.getAttribute('data-shop-name') || row.dataset.shopName || '').trim();
+                const carrierName = (row.getAttribute('data-shipping-carrier') || row.dataset.shippingCarrier || '').trim();
                 
                 if (shopName === activeFilters.shop && carrierName) {
                     carriers.set(carrierName, (carriers.get(carrierName) || 0) + 1);
@@ -615,8 +966,8 @@
             // Đếm shop từ các đơn của DVVC được filter (chỉ đếm các row visible)
             allRows.forEach(row => {
                 if (row.classList.contains('hidden')) return;
-                const shopName = row.dataset.shopName || '';
-                const carrierName = row.dataset.shippingCarrier || '';
+                const shopName = (row.getAttribute('data-shop-name') || row.dataset.shopName || '').trim();
+                const carrierName = (row.getAttribute('data-shipping-carrier') || row.dataset.shippingCarrier || '').trim();
                 
                 if (carrierName === activeFilters.carrier && shopName) {
                     shops.set(shopName, (shops.get(shopName) || 0) + 1);
@@ -626,8 +977,8 @@
             // Filter cả 2: cả shop và DVVC đều cập nhật theo filter hiện tại
             allRows.forEach(row => {
                 if (row.classList.contains('hidden')) return;
-                const shopName = row.dataset.shopName || '';
-                const carrierName = row.dataset.shippingCarrier || '';
+                const shopName = (row.getAttribute('data-shop-name') || row.dataset.shopName || '').trim();
+                const carrierName = (row.getAttribute('data-shipping-carrier') || row.dataset.shippingCarrier || '').trim();
                 
                 if (shopName === activeFilters.shop && shopName) {
                     shops.set(shopName, (shops.get(shopName) || 0) + 1);
@@ -649,75 +1000,12 @@
         return { shops, carriers, total: visibleCount };
     }
 
-    // Tạo filter buttons (chỉ gọi khi khởi tạo, không gọi lại sau khi click filter)
-    function renderFilterButtons() {
-        // Khi khởi tạo, chưa có filter, nên dùng collectAllData() để lấy số lượng từ tất cả đơn
-        const allData = collectAllData();
-        const { shops, carriers } = allData;
-
-        // Tính tổng số đơn của TẤT CẢ các shop
-        let totalShops = 0;
-        shops.forEach((count) => {
-            totalShops += count;
-        });
-
-        // Tính tổng số đơn của TẤT CẢ các carrier
-        let totalCarriers = 0;
-        carriers.forEach((count) => {
-            totalCarriers += count;
-        });
-
-        // Update shop "Tất cả" count - Tổng số đơn của TẤT CẢ các shop
-        // CHỈ cập nhật số lượng trong span
-        const shopAllCount = document.getElementById('filter-shop-all-count');
-        if (shopAllCount) {
-            shopAllCount.textContent = totalShops;
-        }
-
-        // Render shop filters
-        const shopContainer = document.getElementById('filter-shop-container');
-        if (shopContainer) {
-            shopContainer.innerHTML = '';
-            const sortedShops = Array.from(shops.entries()).sort((a, b) => b[1] - a[1]);
-            
-            sortedShops.forEach(([shopName, count]) => {
-                const btn = document.createElement('button');
-                btn.className = 'filter-btn filter-shop-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
-                btn.dataset.filterType = 'shop';
-                btn.dataset.filterValue = shopName;
-                btn.textContent = `${shopName} (${count})`;
-                btn.addEventListener('click', () => toggleFilter('shop', shopName));
-                shopContainer.appendChild(btn);
-            });
-        }
-
-        // Update carrier "Tất cả" count - Tổng số đơn của TẤT CẢ các carrier
-        // CHỈ cập nhật số lượng trong span
-        const carrierAllCount = document.getElementById('filter-carrier-all-count');
-        if (carrierAllCount) {
-            carrierAllCount.textContent = totalCarriers;
-        }
-
-        // Render carrier filters
-        const carrierContainer = document.getElementById('filter-carrier-container');
-        if (carrierContainer) {
-            carrierContainer.innerHTML = '';
-            const sortedCarriers = Array.from(carriers.entries()).sort((a, b) => b[1] - a[1]);
-            
-            sortedCarriers.forEach(([carrierName, count]) => {
-                const btn = document.createElement('button');
-                btn.className = 'filter-btn filter-carrier-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
-                btn.dataset.filterType = 'carrier';
-                btn.dataset.filterValue = carrierName;
-                btn.textContent = `${carrierName} (${count})`;
-                btn.addEventListener('click', () => toggleFilter('carrier', carrierName));
-                carrierContainer.appendChild(btn);
-            });
-        }
-    }
+    // renderFilterButtons đã được định nghĩa ở đầu file trong global scope
+    // Không cần định nghĩa lại ở đây;
 
     // Toggle filter (click để bật/tắt)
     function toggleFilter(type, value) {
+        debugLog(`toggleFilter called: type=${type}, value=${value}`);
         // Nếu click vào "Tất cả" -> bỏ filter
         if (value === 'all') {
             activeFilters[type] = null;
@@ -731,8 +1019,12 @@
             activeFilters[type] = value;
         }
 
+        debugLog(`activeFilters after toggle:`, JSON.parse(JSON.stringify(activeFilters)));
+
         // Apply filters trước (sẽ tự động gọi updateFilterCounts)
-        applyFilters();
+        if (typeof window.applyFilters === 'function') {
+            window.applyFilters();
+        }
         
         // Sau đó update UI (active states)
         updateFilterButtons();
@@ -792,54 +1084,8 @@
         }
     }
 
-    // Apply filters to rows
-    function applyFilters() {
-        const rows = document.querySelectorAll('.js-order-row');
-        const searchInput = document.getElementById('order-search-input');
-        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
-        const productKeyword = activeFilters.product ? activeFilters.product.toLowerCase() : '';
-
-        rows.forEach(row => {
-            const shopName = row.dataset.shopName || '';
-            const carrierName = row.dataset.shippingCarrier || '';
-            const rowText = (row.innerText || '').toLowerCase();
-
-            // Check filter conditions
-            let matchesShop = !activeFilters.shop || shopName === activeFilters.shop;
-            let matchesCarrier = !activeFilters.carrier || carrierName === activeFilters.carrier;
-            let matchesSearch = !searchQuery || rowText.includes(searchQuery);
-            
-            // Filter theo tên sản phẩm: tìm trong các span có data-product-name
-            let matchesProduct = true;
-            if (productKeyword) {
-                matchesProduct = false;
-                // Tìm tất cả các span có data-product-name trong row này
-                const productSpans = row.querySelectorAll('span[data-product-name]');
-                for (let span of productSpans) {
-                    const productName = (span.dataset.productName || '').toLowerCase();
-                    if (productName && productName.includes(productKeyword)) {
-                        matchesProduct = true;
-                        break;
-                    }
-                }
-            }
-
-            // Show/hide row
-            if (matchesShop && matchesCarrier && matchesSearch && matchesProduct) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
-        });
-
-        // Update checkbox states after filtering
-        if (typeof window.syncSelectAllState === 'function') {
-            window.syncSelectAllState();
-        }
-        
-        // Update filter button counts sau khi filter
-        updateFilterCounts();
-    }
+    // applyFilters đã được định nghĩa ở đầu file trong global scope
+    // Không cần định nghĩa lại ở đây
 
     // Cập nhật số lượng trong các filter buttons (không tạo lại buttons)
     function updateFilterCounts() {
@@ -848,7 +1094,11 @@
         const { shops: filterShops, carriers: filterCarriers } = filterData;
         
         // Lấy dữ liệu tổng (tất cả đơn, chỉ filter bởi search) - để hiển thị cho button "Tất cả" của shop
-        const allData = collectAllData();
+        if (typeof window.collectAllData !== 'function') {
+            if (DEBUG_FILTERS) console.error('window.collectAllData is not available in updateFilterCounts!');
+            return;
+        }
+        const allData = window.collectAllData();
 
         // Tính tổng số đơn của TẤT CẢ các shop trong filterShops
         let totalShops = 0;
@@ -901,90 +1151,136 @@
         });
     }
 
-    // Initialize filters
-    document.addEventListener('DOMContentLoaded', function() {
-        renderFilterButtons();
-        updateFilterButtons();
+    // updateProductTagButtons đã được định nghĩa ở đầu file trong global scope
+    // Không cần định nghĩa lại ở đây
 
-        // Shop "Tất cả" button
+    // Initialize filters - Sử dụng cả DOMContentLoaded và window.onload để đảm bảo chạy
+    function initializeFilters() {
+        debugLog('=== Initializing filters ===');
+        debugLog('window.collectAllData type:', typeof window.collectAllData);
+        debugLog('window.renderFilterButtons type:', typeof window.renderFilterButtons);
+        
+        const rows = document.querySelectorAll('.js-order-row');
+        debugLog('Rows found on init:', rows.length);
+        
+        if (rows.length > 0 && DEBUG_FILTERS) {
+            // Log first row để debug
+            const firstRow = rows[0];
+            debugLog('First row shopName (getAttribute):', firstRow.getAttribute('data-shop-name'));
+            debugLog('First row shopName (dataset):', firstRow.dataset.shopName);
+            debugLog('First row carrierName (getAttribute):', firstRow.getAttribute('data-shipping-carrier'));
+            debugLog('First row carrierName (dataset):', firstRow.dataset.shippingCarrier);
+        }
+        
+        if (typeof window.collectAllData !== 'function') {
+            if (DEBUG_FILTERS) console.error('ERROR: window.collectAllData is not a function!');
+            return;
+        }
+        
+        if (typeof window.renderFilterButtons === 'function') {
+            debugLog('Calling renderFilterButtons...');
+            try {
+                window.renderFilterButtons();
+            } catch (error) {
+                if (DEBUG_FILTERS) console.error('Error calling renderFilterButtons:', error);
+            }
+        } else {
+            if (DEBUG_FILTERS) console.error('renderFilterButtons is not defined!');
+        }
+        
+        if (typeof updateFilterButtons === 'function') {
+            updateFilterButtons();
+        }
+        
+        // Update product tag buttons lần đầu
+        if (typeof window.updateProductTagButtons === 'function') {
+            window.updateProductTagButtons();
+        }
+    }
+
+    // Gọi khi DOM ready với retry logic
+    function tryInitializeFilters(retries = 3, delay = 500) {
+        const rows = document.querySelectorAll('.js-order-row');
+        debugLog(`tryInitializeFilters: Found ${rows.length} rows, retries left: ${retries}`);
+        
+        if (rows.length > 0) {
+            // Có rows, thử khởi tạo
+            initializeFilters();
+            
+            // Kiểm tra xem đã render được buttons chưa
+            setTimeout(() => {
+                const shopContainer = document.getElementById('filter-shop-container');
+                const carrierContainer = document.getElementById('filter-carrier-container');
+                const shopCount = shopContainer ? shopContainer.children.length : 0;
+                const carrierCount = carrierContainer ? carrierContainer.children.length : 0;
+                const shopAllCount = document.getElementById('filter-shop-all-count');
+                const carrierAllCount = document.getElementById('filter-carrier-all-count');
+                const shopAllValue = shopAllCount ? parseInt(shopAllCount.textContent) : 0;
+                const carrierAllValue = carrierAllCount ? parseInt(carrierAllCount.textContent) : 0;
+                
+                debugLog(`Filter initialization check: shop buttons=${shopCount}, carrier buttons=${carrierCount}, shop total=${shopAllValue}, carrier total=${carrierAllValue}`);
+                
+                // Nếu chưa có buttons hoặc count = 0 và có rows, thử lại
+                if ((shopCount === 0 || carrierCount === 0 || shopAllValue === 0 || carrierAllValue === 0) && rows.length > 0 && retries > 0) {
+                    debugLog(`Filters not properly initialized, retrying... (${retries} retries left)`);
+                    tryInitializeFilters(retries - 1, delay);
+                } else {
+                    debugLog('Filters initialized successfully!');
+                }
+            }, delay);
+        } else if (retries > 0) {
+            // Chưa có rows, đợi thêm
+            debugLog(`No rows found yet, waiting ${delay}ms before retry (${retries} retries left)...`);
+            setTimeout(() => tryInitializeFilters(retries - 1, delay), delay);
+        } else {
+            if (DEBUG_FILTERS) console.error('Failed to initialize filters: No rows found after all retries');
+        }
+    }
+    
+    // Gọi khi DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => tryInitializeFilters(5, 500), 300);
+        });
+    } else {
+        // DOM đã ready, gọi ngay
+        setTimeout(() => tryInitializeFilters(5, 500), 300);
+    }
+    
+    // Backup: Gọi khi window load xong
+    window.addEventListener('load', function() {
+        debugLog('Window loaded, checking if filters initialized...');
+        const shopContainer = document.getElementById('filter-shop-container');
+        const shopAllCount = document.getElementById('filter-shop-all-count');
+        const shopAllValue = shopAllCount ? parseInt(shopAllCount.textContent) : 0;
+        
+        if (shopContainer && (shopContainer.children.length === 0 || shopAllValue === 0)) {
+            debugLog('Filters not initialized yet, initializing now...');
+            tryInitializeFilters(3, 500);
+        }
+    });
+
+    // Shop "Tất cả" button - Gắn event listener khi DOM ready
+    function attachFilterButtonListeners() {
         const shopAllBtn = document.getElementById('filter-shop-all');
         if (shopAllBtn) {
             shopAllBtn.addEventListener('click', () => toggleFilter('shop', 'all'));
         }
 
-        // Carrier "Tất cả" button
         const carrierAllBtn = document.getElementById('filter-carrier-all');
         if (carrierAllBtn) {
             carrierAllBtn.addEventListener('click', () => toggleFilter('carrier', 'all'));
         }
-    });
-</script>
-
-<!-- JS: LỌC ĐƠN HÀNG (Search) -->
-<script>
-    function filterOrders() {
-        // Apply filters (includes search)
-        if (typeof applyFilters === 'function') {
-            applyFilters();
-        } else {
-            // Fallback nếu applyFilters chưa được định nghĩa
-        const input = document.getElementById('order-search-input');
-        if (!input) return;
-
-        const q = (input.value || '').trim().toLowerCase();
-        const rows = document.querySelectorAll('.js-order-row');
-
-        if (!rows.length) return;
-
-        if (!q) {
-            rows.forEach(row => row.classList.remove('hidden'));
-            return;
-        }
-
-        rows.forEach(row => {
-            const text = (row.innerText || '').toLowerCase();
-            if (text.includes(q)) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-                }
-            });
-        }
-    }
-    
-    // Toggle product filter (click vào tag sản phẩm)
-    function toggleProductFilter(keyword) {
-        // Nếu click vào "Tất cả" hoặc click vào tag đang active -> bỏ filter
-        if (!keyword || activeFilters.product === keyword) {
-            activeFilters.product = null;
-        } else {
-            activeFilters.product = keyword;
-        }
-
-        // Apply filters
-        applyFilters();
-        
-        // Update product tag active states
-        updateProductTagButtons();
     }
 
-    // Update product tag button active states
-    function updateProductTagButtons() {
-        const productTagButtons = document.querySelectorAll('.product-tag-btn');
-        productTagButtons.forEach(btn => {
-            const keyword = btn.dataset.productKeyword || '';
-            if (activeFilters.product === keyword) {
-                // Active state
-                btn.classList.add('bg-red-500', 'text-white', 'border-orange-500');
-                btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
-            } else {
-                // Inactive state
-                btn.classList.remove('bg-red-500', 'text-white', 'border-orange-500');
-                btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
-            }
-        });
+    // Gọi khi DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachFilterButtonListeners);
+    } else {
+        attachFilterButtonListeners();
     }
 </script>
+
 
 <!-- TOAST NOTIFICATION -->
 <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
@@ -1236,44 +1532,4 @@
         updateProductTagButtons();
     });
 </script>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const panel = document.getElementById('side-panel');
-
-        if (!panel) return;
-
-        function pinSidePanel() {
-            // Chỉ áp dụng trên màn hình >= 1024px (lg)
-            if (window.innerWidth < 1024) {
-                panel.style.position = '';
-                panel.style.top = '';
-                panel.style.left = '';
-                panel.style.width = '';
-                return;
-            }
-
-            // Lấy vị trí ban đầu của panel trong layout
-            const rect = panel.getBoundingClientRect();
-
-            // Đặt lại để nó cố định đúng chỗ đó
-            panel.style.position = 'fixed';
-            panel.style.top = rect.top + 'px';
-            panel.style.left = rect.left + 'px';
-            panel.style.width = rect.width + 'px';
-        }
-
-        // Pin ngay khi load xong
-        pinSidePanel();
-
-        // Nếu resize cửa sổ thì tính lại (tránh lệch vị trí)
-        window.addEventListener('resize', function () {
-            // Xoá style để lấy rect mới rồi pin lại
-            panel.style.position = '';
-            panel.style.top = '';
-            panel.style.left = '';
-            panel.style.width = '';
-            pinSidePanel();
-        });
-    });
-</script>
+{% endblock %}

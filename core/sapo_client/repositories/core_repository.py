@@ -63,8 +63,14 @@ class SapoCoreRepository(BaseRepository):
                 "order": {...}
             }
         """
-        logger.debug(f"[SapoCoreRepo] get_order: {order_id}")
-        return self.get(f"orders/{order_id}.json")
+        import time
+        api_start = time.time()
+        url = f"orders/{order_id}.json"
+        logger.debug(f"[SapoCoreRepo] get_order: {order_id} -> GET {self._build_url(url)}")
+        result = self.get(url)
+        api_time = time.time() - api_start
+        logger.info(f"[PERF] API GET {url}: {api_time:.2f}s")
+        return result
     
     def get_order_by_reference_number(self, reference_number: str) -> Optional[Dict[str, Any]]:
         """
@@ -161,8 +167,21 @@ class SapoCoreRepository(BaseRepository):
                 "variant": {...}
             }
         """
-        logger.debug(f"[SapoCoreRepo] get_variant: {variant_id}")
-        return self.get(f"variants/{variant_id}.json")
+        import time
+        api_start = time.time()
+        url = f"variants/{variant_id}.json"
+        logger.debug(f"[SapoCoreRepo] get_variant: {variant_id} -> GET {self._build_url(url)}")
+        result = self.get(url)
+        api_time = time.time() - api_start
+        logger.info(f"[PERF] API GET {url}: {api_time:.2f}s")
+        
+        # Increment counter nếu có trong session/context
+        # Sử dụng thread-local storage hoặc global counter
+        import threading
+        if hasattr(threading.current_thread(), 'variant_api_counter'):
+            threading.current_thread().variant_api_counter += 1
+        
+        return result
     
     # ==================== PRODUCTS ====================
     
