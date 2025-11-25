@@ -1,22 +1,30 @@
 {% extends "settings/base_settings.html" %}
 
-{% block title %}GIFT (Quà tặng) - Settings{% endblock %}
+{% block title %}GIFT (Khuyến mãi) - Settings{% endblock %}
 
 {% block overview %}
 <section>
     <div class="flex items-center justify-between">
         <div>
             <h1 class="text-lg font-semibold text-slate-800">
-                GIFT - Quản lý Chương trình Quà Tặng
+                GIFT - Quản lý Chương trình Khuyến Mãi
             </h1>
             <p class="text-xs text-gray-500 mt-1">
-                Cấu hình các chương trình khuyến mãi và quà tặng cho đơn hàng
+                Danh sách các chương trình khuyến mãi từ Sapo (Read-only)
             </p>
+            {% if cache_time %}
+            <p class="text-xs text-gray-400 mt-0.5">
+                📅 Cache: {{ cache_time }}
+            </p>
+            {% endif %}
         </div>
-        <a href="{% url 'gift_create' %}"
-            class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition font-medium text-sm">
-            + Tạo Gift Rule mới
-        </a>
+        <form method="post" action="{% url 'gift_sync' %}">
+            {% csrf_token %}
+            <button type="submit"
+                class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition font-medium text-sm">
+                🔄 Sync từ Sapo
+            </button>
+        </form>
     </div>
 </section>
 {% endblock %}
@@ -26,7 +34,7 @@
 <!-- Statistics Cards -->
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
     <div class="bg-white p-4 rounded-lg border shadow-sm">
-        <div class="text-xs text-gray-500 mb-1">Tổng số rules</div>
+        <div class="text-xs text-gray-500 mb-1">Tổng số chương trình</div>
         <div class="text-2xl font-bold text-gray-800">{{ total_count }}</div>
     </div>
     <div class="bg-white p-4 rounded-lg border shadow-sm">
@@ -34,136 +42,133 @@
         <div class="text-2xl font-bold text-green-600">{{ active_count }}</div>
     </div>
     <div class="bg-white p-4 rounded-lg border shadow-sm">
-        <div class="text-xs text-gray-500 mb-1">Tạm dừng</div>
-        <div class="text-2xl font-bold text-gray-400">{{ total_count|add:"-"|add:active_count }}</div>
+        <div class="text-xs text-gray-500 mb-1">Không hoạt động</div>
+        <div class="text-2xl font-bold text-gray-400">{{ inactive_count }}</div>
     </div>
 </div>
 
-<!-- Filters -->
-<div class="bg-white p-4 rounded-lg border shadow-sm mb-6">
-    <form method="get" class="flex flex-wrap gap-4 items-end">
-        <div class="flex-1 min-w-[200px]">
-            <label class="block text-xs font-medium text-gray-700 mb-1">Trạng thái</label>
-            <select name="active" class="w-full px-3 py-2 border rounded-md text-sm">
-                <option value="all" {% if active_filter == 'all' %}selected{% endif %}>Tất cả</option>
-                <option value="active" {% if active_filter == 'active' %}selected{% endif %}>Đang hoạt động</option>
-                <option value="inactive" {% if active_filter == 'inactive' %}selected{% endif %}>Tạm dừng</option>
-            </select>
-        </div>
-        <div class="flex-1 min-w-[200px]">
-            <label class="block text-xs font-medium text-gray-700 mb-1">Phạm vi</label>
-            <select name="scope" class="w-full px-3 py-2 border rounded-md text-sm">
-                <option value="all" {% if scope_filter == 'all' %}selected{% endif %}>Tất cả</option>
-                <option value="order" {% if scope_filter == 'order' %}selected{% endif %}>Theo đơn hàng</option>
-                <option value="line" {% if scope_filter == 'line' %}selected{% endif %}>Theo sản phẩm</option>
-            </select>
-        </div>
-        <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-md text-sm hover:bg-gray-700 transition">
-            Lọc
-        </button>
-        <a href="{% url 'gift_list' %}"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 transition">
-            Reset
-        </a>
-    </form>
+<!-- Filter Tabs -->
+<div class="mb-4 flex gap-2">
+    <a href="?status=all" 
+       class="px-4 py-2 rounded-lg text-sm font-medium transition {% if status_filter == 'all' %}bg-brand text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+        Tất cả ({{ total_count }})
+    </a>
+    <a href="?status=active" 
+       class="px-4 py-2 rounded-lg text-sm font-medium transition {% if status_filter == 'active' %}bg-green-500 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+        Đang hoạt động ({{ active_count }})
+    </a>
+    <a href="?status=inactive" 
+       class="px-4 py-2 rounded-lg text-sm font-medium transition {% if status_filter == 'inactive' %}bg-gray-500 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+        Không hoạt động
+    </a>
 </div>
 
-<!-- Rules Table -->
+<!-- Promotions Table -->
 <div class="bg-white rounded-lg border shadow-sm overflow-hidden">
-    <table class="w-full">
-        <thead class="bg-gray-50 border-b">
-            <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tên Campaign</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Phạm vi</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Điều kiện</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Quà tặng</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Ưu tiên</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y">
-            {% for rule in rules %}
-            <tr class="hover:bg-gray-50 transition">
-                <td class="px-4 py-3 text-sm font-mono text-gray-600">#{{ rule.id }}</td>
-                <td class="px-4 py-3">
-                    <div class="text-sm font-medium text-gray-800">{{ rule.name }}</div>
-                    {% if rule.shop_code %}
-                    <div class="text-xs text-gray-500 mt-0.5">Shop: {{ rule.shop_code }}</div>
-                    {% endif %}
-                </td>
-                <td class="px-4 py-3">
-                    {% if rule.scope == 'order' %}
-                    <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">Đơn hàng</span>
-                    {% else %}
-                    <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">Sản phẩm</span>
-                    {% endif %}
-                </td>
-                <td class="px-4 py-3 text-sm text-gray-600">
-                    {% if rule.scope == 'order' %}
-                    {% if rule.min_order_total %}
-                    <div>Tối thiểu: {{ rule.min_order_total|floatformat:0 }}đ</div>
-                    {% endif %}
-                    {% if rule.max_order_total %}
-                    <div>Tối đa: {{ rule.max_order_total|floatformat:0 }}đ</div>
-                    {% endif %}
-                    {% else %}
-                    <div class="text-xs">Variants: {% for vid in rule.required_variant_ids %}<span class="font-mono bg-gray-100 px-1 rounded">{{ vid }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
-                    {% if rule.required_min_qty %}
-                    <div class="text-xs mt-1">Số lượng: {{ rule.required_min_qty }}{% if rule.required_max_qty %} - {{ rule.required_max_qty }}{% endif %}</div>
-                    {% endif %}
-                    {% endif %}
-                </td>
-                <td class="px-4 py-3 text-sm text-gray-600">
-                    {% for gift in rule.gifts.all %}
-                    <div class="text-xs">
-                        Variant {{ gift.gift_variant_id }} 
-                        x{{ gift.gift_qty }}{% if gift.match_quantity %} (1:1){% endif %}
-                    </div>
-                    {% empty %}
-                    <span class="text-xs text-gray-400">Chưa có quà</span>
-                    {% endfor %}
-                </td>
-                <td class="px-4 py-3 text-sm text-gray-600">
-                    {{ rule.priority }}
-                </td>
-                <td class="px-4 py-3">
-                    {% if rule.is_active %}
-                    <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">Đang hoạt động</span>
-                    {% else %}
-                    <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">Tạm dừng</span>
-                    {% endif %}
-                </td>
-                <td class="px-4 py-3">
-                    <div class="flex gap-2">
-                        <a href="{% url 'gift_edit' rule.id %}"
-                            class="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition">
-                            Sửa
+    <div class="overflow-x-auto">
+        <table class="w-full min-w-[1000px]">
+            <thead class="bg-gray-50 border-b">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tên chương trình</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Code</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Loại</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Điều kiện / Quà</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Thời gian</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                {% for promo in promotions %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-4 py-3 text-sm font-mono text-gray-600">#{{ promo.id }}</td>
+                    <td class="px-4 py-3">
+                        <div class="text-sm font-medium text-gray-800">{{ promo.name }}</div>
+                        {% if promo.description %}
+                        <div class="text-xs text-gray-500 mt-0.5 line-clamp-2">{{ promo.description|truncatewords:15 }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">{{ promo.code }}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs text-gray-600 bg-blue-50 px-2 py-1 rounded">{{ promo.type }}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-xs text-gray-600">
+                            <div class="mb-1">
+                                <span class="font-medium">{{ promo.condition_items|length }}</span> điều kiện
+                            </div>
+                            {% if promo.condition_items %}
+                                {% for item in promo.condition_items %}
+                                    {% if item.gifts %}
+                                        <div class="text-gray-500">
+                                            <span class="font-medium">{{ item.gifts|length }}</span> quà tặng
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-gray-400">Chưa có</div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-xs text-gray-600 space-y-1">
+                            <div>
+                                <span class="text-gray-500">Bắt đầu:</span>
+                                {% if promo.start_date %}
+                                <span class="font-mono">{{ promo.start_date|slice:":10" }}</span>
+                                {% else %}
+                                <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <span class="text-gray-500">Kết thúc:</span>
+                                {% if promo.end_date %}
+                                <span class="font-mono">{{ promo.end_date|slice:":10" }}</span>
+                                {% else %}
+                                <span class="text-green-600 font-medium">Không giới hạn</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if promo.status == 'active' %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">✓ Đang hoạt động</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">{{ promo.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <a href="{% url 'gift_detail' promo.id %}"
+                            class="inline-block px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-medium hover:bg-blue-600 transition">
+                            Xem chi tiết →
                         </a>
-                        <form method="post" action="{% url 'gift_delete' rule.id %}"
-                            onsubmit="return confirm('Bạn có chắc muốn xóa rule này?');">
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                        <div class="text-sm mb-2">Chưa có chương trình khuyến mãi nào.</div>
+                        <form method="post" action="{% url 'gift_sync' %}" class="mt-2">
                             {% csrf_token %}
-                            <button type="submit"
-                                class="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition">
-                                Xóa
+                            <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-medium">
+                                🔄 Sync từ Sapo
                             </button>
                         </form>
-                    </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                    <div class="text-sm">Chưa có gift rule nào.</div>
-                    <a href="{% url 'gift_create' %}" class="text-brand hover:underline text-sm mt-2 inline-block">
-                        Tạo gift rule đầu tiên →
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
-{% endblock %}
+    {% if error %}
+    <div class="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-sm text-red-700">⚠️ {{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% endblock %}
