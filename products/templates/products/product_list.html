@@ -21,6 +21,12 @@
                 <h2 class="text-sm font-semibold text-slate-700">Tìm kiếm & Lọc</h2>
                 <!-- Init Metadata Section -->
                 <div class="flex items-center gap-3">
+                    <!-- Brand Settings Link -->
+                    <a href="{% url 'products:brand_settings' %}" 
+                       class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium flex items-center gap-2">
+                        <span>⚙️</span>
+                        <span>Cài đặt nhãn hiệu</span>
+                    </a>
                     <!-- Test Mode Toggle -->
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" 
@@ -346,8 +352,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+</script>
 
-// JS: BỘ LỌC SẢN PHẨM
+<!-- JS: BỘ LỌC SẢN PHẨM -->
 <script>
     // State của bộ lọc
     let activeFilters = {
@@ -376,9 +383,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
 
         allRowsCache.forEach(row => {
-            // Chỉ bỏ qua nếu không match search
-            const rowText = (row.innerText || '').toLowerCase();
-            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            // Kiểm tra search query với innerHTML
+            const rowHTML = (row.innerHTML || '').toLowerCase();
+            const matchesSearch = !searchQuery || rowHTML.includes(searchQuery);
             
             if (!matchesSearch) return; // Bỏ qua nếu không match search
 
@@ -501,15 +508,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Apply filters to rows (tối ưu với requestAnimationFrame)
+    // Apply filters to rows (tối ưu - đơn giản và nhanh)
     let filterTimeout = null;
     function applyFilters() {
-        // Debounce để tránh filter quá nhiều lần
+        // Clear timeout nếu có
         if (filterTimeout) {
-            cancelAnimationFrame(filterTimeout);
+            clearTimeout(filterTimeout);
         }
         
-        filterTimeout = requestAnimationFrame(() => {
+        // Debounce ngắn để tránh lag khi gõ nhiều
+        filterTimeout = setTimeout(() => {
+            const startTime = performance.now();
+            
             if (!allRowsCache) {
                 allRowsCache = Array.from(document.querySelectorAll('.js-product-row'));
             }
@@ -519,21 +529,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
 
-            // Batch DOM updates để tối ưu performance
-            const fragment = document.createDocumentFragment();
             let visibleCount = 0;
             
+            // Lọc nhanh: chỉ duyệt 1 lần, kiểm tra tất cả điều kiện
             allRowsCache.forEach(row => {
                 const brandName = row.dataset.brand || '';
                 const statusName = row.dataset.status || '';
-                const rowText = (row.innerText || '').toLowerCase();
+                const rowHTML = (row.innerHTML || '').toLowerCase();
 
-                // Check filter conditions
-                let matchesBrand = !activeFilters.brand || brandName === activeFilters.brand;
-                let matchesStatus = !activeFilters.status || statusName === activeFilters.status;
-                let matchesSearch = !searchQuery || rowText.includes(searchQuery);
+                // Check filter conditions - đơn giản và nhanh
+                const matchesBrand = !activeFilters.brand || brandName === activeFilters.brand;
+                const matchesStatus = !activeFilters.status || statusName === activeFilters.status;
+                const matchesSearch = !searchQuery || rowHTML.includes(searchQuery);
 
-                // Show/hide row
+                // Show/hide row - đơn giản, browser tự tối ưu
                 if (matchesBrand && matchesStatus && matchesSearch) {
                     row.classList.remove('hidden');
                     visibleCount++;
@@ -542,9 +551,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
             
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            console.log(`[Filter] Xử lý ${allRowsCache.length} sản phẩm trong ${duration.toFixed(2)}ms - Hiển thị: ${visibleCount}`);
+            
             // Update filter button counts sau khi filter (debounced)
             updateFilterCounts();
-        });
+        }, 50); // Debounce ngắn 50ms để responsive hơn
     }
 
     // Initialize filters
@@ -573,16 +586,11 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
         
-        // Search input với debounce
+        // Search input - filter real-time theo innerHTML
         if (searchInputCache) {
-            let searchTimeout = null;
             searchInputCache.addEventListener('input', () => {
-                if (searchTimeout) {
-                    clearTimeout(searchTimeout);
-                }
-                searchTimeout = setTimeout(() => {
-                    applyFilters();
-                }, 300); // Debounce 300ms
+                // Filter ngay lập tức, không cần enter
+                applyFilters();
             });
         }
         

@@ -7,7 +7,7 @@ Provides SapoClient for accessing Sapo Core and Marketplace APIs.
 from typing import Optional
 from .client import SapoClient
 from .filters import BaseFilter
-from .repositories import SapoCoreRepository, SapoMarketplaceRepository
+from .repositories import SapoCoreRepository, SapoMarketplaceRepository, SapoPromotionRepository
 
 # Singleton instance
 _sapo_client: Optional[SapoClient] = None
@@ -31,5 +31,6 @@ __all__ = [
     "BaseFilter",
     "SapoCoreRepository",
     "SapoMarketplaceRepository",
+    "SapoPromotionRepository",
     "get_sapo_client",
 ]

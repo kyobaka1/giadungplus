@@ -90,12 +90,19 @@ def detect_carrier_type(shipping_carrier_name: str) -> str:
     """
 
     name = (shipping_carrier_name or "").lower()
+    
+    # Kiểm tra hoả tốc trước (ưu tiên cao nhất)
+    # Bao gồm: Grab, beDelivery, Ahamove, Instant, Hoả Tốc - Trong ngày, SPX Express - Trong ngày, Ahamove - Giao trong ngày
     if (
         "grab" in name
         or "bedelivery" in name
         or "be delivery" in name
         or "ahamove" in name
         or "instant" in name
+        or "hoả tốc" in name
+        or "hoa toc" in name
+        or "trong ngày" in name
+        or "giao trong ngày" in name
     ):
         return "hoatoc"
         
@@ -374,9 +381,11 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
     base_dir = Path("settings") / "logs/print-cover" / shop_name
     sc = (shipping_carrier or "").lower()
 
-    if any(x in sc for x in ["grab", "instant", "ahamove", "bedelivery"]):
+    # Kiểm tra hoả tốc trước (ưu tiên cao nhất)
+    # Bao gồm: Grab, beDelivery, Ahamove, Instant, Hoả Tốc - Trong ngày, SPX Express - Trong ngày, Ahamove - Giao trong ngày
+    if any(x in sc for x in ["grab", "instant", "ahamove", "bedelivery", "hoả tốc", "hoa toc", "trong ngày", "giao trong ngày"]):
         fname = "hoatoc.pdf"
-    elif ("spx" in sc or "shopee xpress" in sc) and "Instant" not in sc:
+    elif ("spx" in sc or "shopee xpress" in sc) and "Instant" not in sc and "trong ngày" not in sc:
         fname = "shopee-express-cover.pdf"
     elif "j&t" in sc or "j & t" in sc:
         fname = "jat-express-cover.pdf"
@@ -549,10 +558,24 @@ def generate_label_pdf_for_channel_order(
 
         job_data = resp.json()
         try:
-            job_id = job_data["data"]["list"][0]["job_id"]
-        except Exception:
+            # Kiểm tra cấu trúc response
+            if "data" not in job_data:
+                debug("create_sd_jobs response không có 'data':", job_data)
+                raise RuntimeError(f"Response không có 'data': {job_data}")
+            
+            data = job_data["data"]
+            if "list" not in data or not data["list"]:
+                debug("create_sd_jobs 'data.list' rỗng hoặc không tồn tại:", job_data)
+                raise RuntimeError(f"Response 'data.list' rỗng: {job_data}")
+            
+            job_id = data["list"][0]["job_id"]
+            if not job_id:
+                debug("create_sd_jobs job_id rỗng:", job_data)
+                raise RuntimeError(f"job_id rỗng trong response: {job_data}")
+        except (KeyError, IndexError, TypeError) as e:
             debug("create_sd_jobs raw:", job_data)
-            raise RuntimeError("Không lấy được job_id")
+            debug("create_sd_jobs error:", str(e))
+            raise RuntimeError(f"Không lấy được job_id từ response: {e}. Response: {job_data}")
 
         debug("→ job_id:", job_id)
 

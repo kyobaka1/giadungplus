@@ -1,0 +1,170 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý nhãn hiệu được sử dụng - Bật/Tắt nhãn hiệu</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-5xl mx-auto">
+        
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- THỐNG KÊ -->
+        <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-sm text-slate-600">Tổng nhãn hiệu</div>
+                <div class="text-2xl font-bold text-slate-800 mt-1">{{ brands|length }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-sm text-slate-600">Đang bật</div>
+                <div class="text-2xl font-bold text-green-600 mt-1">{{ enabled_count|default:0 }}</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-sm text-slate-600">Đang tắt</div>
+                <div class="text-2xl font-bold text-red-600 mt-1">{{ disabled_count|default:0 }}</div>
+            </div>
+        </div>
+
+        <!-- DANH SÁCH NHÃN HIỆU -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                <h2 class="text-sm font-semibold text-slate-700">Danh sách nhãn hiệu</h2>
+                <p class="text-xs text-slate-500 mt-1">Nhãn hiệu bị tắt sẽ không hiển thị trong filter và sản phẩm/phân loại</p>
+            </div>
+            
+            <div class="divide-y divide-slate-200">
+                {% if brands %}
+                    {% for brand in brands %}
+                    <div class="px-4 py-3 hover:bg-slate-50 transition flex items-center justify-between brand-item" data-brand="{{ brand.name }}">
+                        <div class="flex-1">
+                            <div class="text-sm font-medium text-slate-900">{{ brand.name }}{% if brand.id %} <span class="text-xs text-slate-400 font-normal">(ID: {{ brand.id }})</span>{% endif %}</div>
+                            <div class="text-xs text-slate-500 mt-0.5">
+                                {% if brand.is_enabled %}
+                                    <span class="text-green-600">● Đang bật</span>
+                                {% else %}
+                                    <span class="text-red-600">● Đang tắt</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" 
+                                       class="sr-only peer brand-toggle"
+                                       data-brand="{{ brand.name }}"
+                                       {% if brand.is_enabled %}checked{% endif %}>
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="px-4 py-8 text-center text-sm text-slate-500">
+                        Chưa có nhãn hiệu nào
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- LINK QUAY LẠI -->
+        <div class="mt-4">
+            <a href="{% url 'products:product_list' %}" 
+               class="inline-flex items-center text-sm text-slate-600 hover:text-slate-900">
+                ← Quay lại danh sách sản phẩm
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggles = document.querySelectorAll('.brand-toggle');
+    
+    toggles.forEach(toggle => {
+        toggle.addEventListener('change', function() {
+            const brandName = this.dataset.brand;
+            const enabled = this.checked;
+            
+            // Disable toggle trong khi xử lý
+            this.disabled = true;
+            
+            // Lấy CSRF token
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+            const csrftoken = getCookie('csrftoken');
+            
+            // Gọi API
+            fetch('{% url "products:toggle_brand" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    brand_name: brandName,
+                    enabled: enabled
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Cập nhật UI
+                    const brandItem = toggle.closest('.brand-item');
+                    const statusText = brandItem.querySelector('.text-xs');
+                    if (statusText) {
+                        if (enabled) {
+                            statusText.innerHTML = '<span class="text-green-600">● Đang bật</span>';
+                        } else {
+                            statusText.innerHTML = '<span class="text-red-600">● Đang tắt</span>';
+                        }
+                    }
+                    
+                    // Reload page sau 0.5s để cập nhật thống kê
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                } else {
+                    // Revert toggle nếu có lỗi
+                    toggle.checked = !enabled;
+                    alert('Lỗi: ' + (data.message || 'Không thể cập nhật'));
+                }
+            })
+            .catch(error => {
+                // Revert toggle nếu có lỗi
+                toggle.checked = !enabled;
+                alert('Lỗi: ' + error.message);
+            })
+            .finally(() => {
+                // Enable toggle
+                toggle.disabled = false;
+            });
+        });
+    });
+});
+</script>
+{% endblock %}
+

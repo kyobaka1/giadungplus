@@ -139,7 +139,7 @@
                                uppercase tracking-wide mb-2 collapse-toggle"
                         data-collapse-id="menu-products"
                     >
-                        <span>QUẢN LÝ SẢN PHẨM</span>
+                        <span>DATA SẢN PHẨM</span>
                         <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-products" class="space-y-1">
@@ -157,6 +157,14 @@
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                 <span class="truncate">Phân loại</span>
                                 <span class="text-[10px] text-gray-500">{{ variant_count|default:0 }}</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'products:xnk_model_list' %}"
+                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Model XNK</span>
+                                <span class="text-[10px] text-gray-500">{{ xnk_model_count|default:0 }}</span>
                             </a>
                         </li>
                     </ul>

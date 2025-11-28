@@ -1,0 +1,860 @@
+{% extends "base_kho.html" %}
+{% block title %}IN THƯ XIN LỖI - GIA DỤNG PLUS{% endblock %}
+{% block menu_thudoitra %}class="mm-active"{% endblock %}
+{% block content %}
+<head>
+  <style>
+  @font-face {
+          font-family: 'Averta Std CY Bold';
+          src: url("/static/font/AvertaStdCY-Bold.woff2") format('woff2'),
+               url("/static/font/AvertaStdCY-Bold.woff") format('woff');
+          font-weight: bold;
+          font-style: normal;
+  }
+  @font-face {
+          font-family: 'Averta Std CY Regular';
+          src: url("/static/font/AvertaStdCY-Regular.woff2") format('woff2'),
+               url("/static/font/AvertaStdCY-Regular.woff") format('woff');
+          font-weight: bold;
+          font-style: normal;
+  }
+
+        body {
+              font-family: 'Averta Std CY Regular', sans-serif;
+              font-weight: 600;
+              color: black;
+              line-height: 1.3!important;
+        }
+        p{margin-bottom: 4px;}
+      .bold{
+        font-family: 'Averta Std CY Bold', sans-serif;
+      }
+
+
+    .search-box {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+    }
+    
+    .search-box input[type="text"] {
+        flex-grow: 1;
+        padding: 5px;
+        border: none;
+    }
+    
+    .search-box input[type="submit"] {
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+    .search-box-qa {
+        display: flex;
+        align-items: center;
+        width: 300px;
+        padding: 8px;
+        border: 1px solid #ccc;
+    }
+    
+    .search-box-qa input[type="text"] {
+        flex-grow: 1;
+        padding: 5px;
+        border: none;
+    }
+    .search-box-qa input[type="submit"] {
+        padding: 5px 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+    .hBmWYo {
+    box-sizing: border-box;
+    position: relative;
+    display: inline-flex;
+    white-space: nowrap;
+    -webkit-box-pack: center;
+    justify-content: center;
+    -webkit-box-align: center;
+    align-items: center;
+    vertical-align: middle;
+    padding: 0.185714rem;
+    border-radius: 1.14286rem;
+    height: 1.3rem;
+}
+.bzQjtT {
+    padding: 0px 0.4rem;
+    width: 100%;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    font-weight: 400;
+    font-size: 0.75rem;
+    line-height: 1.14286rem;
+    margin: 0px;
+    
+}
+.div-product.hidden{display:none!important}
+.cautraloi.hidden{display:none!important}
+.mxbd1{
+    border: 1px solid rgb(159, 237, 207);
+}
+.delete-button {
+    margin-top: 3px;
+    font-size: 11px;
+    width: 80px;
+    padding: 5px 10px;
+    background-color: brown;
+    color: white;
+    display: block;
+    border: none;
+    border-radius: 4px;
+}
+.mx1{
+    color: rgb(13, 180, 115);
+}
+.mxbd2{
+    border: 1px solid rgb(255, 223, 155);
+}
+.mx2{
+    color: rgb(228, 156, 6);
+}
+.mxbd3{
+    border: 1px solid rgb(255, 184, 184);
+}
+.mx3{
+    color: rgb(238, 71, 71);
+}
+.mxbd4{
+    border: 1px solid rgb(186, 193, 255);
+}
+.mx4{
+    color: rgb(83, 100, 254);
+}
+    .div-product{margin:8px 0; border-bottom: 1px dashed #333;display: flex; height: 70px;font-size: 12px;}
+    .div-phanloai{margin:8px 0; display: flex;font-size: 13px}
+    .ct-item-flag{
+    -ms-flex-item-align: baseline;
+    align-self: baseline;
+    padding: 3px 4px;
+    margin-right: 8px;
+    display: inline-block;
+    line-height: 1;
+    font-size: 12px;
+    color: blue;
+    text-align: center;
+    border-radius: 1px;
+    background-color: #fff1f0;
+    font-weight: 500;
+    margin-bottom: 3px;
+}
+</style>
+<style>
+    .form-container {
+        max-width: 400px;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+
+    .form-container label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+
+    .form-container input,
+    .form-container textarea {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .form-container button {
+        padding: 10px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+</style>
+<style>
+    .thongtin table{width: 100%!important;margin-bottom: 10px;}
+    .thongtin table td, .thongtin table th {
+    border: 1px solid #ddd;
+    padding: 8px;
+    }.thongtin table tr:nth-child(even){background-color: #f2f2f2;}
+
+    .thongtin table tr:hover {background-color: #ddd;}
+    .thongtin p {
+        margin-top: 0;
+        margin-bottom: 0.3rem;
+    }
+    .thongtin table th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    background-color: #04AA6D;
+    color: white;
+    }.cautraloi div {margin-bottom: 3px;}
+</style>
+<style>
+    .shopee-radio-button__label, .shopee-radio-group {
+    display: inline-block;
+  }
+  .shopee-radio-button {
+    display: inline-block;
+    height: 32px;
+    padding: 0 16px;
+    font-size: 14px;
+    line-height: 32px;
+    color: #333;
+    text-align: center;
+    cursor: pointer;
+    background-color: #fff;
+    border: 1px solid #e5e5e5;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-transition: all .2s ease-in-out;
+    transition: all .2s ease-in-out;
+  }
+  .shopee-radio-button {
+    margin-right: 8px;
+    margin-bottom: 8px;
+    height: 24px;
+    line-height: 22px;
+  }
+  .shopee-radio-button.active{
+    border-color: #ee4d2d;
+    background-color: #fff;
+    color: #ee4d2d!important;
+    font-weight: bold;
+  }
+  .shopee-radio-button.active a{
+    color: #ee4d2d!important;
+  }
+  .order-list-table-body .order-list-table-row{
+    min-height: 80px;
+    max-height: 120px;
+  }.order-list-table-row{
+    position: relative;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex-grow: 1;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    flex: 1;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    -webkit-transition: background .3s ease;
+    transition: background .3s ease;
+    border-bottom: 1px solid #e9e9e9
+  }.order-list-table .table-td, .order-list-table .table-th{
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+    text-align: left;
+    word-wrap: break-word;
+  }
+  :not(input):not(textarea) {
+    -webkit-tap-highlight-color: #fff;
+  }.shopee-popover, .shopee-popover__ref {
+    display: inline-block;
+  }
+  :not(input):not(textarea) {
+    -webkit-tap-highlight-color: #fff;
+  }
+  .shopee-checkbox {
+    display: inline-block;
+    font-size: 0;
+    color: #333;
+    cursor: pointer;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  .shopee-checkbox__input {
+    display: none;
+  }
+  .order-list-table .checkbox .shopee-checkbox__indicator {
+    margin-right: 0;
+  }
+  .shopee-checkbox__indicator {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+    background-color: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 2px;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-transition: all .2s ease-in-out;
+    transition: all .2s ease-in-out;
+  }.shopee-checkbox__input:checked+.shopee-checkbox__indicator {
+    background-color: #ee4d2d;
+    border-color: #ee4d2d;
+  }.shopee-checkbox__input_2:checked+.shopee-checkbox__indicator {
+    background-color: #ee4d2d;
+    border-color: #ee4d2d;
+  }
+  .order-list-table-body .tracking-number{
+    color: #00bfa5;
+  }.order-list-table-row a {
+    color: #e84f20;
+    text-decoration: none;
+  }.shopee-checkbox__input:checked+.shopee-checkbox__indicator .shopee-icon {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+  }.shopee-checkbox__input_2:checked+.shopee-checkbox__indicator .shopee-icon {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+  }.shopee-icon svg {
+    width: 100%;
+    height: 100%;
+    color: #fff;
+  }.table-td.source img{height: 30px; }
+</style><style>
+.shopee-radio-button__label, .shopee-radio-group {
+    display: inline-block;
+  }
+  * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+  .shopee-radio-button {
+    display: inline-block;
+    height: 32px;
+    padding: 0 16px;
+    font-size: 14px;
+    line-height: 32px;
+    color: #333;
+    text-align: center;
+    cursor: pointer;
+    background-color: #fff;
+    border: 1px solid #e5e5e5;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-transition: all .2s ease-in-out;
+    transition: all .2s ease-in-out;
+  }
+  .shopee-radio-button {
+    margin-right: 8px;
+    margin-bottom: 8px;
+    height: 24px;
+    line-height: 22px;
+  }
+  .shopee-radio-button.active{
+    border-color: #ee4d2d;
+    background-color: #fff;
+    color: #ee4d2d!important;
+    font-weight: bold;
+  }
+  .shopee-radio-button.active a{
+    color: #ee4d2d!important;
+  }
+  .order-list-table-body .order-list-table-row{
+    min-height: 80px;
+    max-height: 120px;
+  }.order-list-table-row{
+    position: relative;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex-grow: 1;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    flex: 1;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    -webkit-transition: background .3s ease;
+    transition: background .3s ease;
+    border-bottom: 1px solid #e9e9e9
+  }.order-list-table .table-td, .order-list-table .table-th{
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+    text-align: left;
+    word-wrap: break-word;
+  }
+  :not(input):not(textarea) {
+    -webkit-tap-highlight-color: transparent;
+  }.shopee-popover, .shopee-popover__ref {
+    display: inline-block;
+  }
+  :not(input):not(textarea) {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .shopee-checkbox {
+    display: inline-block;
+    font-size: 0;
+    color: #333;
+    cursor: pointer;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  .shopee-checkbox__input {
+    display: none;
+  }
+  .order-list-table .checkbox .shopee-checkbox__indicator {
+    margin-right: 0;
+  }
+  .shopee-checkbox__indicator {
+    position: relative;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+    background-color: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 2px;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+    -webkit-transition: all .2s ease-in-out;
+    transition: all .2s ease-in-out;
+  }.shopee-checkbox__input:checked+.shopee-checkbox__indicator {
+    background-color: #ee4d2d;
+    border-color: #ee4d2d;
+  }.shopee-checkbox__input_2:checked+.shopee-checkbox__indicator {
+    background-color: #ee4d2d;
+    border-color: #ee4d2d;
+  }
+  .order-list-table-body .tracking-number{
+    color: #00bfa5;
+  }.order-list-table-row a {
+    color: #e84f20;
+    text-decoration: none;
+  }.shopee-checkbox__input:checked+.shopee-checkbox__indicator .shopee-icon {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+  }.shopee-checkbox__input_2:checked+.shopee-checkbox__indicator .shopee-icon {
+    -webkit-transform: scale(1);
+    transform: scale(1);
+  }.shopee-icon svg {
+    width: 100%;
+    height: 100%;
+    color: #fff;
+  }.table-td.source img{height: 30px; }
+  /* Kiểu dáng cho các lựa chọn A, B, C */
+#luachon {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+
+}
+.option input {
+  margin-right: 5px;
+
+}
+/* Kiểu dáng cho nút radio khi được chọn */
+.option .option-label {
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #f2f2f2;
+}
+.option {
+  display: block;
+  width: 100%;
+}
+/* Kiểu dáng cho nút radio khi được chọn */
+.option input:checked + .option-label {
+  background-color: orange;
+  color: white;
+}
+
+</style>
+</head>
+
+<div class="row" style="margin-left: 20px;">
+    <div class="col-lg-3">
+        <div class="main-card mb-3 card">
+            <div class="card-body">
+              <form method="get" action="kho_thudoitra" style="width: 100%;">
+
+                <div class="position-relative form-group">
+                  <label for="exampleEmail" class=""><span class="text-danger">*</span> Tên khách hàng: </label>
+                  
+                  <span style="color: red">Xem trên đơn hàng! Anh Vương hoặc Chị Trang...</span>
+               
+                  <input name="username" id="exampleEmail" type="text" class="form-control" value="{{save.username}}">
+                </div>
+
+                <div class="form-group">
+                  <label for="shop">Shop: </label>
+                  <div id="shop">
+                    <label class="option">
+                      <input type="radio" id="optionA" name="shop_name" value="Gia Dụng Plus Official"
+                      {%if save.shop_name == 'Gia Dụng Plus Official'%}checked{%endif%}
+                      >
+                      <span class="option-label">Gia Dụng Plus Official</span>
+                    </label>
+                    <label class="option">
+                      <input type="radio" id="optionB" name="shop_name" value="Phaledo Official"
+                      {%if save.shop_name == 'Phaledo Official'%}checked{%endif%}
+                      >
+                      <span class="option-label">Phaledo Official</span>
+                    </label>
+                    <label class="option">
+                      <input type="radio" id="optionC" name="shop_name" value="LTENG Official"
+                      {%if save.shop_name == 'LTENG Official'%}checked{%endif%}
+                      >
+                      <span class="option-label">LTENG Official</span>
+                    </label>
+
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="">* Sản phẩm bị thiếu: </label>
+                  <div class="orderselect">
+                    <input name="sanphamthieu" id="exampleEmail" type="text" class="form-control" value="{{save.sanphamthieu}}">
+                  </div>
+                </div>
+                
+                <div class="form-group" id="form-doitra">
+                  <label for="">* Cách xử lý cho khách hàng:</label><span style="color: blue">Click vào phương án và điền!</span><hr>
+
+                  <span style="color: red">GỬI THIẾU và HOÀN TIỀN</span></br>
+                  <span style="color: red">GỬI THIẾU và GỬI BÙ</span></br>
+                  <span style="color: red">ĐỔI SANG: </span></br>
+                  <hr>
+                  <div class="orderselect">
+                    <input name="phuonganxuly" id="exmaple_paxu" type="text" class="form-control" value="{{save.phuonganxuly}}">
+                  </div>
+                </div>
+
+                <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const order_sn_radios = document.querySelectorAll('.orderselect input[name="order_sn"]');
+
+    order_sn_radios.forEach(order_sn_radio => {
+      order_sn_radio.addEventListener('click', function() {
+        const comment_id_radio = this.parentElement.querySelector('input[name="comment_id"]');
+        if (comment_id_radio) {
+          comment_id_radio.checked = true;
+        }
+      });
+    });
+  });
+</script>
+  <script>
+    // Lấy tất cả các span
+    const spans = document.querySelectorAll('#form-doitra span');
+
+    // Lấy input để gán giá trị
+    const inputField = document.getElementById('exmaple_paxu');
+
+    // Thêm sự kiện click vào từng span
+    spans.forEach(span => {
+      span.addEventListener('click', () => {
+        // Gán nội dung của span vào input
+        inputField.value = span.textContent.trim();
+      });
+    });
+  </script>
+
+              <button type="submit">XEM THƯ XIN LỖI</button>
+              </form>
+              
+              
+        </div>
+        
+      </div>
+      
+    </div>
+    <div class="col-lg-5">
+      <div class="main-card mb-3 card">
+        <div class="card-body">
+            <div style="display: flex;flex-wrap: wrap;">
+              <div id="printableArea" style="position: relative;">
+                <style type="text/css">
+                   #printableArea{width: 105mm; height: 148mm; border: 1px solid #000; padding: 10px; position: relative; overflow: hidden;}
+                   p{margin: 0; margin-bottom: 8px}
+                </style>
+                {%if save.shop_name == "Phaledo Official"%}
+                <div style=" width: 100%;display: flex; height: 60px;">
+                  <img src="/static/logo-phaledo.jpg" style="height: 60px;margin-bottom: 2px" /> 
+                  <div style="font-size: 16px; width: 70%; text-align: right; height: 60px; font-family: inherit; display: flex">
+                      <div style="margin: auto 0 0 auto" class="bold">
+                          PHALEDO OFFICIAL <br>
+                          www.phaledo.vn
+                      </div>
+                  </div>
+                </div>
+                {%else%}
+                <div style=" width: 100%;display: flex; height: 60px;">
+                  <img src="/static/giaodiensang.png" style="height: 60px;margin-bottom: 2px" /> 
+                  <div style="font-size: 16px; width: 70%; text-align: right; height: 60px; font-family: inherit; display: flex">
+                      <div style="margin: auto 0 0 auto" class="bold">
+                          GIA DỤNG PLUS + <br>
+                          www.giadungplus.com
+                      </div>
+                  </div>
+                </div>
+
+                {%endif%}
+
+                <div style="width: 100%;padding-top:4px;  margin-top: 8px ">
+                  <p class="bold" style="font-size:32px;line-height: 42px; margin-bottom: 2px; text-align: center;"><b>THƯ XIN LỖI</b></p>
+                </div>
+                <div style="width: 100%; padding:8px">
+                  <p style="font-size: 18px; text-align: left;font-weight: bold">Kính gửi: {{save.username}}</p>
+                  <p style="font-size: 18px; text-align: left;">Xin lỗi đã làm phiền mình, nhưng do shop đã hết hàng sản phẩm:</p>
+                  <p class="bold" style="font-size: 20px; text-align: left;">- {{save.sanphamthieu}}</p>
+
+                  <p style="font-size: 18px; text-align: left;">Shop đã cố liên hệ mình qua Shopee nhưng không được. Nên tụi em đã chủ động xử lý tạm thời:</p>
+                  <p class="bold" style="font-size: 20px; text-align: left;">- {{save.phuonganxuly}}</p>
+               
+                  <p style="font-size: 17px; text-align: left;">Khi mình nhận được hàng, liên hệ để tụi em xử lý cho mình ngay nha.Một lần nữa, {%if save.shop_name == "Phaledo Official"%}PHALEDO{%else%}GIA DỤNG PLUS{%endif%} ngàn lần xin lỗi {{save.username}} và mong được mình tha thứ ạ!</p>
+                 <div>
+
+                 <div style="width: 100%; height: 42px; background: #000; position: absolute;bottom: 0;left: 0; padding-top: 4px"><p style="font-size: 24px; text-align: center;font-weight: bold; color: white" class="bold">ZALO: 084.295.1305</p></div>
+              </div>
+              </div>
+            </div>
+            <hr>
+            <button onclick="printDiv('printableArea')">BẤM VÀO ĐÂY ĐỂ IN!</button>
+            <script>
+               function printDiv(divId) {
+                const url = new URL(window.location.href);
+                url.searchParams.set('print', '1');
+                window.open(url.href, '_blank');
+               }
+
+
+              </script>
+        </div>
+        </div>
+    </div>
+ 
+</div>
+<style>
+.mobile-select {
+    display: none;
+    background: #fff;
+    position: fixed;
+    bottom: 2px;
+    left: 0;
+    right: 0; 
+}  
+.mobile-select form{width: 24rem;}
+.mobile-select button{height: 40px;width: 100%;}
+@media only screen and (max-width: 1250px){
+    .mobile-select {
+            display: block;
+    }
+}
+    .mass-ship-selected .header{
+    padding: 24px 16px;
+    font-size: 18px;
+    font-weight: 500;
+}.mass-ship-selected .main{
+    padding: 24px 16px;
+}.batch-arrange-pickup .body .button{
+    width: 100%;
+}
+.shopee-button--primary.shopee-button--outline {
+    color: #ee4d2d;
+    background-color: transparent;
+    border-color: #ee4d2d;
+}.shopee-button .shopee-icon {
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+}.shopee-icon {
+    display: inline-block;
+    line-height: 0;
+    fill: #fff;
+}.batch-auto-consignment .body .button {
+    width: 100%;
+}.mass-ship-selected .subtitle{
+    padding: 0 16px;
+    color: #686868;
+}
+</style>
+</div>
+{% endblock %}
+{% block privatejs %}
+    <script type="text/javascript">
+        // Get all div-product elements
+        const divProductss = document.querySelectorAll('.div-product');
+        const phanloaiElementss = document.querySelectorAll('.all-thongtin .thongtin');
+        divProductss.forEach((divProduct) => {
+        divProduct.addEventListener('click', function() {
+            const dataId = this.getAttribute('data-id');
+            console.log(dataId);
+            phanloaiElementss.forEach((phanloaiElement) => {
+            phanloaiElement.style.display = 'none';
+            });
+            
+            // Display the corresponding phanloai element
+            const selectedPhanloai = document.querySelector('.all-thongtin .thongtin.pl' + dataId);
+            if (selectedPhanloai) {
+            selectedPhanloai.style.display = 'block';
+            }
+        });
+        });
+
+        var addQuestionBtns = document.getElementsByClassName("addQuestionBtn");
+        for (var i = 0; i < addQuestionBtns.length; i++) {
+            addQuestionBtns[i].addEventListener("click", function() {
+                var formContainer = this.nextElementSibling;
+                formContainer.classList.toggle("show-form");
+
+                if (formContainer.style.display === "none") {
+                    formContainer.style.display = "block";
+                } else {
+                    formContainer.style.display = "none";
+                }
+            });
+        }
+
+    </script>
+
+    <script>
+        $(document).ready(function() {
+            $('.copy-text').click(function() {
+                var textToCopy = $(this).text();
+                copyToClipboard(textToCopy);
+            });
+
+            function copyToClipboard(text) {
+                var $tempInput = $('<input>');
+                $('body').append($tempInput);
+                $tempInput.val(text).select();
+                document.execCommand('copy');
+                $tempInput.remove();
+            }
+            });
+
+    </script>        
+
+    <script type="text/javascript">
+        // Get all div-product elements
+        const divProductsss = document.querySelectorAll('.div-product');
+        const phanloaiElementsss = document.querySelectorAll('.all-cauhoi .cauhoi');
+        divProductsss.forEach((divProduct) => {
+        divProduct.addEventListener('click', function() {
+            const dataId = this.getAttribute('data-id');
+            console.log(dataId);
+            phanloaiElementsss.forEach((phanloaiElement) => {
+            phanloaiElement.style.display = 'none';
+            });
+            
+            // Display the corresponding phanloai element
+            const selectedPhanloai = document.querySelector('.all-cauhoi .cauhoi.pl' + dataId);
+            if (selectedPhanloai) {
+            selectedPhanloai.style.display = 'block';
+            }
+        });
+        });
+
+    </script>
+
+    {%if pickup.print_status > 0 %}
+      <script type="text/javascript">
+        var myWindow = window.open("https://sisapsan.mysapogo.com/admin/orders/PrintPackingInstructions?locationId=241737&orderId={{pickup.list_order_id}}",'_blank',"width=400,height=800");
+      </script>
+    {% endif %}
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script type="text/javascript" src="//cdn.datatables.net/1.11.1/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript">
+        $(document).ready( function () {
+            new DataTable( '#example', {
+                paging: false,
+                scrollY:750,
+            });
+        } );
+    </script>
+{% endblock %} 
+{% block privatecss %}
+<style type="text/css">
+    .dataTables_length{width: 50%;display: inline-block;}
+    .dataTables_filter{width: 50%;display: inline-block;}
+    div.dataTables_wrapper div.dataTables_filter input{
+        font-size: 1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        background-color: #fff;
+        background-clip: padding-box;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        transition: border-color 0.15s ease-in-out,box-shadow 0.15s ease-in-out;    
+    }
+    .btn-edit-new{border:none;background-color: #fff;margin:0;padding: 0;color: red;}
+    div.dataTables_wrapper div.dataTables_length select{
+        display: inline-block;
+        padding: .375rem 1.75rem .375rem .75rem;
+        font-weight: 400;
+        line-height: 1.5;
+        color: #495057;
+        vertical-align: middle;
+        background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3e%3cpath fill='%23343a40' d='M2 0L0 2h4zm0 5L0 3h4z'/%3e%3c/svg%3e") no-repeat right .75rem center/8px 10px;
+        background-color: #fff;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        appearance: none;  
+    }
+    div.dataTables_wrapper div.dataTables_paginate{
+        margin: 2px 0;
+        white-space: nowrap;
+        justify-content: flex-end;
+        display: flex;
+        padding-left: 0;
+        list-style: none;
+        border-radius: .35rem;
+    }
+    div.dataTables_wrapper .paginate_button{
+        color: #6c757d;
+        cursor: auto;
+        background-color: #fff;
+        border-color: #dee2e6;
+        border: 1px solid;
+        padding: 5px 15px;
+        margin-left: 0;
+    }
+    div.dataTables_wrapper .paginate_button.current {
+        z-index: 1;
+        color: #fff;
+        background-color: #da624a;
+        border-color: #da624a;
+        padding: 5px 15px;
+    }
+</style>
+{% endblock %} 

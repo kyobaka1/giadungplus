@@ -1,0 +1,1102 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý và xem thông tin các model xuất nhập khẩu</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-[95%] mx-auto">
+
+        <!-- BỘ LỌC VÀ TÌM KIẾM -->
+        <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-semibold text-slate-700">Tìm kiếm</h2>
+                <!-- Button Thêm mới -->
+                <button type="button"
+                        id="btn-add-xnk"
+                        class="px-3 py-1.5 bg-brand text-white rounded-md hover:bg-red-700 transition text-xs font-medium flex items-center gap-1.5">
+                    <span>➕</span>
+                    <span>Thêm Model XNK</span>
+                </button>
+            </div>
+            
+            <!-- Tìm kiếm -->
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" 
+                           id="xnk-search-input"
+                           name="search" 
+                           value=""
+                           placeholder="Tìm kiếm theo SKU hoặc tên tiếng anh..." 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+                </div>
+
+                <!-- Reset -->
+                <button type="button" 
+                        id="reset-search-btn"
+                        class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-xs font-medium">
+                    Đặt lại
+                </button>
+            </div>
+        </div>
+
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg">
+            <p class="text-xs font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- BẢNG DANH SÁCH MODEL XNK -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-xs table-fixed">
+                    <colgroup>
+                        <col style="width: 7%;">
+                        <col style="width: 7%;">
+                        <col style="width: 10%;">
+                        <col style="width: 15%;">
+                        <col style="width: 5%;">
+                        <col style="width: 4%;">
+                        <col style="width: 10%;">
+                        <col style="width: 12%;">
+                        <col style="width: 4%;">
+                        <col style="width: 4%;">
+                        <col style="width: 7%;">
+                        <col style="width: 5%;">
+                        <col style="width: 6%;">
+                    </colgroup>
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">HS Code</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">English Name</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Vietnam Name</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">USD Price</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Unit</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">NSX</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">NSX Address</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tax VAT</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tax NK</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">China Name</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Material</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200" id="xnk-models-tbody">
+                        {% if models %}
+                            {% for model in models %}
+                            <tr class="js-xnk-row hover:bg-slate-50 transition"
+                                data-sku="{{ model.sku|default:'' }}"
+                                data-name-en="{% if model.en_name %}{{ model.en_name|lower }}{% elif model.name_en %}{{ model.name_en|lower }}{% endif %}">
+                                <!-- SKU -->
+                                <td class="px-2 py-2">
+                                    <div class="font-mono text-[11px] text-slate-800 font-medium">{{ model.sku|default:"-" }}</div>
+                                </td>
+                                
+                                <!-- HS Code -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="hs_code">
+                                    <div class="xnk-display">
+                                        {{ model.hs_code|default:"-" }}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-full px-1 py-0.5 text-[10px] border border-slate-300 rounded font-mono" 
+                                               data-field="hs_code" 
+                                               value="{{ model.hs_code|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- English Name -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="en_name">
+                                    <div class="xnk-display">
+                                        {% if model.en_name %}<div class="whitespace-normal break-words">{{ model.en_name }}</div>{% elif model.name_en %}<div class="whitespace-normal break-words">{{ model.name_en }}</div>{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-full px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="en_name" 
+                                               value="{% if model.en_name %}{{ model.en_name }}{% elif model.name_en %}{{ model.name_en }}{% endif %}">
+                                    </div>
+                                </td>
+                                
+                                <!-- Vietnam Name -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="vn_name">
+                                    <div class="xnk-display max-w-xs">
+                                        {% if model.vn_name %}<div class="whitespace-normal break-words">{{ model.vn_name }}</div>{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <textarea 
+                                               class="xnk-input w-full px-1 py-0.5 text-[10px] border border-slate-300 rounded resize-none" 
+                                               data-field="vn_name" 
+                                               rows="2">{{ model.vn_name|default:'' }}</textarea>
+                                    </div>
+                                </td>
+                                
+                                <!-- USD Price -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="usd_price">
+                                    <div class="xnk-display">
+                                        {% if model.usd_price %}${{ model.usd_price|floatformat:2 }}{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="number" 
+                                               step="0.01"
+                                               class="xnk-input w-20 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="usd_price" 
+                                               value="{{ model.usd_price|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- Unit -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="unit">
+                                    <div class="xnk-display">
+                                        {{ model.unit|default:"-" }}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-16 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="unit" 
+                                               value="{{ model.unit|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- NSX -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="nsx_name">
+                                    <div class="xnk-display max-w-xs">
+                                        {% if model.nsx_name %}<div class="whitespace-normal break-words">{{ model.nsx_name }}</div>{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-40 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="nsx_name" 
+                                               value="{{ model.nsx_name|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- NSX Address -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="nsx_address">
+                                    <div class="xnk-display max-w-xs">
+                                        {% if model.nsx_address %}<div class="whitespace-normal break-words">{{ model.nsx_address }}</div>{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <textarea 
+                                               class="xnk-input w-full px-1 py-0.5 text-[10px] border border-slate-300 rounded resize-none" 
+                                               data-field="nsx_address" 
+                                               rows="2">{{ model.nsx_address|default:'' }}</textarea>
+                                    </div>
+                                </td>
+                                
+                                <!-- Tax VAT -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="tax_vat">
+                                    <div class="xnk-display">
+                                        {% if model.tax_vat %}{% widthratio model.tax_vat 1 100 %}%{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="number" 
+                                               step="0.01"
+                                               class="xnk-input w-16 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="tax_vat" 
+                                               value="{{ model.tax_vat|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- Tax NK -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="tax_nk">
+                                    <div class="xnk-display">
+                                        {% if model.tax_nk %}{% widthratio model.tax_nk 1 100 %}%{% else %}-{% endif %}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="number" 
+                                               step="0.01"
+                                               class="xnk-input w-16 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="tax_nk" 
+                                               value="{{ model.tax_nk|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- China Name -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="china_name">
+                                    <div class="xnk-display">
+                                        {{ model.china_name|default:"-" }}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-32 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="china_name" 
+                                               value="{{ model.china_name|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- Material -->
+                                <td class="px-2 py-2 text-[10px] text-slate-700 xnk-edit-cell" data-field="material">
+                                    <div class="xnk-display">
+                                        {{ model.material|default:"-" }}
+                                    </div>
+                                    <div class="xnk-edit hidden">
+                                        <input type="text" 
+                                               class="xnk-input w-24 px-1 py-0.5 text-[10px] border border-slate-300 rounded" 
+                                               data-field="material" 
+                                               value="{{ model.material|default:'' }}">
+                                    </div>
+                                </td>
+                                
+                                <!-- Thao tác -->
+                                <td class="px-2 py-2">
+                                    <div class="flex items-center gap-1">
+                                        <button type="button"
+                                                class="xnk-copy-btn text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition"
+                                                data-sku="{{ model.sku }}">
+                                            Sao chép
+                                        </button>
+                                        <button type="button"
+                                                class="xnk-edit-btn text-[9px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition"
+                                                data-sku="{{ model.sku }}">
+                                            <span class="edit-text">Sửa</span>
+                                            <span class="save-text hidden">Lưu</span>
+                                        </button>
+                                        <button type="button"
+                                                class="xnk-cancel-btn hidden text-[9px] px-1.5 py-0.5 bg-red-50 text-red-700 rounded hover:bg-red-100 transition"
+                                                data-sku="{{ model.sku }}">
+                                            Hủy
+                                        </button>
+                                        <button type="button"
+                                                class="xnk-delete-btn text-[9px] px-1.5 py-0.5 bg-red-50 text-red-700 rounded hover:bg-red-100 transition"
+                                                data-sku="{{ model.sku }}">
+                                            Xóa
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="12" class="px-4 py-8 text-center text-xs text-slate-500">
+                                    Chưa có model XNK nào
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- SUMMARY -->
+            {% if models %}
+            <div class="px-3 py-2 bg-slate-50 border-t border-slate-200">
+                <div class="text-xs text-slate-600">
+                    <strong>Tổng số model:</strong> {{ total|default:models|length }} model
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL: THÊM MODEL XNK MỚI -->
+<div id="modal-add-xnk" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-800">Thêm Model Xuất Nhập Khẩu Mới</h3>
+            <button type="button" id="btn-close-modal" class="text-slate-400 hover:text-slate-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Form -->
+        <form id="form-add-xnk" class="p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <!-- SKU (bắt buộc) -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">SKU <span class="text-red-500">*</span></label>
+                    <input type="text" 
+                           id="new-sku"
+                           name="sku" 
+                           required
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand font-mono">
+                </div>
+                
+                <!-- HS Code -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">HS Code</label>
+                    <input type="text" 
+                           id="new-hs_code"
+                           name="hs_code" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand font-mono">
+                </div>
+                
+                <!-- English Name -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">English Name</label>
+                    <input type="text" 
+                           id="new-en_name"
+                           name="en_name" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- Vietnam Name -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">Vietnam Name</label>
+                    <textarea 
+                           id="new-vn_name"
+                           name="vn_name" 
+                           rows="2"
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
+                </div>
+                
+                <!-- USD Price -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">USD Price</label>
+                    <input type="number" 
+                           step="0.01"
+                           id="new-usd_price"
+                           name="usd_price" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- Unit -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">Unit</label>
+                    <input type="text" 
+                           id="new-unit"
+                           name="unit" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- NSX Name -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">NSX Name</label>
+                    <input type="text" 
+                           id="new-nsx_name"
+                           name="nsx_name" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- NSX Address -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">NSX Address</label>
+                    <textarea 
+                           id="new-nsx_address"
+                           name="nsx_address" 
+                           rows="2"
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand resize-none"></textarea>
+                </div>
+                
+                <!-- Tax VAT -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">Tax VAT (0.1 = 10%)</label>
+                    <input type="number" 
+                           step="0.01"
+                           id="new-tax_vat"
+                           name="tax_vat" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- Tax NK -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">Tax NK (0.05 = 5%)</label>
+                    <input type="number" 
+                           step="0.01"
+                           id="new-tax_nk"
+                           name="tax_nk" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- China Name -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">China Name</label>
+                    <input type="text" 
+                           id="new-china_name"
+                           name="china_name" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- Material -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-700 mb-1">Material</label>
+                    <input type="text" 
+                           id="new-material"
+                           name="material" 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+            </div>
+            
+            <!-- Buttons -->
+            <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                <button type="button" 
+                        id="btn-cancel-add"
+                        class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-xs font-medium">
+                    Hủy
+                </button>
+                <button type="submit" 
+                        class="px-3 py-1.5 bg-brand text-white rounded-md hover:bg-red-700 transition text-xs font-medium">
+                    Tạo mới
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- JS: TÌM KIẾM VÀ QUẢN LÝ MODEL XNK -->
+<script>
+    // State
+    let editingSku = null;
+    let allRowsCache = null;
+    let searchInputCache = null;
+
+    // Get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // Search handler
+    function applySearch() {
+        if (!allRowsCache) {
+            allRowsCache = Array.from(document.querySelectorAll('.js-xnk-row'));
+        }
+        
+        if (!searchInputCache) {
+            searchInputCache = document.getElementById('xnk-search-input');
+        }
+        
+        const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+        
+        allRowsCache.forEach(row => {
+            const sku = (row.dataset.sku || '').toLowerCase();
+            const nameEn = (row.dataset.nameEn || '').toLowerCase();
+            const rowHTML = (row.textContent || '').toLowerCase();
+            
+            const matchesSearch = !searchQuery || 
+                                  sku.includes(searchQuery) || 
+                                  nameEn.includes(searchQuery) ||
+                                  rowHTML.includes(searchQuery);
+            
+            if (matchesSearch) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+    }
+
+    // Edit mode handlers
+    function startEdit(sku, row) {
+        if (!row) return;
+        
+        editingSku = sku;
+        
+        // Toggle display/edit mode
+        row.querySelectorAll('.xnk-edit-cell').forEach(cell => {
+            const displayDiv = cell.querySelector('.xnk-display');
+            const editDiv = cell.querySelector('.xnk-edit');
+            if (displayDiv && editDiv) {
+                displayDiv.classList.add('hidden');
+                editDiv.classList.remove('hidden');
+            }
+        });
+        
+        // Toggle button states
+        const editBtn = row.querySelector('.xnk-edit-btn');
+        const cancelBtn = row.querySelector('.xnk-cancel-btn');
+        if (editBtn) {
+            const editText = editBtn.querySelector('.edit-text');
+            const saveText = editBtn.querySelector('.save-text');
+            if (editText) editText.classList.add('hidden');
+            if (saveText) saveText.classList.remove('hidden');
+            editBtn.classList.remove('bg-green-50', 'text-green-700');
+            editBtn.classList.add('bg-blue-50', 'text-blue-700');
+        }
+        if (cancelBtn) {
+            cancelBtn.classList.remove('hidden');
+        }
+    }
+
+    function cancelEdit(sku) {
+        const row = document.querySelector(`tr[data-sku="${sku}"]`);
+        
+        if (!row) {
+            editingSku = null;
+            return;
+        }
+        
+        // Toggle display/edit mode
+        row.querySelectorAll('.xnk-edit-cell').forEach(cell => {
+            const displayDiv = cell.querySelector('.xnk-display');
+            const editDiv = cell.querySelector('.xnk-edit');
+            if (displayDiv && editDiv) {
+                displayDiv.classList.remove('hidden');
+                editDiv.classList.add('hidden');
+            }
+        });
+        
+        // Toggle button states
+        const editBtn = row.querySelector('.xnk-edit-btn');
+        const cancelBtn = row.querySelector('.xnk-cancel-btn');
+        if (editBtn) {
+            const editText = editBtn.querySelector('.edit-text');
+            const saveText = editBtn.querySelector('.save-text');
+            if (editText) editText.classList.remove('hidden');
+            if (saveText) saveText.classList.add('hidden');
+            editBtn.classList.add('bg-green-50', 'text-green-700');
+            editBtn.classList.remove('bg-blue-50', 'text-blue-700');
+        }
+        if (cancelBtn) {
+            cancelBtn.classList.add('hidden');
+        }
+        
+        editingSku = null;
+    }
+
+        function saveXnkModel(sku, row) {
+        // Collect data from inputs
+        const data = { sku: sku };
+        const inputValues = {};
+        
+        row.querySelectorAll('.xnk-input').forEach(input => {
+            const field = input.dataset.field;
+            let value = input.value.trim();
+            
+            // Convert numeric fields
+            if (field === 'usd_price' || field === 'tax_vat' || field === 'tax_nk') {
+                if (value !== '') {
+                    value = parseFloat(value);
+                    if (isNaN(value)) value = '';
+                }
+            }
+            
+            inputValues[field] = value;
+            if (value !== '') {
+                data[field] = value;
+            }
+        });
+        
+        // Show loading state
+        const editBtn = row ? row.querySelector('.xnk-edit-btn') : null;
+        if (!editBtn) {
+            console.error('Cannot find edit button for model', sku);
+            return;
+        }
+        const originalText = editBtn.innerHTML;
+        editBtn.innerHTML = '<span>⏳ Đang lưu...</span>';
+        editBtn.disabled = true;
+        
+        // Send request
+        fetch('{% url "products:api_xnk_edit" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Update display values
+                if (row) {
+                    row.querySelectorAll('.xnk-edit-cell').forEach(cell => {
+                        const field = cell.dataset.field;
+                        const displayDiv = cell.querySelector('.xnk-display');
+                        if (displayDiv && inputValues[field] !== undefined) {
+                            const value = inputValues[field];
+                            if (value === '') {
+                                displayDiv.innerHTML = '-';
+                            } else if (field === 'usd_price') {
+                                displayDiv.innerHTML = '$' + parseFloat(value).toFixed(2);
+                            } else if (field === 'tax_vat' || field === 'tax_nk') {
+                                displayDiv.innerHTML = (parseFloat(value) * 100).toFixed(0) + '%';
+                            } else if (field === 'vn_name' || field === 'nsx_name' || field === 'nsx_address' || field === 'en_name') {
+                                // Hiển thị đầy đủ với wrap text
+                                displayDiv.innerHTML = '<div class="whitespace-normal break-words">' + value + '</div>';
+                            } else {
+                                displayDiv.innerHTML = value;
+                            }
+                        }
+                    });
+                    
+                    // Exit edit mode
+                    cancelEdit(sku);
+                }
+                
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                successMsg.textContent = '✓ Đã lưu thành công';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                    if (successMsg.parentNode) {
+                        successMsg.remove();
+                    }
+                }, 2000);
+            } else {
+                // Show error message
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                errorMsg.textContent = '✗ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu');
+                document.body.appendChild(errorMsg);
+                setTimeout(() => {
+                    if (errorMsg.parentNode) {
+                        errorMsg.remove();
+                    }
+                }, 3000);
+                
+                // Restore button state
+                if (editBtn) {
+                    editBtn.innerHTML = originalText;
+                    editBtn.disabled = false;
+                }
+            }
+        })
+        .catch(error => {
+            // Show error message
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+            errorMsg.textContent = '✗ Lỗi: ' + error.message;
+            document.body.appendChild(errorMsg);
+            setTimeout(() => {
+                if (errorMsg.parentNode) {
+                    errorMsg.remove();
+                }
+            }, 3000);
+            
+            // Restore button state
+            if (editBtn) {
+                editBtn.innerHTML = originalText;
+                editBtn.disabled = false;
+            }
+        });
+    }
+
+    function deleteXnkModel(sku) {
+        if (!confirm(`Bạn có chắc chắn muốn xóa model XNK với SKU "${sku}"?`)) {
+            return;
+        }
+        
+        const row = document.querySelector(`tr[data-sku="${sku}"]`);
+        if (!row) return;
+        
+        // Show loading state
+        const deleteBtn = row.querySelector('.xnk-delete-btn');
+        if (deleteBtn) {
+            const originalText = deleteBtn.innerHTML;
+            deleteBtn.innerHTML = '<span>⏳ Đang xóa...</span>';
+            deleteBtn.disabled = true;
+        }
+        
+        // Send request
+        fetch('{% url "products:api_xnk_delete" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ sku: sku })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Remove row from table
+                if (row) {
+                    row.remove();
+                    // Update cache
+                    if (allRowsCache) {
+                        allRowsCache = allRowsCache.filter(r => r !== row);
+                    }
+                }
+                
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                successMsg.textContent = '✓ Đã xóa thành công';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                    if (successMsg.parentNode) {
+                        successMsg.remove();
+                    }
+                }, 2000);
+            } else {
+                // Show error message
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                errorMsg.textContent = '✗ Lỗi: ' + (result.message || 'Không thể xóa');
+                document.body.appendChild(errorMsg);
+                setTimeout(() => {
+                    if (errorMsg.parentNode) {
+                        errorMsg.remove();
+                    }
+                }, 3000);
+                
+                // Restore button state
+                if (deleteBtn) {
+                    deleteBtn.innerHTML = originalText;
+                    deleteBtn.disabled = false;
+                }
+            }
+        })
+        .catch(error => {
+            // Show error message
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+            errorMsg.textContent = '✗ Lỗi: ' + error.message;
+            document.body.appendChild(errorMsg);
+            setTimeout(() => {
+                if (errorMsg.parentNode) {
+                    errorMsg.remove();
+                }
+            }, 3000);
+            
+            // Restore button state
+            if (deleteBtn) {
+                deleteBtn.innerHTML = originalText;
+                deleteBtn.disabled = false;
+            }
+        });
+    }
+
+    // Modal handlers
+    function openAddModal(resetForm = true) {
+        const modal = document.getElementById('modal-add-xnk');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Reset form only if requested
+            if (resetForm) {
+                document.getElementById('form-add-xnk').reset();
+            }
+        }
+    }
+
+    function closeAddModal() {
+        const modal = document.getElementById('modal-add-xnk');
+        if (modal) {
+            modal.classList.add('hidden');
+            // Reset form
+            document.getElementById('form-add-xnk').reset();
+        }
+    }
+
+    function handleCreateXnkModel(event) {
+        event.preventDefault();
+        
+        const form = event.target;
+        const formData = new FormData(form);
+        const data = {};
+        
+        // Collect form data
+        for (const [key, value] of formData.entries()) {
+            const trimmedValue = value.trim();
+            if (trimmedValue !== '') {
+                // Convert numeric fields
+                if (key === 'usd_price' || key === 'tax_vat' || key === 'tax_nk') {
+                    const numValue = parseFloat(trimmedValue);
+                    if (!isNaN(numValue)) {
+                        data[key] = numValue;
+                    }
+                } else {
+                    data[key] = trimmedValue;
+                }
+            }
+        }
+        
+        // Validate SKU
+        if (!data.sku) {
+            alert('Vui lòng nhập SKU');
+            return;
+        }
+        
+        // Show loading state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span>⏳ Đang tạo...</span>';
+        submitBtn.disabled = true;
+        
+        // Send request
+        fetch('{% url "products:api_xnk_create" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                // Close modal
+                closeAddModal();
+                
+                // Show success message
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                successMsg.textContent = '✓ Đã tạo mới thành công';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                    if (successMsg.parentNode) {
+                        successMsg.remove();
+                    }
+                }, 2000);
+                
+                // Reload page after 1 second to show new model
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                // Show error message
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                errorMsg.textContent = '✗ Lỗi: ' + (result.message || 'Không thể tạo mới');
+                document.body.appendChild(errorMsg);
+                setTimeout(() => {
+                    if (errorMsg.parentNode) {
+                        errorMsg.remove();
+                    }
+                }, 3000);
+                
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        })
+        .catch(error => {
+            // Show error message
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+            errorMsg.textContent = '✗ Lỗi: ' + error.message;
+            document.body.appendChild(errorMsg);
+            setTimeout(() => {
+                if (errorMsg.parentNode) {
+                    errorMsg.remove();
+                }
+            }, 3000);
+            
+            // Restore button state
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cache rows
+        allRowsCache = Array.from(document.querySelectorAll('.js-xnk-row'));
+        searchInputCache = document.getElementById('xnk-search-input');
+        
+        // Add button click
+        const addBtn = document.getElementById('btn-add-xnk');
+        if (addBtn) {
+            addBtn.addEventListener('click', openAddModal);
+        }
+        
+        // Close modal buttons
+        const closeBtn = document.getElementById('btn-close-modal');
+        const cancelBtn = document.getElementById('btn-cancel-add');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', closeAddModal);
+        }
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', closeAddModal);
+        }
+        
+        // Close modal when clicking outside
+        const modal = document.getElementById('modal-add-xnk');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeAddModal();
+                }
+            });
+        }
+        
+        // Form submit
+        const form = document.getElementById('form-add-xnk');
+        if (form) {
+            form.addEventListener('submit', handleCreateXnkModel);
+        }
+        
+        // Search input
+        if (searchInputCache) {
+            searchInputCache.addEventListener('input', applySearch);
+        }
+        
+        // Reset button
+        const resetBtn = document.getElementById('reset-search-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                if (searchInputCache) searchInputCache.value = '';
+                applySearch();
+            });
+        }
+        
+        // Edit button click
+        document.querySelectorAll('.xnk-edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sku = this.dataset.sku;
+                const row = this.closest('tr');
+                
+                if (editingSku === sku) {
+                    // Đang edit, chuyển sang save mode
+                    saveXnkModel(sku, row);
+                } else {
+                    // Bắt đầu edit mode
+                    if (editingSku !== null) {
+                        // Đang edit model khác, cancel trước
+                        cancelEdit(editingSku);
+                    }
+                    startEdit(sku, row);
+                }
+            });
+        });
+        
+        // Cancel button click
+        document.querySelectorAll('.xnk-cancel-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sku = this.dataset.sku;
+                cancelEdit(sku);
+            });
+        });
+        
+        // Delete button click
+        document.querySelectorAll('.xnk-delete-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sku = this.dataset.sku;
+                deleteXnkModel(sku);
+            });
+        });
+        
+        // Copy button click
+        document.querySelectorAll('.xnk-copy-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const sku = this.dataset.sku;
+                const row = this.closest('tr');
+                copyToAddForm(row, sku);
+            });
+        });
+    });
+    
+    function copyToAddForm(row, sku) {
+        // Lấy dữ liệu từ các cell trong row
+        const modelData = {};
+        
+        // Lấy từ các input/textarea trong edit mode (luôn có trong row, kể cả khi hidden)
+        row.querySelectorAll('.xnk-edit-cell').forEach(cell => {
+            const field = cell.dataset.field;
+            if (!field) return;
+            
+            // Luôn lấy từ input/textarea trong .xnk-edit (kể cả khi hidden)
+            const input = cell.querySelector('input.xnk-input, textarea.xnk-input');
+            if (input) {
+                let value = input.value ? input.value.trim() : '';
+                if (value !== '') {
+                    // Xử lý giá trị số
+                    if (field === 'usd_price' || field === 'tax_vat' || field === 'tax_nk') {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            modelData[field] = numValue;
+                        }
+                    } else {
+                        modelData[field] = value;
+                    }
+                }
+            }
+        });
+        
+        // Nếu không lấy được từ input, thử lấy từ display
+        row.querySelectorAll('.xnk-edit-cell').forEach(cell => {
+            const field = cell.dataset.field;
+            if (!field || modelData[field]) return;
+            
+            const displayDiv = cell.querySelector('.xnk-display');
+            if (displayDiv) {
+                let value = '';
+                const textDiv = displayDiv.querySelector('div');
+                if (textDiv) {
+                    value = textDiv.textContent.trim();
+                } else {
+                    value = displayDiv.textContent.trim();
+                }
+                
+                if (value && value !== '-') {
+                    // Xử lý giá trị đặc biệt
+                    if (field === 'usd_price') {
+                        // Remove $ sign
+                        value = value.replace('$', '').trim();
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            modelData[field] = numValue;
+                        }
+                    } else if (field === 'tax_vat' || field === 'tax_nk') {
+                        // Remove % sign và convert từ phần trăm về decimal
+                        value = value.replace('%', '').trim();
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue)) {
+                            modelData[field] = numValue / 100; // Convert 10% -> 0.1
+                        }
+                    } else {
+                        modelData[field] = value;
+                    }
+                }
+            }
+        });
+        
+        // Debug: log để kiểm tra
+        console.log('Copied model data:', modelData);
+        
+        // Mở modal (không reset form vì sẽ điền dữ liệu sau)
+        openAddModal(false);
+        
+        // Đợi một chút để modal hiển thị xong rồi mới điền dữ liệu
+        setTimeout(() => {
+            // Fill form với dữ liệu từ model (bỏ SKU để user nhập mới)
+            const skuInput = document.getElementById('new-sku');
+            const hsCodeInput = document.getElementById('new-hs_code');
+            const enNameInput = document.getElementById('new-en_name');
+            const vnNameInput = document.getElementById('new-vn_name');
+            const usdPriceInput = document.getElementById('new-usd_price');
+            const unitInput = document.getElementById('new-unit');
+            const nsxNameInput = document.getElementById('new-nsx_name');
+            const nsxAddressInput = document.getElementById('new-nsx_address');
+            const taxVatInput = document.getElementById('new-tax_vat');
+            const taxNkInput = document.getElementById('new-tax_nk');
+            const chinaNameInput = document.getElementById('new-china_name');
+            const materialInput = document.getElementById('new-material');
+            
+            if (skuInput) skuInput.value = '';
+            if (hsCodeInput) hsCodeInput.value = modelData.hs_code || '';
+            if (enNameInput) enNameInput.value = modelData.en_name || '';
+            if (vnNameInput) vnNameInput.value = modelData.vn_name || '';
+            if (usdPriceInput) usdPriceInput.value = modelData.usd_price || '';
+            if (unitInput) unitInput.value = modelData.unit || '';
+            if (nsxNameInput) nsxNameInput.value = modelData.nsx_name || '';
+            if (nsxAddressInput) nsxAddressInput.value = modelData.nsx_address || '';
+            if (taxVatInput) taxVatInput.value = modelData.tax_vat || '';
+            if (taxNkInput) taxNkInput.value = modelData.tax_nk || '';
+            if (chinaNameInput) chinaNameInput.value = modelData.china_name || '';
+            if (materialInput) materialInput.value = modelData.material || '';
+            
+            console.log('Form filled with data');
+        }, 50);
+    }
+</script>
+{% endblock %}
+

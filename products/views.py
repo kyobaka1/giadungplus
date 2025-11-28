@@ -1,15 +1,37 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpRequest
+from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.csrf import csrf_exempt
 from typing import List, Dict, Any
 import logging
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
 
 from core.sapo_client import get_sapo_client
 from products.services.sapo_product_service import SapoProductService
 from products.services.dto import ProductDTO, ProductVariantDTO
+from products.brand_settings import (
+    get_disabled_brands,
+    is_brand_enabled,
+    get_enabled_brands,
+    set_brand_enabled,
+    reload_settings,
+    sync_brands_from_api
+)
+from products.views_excel import export_variants_excel, import_variants_excel
+from products.services.xnk_model_service import XNKModelService
+import re
 
 logger = logging.getLogger(__name__)
+
+# Import loginss từ thamkhao để giữ nguyên cách lưu Model XNK
+try:
+    from thamkhao.apps import loginss
+except ImportError:
+    # Nếu không import được, sẽ dùng SapoClient.core_session
+    loginss = None
 
 
 @login_required
@@ -60,6 +82,9 @@ def product_list(request: HttpRequest):
                 logger.warning("Reached max pages limit (1000) in product_list")
                 break
 
+        # Reload settings để đảm bảo có dữ liệu mới nhất
+        reload_settings()
+        
         # Convert to dict for template và collect brands
         products_data = []
         brands_set = set()
@@ -68,6 +93,10 @@ def product_list(request: HttpRequest):
         for product in all_products:
             brand = product.brand or ""
             product_status = product.status or ""
+            
+            # Chỉ thêm sản phẩm nếu nhãn hiệu được bật
+            if brand and not is_brand_enabled(brand):
+                continue  # Bỏ qua sản phẩm có nhãn hiệu bị tắt
             
             if brand:
                 brands_set.add(brand)
@@ -89,7 +118,8 @@ def product_list(request: HttpRequest):
 
         context["products"] = products_data
         context["total"] = len(products_data)
-        context["brands"] = sorted(list(brands_set))  # Danh sách brands để tạo filter buttons
+        # Chỉ hiển thị nhãn hiệu đã bật trong filter
+        context["brands"] = get_enabled_brands(sorted(list(brands_set)))
         context["statuses"] = sorted(list(statuses_set))  # Danh sách statuses để tạo filter buttons
 
     except Exception as e:
@@ -129,94 +159,272 @@ def product_detail(request: HttpRequest, product_id: int):
     return render(request, "products/product_detail.html", context)
 
 
+def _parse_sku_for_sorting(sku: str) -> tuple:
+    """
+    Parse SKU để tạo sort key.
+    
+    Ví dụ: ER-0746-4XM -> (prefix='ER', number=746, suffix_num=4, suffix_letters='XM')
+    
+    Args:
+        sku: SKU string (ví dụ: "ER-0746-4XM")
+        
+    Returns:
+        Tuple (prefix, number, suffix_num, suffix_letters) để dùng cho sorting
+    """
+    if not sku:
+        return ('', 0, 0, '')
+    
+    # Pattern: PREFIX-NUMBER-SUFFIX
+    # Ví dụ: ER-0746-4XM, TG-0201-DEN
+    parts = sku.split('-')
+    
+    if len(parts) < 2:
+        # Không match pattern, trả về SKU gốc để sort alphabetically
+        return (sku, 0, 0, '')
+    
+    prefix = parts[0]
+    
+    # Lấy phần số (có thể có leading zeros)
+    try:
+        number = int(parts[1])
+    except (ValueError, IndexError):
+        number = 0
+    
+    # Lấy suffix (phần cuối)
+    if len(parts) >= 3:
+        suffix = parts[2]
+        # Parse suffix: 4XM -> (4, 'XM')
+        suffix_match = re.match(r'^(\d+)([A-Za-z]*)$', suffix)
+        if suffix_match:
+            suffix_num = int(suffix_match.group(1))
+            suffix_letters = suffix_match.group(2) or ''
+        else:
+            # Không match pattern số+chữ, dùng toàn bộ suffix
+            suffix_num = 0
+            suffix_letters = suffix
+    else:
+        suffix_num = 0
+        suffix_letters = ''
+    
+    return (prefix, number, suffix_num, suffix_letters)
+
+
 @login_required
 def variant_list(request: HttpRequest):
     """
     Danh sách phân loại (variants):
-    - Hiển thị danh sách TẤT CẢ variants từ tất cả products (không phân trang)
+    - Hiển thị variants theo brand_id (mặc định = 833608)
+    - Filter server-side để giảm tải
     - Có thể tìm kiếm theo SKU, barcode, tên
     - Có thể sửa, xoá variant
+    - Sắp xếp theo SKU: nhóm theo mã số, sắp xếp suffix
     """
+    # Brand ID mặc định
+    DEFAULT_BRAND_ID = 833608
+    
+    # Lấy brand_id từ query param
+    brand_id = request.GET.get('brand_id', str(DEFAULT_BRAND_ID))
+    try:
+        brand_id = int(brand_id)
+    except (ValueError, TypeError):
+        brand_id = DEFAULT_BRAND_ID
+    
     context = {
         "title": "Danh sách phân loại",
         "variants": [],
         "total": 0,
+        "selected_brand_id": brand_id,
+        "brands": [],
     }
 
     try:
+        # Reload settings trước để đảm bảo có dữ liệu mới nhất
+        reload_settings()
+        
         sapo_client = get_sapo_client()
+        core_repo = sapo_client.core
         product_service = SapoProductService(sapo_client)
-
-        # Lấy TẤT CẢ products để lấy variants (loop qua nhiều pages) - KHÔNG CÓ FILTER GÌ HẾT
-        all_products = []
+        
+        # Lấy danh sách brands từ API search (đầy đủ hơn)
+        brands_response = core_repo.list_brands_search_raw(page=1, limit=220)
+        all_brands = brands_response.get("brands", [])
+        
+        # Đồng bộ brands mới từ API vào settings
+        sync_brands_from_api(all_brands)
+        
+        # Lọc chỉ lấy brands được bật (enabled)
+        enabled_brands = [
+            brand for brand in all_brands 
+            if is_brand_enabled(brand.get("name", ""))
+        ]
+        context["brands"] = sorted(enabled_brands, key=lambda x: x.get("name", ""))
+        
+        # Lấy variants theo brand_id từ Sapo API (server-side filter)
+        all_variants = []
         page = 1
-        limit = 250  # Lấy nhiều nhất có thể mỗi page
+        limit = 250  # Sapo API limit tối đa là 250
+        expected_total = None  # Sẽ được set từ metadata của page đầu tiên
+        
+        logger.info(f"[variant_list] Starting to fetch variants for brand_id={brand_id}")
         
         while True:
-            # Chỉ lấy dữ liệu, không có filter gì
-            filters = {
-                "page": page,
-                "limit": limit,
-            }
+            variants_response = core_repo.list_variants_raw(
+                page=page,
+                limit=limit,
+                brand_ids=brand_id,
+                # Không filter status để lấy cả active và inactive
+                composite=False,
+                packsize=False
+            )
             
-            products = product_service.list_products(**filters)
+            variants_data = variants_response.get("variants", [])
             
-            if not products:
+            # Lấy metadata từ page đầu tiên để biết tổng số
+            metadata = variants_response.get("metadata", {})
+            if page == 1:
+                expected_total = metadata.get("total", 0)
+                logger.info(f"[variant_list] Total variants expected: {expected_total}")
+            
+            # Nếu không còn variants nào, dừng
+            if not variants_data:
+                logger.info(f"[variant_list] No more variants at page {page}")
                 break
             
-            all_products.extend(products)
+            all_variants.extend(variants_data)
+            logger.info(f"[variant_list] Fetched page {page}: {len(variants_data)} variants (total so far: {len(all_variants)}/{expected_total or 'unknown'})")
             
-            # Nếu số lượng products < limit thì đã hết
-            if len(products) < limit:
+            # Kiểm tra nếu đã lấy đủ số lượng
+            if expected_total and expected_total > 0:
+                if len(all_variants) >= expected_total:
+                    logger.info(f"[variant_list] Fetched all {expected_total} variants")
+                    break
+            else:
+                # Nếu không có total trong metadata, tính total_pages
+                total_pages = metadata.get("total_pages")
+                if total_pages:
+                    if page >= total_pages:
+                        logger.info(f"[variant_list] Reached last page ({total_pages}), total variants: {len(all_variants)}")
+                        break
+                else:
+                    # Tính total_pages từ total và limit
+                    if expected_total and expected_total > 0:
+                        calculated_pages = (expected_total + limit - 1) // limit  # Ceiling division
+                        if page >= calculated_pages:
+                            logger.info(f"[variant_list] Reached calculated last page ({calculated_pages}), total variants: {len(all_variants)}")
+                            break
+            
+            # Nếu số variants trả về ít hơn limit, có nghĩa là đã hết
+            if len(variants_data) < limit:
+                logger.info(f"[variant_list] Received fewer variants than limit ({len(variants_data)} < {limit}), assuming last page")
                 break
             
             page += 1
             
-            # Giới hạn tối đa 1000 pages để tránh vòng lặp vô hạn
-            if page > 1000:
-                logger.warning("Reached max pages limit (1000) in variant_list")
+            # Safety limit để tránh vòng lặp vô hạn
+            if page > 100:
+                logger.warning(f"[variant_list] Reached safety limit of 100 pages, stopping")
                 break
-
-        # Flatten variants từ tất cả products - KHÔNG FILTER GÌ, LẤY TẤT CẢ
+        
+        # Lấy product metadata cho từng variant để có GDP metadata
+        # Tạo map product_id -> product để tránh gọi API nhiều lần
+        product_map = {}
+        product_ids = set(v.get("product_id") for v in all_variants if v.get("product_id"))
+        
+        # Lấy products theo batch (mỗi lần 50 để tránh quá tải)
+        product_ids_list = list(product_ids)
+        batch_size = 50
+        for i in range(0, len(product_ids_list), batch_size):
+            batch_ids = product_ids_list[i:i+batch_size]
+            for product_id in batch_ids:
+                try:
+                    product = product_service.get_product(product_id)
+                    if product:
+                        product_map[product_id] = product
+                except Exception as e:
+                    logger.warning(f"Failed to get product {product_id}: {e}")
+                    continue
+        
+        # Parse variants và lấy metadata
         variants_data = []
         brands_set = set()
         statuses_set = set()
         
-        for product in all_products:
-            brand = product.brand or ""
+        for variant_raw in all_variants:
+            variant_id = variant_raw.get("id")
+            product_id = variant_raw.get("product_id")
+            
+            # Lấy product để có brand và metadata
+            product = product_map.get(product_id)
+            if not product:
+                # Nếu không lấy được product, dùng dữ liệu từ variant_raw
+                brand = variant_raw.get("brand") or ""
+            else:
+                brand = product.brand or ""
+            
+            # Chỉ thêm variants nếu nhãn hiệu được bật
+            if brand and not is_brand_enabled(brand):
+                continue
+            
             if brand:
                 brands_set.add(brand)
-                
-            for variant in product.variants:
-                variant_status = variant.status or ""
-                if variant_status:
-                    statuses_set.add(variant_status)
-                
-                variants_data.append({
-                    "id": variant.id,
-                    "product_id": variant.product_id,
-                    "product_name": product.name,
-                    "brand": brand,  # Thêm brand từ product
-                    "sku": variant.sku,
-                    "barcode": variant.barcode or "",
-                    "name": variant.name,
-                    "opt1": variant.opt1 or "",
-                    "opt2": variant.opt2 or "",
-                    "opt3": variant.opt3 or "",
-                    "status": variant_status,
-                    "variant_retail_price": variant.variant_retail_price,
-                    "variant_whole_price": variant.variant_whole_price,
-                    "total_inventory": variant.total_inventory,
-                    "total_available": variant.total_available,
-                    "weight_value": variant.weight_value,
-                    "weight_unit": variant.weight_unit,
-                    "gdp_metadata": variant.gdp_metadata,
-                })
-
+            
+            variant_status = variant_raw.get("status", "")
+            if variant_status:
+                statuses_set.add(variant_status)
+            
+            # Lấy metadata từ product nếu có
+            variant_meta = None
+            if product:
+                # Tìm variant trong product để lấy metadata
+                for v in product.variants:
+                    if v.id == variant_id:
+                        variant_meta = v.gdp_metadata
+                        break
+            
+            # Tính tổng inventory từ inventories
+            inventories = variant_raw.get("inventories", [])
+            total_inventory = sum(inv.get("on_hand", 0) for inv in inventories)
+            total_available = sum(inv.get("available", 0) for inv in inventories)
+            
+            variants_data.append({
+                "id": variant_id,
+                "product_id": product_id,
+                "product_name": product.name if product else variant_raw.get("name", "").split(" - ")[0] if variant_raw.get("name") else "",
+                "brand": brand,
+                "sku": variant_raw.get("sku", ""),
+                "barcode": variant_raw.get("barcode") or "",
+                "name": variant_raw.get("name", ""),
+                "opt1": variant_raw.get("option1") or "",
+                "opt2": variant_raw.get("option2") or "",
+                "opt3": variant_raw.get("option3") or "",
+                "status": variant_status,
+                "variant_retail_price": variant_raw.get("retail_price", 0) or 0,
+                "variant_whole_price": variant_raw.get("wholesale_price", 0) or 0,
+                "total_inventory": total_inventory,
+                "total_available": total_available,
+                "weight_value": variant_raw.get("weight_value", 0) or 0,
+                "weight_unit": variant_raw.get("weight_unit", "g"),
+                "gdp_metadata": variant_meta,
+                # Extract metadata fields
+                "price_tq": variant_meta.price_tq if variant_meta else None,
+                "sku_tq": variant_meta.sku_tq if variant_meta else None,
+                "name_tq": variant_meta.name_tq if variant_meta else None,
+                "sku_model_xnk": variant_meta.sku_model_xnk if variant_meta else None,
+                "box_info": variant_meta.box_info if variant_meta else None,
+                "packed_info": variant_meta.packed_info if variant_meta else None,
+            })
+        
+        # Sắp xếp variants theo SKU: nhóm theo mã số, sắp xếp suffix
+        # Ví dụ: ER-0746-4XM, ER-0746-5XM, ER-0746-6XM, ER-0746-4XR, ER-0746-5XR
+        variants_data.sort(key=lambda v: _parse_sku_for_sorting(v.get("sku", "")))
+        
+        logger.info(f"[variant_list] Sorted {len(variants_data)} variants by SKU pattern")
+        
+        # Luôn hiển thị tất cả variants
         context["variants"] = variants_data
         context["total"] = len(variants_data)
-        context["brands"] = sorted(list(brands_set))  # Danh sách brands từ products
-        context["statuses"] = sorted(list(statuses_set))  # Danh sách statuses từ variants
+        context["total_variants"] = len(variants_data)
+        context["statuses"] = sorted(list(statuses_set))
 
     except Exception as e:
         logger.error(f"Error in variant_list: {e}", exc_info=True)
@@ -390,6 +598,611 @@ def init_all_products_metadata(request: HttpRequest):
         
     except Exception as e:
         logger.error(f"Error in init_all_products_metadata: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+def brand_settings(request: HttpRequest):
+    """
+    Quản lý cài đặt nhãn hiệu (bật/tắt).
+    - Hiển thị danh sách tất cả nhãn hiệu từ sản phẩm
+    - Cho phép bật/tắt nhãn hiệu
+    """
+    context = {
+        "title": "Cài đặt nhãn hiệu",
+        "brands": [],
+        "error": None,
+    }
+    
+    try:
+        # Reload settings trước để đảm bảo có dữ liệu mới nhất
+        reload_settings()
+        
+        # Lấy tất cả nhãn hiệu từ API search (đầy đủ hơn)
+        sapo_client = get_sapo_client()
+        core_repo = sapo_client.core
+        
+        # Lấy brands từ API search
+        brands_response = core_repo.list_brands_search_raw(page=1, limit=220)
+        all_brands = brands_response.get("brands", [])
+        
+        # Đồng bộ brands mới từ API vào settings (tự động thêm brands mới)
+        sync_brands_from_api(all_brands)
+        
+        # Reload lại settings sau khi sync
+        reload_settings()
+        
+        # Lấy danh sách nhãn hiệu bị tắt
+        disabled_brands = get_disabled_brands()
+        
+        # Tạo danh sách nhãn hiệu với trạng thái
+        brands_data = []
+        for brand in all_brands:
+            brand_name = brand.get("name", "")
+            if brand_name:
+                brands_data.append({
+                    "name": brand_name,
+                    "id": brand.get("id"),
+                    "is_enabled": is_brand_enabled(brand_name),
+                })
+        
+        # Sắp xếp theo tên
+        brands_data.sort(key=lambda x: x.get("name", ""))
+        
+        context["brands"] = brands_data
+        context["disabled_count"] = len(disabled_brands)
+        context["enabled_count"] = len(brands_data) - len(disabled_brands)
+        
+    except Exception as e:
+        logger.error(f"Error in brand_settings: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/brand_settings.html", context)
+
+
+@login_required
+@require_POST
+def toggle_brand(request: HttpRequest):
+    """
+    API để bật/tắt nhãn hiệu.
+    
+    POST data:
+    - brand_name: Tên nhãn hiệu
+    - enabled: true/false (bật/tắt)
+    """
+    try:
+        # Lấy dữ liệu từ request
+        if request.content_type == 'application/json':
+            import json
+            data = json.loads(request.body)
+            brand_name = data.get('brand_name', '').strip()
+            enabled = data.get('enabled', True)
+        else:
+            brand_name = request.POST.get('brand_name', '').strip()
+            enabled = request.POST.get('enabled', 'true').lower() == 'true'
+        
+        if not brand_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Tên nhãn hiệu không được để trống"
+            }, status=400)
+        
+        # Cập nhật settings
+        success = set_brand_enabled(brand_name, enabled)
+        
+        if success:
+            return JsonResponse({
+                "status": "success",
+                "message": f"Đã {'bật' if enabled else 'tắt'} nhãn hiệu '{brand_name}'"
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không thể lưu cài đặt"
+            }, status=500)
+            
+    except Exception as e:
+        logger.error(f"Error in toggle_brand: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def init_variants_from_old_notes(request: HttpRequest):
+    """
+    Init variant metadata từ dữ liệu cũ trong customer notes.
+    
+    Endpoint: POST /products/init-variants-from-old-notes/
+    
+    Body (JSON):
+    - test_mode: true/false - Nếu true: chỉ log không update
+    - limit: Số lượng variants tối đa để migrate (optional)
+    """
+    try:
+        # Lấy parameters
+        test_mode = False
+        limit = None
+        
+        if request.content_type == 'application/json':
+            try:
+                import json
+                body = json.loads(request.body)
+                test_mode = body.get('test_mode', False)
+                limit = body.get('limit')
+            except:
+                pass
+        else:
+            test_mode = request.POST.get('test_mode', 'false').lower() == 'true'
+            limit_str = request.POST.get('limit')
+            if limit_str:
+                try:
+                    limit = int(limit_str)
+                except:
+                    pass
+        
+        # Import migration service
+        from products.services.variant_migration import init_variants_from_old_data
+        
+        # Thực hiện migration
+        result = init_variants_from_old_data(test_mode=test_mode, limit=limit)
+        
+        return JsonResponse({
+            "status": "success",
+            "test_mode": test_mode,
+            "result": result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in init_variants_from_old_notes: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def update_variant_metadata(request: HttpRequest, variant_id: int):
+    """
+    API endpoint để cập nhật variant metadata.
+    Chỉ cập nhật các field có thể edit: price_tq, sku_tq, name_tq, box_info, sku_model_xnk
+    """
+    try:
+        # Lấy dữ liệu từ request body
+        import json
+        data = json.loads(request.body)
+        
+        sapo_client = get_sapo_client()
+        product_service = SapoProductService(sapo_client)
+        
+        # Lấy variant để biết product_id
+        variant_response = sapo_client.core.get_variant_raw(variant_id)
+        variant = variant_response.get("variant", {})
+        
+        if not variant:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Variant {variant_id} không tồn tại"
+            }, status=404)
+        
+        product_id = variant.get("product_id")
+        if not product_id:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Variant {variant_id} không có product_id"
+            }, status=400)
+        
+        # Lấy product hiện tại
+        product = product_service.get_product(product_id)
+        if not product:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Product {product_id} không tồn tại"
+            }, status=404)
+        
+        # Lấy metadata hiện tại
+        from products.services.metadata_helper import init_empty_metadata, update_variant_metadata
+        from products.services.dto import VariantMetadataDTO, BoxInfoDTO, PackedInfoDTO, NhanPhuInfoDTO
+        
+        current_metadata = product.gdp_metadata
+        if not current_metadata:
+            variant_ids = [v.id for v in product.variants]
+            current_metadata = init_empty_metadata(product_id, variant_ids)
+        
+        # Tìm variant metadata hiện tại
+        variant_meta = None
+        for vm in current_metadata.variants:
+            if vm.id == variant_id:
+                variant_meta = vm
+                break
+        
+        if not variant_meta:
+            variant_meta = VariantMetadataDTO(id=variant_id)
+        
+        # Helper functions
+        def to_float_safe(val, default=None):
+            try:
+                if val is None or val == "":
+                    return default
+                return float(val)
+            except:
+                return default
+        
+        def to_int_safe(val, default=None):
+            try:
+                if val is None or val == "":
+                    return default
+                return int(float(val))
+            except:
+                return default
+        
+        # Cập nhật từ request data
+        price_tq = to_float_safe(data.get('price_tq'))
+        sku_tq = data.get('sku_tq', '').strip() if data.get('sku_tq') else None
+        name_tq = data.get('name_tq', '').strip() if data.get('name_tq') else None
+        sku_model_xnk = data.get('sku_model_xnk', '').strip() if data.get('sku_model_xnk') else None
+        
+        # Update box_info
+        full_box = to_int_safe(data.get('full_box'))
+        box_length = to_float_safe(data.get('box_length_cm'))
+        box_width = to_float_safe(data.get('box_width_cm'))
+        box_height = to_float_safe(data.get('box_height_cm'))
+        
+        box_info = None
+        if full_box is not None or box_length is not None or box_width is not None or box_height is not None:
+            box_info = BoxInfoDTO(
+                full_box=full_box if full_box is not None else (variant_meta.box_info.full_box if variant_meta.box_info else None),
+                length_cm=box_length if box_length is not None else (variant_meta.box_info.length_cm if variant_meta.box_info else None),
+                width_cm=box_width if box_width is not None else (variant_meta.box_info.width_cm if variant_meta.box_info else None),
+                height_cm=box_height if box_height is not None else (variant_meta.box_info.height_cm if variant_meta.box_info else None)
+            )
+        elif variant_meta.box_info:
+            box_info = variant_meta.box_info
+        
+        # Update packed_info
+        packed_length = to_float_safe(data.get('packed_length_cm'))
+        packed_width = to_float_safe(data.get('packed_width_cm'))
+        packed_height = to_float_safe(data.get('packed_height_cm'))
+        packed_weight_with_box = to_float_safe(data.get('packed_weight_with_box_g'))
+        packed_weight_without_box = to_float_safe(data.get('packed_weight_without_box_g'))
+        
+        packed_info = None
+        if packed_length is not None or packed_width is not None or packed_height is not None or packed_weight_with_box is not None or packed_weight_without_box is not None:
+            packed_info = PackedInfoDTO(
+                length_cm=packed_length if packed_length is not None else (variant_meta.packed_info.length_cm if variant_meta.packed_info else None),
+                width_cm=packed_width if packed_width is not None else (variant_meta.packed_info.width_cm if variant_meta.packed_info else None),
+                height_cm=packed_height if packed_height is not None else (variant_meta.packed_info.height_cm if variant_meta.packed_info else None),
+                weight_with_box_g=packed_weight_with_box if packed_weight_with_box is not None else (variant_meta.packed_info.weight_with_box_g if variant_meta.packed_info else None),
+                weight_without_box_g=packed_weight_without_box if packed_weight_without_box is not None else (variant_meta.packed_info.weight_without_box_g if variant_meta.packed_info else None)
+            )
+        elif variant_meta.packed_info:
+            packed_info = variant_meta.packed_info
+        
+        # Update nhanphu_info (product level)
+        nhanphu_vi_name = data.get('nhanphu_vi_name', '').strip() if data.get('nhanphu_vi_name') else None
+        nhanphu_en_name = data.get('nhanphu_en_name', '').strip() if data.get('nhanphu_en_name') else None
+        nhanphu_description = data.get('nhanphu_description', '').strip() if data.get('nhanphu_description') else None
+        nhanphu_material = data.get('nhanphu_material', '').strip() if data.get('nhanphu_material') else None
+        
+        nhanphu_info = None
+        if nhanphu_vi_name is not None or nhanphu_en_name is not None or nhanphu_description is not None or nhanphu_material is not None:
+            nhanphu_info = NhanPhuInfoDTO(
+                vi_name=nhanphu_vi_name if nhanphu_vi_name else (current_metadata.nhanphu_info.vi_name if current_metadata.nhanphu_info else None),
+                en_name=nhanphu_en_name if nhanphu_en_name else (current_metadata.nhanphu_info.en_name if current_metadata.nhanphu_info else None),
+                description=nhanphu_description if nhanphu_description else (current_metadata.nhanphu_info.description if current_metadata.nhanphu_info else None),
+                material=nhanphu_material if nhanphu_material else (current_metadata.nhanphu_info.material if current_metadata.nhanphu_info else None),
+                hdsd=current_metadata.nhanphu_info.hdsd if current_metadata.nhanphu_info else None
+            )
+        elif current_metadata.nhanphu_info:
+            nhanphu_info = current_metadata.nhanphu_info
+        
+        # Tạo variant metadata mới
+        new_variant_meta = VariantMetadataDTO(
+            id=variant_id,
+            price_tq=price_tq if price_tq is not None else variant_meta.price_tq,
+            sku_tq=sku_tq if sku_tq else variant_meta.sku_tq,
+            name_tq=name_tq if name_tq else variant_meta.name_tq,
+            box_info=box_info,
+            packed_info=packed_info,
+            sku_model_xnk=sku_model_xnk if sku_model_xnk else variant_meta.sku_model_xnk,
+            web_variant_id=variant_meta.web_variant_id if variant_meta.web_variant_id else []
+        )
+        
+        # Update product level nhanphu_info nếu có
+        if nhanphu_info:
+            current_metadata.nhanphu_info = nhanphu_info
+        
+        # Update variant metadata
+        current_metadata = update_variant_metadata(
+            current_metadata,
+            variant_id,
+            new_variant_meta
+        )
+        
+        # Lưu vào Sapo
+        success = product_service.update_product_metadata(
+            product_id,
+            current_metadata,
+            preserve_description=True
+        )
+        
+        if success:
+            return JsonResponse({
+                "status": "success",
+                "message": "Đã cập nhật thành công"
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không thể lưu variant metadata"
+            }, status=500)
+        
+    except Exception as e:
+        logger.error(f"Error updating variant metadata {variant_id}: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+# ========================= XNK MODEL MANAGEMENT =========================
+
+def _get_xnk_service():
+    """
+    Helper để lấy XNKModelService với session phù hợp.
+    Sử dụng loginss từ thamkhao nếu có, nếu không thì dùng SapoClient.core_session.
+    """
+    if loginss is not None:
+        return XNKModelService(loginss)
+    else:
+        # Fallback: dùng SapoClient
+        sapo_client = get_sapo_client()
+        # Đảm bảo core session đã được init (gọi private method nếu cần)
+        try:
+            sapo_client._ensure_logged_in()
+        except:
+            pass  # Nếu không login được, vẫn dùng session hiện tại
+        return XNKModelService(sapo_client.core_session)
+
+
+@login_required
+def xnk_model_list(request: HttpRequest):
+    """
+    Danh sách Model Xuất Nhập Khẩu:
+    - Hiển thị danh sách tất cả model XNK từ customer notes
+    - Có thể tìm kiếm, sửa, xóa
+    """
+    context = {
+        "title": "Quản lý Model Xuất Nhập Khẩu",
+        "models": [],
+        "total": 0,
+        "error": None,
+    }
+    
+    try:
+        xnk_service = _get_xnk_service()
+        all_models = xnk_service.get_all_models()
+        
+        # Sắp xếp theo SKU
+        all_models.sort(key=lambda x: str(x.get("sku", "")).lower())
+        
+        context["models"] = all_models
+        context["total"] = len(all_models)
+        
+    except Exception as e:
+        logger.error(f"Error in xnk_model_list: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/xnk_model_list.html", context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def api_xnk_search(request: HttpRequest):
+    """
+    API tìm kiếm model XNK theo SKU và tên tiếng anh.
+    
+    Query params:
+    - q: Từ khóa tìm kiếm (SKU hoặc tên tiếng anh)
+    
+    Returns:
+        JSON với danh sách model XNK khớp
+    """
+    try:
+        query = request.GET.get("q", "").strip()
+        
+        xnk_service = _get_xnk_service()
+        results = xnk_service.search_models(query)
+        
+        return JsonResponse({
+            "status": "success",
+            "results": results,
+            "count": len(results)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in api_xnk_search: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_xnk_edit(request: HttpRequest):
+    """
+    API chỉnh sửa model XNK.
+    
+    Body (JSON):
+    {
+        "sku": "SKU123",
+        "field1": "value1",
+        "field2": "value2",
+        ...
+    }
+    
+    Returns:
+        JSON với status và message
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        sku = data.get("sku", "").strip()
+        if not sku:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thiếu SKU trong dữ liệu gửi lên"
+            }, status=400)
+        
+        # Loại bỏ SKU khỏi updates (vì SKU là key để tìm)
+        updates = {k: v for k, v in data.items() if k != "sku"}
+        
+        if not updates:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không có dữ liệu cập nhật"
+            }, status=400)
+        
+        xnk_service = _get_xnk_service()
+        result = xnk_service.update_model(sku, updates)
+        
+        if result.get("status") == "success":
+            return JsonResponse({
+                "status": "success",
+                "message": result.get("msg", "Cập nhật thành công")
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": result.get("msg", "Lỗi khi cập nhật")
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Dữ liệu JSON không hợp lệ"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_xnk_edit: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_xnk_create(request: HttpRequest):
+    """
+    API tạo model XNK mới.
+    
+    Body (JSON):
+    {
+        "sku": "SKU123",
+        "hs_code": "...",
+        "en_name": "...",
+        ...
+    }
+    
+    Returns:
+        JSON với status và message
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        sku = data.get("sku", "").strip()
+        if not sku:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thiếu SKU trong dữ liệu gửi lên"
+            }, status=400)
+        
+        xnk_service = _get_xnk_service()
+        result = xnk_service.create_model(data)
+        
+        if result.get("status") == "success":
+            return JsonResponse({
+                "status": "success",
+                "message": result.get("msg", "Tạo mới thành công"),
+                "note_id": result.get("note_id")
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": result.get("msg", "Lỗi khi tạo mới")
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Dữ liệu JSON không hợp lệ"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_xnk_create: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+@csrf_exempt
+def api_xnk_delete(request: HttpRequest):
+    """
+    API xóa model XNK (set status = inactive).
+    
+    Body (JSON):
+    {
+        "sku": "SKU123"
+    }
+    
+    Returns:
+        JSON với status và message
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        sku = data.get("sku", "").strip()
+        if not sku:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thiếu SKU trong dữ liệu gửi lên"
+            }, status=400)
+        
+        xnk_service = _get_xnk_service()
+        result = xnk_service.delete_model(sku)
+        
+        if result.get("status") == "success":
+            return JsonResponse({
+                "status": "success",
+                "message": result.get("msg", "Xóa thành công")
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": result.get("msg", "Lỗi khi xóa")
+            }, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "message": "Dữ liệu JSON không hợp lệ"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in api_xnk_delete: {e}", exc_info=True)
         return JsonResponse({
             "status": "error",
             "message": str(e)

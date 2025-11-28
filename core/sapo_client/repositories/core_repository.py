@@ -183,6 +183,74 @@ class SapoCoreRepository(BaseRepository):
         
         return result
     
+    def list_variants_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách variants từ Sapo Core.
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int (max 250)
+                - brand_ids: int hoặc str (comma-separated) - Filter theo brand IDs
+                - status: str (active, inactive)
+                - composite: bool
+                - packsize: bool
+                - etc.
+        
+        Returns:
+            {
+                "variants": [...],
+                "metadata": {...}
+            }
+            
+        Example:
+            GET /admin/variants.json?page=1&limit=100&brand_ids=2101155
+        """
+        logger.debug(f"[SapoCoreRepo] list_variants with filters: {filters}")
+        return self.get("variants.json", params=filters)
+    
+    def list_brands_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách brands từ Sapo Core.
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int
+                - query: str - Tìm kiếm theo tên
+                - name: str - Filter theo tên chính xác
+                
+        Returns:
+            {
+                "brands": [...]
+            }
+            
+        Example:
+            GET /admin/brands.json?page=1&limit=250
+        """
+        logger.debug(f"[SapoCoreRepo] list_brands with filters: {filters}")
+        return self.get("brands.json", params=filters)
+    
+    def list_brands_search_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách brands từ Sapo Core search endpoint.
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int (max 220)
+                
+        Returns:
+            {
+                "brands": [...]
+            }
+            
+        Example:
+            GET /admin/brands/search.json?page=1&limit=220
+        """
+        logger.debug(f"[SapoCoreRepo] list_brands_search with filters: {filters}")
+        return self.get("brands/search.json", params=filters)
+    
     # ==================== PRODUCTS ====================
     
     def get_product_raw(self, product_id: int) -> Dict[str, Any]:

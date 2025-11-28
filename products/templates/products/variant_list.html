@@ -13,45 +13,70 @@
 
 {% block content %}
 <div class="min-h-screen bg-slate-100">
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-[95%] mx-auto">
 
         <!-- BỘ LỌC VÀ TÌM KIẾM -->
-        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-semibold text-slate-700">Tìm kiếm & Lọc</h2>
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <!-- Export Excel -->
+                    <a href="{% url 'products:export_variants_excel' %}" 
+                       id="export-excel-btn"
+                       class="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-xs font-medium flex items-center gap-1.5">
+                        <span>📥</span>
+                        <span>Export Excel</span>
+                    </a>
+                    <!-- Import Excel -->
+                    <label for="import-excel-input" 
+                           class="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+                        <span>📤</span>
+                        <span>Import Excel</span>
+                    </label>
+                    <input type="file" 
+                           id="import-excel-input" 
+                           accept=".xlsx,.xls" 
+                           class="hidden">
+                    <!-- Brand Settings Link -->
+                    <a href="{% url 'products:brand_settings' %}" 
+                       class="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-xs font-medium flex items-center gap-1.5">
+                        <span>⚙️</span>
+                        <span>Cài đặt nhãn hiệu</span>
+                    </a>
+                </div>
+            </div>
             <!-- Bộ lọc Nhãn hiệu -->
-            <div class="mb-3">
-                <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-[11px] text-slate-600 font-medium mr-1">Nhãn hiệu:</span>
-                    <button id="filter-brand-all" 
-                            class="filter-btn filter-brand-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
-                            data-filter-type="brand"
-                            data-filter-value="all">
-                        Tất cả (<span id="filter-brand-all-count">0</span>)
-                    </button>
-                    <div id="filter-brand-container" class="flex flex-wrap gap-1.5">
+            <div class="mb-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-[10px] text-slate-600 font-medium">Nhãn hiệu:</span>
+                    <div class="flex flex-wrap gap-1.5">
                         {% for brand in brands %}
-                        <button class="filter-btn filter-brand-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
-                                data-filter-type="brand"
-                                data-filter-value="{{ brand }}">
-                            {{ brand }} (<span class="filter-brand-count" data-brand="{{ brand }}">0</span>)
+                        <button type="button"
+                                class="brand-filter-btn px-2.5 py-1.5 text-xs rounded-md border transition font-medium {% if brand.id == selected_brand_id %}bg-orange-500 text-white border-orange-500{% else %}bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100{% endif %}"
+                                data-brand-id="{{ brand.id }}"
+                                data-brand-name="{{ brand.name }}">
+                            {{ brand.name }} <span class="text-[10px] opacity-75">({{ brand.id }})</span>
                         </button>
                         {% endfor %}
                     </div>
+                    <span class="text-[10px] text-slate-500 ml-2">Tổng: {{ total }} variants</span>
                 </div>
             </div>
             
             <!-- Bộ lọc Trạng thái -->
-            <div class="mb-3">
-                <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="text-[11px] text-slate-600 font-medium mr-1">Trạng thái:</span>
+            <div class="mb-2">
+                <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[10px] text-slate-600 font-medium mr-1">Trạng thái:</span>
                     <button id="filter-status-all" 
-                            class="filter-btn filter-status-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            class="filter-btn filter-status-btn active px-1.5 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[10px] text-slate-700 font-medium hover:bg-slate-100 transition"
                             data-filter-type="status"
                             data-filter-value="all">
                         Tất cả (<span id="filter-status-all-count">0</span>)
                     </button>
-                    <div id="filter-status-container" class="flex flex-wrap gap-1.5">
+                    <div id="filter-status-container" class="flex flex-wrap gap-1">
                         {% for status_item in statuses %}
-                        <button class="filter-btn filter-status-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                        <button class="filter-btn filter-status-btn px-1.5 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[10px] text-slate-700 font-medium hover:bg-slate-100 transition"
                                 data-filter-type="status"
                                 data-filter-value="{{ status_item }}">
                             {% if status_item == "active" %}Hoạt động{% elif status_item == "inactive" %}Ngừng hoạt động{% else %}{{ status_item }}{% endif %} (<span class="filter-status-count" data-status="{{ status_item }}">0</span>)
@@ -62,20 +87,20 @@
             </div>
             
             <!-- Tìm kiếm -->
-            <div class="flex items-center gap-4 flex-wrap">
+            <div class="flex items-center gap-3 flex-wrap">
                 <div class="flex-1 min-w-[200px]">
                     <input type="text" 
                            id="variant-search-input"
                            name="search" 
                            value=""
-                           placeholder="Tìm kiếm theo SKU, barcode, tên..." 
-                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+                           placeholder="Tìm kiếm theo SKU..." 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
                 </div>
 
                 <!-- Reset -->
                 <button type="button" 
                         id="reset-filters-btn"
-                        class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+                        class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-xs font-medium">
                     Đặt lại
                 </button>
             </div>
@@ -83,92 +108,146 @@
 
         <!-- THÔNG BÁO LỖI -->
         {% if error %}
-        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+        <div class="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg">
+            <p class="text-xs font-medium">Lỗi: {{ error }}</p>
         </div>
         {% endif %}
 
         <!-- BẢNG DANH SÁCH PHÂN LOẠI -->
         <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-slate-200">
+                <table class="min-w-full divide-y divide-slate-200 text-xs">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">ID</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Sản phẩm</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Barcode</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Giá bán lẻ</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Giá bán</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Mua hàng TQ</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU nhập khẩu</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-slate-200">
+                    <tbody class="bg-white divide-y divide-slate-200" id="variants-tbody">
                         {% if variants %}
                             {% for variant in variants %}
                             <tr class="js-variant-row hover:bg-slate-50 transition"
                                 data-brand="{{ variant.brand|default:'' }}"
-                                data-status="{{ variant.status|default:'' }}">
-                                <td class="px-4 py-3 text-sm text-slate-600">{{ variant.id }}</td>
-                                <td class="px-4 py-3">
-                                    <a href="{% url 'products:product_detail' variant.product_id %}" 
-                                       class="text-sm text-slate-900 hover:text-brand">
-                                        {{ variant.product_name|truncatewords:5 }}
-                                    </a>
-                                </td>
-                                <td class="px-4 py-3 text-sm font-mono text-slate-700">{{ variant.sku }}</td>
-                                <td class="px-4 py-3 text-sm font-mono text-slate-600">{{ variant.barcode|default:"-" }}</td>
-                                <td class="px-4 py-3 text-sm text-slate-600">
-                                    <div class="flex flex-col">
-                                        <span>{{ variant.name|truncatewords:8 }}</span>
-                                        {% if variant.opt1 or variant.opt2 or variant.opt3 %}
-                                        <div class="flex gap-1 mt-1">
-                                            {% if variant.opt1 %}
-                                            <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded">{{ variant.opt1 }}</span>
-                                            {% endif %}
-                                            {% if variant.opt2 %}
-                                            <span class="text-[10px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
-                                            {% endif %}
-                                            {% if variant.opt3 %}
-                                            <span class="text-[10px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
-                                            {% endif %}
-                                        </div>
+                                data-status="{{ variant.status|default:'' }}"
+                                data-variant-id="{{ variant.id }}">
+                                <!-- SKU -->
+                                <td class="px-2 py-2">
+                                    <div class="font-mono text-[11px] text-slate-800 font-medium">{{ variant.sku }}</div>
+                                    {% if variant.opt1 or variant.opt2 or variant.opt3 %}
+                                    <div class="flex gap-0.5 mt-0.5 flex-wrap">
+                                        {% if variant.opt1 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-blue-50 text-blue-700 rounded">{{ variant.opt1 }}</span>
+                                        {% endif %}
+                                        {% if variant.opt2 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
+                                        {% endif %}
+                                        {% if variant.opt3 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
                                         {% endif %}
                                     </div>
+                                    {% endif %}
                                 </td>
-                                <td class="px-4 py-3 text-sm text-slate-700">
-                                    <span class="font-medium">{{ variant.variant_retail_price|floatformat:0|intcomma }} đ</span>
+                                
+                                <!-- Giá bán -->
+                                <td class="px-2 py-2 text-[11px] text-slate-700">
+                                    <div class="font-medium">{{ variant.variant_retail_price|floatformat:0|intcomma }} đ</div>
                                 </td>
-                                <td class="px-4 py-3 text-sm text-slate-600 text-center">
+                                
+                                <!-- Tồn kho -->
+                                <td class="px-2 py-2 text-center">
                                     <div class="flex flex-col items-center">
-                                        <span class="font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
+                                        <span class="text-[11px] font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
                                             {{ variant.total_available|floatformat:0|intcomma }}
                                         </span>
-                                        <span class="text-[10px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
+                                        <span class="text-[9px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
                                     </div>
                                 </td>
-                                <td class="px-4 py-3">
+                                
+                                <!-- Thông tin thùng -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.box_info %}
+                                        {% if variant.box_info.full_box %}
+                                        <div><span class="font-medium"><b>{{ variant.box_info.full_box }}</b></span> cái/thùng</div>
+                                        {% endif %}
+                                        {% if variant.box_info.length_cm or variant.box_info.width_cm or variant.box_info.height_cm %}
+                                        <div class="text-[9px] text-slate-500">
+                                            {{ variant.box_info.length_cm|default:"-" }} × {{ variant.box_info.width_cm|default:"-" }} × {{ variant.box_info.height_cm|default:"-" }} cm
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Mua hàng TQ -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.price_tq or variant.sku_tq or variant.name_tq %}
+                                        {% if variant.price_tq %}
+                                        <div class="font-medium text-red-600"><b>{{ variant.price_tq|floatformat:2 }}</b> <small>CNY</small></div>
+                                        {% endif %}
+                                        {% if variant.sku_tq %}
+                                        <div class="text-[9px] text-slate-500 font-mono mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">SKU: {{ variant.sku_tq }}</div>
+                                        {% endif %}
+                                        {% if variant.name_tq %}
+                                        <div class="text-[9px] text-slate-600 mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{{ variant.name_tq }}</div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- SKU nhập khẩu -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.sku_model_xnk %}
+                                        <span class="font-mono text-slate-700">{{ variant.sku_model_xnk }}</span>
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Trạng thái -->
+                                <td class="px-2 py-2">
                                     {% if variant.status == "active" %}
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-green-100 text-green-800">
                                             Hoạt động
                                         </span>
                                     {% else %}
-                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                            Ngừng hoạt động
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800">
+                                            Ngừng
                                         </span>
                                     {% endif %}
                                 </td>
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center gap-2">
+                                
+                                <!-- Thao tác -->
+                                <td class="px-2 py-2">
+                                    <div class="flex items-center gap-1">
+                                        <button type="button"
+                                                class="variant-edit-btn text-[9px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition"
+                                                data-variant-id="{{ variant.id }}"
+                                                data-variant-sku="{{ variant.sku }}"
+                                                data-variant-box-full-box="{{ variant.box_info.full_box|default:'' }}"
+                                                data-variant-box-length="{{ variant.box_info.length_cm|default:'' }}"
+                                                data-variant-box-width="{{ variant.box_info.width_cm|default:'' }}"
+                                                data-variant-box-height="{{ variant.box_info.height_cm|default:'' }}"
+                                                data-variant-price-tq="{{ variant.price_tq|default:'' }}"
+                                                data-variant-sku-tq="{{ variant.sku_tq|default:'' }}"
+                                                data-variant-name-tq="{{ variant.name_tq|default:'' }}"
+                                                data-variant-sku-xnk="{{ variant.sku_model_xnk|default:'' }}">
+                                            Sửa
+                                        </button>
                                         <a href="{% url 'products:variant_detail' variant.id %}" 
-                                           class="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition">
+                                           class="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition">
                                             Xem
                                         </a>
                                         <a href="https://sisapsan.mysapogo.com/admin/variants/{{ variant.id }}" 
                                            target="_blank"
-                                           class="text-xs px-2 py-1 bg-slate-50 text-slate-700 rounded hover:bg-slate-100 transition">
+                                           class="text-[9px] px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded hover:bg-slate-100 transition">
                                             Sapo
                                         </a>
                                     </div>
@@ -177,7 +256,7 @@
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="9" class="px-4 py-8 text-center text-sm text-slate-500">
+                                <td colspan="9" class="px-4 py-8 text-center text-xs text-slate-500">
                                     Chưa có phân loại nào
                                 </td>
                             </tr>
@@ -188,9 +267,9 @@
 
             <!-- SUMMARY -->
             {% if variants %}
-            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200">
-                <div class="text-sm text-slate-600">
-                    <strong>Tổng số phân loại:</strong> {{ total|default:variants|length }} phân loại
+            <div class="px-3 py-2 bg-slate-50 border-t border-slate-200">
+                <div class="text-xs text-slate-600">
+                    <strong>Tổng số phân loại:</strong> {{ total_variants|default:total|default:variants|length }} phân loại
                 </div>
             </div>
             {% endif %}
@@ -199,20 +278,169 @@
     </div>
 </div>
 
+<!-- MODAL EDIT VARIANT -->
+<div id="variant-edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh]">
+        <div class="flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+            <h2 class="text-base font-semibold text-slate-800">Sửa thông tin phân loại</h2>
+            <button type="button" id="variant-edit-modal-close" class="text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto px-4 py-3">
+            <!-- Variant Info -->
+            <div class="mb-3 pb-3 border-b border-slate-200">
+                <div class="text-xs text-slate-600">
+                    <span class="font-medium">SKU:</span> <span class="font-mono" id="modal-variant-sku">-</span>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-0.5">
+                    <span class="font-medium">ID:</span> <span id="modal-variant-id">-</span>
+                </div>
+            </div>
+            
+            <!-- Form -->
+            <form id="variant-edit-form">
+                <input type="hidden" id="modal-variant-id-input" name="variant_id">
+                
+                <!-- Thông tin thùng -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Thông tin thùng</h3>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Số cái/thùng</label>
+                            <input type="number" 
+                                   id="modal-box-full-box"
+                                   name="full_box"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Kích thước (Dài × Rộng × Cao - cm)</label>
+                            <div class="flex gap-1.5">
+                                <input type="number" 
+                                       step="0.1"
+                                       id="modal-box-length"
+                                       name="box_length_cm"
+                                       placeholder="Dài"
+                                       class="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <input type="number" 
+                                       step="0.1"
+                                       id="modal-box-width"
+                                       name="box_width_cm"
+                                       placeholder="Rộng"
+                                       class="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <input type="number" 
+                                       step="0.1"
+                                       id="modal-box-height"
+                                       name="box_height_cm"
+                                       placeholder="Cao"
+                                       class="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mua hàng TQ -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Mua hàng Trung Quốc</h3>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Giá (CNY)</label>
+                            <input type="number" 
+                                   step="0.01"
+                                   id="modal-price-tq"
+                                   name="price_tq"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">SKU TQ</label>
+                            <input type="text" 
+                                   id="modal-sku-tq"
+                                   name="sku_tq"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Tên sản phẩm TQ</label>
+                            <input type="text" 
+                                   id="modal-name-tq"
+                                   name="name_tq"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- SKU nhập khẩu -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">SKU nhập khẩu</h3>
+                    <div class="relative">
+                        <input type="text" 
+                               id="modal-sku-xnk"
+                               name="sku_model_xnk"
+                               placeholder="Tìm kiếm SKU, tên EN hoặc VN..."
+                               class="w-full px-2 py-1 text-xs border border-slate-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <!-- Search Results Dropdown -->
+                        <div id="modal-xnk-search-results" class="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-48 overflow-y-auto hidden">
+                            <!-- Results will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Footer -->
+        <div class="flex-shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex items-center justify-end gap-2">
+            <button type="button" 
+                    id="variant-edit-modal-cancel"
+                    class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                Đóng
+            </button>
+            <button type="button" 
+                    id="variant-edit-modal-save"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition">
+                Lưu
+            </button>
+        </div>
+    </div>
+</div>
+
+
 <!-- JS: BỘ LỌC PHÂN LOẠI -->
 <script>
-    // State của bộ lọc
+    // ==================== CONFIG ====================
+    let totalVariantsCount = 0; // Sẽ được set khi load
+    
+    // Debug mode - log performance metrics
+    const DEBUG_PERFORMANCE = true;
+    
+    function debugLog(message, data = null) {
+        if (DEBUG_PERFORMANCE) {
+            console.log(`[Performance] ${message}`, data || '');
+        }
+    }
+    
+    // ==================== STATE & CACHE ====================
+    // State của bộ lọc (brand đã được filter ở server-side)
     let activeFilters = {
-        brand: null,
         status: null
     };
     
     // Cache DOM elements để tối ưu performance
     let allRowsCache = null;
     let searchInputCache = null;
+    
+    // Cache text content cho search (thay vì dùng innerHTML - chậm hơn)
+    let rowsTextCache = null;
+    
+    // Search debounce timer (cần ở global scope để giữ lại giữa các lần gõ)
+    let searchDebounce = null;
+    
 
     // Thu thập số lượng từ TẤT CẢ variants (tối ưu: cache rows)
     function collectAllData() {
+        const startTime = performance.now();
+        
         if (!allRowsCache) {
             allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
         }
@@ -227,25 +455,33 @@
         }
         const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
 
-        allRowsCache.forEach(row => {
-            // Chỉ bỏ qua nếu không match search
-            const rowText = (row.innerText || '').toLowerCase();
+        // Tối ưu: Cache text content nếu chưa có hoặc search query thay đổi
+        if (!rowsTextCache || searchQuery) {
+            rowsTextCache = new Map();
+            allRowsCache.forEach((row, index) => {
+                // Dùng textContent thay vì innerHTML - nhanh hơn nhiều
+                rowsTextCache.set(index, (row.textContent || '').toLowerCase());
+            });
+        }
+
+        allRowsCache.forEach((row, index) => {
+            // Kiểm tra search query với cached text content
+            const rowText = rowsTextCache.get(index) || '';
             const matchesSearch = !searchQuery || rowText.includes(searchQuery);
             
             if (!matchesSearch) return; // Bỏ qua nếu không match search
 
-            // Đếm từ tất cả variants
-            const brandName = row.dataset.brand || '';
+            // Đếm từ tất cả variants (brand đã được filter ở server)
             const statusName = row.dataset.status || '';
 
-            if (brandName) {
-                brands.set(brandName, (brands.get(brandName) || 0) + 1);
-            }
             if (statusName) {
                 statuses.set(statusName, (statuses.get(statusName) || 0) + 1);
             }
             totalCount++;
         });
+
+        const endTime = performance.now();
+        debugLog(`collectAllData: ${(endTime - startTime).toFixed(2)}ms`, { total: totalCount });
 
         return { brands, statuses, total: totalCount };
     }
@@ -258,20 +494,12 @@
             clearTimeout(updateCountsTimeout);
         }
         updateCountsTimeout = setTimeout(() => {
+            const startTime = performance.now();
             const data = collectAllData();
             
-            // Update "Tất cả" counts
-            const brandAllCount = document.getElementById('filter-brand-all-count');
+            // Update "Tất cả" counts (brand đã được filter ở server)
             const statusAllCount = document.getElementById('filter-status-all-count');
-            if (brandAllCount) brandAllCount.textContent = data.total;
             if (statusAllCount) statusAllCount.textContent = data.total;
-            
-            // Update brand counts
-            document.querySelectorAll('.filter-brand-count').forEach(span => {
-                const brand = span.dataset.brand;
-                const count = data.brands.get(brand) || 0;
-                span.textContent = count;
-            });
             
             // Update status counts
             document.querySelectorAll('.filter-status-count').forEach(span => {
@@ -279,10 +507,13 @@
                 const count = data.statuses.get(status) || 0;
                 span.textContent = count;
             });
+            
+            const endTime = performance.now();
+            debugLog(`updateFilterCounts: ${(endTime - startTime).toFixed(2)}ms`);
         }, 100);
     }
 
-    // Toggle filter
+    // Toggle filter (chỉ status, brand đã được filter ở server)
     function toggleFilter(filterType, filterValue) {
         if (filterValue === 'all') {
             activeFilters[filterType] = null;
@@ -299,41 +530,16 @@
         updateFilterButtons();
     }
 
-    // Update filter button states
+    // Update filter button states (chỉ status, brand đã được filter ở server)
     function updateFilterButtons() {
-        const brandAllBtn = document.getElementById('filter-brand-all');
         const statusAllBtn = document.getElementById('filter-status-all');
-        const brandButtons = document.querySelectorAll('.filter-brand-btn');
         const statusButtons = document.querySelectorAll('.filter-status-btn');
-
-        // Reset brand buttons
-        brandButtons.forEach(btn => {
-            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
-            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
-        });
 
         // Reset status buttons
         statusButtons.forEach(btn => {
             btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
             btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
         });
-
-        // Activate brand "Tất cả" if no brand filter
-        if (!activeFilters.brand) {
-            if (brandAllBtn) {
-                brandAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
-                brandAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
-            }
-        } else {
-            // Activate specific brand filter button
-            brandButtons.forEach(btn => {
-                const filterValue = btn.dataset.filterValue;
-                if (filterValue === activeFilters.brand) {
-                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
-                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
-                }
-            });
-        }
 
         // Activate status "Tất cả" if no status filter
         if (!activeFilters.status) {
@@ -353,17 +559,35 @@
         }
     }
 
-    // Apply filters to rows (tối ưu với requestAnimationFrame)
+    // Apply filters to rows (tối ưu - đơn giản và nhanh)
+    // Brand filter đã được xử lý ở server-side, chỉ filter status và search ở client
     let filterTimeout = null;
-    function applyFilters() {
-        // Debounce với requestAnimationFrame để tối ưu performance
+    function applyFilters(immediate = false) {
+        // Clear timeout nếu có
         if (filterTimeout) {
-            cancelAnimationFrame(filterTimeout);
+            clearTimeout(filterTimeout);
+            filterTimeout = null;
         }
         
-        filterTimeout = requestAnimationFrame(() => {
+        // Nếu immediate = true, chạy ngay không debounce (cho Enter key)
+        if (immediate) {
+            executeFilter();
+            return;
+        }
+        
+        // Debounce filter
+        filterTimeout = setTimeout(() => {
+            executeFilter();
+        }, 50);
+    }
+    
+    function executeFilter() {
+            const startTime = performance.now();
+            
             if (!allRowsCache) {
+                const cacheStart = performance.now();
                 allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
+                debugLog(`DOM Query: ${(performance.now() - cacheStart).toFixed(2)}ms`, { count: allRowsCache.length });
             }
             
             if (!searchInputCache) {
@@ -371,48 +595,185 @@
             }
             const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
 
+            // Tối ưu: Cache text content nếu chưa có
+            if (!rowsTextCache) {
+                const cacheStart = performance.now();
+                rowsTextCache = new Map();
+                allRowsCache.forEach((row, index) => {
+                    // Dùng textContent thay vì innerHTML - nhanh hơn nhiều
+                    rowsTextCache.set(index, (row.textContent || '').toLowerCase());
+                });
+                debugLog(`Text Cache: ${(performance.now() - cacheStart).toFixed(2)}ms`);
+            }
+
             let visibleCount = 0;
+            const changes = []; // Batch DOM changes
             
-            // Batch DOM updates để tối ưu performance
-            allRowsCache.forEach(row => {
-                const brandName = row.dataset.brand || '';
+            // Lọc nhanh: chỉ duyệt 1 lần, kiểm tra tất cả điều kiện
+            allRowsCache.forEach((row, index) => {
                 const statusName = row.dataset.status || '';
-                const rowText = (row.innerText || '').toLowerCase();
+                // Tối ưu: Dùng cached text content thay vì innerHTML
+                const rowText = rowsTextCache.get(index) || '';
 
-                // Check filter conditions
-                let matchesBrand = !activeFilters.brand || brandName === activeFilters.brand;
-                let matchesStatus = !activeFilters.status || statusName === activeFilters.status;
-                let matchesSearch = !searchQuery || rowText.includes(searchQuery);
+                // Check filter conditions - brand đã được filter ở server
+                const matchesStatus = !activeFilters.status || statusName === activeFilters.status;
+                const matchesSearch = !searchQuery || rowText.includes(searchQuery);
 
-                // Show/hide row
-                if (matchesBrand && matchesStatus && matchesSearch) {
-                    row.classList.remove('hidden');
+                // Batch DOM changes
+                if (matchesStatus && matchesSearch) {
+                    if (row.classList.contains('hidden')) {
+                        changes.push({ row, action: 'show' });
+                    }
                     visibleCount++;
                 } else {
-                    row.classList.add('hidden');
+                    if (!row.classList.contains('hidden')) {
+                        changes.push({ row, action: 'hide' });
+                    }
                 }
+            });
+            
+            // Apply DOM changes (tối ưu: dùng requestAnimationFrame)
+            const domStart = performance.now();
+            if (changes.length > 50) {
+                // Batch với requestAnimationFrame cho nhiều changes
+                requestAnimationFrame(() => {
+                    changes.forEach(({ row, action }) => {
+                        if (action === 'show') {
+                            row.classList.remove('hidden');
+                        } else {
+                            row.classList.add('hidden');
+                        }
+                    });
+                });
+            } else {
+                // Apply ngay lập tức cho ít changes
+                changes.forEach(({ row, action }) => {
+                    if (action === 'show') {
+                        row.classList.remove('hidden');
+                    } else {
+                        row.classList.add('hidden');
+                    }
+                });
+            }
+            debugLog(`DOM Updates: ${(performance.now() - domStart).toFixed(2)}ms`, { changes: changes.length });
+            
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            debugLog(`applyFilters: ${duration.toFixed(2)}ms`, { 
+                total: allRowsCache.length, 
+                visible: visibleCount,
+                changes: changes.length 
             });
             
             // Update filter button counts sau khi filter (debounced)
             updateFilterCounts();
-        });
     }
 
+    // Import Excel handler
+    function handleImportExcel(file) {
+        if (!file) return;
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Show loading
+        const importBtn = document.querySelector('label[for="import-excel-input"]');
+        const originalText = importBtn.innerHTML;
+        importBtn.innerHTML = '<span>⏳</span><span>Đang xử lý...</span>';
+        importBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        
+        // Get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+        
+        // Upload file
+        fetch('{% url "products:import_variants_excel" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                const result = data.result;
+                const message = `Import thành công!\n` +
+                    `- Tổng dòng: ${result.total_rows}\n` +
+                    `- Đã xử lý: ${result.processed}\n` +
+                    `- Thành công: ${result.success}\n` +
+                    `- Bỏ qua: ${result.skipped}\n` +
+                    `- Lỗi: ${result.errors}`;
+                
+                if (result.errors > 0 && result.error_details.length > 0) {
+                    const errorMsg = result.error_details.slice(0, 5).join('\n');
+                    alert(message + '\n\nChi tiết lỗi:\n' + errorMsg);
+                } else {
+                    alert(message);
+                }
+                
+                // Reload page sau 1s để cập nhật dữ liệu
+                if (result.success > 0) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } else {
+                alert('Lỗi: ' + (data.message || 'Không thể import file'));
+            }
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error.message);
+        })
+        .finally(() => {
+            // Restore button
+            importBtn.innerHTML = originalText;
+            importBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            // Reset file input
+            document.getElementById('import-excel-input').value = '';
+        });
+    }
+    
     // Initialize filters
     document.addEventListener('DOMContentLoaded', function() {
+        const initStart = performance.now();
+        
         // Cache rows ngay từ đầu để tối ưu
+        const cacheStart = performance.now();
         allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
+        totalVariantsCount = allRowsCache.length;
+        debugLog(`DOM Query (init): ${(performance.now() - cacheStart).toFixed(2)}ms`, { 
+            count: totalVariantsCount
+        });
+        
         searchInputCache = document.getElementById('variant-search-input');
         
         // Update counts lần đầu
         updateFilterCounts();
         updateFilterButtons();
         
-        // Brand filter buttons
-        document.querySelectorAll('.filter-brand-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const filterValue = btn.dataset.filterValue;
-                toggleFilter('brand', filterValue);
+        debugLog(`Total init time: ${(performance.now() - initStart).toFixed(2)}ms`);
+        
+        // Brand filter buttons - reload page khi chọn brand khác
+        document.querySelectorAll('.brand-filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const selectedBrandId = this.dataset.brandId;
+                const url = new URL(window.location.href);
+                url.searchParams.set('brand_id', selectedBrandId);
+                window.location.href = url.toString();
             });
         });
         
@@ -424,31 +785,365 @@
             });
         });
         
-        // Search input với debounce
+        // Search input - filter real-time hoặc khi Enter (tùy số lượng variants)
         if (searchInputCache) {
-            let searchTimeout = null;
+            // Remove any existing listeners first (nếu có)
+            const newInput = searchInputCache.cloneNode(true);
+            searchInputCache.parentNode.replaceChild(newInput, searchInputCache);
+            searchInputCache = newInput;
+            
+            // Real-time search
             searchInputCache.addEventListener('input', () => {
-                if (searchTimeout) {
-                    clearTimeout(searchTimeout);
-                }
-                searchTimeout = setTimeout(() => {
-                    applyFilters();
-                }, 300); // Debounce 300ms
+                applyFilters();
             });
+            debugLog('Search mode: Real-time');
         }
         
         // Reset button
         const resetBtn = document.getElementById('reset-filters-btn');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
-                activeFilters.brand = null;
                 activeFilters.status = null;
                 if (searchInputCache) searchInputCache.value = '';
                 applyFilters();
                 updateFilterButtons();
             });
         }
+        
+        // Import Excel input
+        const importInput = document.getElementById('import-excel-input');
+        if (importInput) {
+            importInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    handleImportExcel(file);
+                }
+            });
+        }
+        
+        // Export Excel - thêm filter parameters vào URL
+        const exportBtn = document.getElementById('export-excel-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', function(e) {
+                e.preventDefault(); // Prevent default navigation
+                
+                // Lấy filter hiện tại
+                const brandFilter = activeFilters.brand || '';
+                const statusFilter = activeFilters.status || '';
+                const searchQuery = searchInputCache ? (searchInputCache.value || '').trim() : '';
+                
+                // Build URL với query parameters
+                let exportUrl = exportBtn.getAttribute('href');
+                const params = new URLSearchParams();
+                
+                if (brandFilter) {
+                    params.append('brand', brandFilter);
+                }
+                if (statusFilter) {
+                    params.append('status', statusFilter);
+                }
+                if (searchQuery) {
+                    params.append('search', searchQuery);
+                }
+                
+                if (params.toString()) {
+                    exportUrl += '?' + params.toString();
+                }
+                
+                // Navigate đến URL mới
+                window.location.href = exportUrl;
+            });
+        }
+        
+        // ==================== VARIANT EDIT MODAL ====================
+        const variantEditModal = document.getElementById('variant-edit-modal');
+        const variantEditModalClose = document.getElementById('variant-edit-modal-close');
+        const variantEditModalCancel = document.getElementById('variant-edit-modal-cancel');
+        const variantEditModalSave = document.getElementById('variant-edit-modal-save');
+        let currentEditingVariantId = null;
+        
+        // Helper function để get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Mở modal và load data variant
+        function openVariantEditModal(btn) {
+            const variantId = parseInt(btn.dataset.variantId);
+            currentEditingVariantId = variantId;
+            
+            // Load data từ data attributes
+            document.getElementById('modal-variant-id').textContent = variantId;
+            document.getElementById('modal-variant-id-input').value = variantId;
+            document.getElementById('modal-variant-sku').textContent = btn.dataset.variantSku || '-';
+            
+            // Box info
+            document.getElementById('modal-box-full-box').value = btn.dataset.variantBoxFullBox || '';
+            document.getElementById('modal-box-length').value = btn.dataset.variantBoxLength || '';
+            document.getElementById('modal-box-width').value = btn.dataset.variantBoxWidth || '';
+            document.getElementById('modal-box-height').value = btn.dataset.variantBoxHeight || '';
+            
+            // TQ info
+            document.getElementById('modal-price-tq').value = btn.dataset.variantPriceTq || '';
+            document.getElementById('modal-sku-tq').value = btn.dataset.variantSkuTq || '';
+            document.getElementById('modal-name-tq').value = btn.dataset.variantNameTq || '';
+            
+            // XNK
+            document.getElementById('modal-sku-xnk').value = btn.dataset.variantSkuXnk || '';
+            
+            // Show modal
+            variantEditModal.classList.remove('hidden');
+        }
+        
+        // Đóng modal
+        function closeVariantEditModal() {
+            variantEditModal.classList.add('hidden');
+            currentEditingVariantId = null;
+            // Clear search results
+            document.getElementById('modal-xnk-search-results').classList.add('hidden');
+        }
+        
+        // Edit button click - mở modal
+        document.querySelectorAll('.variant-edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                openVariantEditModal(this);
+            });
+        });
+        
+        // Close modal handlers
+        if (variantEditModalClose) {
+            variantEditModalClose.addEventListener('click', closeVariantEditModal);
+        }
+        if (variantEditModalCancel) {
+            variantEditModalCancel.addEventListener('click', closeVariantEditModal);
+        }
+        
+        // Close modal khi click outside
+        variantEditModal.addEventListener('click', function(e) {
+            if (e.target === variantEditModal) {
+                closeVariantEditModal();
+            }
+        });
+        
+        // Save variant metadata
+        if (variantEditModalSave) {
+            variantEditModalSave.addEventListener('click', function() {
+                if (!currentEditingVariantId) return;
+                
+                // Collect data from modal inputs
+                const data = {};
+                
+                // Box info
+                const fullBox = document.getElementById('modal-box-full-box').value.trim();
+                const boxLength = document.getElementById('modal-box-length').value.trim();
+                const boxWidth = document.getElementById('modal-box-width').value.trim();
+                const boxHeight = document.getElementById('modal-box-height').value.trim();
+                
+                if (fullBox !== '') data.full_box = parseInt(fullBox);
+                if (boxLength !== '') data.box_length_cm = parseFloat(boxLength);
+                if (boxWidth !== '') data.box_width_cm = parseFloat(boxWidth);
+                if (boxHeight !== '') data.box_height_cm = parseFloat(boxHeight);
+                
+                // TQ info
+                const priceTq = document.getElementById('modal-price-tq').value.trim();
+                const skuTq = document.getElementById('modal-sku-tq').value.trim();
+                const nameTq = document.getElementById('modal-name-tq').value.trim();
+                
+                if (priceTq !== '') data.price_tq = parseFloat(priceTq);
+                if (skuTq !== '') data.sku_tq = skuTq;
+                if (nameTq !== '') data.name_tq = nameTq;
+                
+                // XNK
+                const skuXnk = document.getElementById('modal-sku-xnk').value.trim();
+                if (skuXnk !== '') data.sku_model_xnk = skuXnk;
+                
+                const csrftoken = getCookie('csrftoken');
+                
+                // Show loading state
+                const originalText = variantEditModalSave.innerHTML;
+                variantEditModalSave.innerHTML = '⏳ Đang lưu...';
+                variantEditModalSave.disabled = true;
+                
+                // Send request
+                fetch(`{% url 'products:update_variant_metadata' 0 %}`.replace('0', currentEditingVariantId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        // Update row display (reload page để đảm bảo data mới nhất)
+                        window.location.reload();
+                    } else {
+                        // Show error message
+                        const errorMsg = document.createElement('div');
+                        errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                        errorMsg.textContent = '✗ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu');
+                        document.body.appendChild(errorMsg);
+                        setTimeout(() => {
+                            if (errorMsg.parentNode) {
+                                errorMsg.remove();
+                            }
+                        }, 3000);
+                        
+                        // Restore button state
+                        variantEditModalSave.innerHTML = originalText;
+                        variantEditModalSave.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    // Show error message
+                    const errorMsg = document.createElement('div');
+                    errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                    errorMsg.textContent = '✗ Lỗi: ' + error.message;
+                    document.body.appendChild(errorMsg);
+                    setTimeout(() => {
+                        if (errorMsg.parentNode) {
+                            errorMsg.remove();
+                        }
+                    }, 3000);
+                    
+                    // Restore button state
+                    variantEditModalSave.innerHTML = originalText;
+                    variantEditModalSave.disabled = false;
+                });
+            });
+        }
+        
+        // XNK Model Search Handler trong modal
+        const modalXnkInput = document.getElementById('modal-sku-xnk');
+        const modalXnkResults = document.getElementById('modal-xnk-search-results');
+        let modalSearchTimeout = null;
+        
+        if (modalXnkInput && modalXnkResults) {
+            modalXnkInput.addEventListener('input', function() {
+                const query = this.value.trim();
+                
+                // Clear previous timeout
+                if (modalSearchTimeout) {
+                    clearTimeout(modalSearchTimeout);
+                }
+                
+                // Hide results if query is empty
+                if (!query) {
+                    modalXnkResults.classList.add('hidden');
+                    return;
+                }
+                
+                // Debounce search
+                modalSearchTimeout = setTimeout(() => {
+                    searchXNKModels(query, modalXnkResults, modalXnkInput);
+                }, 300);
+            });
+            
+            // Hide results when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!modalXnkInput.contains(e.target) && !modalXnkResults.contains(e.target)) {
+                    modalXnkResults.classList.add('hidden');
+                }
+            });
+        }
+        
+        function searchXNKModels(query, resultsDiv, inputElement) {
+            if (!resultsDiv || !inputElement) return;
+            
+            // Show loading
+            resultsDiv.innerHTML = '<div class="px-2 py-1 text-[10px] text-slate-500">Đang tìm kiếm...</div>';
+            resultsDiv.classList.remove('hidden');
+            
+            // Scroll modal content to show search results
+            const modalContent = variantEditModal.querySelector('.flex-1.overflow-y-auto');
+            if (modalContent) {
+                // Scroll to bottom of modal content to show dropdown
+                setTimeout(() => {
+                    modalContent.scrollTop = modalContent.scrollHeight;
+                }, 50);
+            }
+            
+            // Call API
+            fetch(`{% url 'products:api_xnk_search' %}?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.results && data.results.length > 0) {
+                        // Display results
+                        let html = '';
+                        data.results.slice(0, 10).forEach(model => {
+                            const sku = model.sku || '-';
+                            const enName = model.en_name || model.name_en || model.name_english || '';
+                            const vnName = model.vn_name || model.name_vn || '';
+                            
+                            html += `
+                                <div class="xnk-search-result-item px-2 py-1.5 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0" 
+                                     data-sku="${sku}">
+                                    <div class="font-mono text-[10px] font-semibold text-slate-800">${sku}</div>
+                                    ${enName ? `<div class="text-[9px] text-slate-600 mt-0.5">EN: ${enName}</div>` : ''}
+                                    ${vnName ? `<div class="text-[9px] text-slate-500 mt-0.5">VN: ${vnName.substring(0, 50)}${vnName.length > 50 ? '...' : ''}</div>` : ''}
+                                </div>
+                            `;
+                        });
+                        
+                        if (data.results.length > 10) {
+                            html += `<div class="px-2 py-1 text-[9px] text-slate-400 text-center">... và ${data.results.length - 10} kết quả khác</div>`;
+                        }
+                        
+                        resultsDiv.innerHTML = html;
+                        
+                        // Scroll again after results are rendered
+                        if (modalContent) {
+                            setTimeout(() => {
+                                modalContent.scrollTop = modalContent.scrollHeight;
+                            }, 100);
+                        }
+                        
+                        // Add click handlers
+                        resultsDiv.querySelectorAll('.xnk-search-result-item').forEach(item => {
+                            item.addEventListener('click', function() {
+                                const selectedSku = this.dataset.sku;
+                                inputElement.value = selectedSku;
+                                resultsDiv.classList.add('hidden');
+                                
+                                // Trigger input event to update the value
+                                inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+                            });
+                        });
+                    } else {
+                        resultsDiv.innerHTML = '<div class="px-2 py-1 text-[10px] text-slate-400">Không tìm thấy kết quả</div>';
+                        
+                        // Scroll to show "no results" message
+                        if (modalContent) {
+                            setTimeout(() => {
+                                modalContent.scrollTop = modalContent.scrollHeight;
+                            }, 100);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Search error:', error);
+                    resultsDiv.innerHTML = '<div class="px-2 py-1 text-[10px] text-red-500">Lỗi khi tìm kiếm</div>';
+                    
+                    // Scroll to show error message
+                    if (modalContent) {
+                        setTimeout(() => {
+                            modalContent.scrollTop = modalContent.scrollHeight;
+                        }, 100);
+                    }
+                });
+        }
     });
 </script>
 {% endblock %}
-

@@ -1,0 +1,309 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi-VN">
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <style type="text/css">
+        .line-100-1px{width: 100%; height: 1px; background-color: #000; display: block}
+        .line-100-2px{width: 100%; height: 2px; background-color: #000; display: block}
+        .line-100-3px{width: 100%; height: 3px; background-color: #000; display: block}
+        .line-100-4px{width: 100%; height: 4px; background-color: #000; display: block}
+        .line-50-1px{width: 50%; height: 1px; background-color: #000; display: block}
+        .line-50-2px{width: 50%; height: 2px; background-color: #000; display: block}
+        .line-50-3px{width: 50%; height: 3px; background-color: #000; display: block}
+        .line-50-4px{width: 50%; height: 4px; background-color: #000; display: block}
+        
+        #same-size-text{height: 2px; background-color: #333}
+        @font-face {
+            font-family: 'Averta Std CY Bold';
+            src: url("{% static 'font/AvetaStdCY/AvertaStdCY-Bold.woff2' %}") format('woff2'),
+            url("{% static 'font/AvertaStdCY-Bold.woff' %}") format('woff');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Averta Std CY';
+            src: url("{% static 'font/AvetaStdCY/AvertaStdCY-Regular.woff2' %}") format('woff2'),
+            url("{% static 'font/AvertaStdCY-Regular.woff' %}") format('woff');
+            font-weight: 500;
+            font-style: normal;
+        }
+        .print_div {
+              font-family: 'Averta Std CY Bold', sans-serif;
+            }
+
+        .line1-name {
+          position: relative;
+          display: inline-block;
+        }
+
+        .line1-name .border-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          height: 4px;
+          background-color: #333;
+        }
+    </style>
+</head>
+<body>
+<div>
+{% if size == 'a7' %}     
+<div id="containerPrint">
+<style type="text/css">
+body{display: block;margin: 0;color: #000}
+.print_div {font-size: 7px;;}
+p{margin: 0;font-size: 14px;}
+h5{font-size: 9px;margin: 0;}
+h2,h3,h4{margin: 0;}
+*, *:before, *:after { -moz-box-sizing: border-box;-webkit-box-sizing: border-box;box-sizing: border-box;}}}
+p {margin: 0}img {margin: 0}#example_filter{display: none;}#example_info{display: none;}
+@media print {
+    @page {
+        size: 74mm 105mm;
+        margin: 0;
+    }
+    body {
+        margin: 0;
+        padding: 0;
+    }
+}
+</style>
+
+{%for vari in vari_list %}
+<div class="print_div" id="print-div-se" style="width: 74mm; height: 105mm;border:1px solid #ccc;position: relative;padding: 2px; break-after: page; margin: auto;z-index: 9; overflow: hidden;">
+    <div style="float:right;width: 74mm; height: 105mm;display: flex;flex-wrap: wrap;padding: 12px;">
+            {% if vari.brand|lower == "zibo" or vari.brand|lower == "houde" or vari.brand|lower == "heijan" or vari.brand|lower == "lissa" or vari.brand|lower == "phaledo" %}
+                <div style=" width: 100%;display: flex; height: 35px;">
+                  <img src="{% static 'logo-phaledo.jpg' %}" style="height: 35px;margin-bottom: 2px" /> 
+                  <div style="font-size: 10px; width: 70%; text-align: right; height: 35px; font-family: inherit; display: flex">
+                    <div style="margin: auto 0 0 auto" class="bold">
+                          PHALEDO OFFICIAL <br>
+                          www.phaledo.vn
+                      </div>
+                  </div>
+                </div>
+            {% elif vari.brand|lower == "lteng" or vari.brand|lower == "danle" or vari.brand|lower == "ermo" %}
+                <div style=" width: 100%;display: flex; height: 35px;">
+                  <img src="{% static 'logo-lteng.jpg' %}" style="height: 35px;margin-bottom: 2px" /> 
+                  <div style="font-size: 10px; width: 70%; text-align: right; height: 35px; font-family: inherit; display: flex">
+                    <div style="margin: auto 0 0 auto" class="bold">
+                          LTENG Blue Vine <br>
+                          www.lteng.vn
+                      </div>
+                  </div>
+                </div>
+            {% else %}
+                <div style=" width: 100%;display: flex; height: 35px;">
+                  <img src="{% static 'giaodiensang.png' %}" style="height:35px;margin-bottom: 2px" /> 
+                  <div style="font-size: 10px; width: 70%; text-align: right; height: 35px; font-family: inherit; display: flex">
+                    <div style="margin: auto 0 0 auto" class="bold">
+                          GIA DỤNG PLUS + <br>
+                          www.giadungplus.com
+                      </div>
+                  </div>
+                </div>
+            {% endif %}
+       
+            <div style="height: 40%; display: flex; flex-wrap: wrap; flex-direction: row; margin-top: 5px;">
+                {% if vari.vi_name %}
+                <p class="line1-name" style="margin-bottom: 2px;text-transform: uppercase;">{{vari.vi_name}}</p>
+                {% endif %}
+                {% if vari.en_name %}
+                <p class="line1-name en-name-text" id="text-size-{{vari.id}}" style="margin-bottom: 2px; color: #555; white-space: nowrap; overflow: hidden; width: 100%;">{{vari.en_name}}</p>
+                {% endif %}
+               
+                {% if vari.descreption %}
+                <div style=" width: 100%; text-align: left;">
+                    <p style="font-size:10px;line-height: 12px; margin-bottom: 2px;">{{vari.descreption}}</p>
+                </div>
+                {% endif %}
+                {% if vari.material %}
+                <div style=" width: 100%; text-align: left;">
+                    <p style="font-size:10px;line-height: 12px; margin-bottom: 2px;">Chất liệu: {{vari.material}}</p>
+                </div>
+                {% endif %}
+                <div id="same-size-text-{{vari.id}}"></div>
+            </div>
+            <div style="height: 24%; display: flex; flex-wrap: wrap; flex-direction: row;">
+                <p style="font-size:9px;">- Nhập khẩu bởi: Công ty cổ phần TMDV <b>Gia Dụng Plus</b> -MST: 0109514772 - Địa chỉ: C21-02 KĐT Geleximco, P. Hà Đông, Hà Nội</p>
+                {% if vari.nsx_name %}
+                <p style="font-size:9px";>- NSX: {{vari.nsx_name}}{% if vari.nsx_diachi %} - {{vari.nsx_diachi}}{% endif %} - HDSD: Xem chi tiết tài liệu gửi kèm.</p>
+                {% else %}
+                <p style="font-size:9px";>- HDSD: Xem chi tiết tài liệu gửi kèm.</p>
+                {% endif %}
+                <p style="font-size:10px;font-weight: inherit; margin-top: 3px; margin-bottom: 4px"><i>SẢN XUẤT TẠI TRUNG QUỐC</i></p>
+
+                <div class="line-100-4px"></div>
+            </div>
+            <div style="height: 30%; width: 100%; display: flex; flex-direction: row;">
+                <div style="width: 75%; margin:auto">
+                    <p style="font-size:32px;line-height: 35px; margin-bottom: 2px;"><b>{{vari.skugon}}</b></p>
+                    {% if vari.opt1 %}
+                    <p style="font-size:18px;line-height: 22px; margin-bottom: 2px;">{{vari.opt1}}</p>
+                    {% endif %}
+                </div>
+                <div style="width: 25%; padding-top: 20px; margin-right: 5px;">
+                    <div style="transform: rotate(-90deg); display: inline-block; height: 70px;">
+                      <svg id="barcode-{{vari.barcode}}"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function adjustFontToFitOneLine(el, minFontSize, maxFontSize) {
+  if (!el) return;
+  
+  // Đảm bảo element có white-space: nowrap và overflow: hidden
+  el.style.whiteSpace = 'nowrap';
+  el.style.overflow = 'hidden';
+  el.style.textOverflow = 'ellipsis';
+  
+  // Lấy chiều rộng tối đa từ parent container
+  const parent = el.parentElement;
+  if (!parent) return;
+  
+  const maxWidth = parent.offsetWidth - 20; // Trừ padding
+  
+  // Tạo clone để đo
+  const clone = el.cloneNode(true);
+  clone.style.visibility = 'hidden';
+  clone.style.position = 'absolute';
+  clone.style.whiteSpace = 'nowrap';
+  clone.style.left = '-9999px';
+  clone.style.top = '-9999px';
+  clone.style.width = 'auto';
+  clone.style.height = 'auto';
+  clone.style.overflow = 'visible';
+  document.body.appendChild(clone);
+
+  // Bắt đầu từ maxFontSize và giảm dần
+  let fontSize = maxFontSize;
+  let bestFit = minFontSize;
+
+  // Tìm font size phù hợp nhất
+  while (fontSize >= minFontSize) {
+    clone.style.fontSize = fontSize + 'px';
+    clone.style.lineHeight = (fontSize + 2) + 'px';
+    
+    if (clone.scrollWidth <= maxWidth) {
+      bestFit = fontSize;
+      break;
+    }
+    fontSize -= 0.5; // Giảm 0.5px mỗi lần
+  }
+
+  // Áp dụng font size tìm được
+  el.style.fontSize = bestFit + 'px';
+  el.style.lineHeight = (bestFit + 2) + 'px';
+  el.style.display = 'block';
+
+  // Xóa clone
+  document.body.removeChild(clone);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  // Điều chỉnh font size cho en_name - đảm bảo chỉ 1 hàng
+  document.querySelectorAll('.line1-name.en-name-text').forEach(function(el) {
+    adjustFontToFitOneLine(el, 8, 20); // min 8px, max 20px cho en_name
+  });
+  
+  // Điều chỉnh cho các .line1-name khác (vi_name)
+  document.querySelectorAll('.line1-name:not(.en-name-text)').forEach(function(el) {
+    adjustFontToFitOneLine(el, 10, 25);
+  });
+
+  // Tạo border overlay cho en_name (nếu cần)
+  {% for vari in vari_list %}
+  {% if vari.en_name %}
+  (function() {
+    var refText = document.getElementById("text-size-{{vari.id}}");
+    var refText2 = document.getElementById("same-size-text-{{vari.id}}");
+    
+    if (refText) {
+      // Đợi font size được điều chỉnh xong
+      setTimeout(function() {
+        var words = refText.textContent.trim().split(/\s+/);
+        var wordCount = words.length;
+        var displayWords = [];
+
+        if (wordCount >= 4) {
+          displayWords = words.slice(0, 3);
+        } else if (wordCount === 3) {
+          displayWords = words.slice(0, 2);
+        } else {
+          displayWords = words;
+        }
+
+        var measuringSpan = document.createElement("span");
+        measuringSpan.style.visibility = "hidden";
+        measuringSpan.style.whiteSpace = "nowrap";
+        measuringSpan.style.position = "absolute";
+        measuringSpan.style.left = "-9999px";
+
+        var computedStyle = window.getComputedStyle(refText);
+        measuringSpan.style.fontSize = computedStyle.fontSize;
+        measuringSpan.style.fontFamily = computedStyle.fontFamily;
+        measuringSpan.style.fontWeight = computedStyle.fontWeight;
+        measuringSpan.style.letterSpacing = computedStyle.letterSpacing;
+        measuringSpan.style.lineHeight = computedStyle.lineHeight;
+
+        measuringSpan.textContent = displayWords.join(" ") + " ";
+        document.body.appendChild(measuringSpan);
+
+        var width = measuringSpan.offsetWidth + "px";
+        document.body.removeChild(measuringSpan);
+
+        var borderDiv = document.createElement("div");
+        borderDiv.classList.add("border-overlay");
+        borderDiv.style.width = width;
+        refText.appendChild(borderDiv);
+
+        if (refText2) {
+          refText2.style.width = width;
+        }
+      }, 100);
+    }
+  })();
+  {% endif %}
+  {% endfor %}
+});
+</script>
+
+<!-- Thư viện JsBarcode -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+<!-- Sinh barcode bằng JavaScript -->
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    {% for vari in vari_list %}
+    {% if vari.barcode %}
+    const barcodeValue{{vari.id}} = "{{vari.barcode}}";
+    JsBarcode("#barcode-{{vari.barcode}}", barcodeValue{{vari.id}}, {
+      format: "CODE128",
+      lineColor: "#000",
+      width: 0.85,
+      height: 30,
+      displayValue: true,
+      fontSize: 13,
+      textMargin: 3,
+      margin: 0
+    });
+    {% endif %}
+    {% endfor %}
+  });
+</script>
+{%endfor%}
+</div>
+</div>
+{%endif%}
+
+</div>
+</body>
+</html>
+
+

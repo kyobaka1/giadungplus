@@ -7,99 +7,587 @@
 {% block overview %}
 <section>
     <h1 class="text-lg font-semibold text-slate-800">Đóng Gói Hàng</h1>
-    <p class="text-xs text-gray-500 mt-1">Scan barcode đơn hàng -> bắn đơn -> bắn sản phẩm</p>
+    <p class="text-xs text-gray-500 mt-1">Quét mã vận đơn → Xem danh sách → Hoàn tất</p>
 </section>
 {% endblock %}
 
 {% block main_content %}
-<div class="min-h-screen bg-slate-100">
-        
-        <!-- Barcode Scanner Area -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-4">
-            <h2 class="text-sm font-semibold text-slate-800 mb-4">Quét Barcode</h2>
-            
-            <div class="space-y-4">
-                <!-- Scan Order -->
-                <div>
-                    <label class="block text-xs text-gray-600 mb-2">1. Quét mã đơn hàng</label>
-                    <input type="text" 
-                           id="order-barcode-input"
-                           placeholder="Quét hoặc nhập mã đơn hàng"
-                           class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                           autofocus>
-                    <div id="order-status" class="mt-2 text-sm"></div>
-                </div>
+<div class="min-h-screen bg-slate-50">
 
-                <!-- Scan Products -->
-                <div id="products-scan-area" class="hidden">
-                    <label class="block text-xs text-gray-600 mb-2">2. Quét mã sản phẩm</label>
-                    <input type="text" 
-                           id="product-barcode-input"
-                           placeholder="Quét hoặc nhập mã sản phẩm/SKU"
-                           class="w-full px-4 py-3 text-lg border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
-                    
-                    <!-- Product list -->
-                    <div id="products-list" class="mt-4 space-y-2"></div>
-                </div>
+    <!-- Packer Info Section - Compact 50px height -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg shadow-sm p-2 mb-3" style="height: 50px;">
+        <div class="flex items-center gap-2 h-full">
+            <div class="flex-shrink-0">
+                <img id="packer-avatar" src="/static/nhanvien/{{ packer_name }}.png" alt="{{ packer_name }}"
+                    class="w-9 h-9 rounded-full border-2 border-white object-cover">
             </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-white truncate">{{ packer_name }}</p>
+                <p class="text-[10px] text-blue-100">Người đóng gói</p>
+            </div>
+            <div class="text-right">
+                <p id="today-count" class="text-xl font-bold text-white leading-none">0</p>
+                <p class="text-[9px] text-blue-100">Hôm nay</p>
+            </div>
+        </div>
+    </div>
 
-            <!-- Current Order Info -->
-            <div id="current-order-info" class="mt-6 p-4 bg-slate-50 rounded-lg hidden">
-                <h3 class="text-sm font-semibold mb-2">Thông tin đơn hàng</h3>
-                <div class="text-sm text-gray-600 space-y-1">
-                    <p>Mã đơn: <span id="order-code"></span></p>
-                    <p>Khách hàng: <span id="customer-name"></span></p>
-                    <p>Sản phẩm cần gói: <span id="products-count"></span></p>
+    <!-- QR Scanner Section -->
+    <div id="qr-section" class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-4">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">📦 Quét Mã Vận Đơn</h2>
+
+        <!-- Camera Scanner Area -->
+        <div id="camera-container" class="hidden mb-4">
+            <div id="reader" class="rounded-lg overflow-hidden border-2 border-blue-500"></div>
+            <p class="text-sm text-gray-600 mt-2 text-center">Di chuyển camera để quét QR code</p>
+        </div>
+
+        <!-- Manual Input -->
+        <div id="manual-input-container">
+            <input type="text" id="manual-input" placeholder="Hoặc nhập thủ công mã vận đơn..."
+                class="w-full px-4 py-4 text-sm border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autofocus>
+        </div>
+
+        <!-- Toggle Camera Button -->
+        <button id="toggle-camera-btn"
+            class="w-full mt-3 py-3 text-base font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:scale-95 transition">
+            📷 Bật Camera Quét QR
+        </button>
+
+        <p class="text-sm text-gray-500 mt-3 text-center">💡 Tip: Nhấn nút để bật camera quét QR hoặc nhập thủ công</p>
+    </div>
+
+    <!-- Order Section (hidden initially) - with bottom padding for fixed buttons -->
+    <div id="order-section" class="hidden pb-24">
+
+        <!-- Notes (if any) - FIRST -->
+        <div id="order-notes" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 hidden">
+            <p class="text-xs font-semibold text-yellow-800 mb-1">📝 Ghi chú:</p>
+            <p id="notes-content" class="text-xs text-yellow-700"></p>
+        </div>
+
+        <!-- Product List - SECOND -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 mb-4">
+            <h3 class="text-sm font-semibold text-slate-600 mb-4">📋 Danh Sách Sản Phẩm</h3>
+            <div id="product-list" class="space-y-3"></div>
+        </div>
+
+        <!-- Order Info Card - THIRD -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 mb-4">
+            <h3 class="text-sm font-semibold text-slate-600 mb-3">Thông Tin Đơn Hàng</h3>
+
+            <div class="space-y-2">
+                <div class="flex justify-between">
+                    <span class="text-sm text-gray-600">Mã đơn:</span>
+                    <span id="order-code" class="text-sm font-semibold"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm text-gray-600">Khách hàng:</span>
+                    <span id="customer-name" class="text-sm font-semibold"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm text-gray-600">SĐT:</span>
+                    <span id="customer-phone" class="text-sm"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm text-gray-600">Đơn vị vận chuyển:</span>
+                    <span id="dvvc" class="text-sm font-bold text-blue-600"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-sm text-gray-600">Tổng sản phẩm:</span>
+                    <span id="total-items" class="text-sm font-bold text-orange-600"></span>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Instructions -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
-            <p class="font-semibold mb-2">Hướng dẫn:</p>
-            <ol class="list-decimal list-inside space-y-1">
-                <li>Quét mã đơn hàng để bắt đầu quá trình đóng gói</li>
-                <li>Quét từng sản phẩm trong đơn để xác nhận</li>
-                <li>Hệ thống sẽ tự động lưu thông tin: người gói, thời gian gói</li>
-            </ol>
+    <!-- Fixed Action Buttons at Bottom - 70% Complete / 30% Cancel -->
+    <div id="action-buttons"
+        class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-40">
+        <div class="flex gap-3">
+            <button id="btn-complete"
+                class="flex-[7] py-4 text-lg font-semibold bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition">
+                ✓ Hoàn Tất
+            </button>
+            <button id="btn-cancel"
+                class="flex-[3] py-4 text-base font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 active:scale-95 transition">
+                ✕ Hủy
+            </button>
         </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loading" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p class="text-sm text-gray-600 mt-3">Đang xử lý...</p>
+        </div>
+    </div>
 
 </div>
 
+<style>
+    /* Mobile-first responsive styles */
+    #reader {
+        width: 100%;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    #reader video {
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 8px;
+    }
+
+    .product-card {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #fafafa;
+    }
+
+    .product-image {
+        flex-shrink: 0;
+    }
+
+    .product-image img {
+        width: 64px;
+        height: 64px;
+        object-fit: cover;
+        border-radius: 4px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .product-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .product-sku {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 4px;
+    }
+
+    .product-name {
+        font-size: 13px;
+        color: #64748b;
+        margin-bottom: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+
+    .product-quantity {
+        font-size: 15px;
+        font-weight: 600;
+        color: #ea580c;
+    }
+
+    .product-check {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    .product-check input[type="checkbox"] {
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+    }
+
+    .gift-header {
+        font-size: 14px;
+        font-weight: 600;
+        color: #dc2626;
+        margin: 16px 0 8px 0;
+        padding-left: 4px;
+        border-left: 3px solid #dc2626;
+    }
+
+    /* Toast notification */
+    .toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-100px);
+        padding: 16px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 9999;
+        max-width: 90%;
+    }
+
+    .toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .toast-success {
+        background: #10b981;
+        color: white;
+    }
+
+    .toast-error {
+        background: #ef4444;
+        color: white;
+    }
+
+    .toast-warning {
+        background: #f59e0b;
+        color: white;
+    }
+
+    @media (min-width: 640px) {
+        .product-card {
+            padding: 16px;
+        }
+
+        .product-image img {
+            width: 80px;
+            height: 80px;
+        }
+    }
+</style>
+
+<!-- Include html5-qrcode library for camera scanning -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
 <script>
-// TODO: Implement barcode scanning logic
-document.addEventListener('DOMContentLoaded', function() {
-    const orderInput = document.getElementById('order-barcode-input');
-    const productInput = document.getElementById('product-barcode-input');
-    const productsArea = document.getElementById('products-scan-area');
-    const orderInfo = document.getElementById('current-order-info');
-    
-    // Placeholder for order scan
-    orderInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            const orderCode = this.value.trim();
-            if (orderCode) {
-                // TODO: Call API to get order info
-                console.log('Scan order:', orderCode);
-                productsArea.classList.remove('hidden');
-                orderInfo.classList.remove('hidden');
-                productInput.focus();
+    let currentOrder = null;
+    let currentFulfillmentId = null;
+    let html5QrCode = null;
+    let isCameraActive = false;
+    let lastInputMode = 'manual'; // Track user's preferred input mode
+
+    // Initialize camera scanner
+    function initCameraScanner() {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+    }
+
+    // Start camera scanning
+    async function startCamera() {
+        initCameraScanner();
+
+        try {
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                onScanError
+            );
+
+            isCameraActive = true;
+            lastInputMode = 'camera'; // Remember user chose camera
+            document.getElementById('camera-container').classList.remove('hidden');
+            document.getElementById('manual-input-container').classList.add('hidden');
+            document.getElementById('toggle-camera-btn').textContent = '⌨️ Nhập Thủ Công';
+            document.getElementById('toggle-camera-btn').classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            document.getElementById('toggle-camera-btn').classList.add('bg-gray-600', 'hover:bg-gray-700');
+        } catch (err) {
+            console.error('Camera error:', err);
+            showError('Không thể bật camera. Vui lòng kiểm tra quyền truy cập camera.');
+            isCameraActive = false;
+        }
+    }
+
+    // Stop camera scanning
+    async function stopCamera() {
+        if (html5QrCode && isCameraActive) {
+            try {
+                await html5QrCode.stop();
+                isCameraActive = false;
+                document.getElementById('camera-container').classList.add('hidden');
+                document.getElementById('manual-input-container').classList.remove('hidden');
+                document.getElementById('toggle-camera-btn').textContent = '📷 Bật Camera Quét QR';
+                document.getElementById('toggle-camera-btn').classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                document.getElementById('toggle-camera-btn').classList.add('bg-blue-600', 'hover:bg-blue-700');
+                document.getElementById('manual-input').focus();
+            } catch (err) {
+                console.error('Error stopping camera:', err);
             }
         }
-    });
-    
-    // Placeholder for product scan
-    productInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            const productCode = this.value.trim();
-            if (productCode) {
-                // TODO: Call API to verify product
-                console.log('Scan product:', productCode);
-                this.value = '';
+    }
+
+    // Camera scan success callback
+    function onScanSuccess(decodedText) {
+        console.log('QR Code detected:', decodedText);
+        stopCamera();
+        if (decodedText && decodedText.trim()) {
+            scanOrder(decodedText.trim());
+        }
+    }
+
+    // Camera scan error callback
+    function onScanError(errorMessage) {
+        // Continuously called while scanning, ignore
+    }
+
+    // Scan QR and load order
+    async function scanOrder(trackingCode) {
+        showLoading();
+        try {
+            const response = await fetch(`/kho/orders/packing/get_order/?tracking_code=${encodeURIComponent(trackingCode)}`);
+            const data = await response.json();
+
+            if (data.success) {
+                currentOrder = data.order;
+                currentFulfillmentId = data.fulfillment_id;
+                displayOrderInfo(data.order, data.dvvc);
+                displayProductList(data.order.real_items, data.order.gifts);
+
+                // Show action buttons
+                document.getElementById('action-buttons').classList.remove('hidden');
+            } else {
+                showError(data.error || 'Không tìm thấy đơn hàng');
+                resetUI();
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Lỗi kết nối. Vui lòng thử lại.');
+        }
+        hideLoading();
+    }
+
+    // Display order information
+    function displayOrderInfo(order, dvvc) {
+        document.getElementById('order-code').textContent = order.code;
+        document.getElementById('customer-name').textContent = order.customer_name || 'N/A';
+        document.getElementById('customer-phone').textContent = order.customer_phone || 'N/A';
+        document.getElementById('dvvc').textContent = dvvc || 'Chưa xác định';
+        document.getElementById('total-items').textContent = order.total_items || 0;
+
+        // Show notes if available
+        if (order.notes && order.notes.trim()) {
+            document.getElementById('notes-content').textContent = order.notes;
+            document.getElementById('order-notes').classList.remove('hidden');
+        }
+
+        document.getElementById('qr-section').classList.add('hidden');
+        document.getElementById('order-section').classList.remove('hidden');
+    }
+
+    // Display product list
+    function displayProductList(realItems, gifts) {
+        const container = document.getElementById('product-list');
+        container.innerHTML = '';
+
+        if (realItems && realItems.length > 0) {
+            realItems.forEach((item, index) => {
+                container.appendChild(createProductCard(item, index, false));
+            });
+        }
+
+        if (gifts && gifts.length > 0) {
+            const giftHeader = document.createElement('h3');
+            giftHeader.className = 'gift-header';
+            giftHeader.textContent = '🎁 Quà Tặng Kèm Theo';
+            container.appendChild(giftHeader);
+
+            gifts.forEach((gift, index) => {
+                container.appendChild(createProductCard(gift, index, true));
+            });
+        }
+    }
+
+    // Create product card HTML
+    function createProductCard(item, index, isGift) {
+        const div = document.createElement('div');
+        div.className = 'product-card';
+
+        const imageUrl = item.image_url || '/static/default-product.png';
+        const productName = item.product_name || item.variant_name || item.sku;
+
+        div.innerHTML = `
+        <div class="product-image">
+            <img src="${imageUrl}" alt="${item.sku}" onerror="this.src='/static/default-product.png'">
+        </div>
+        <div class="product-info">
+            <div class="product-sku">${item.sku}</div>
+            <div class="product-name">${productName}</div>
+            <div class="product-quantity">SL: ${item.quantity} ${item.unit || ''}</div>
+        </div>
+        <div class="product-check">
+            <input type="checkbox" id="check-${isGift ? 'gift' : 'item'}-${index}" title="Đánh dấu đã kiểm tra">
+        </div>
+    `;
+        return div;
+    }
+
+    // Complete packing
+    async function completePacking() {
+        if (!currentOrder || !currentFulfillmentId) {
+            showError('Không có đơn hàng để hoàn tất');
+            return;
+        }
+
+        if (!confirm(`Xác nhận đã gói xong đơn ${currentOrder.code}?`)) {
+            return;
+        }
+
+        showLoading();
+        try {
+            const response = await fetch('/kho/orders/packing/complete/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    order_id: currentOrder.id,
+                    fulfillment_id: currentFulfillmentId
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showSuccess('✓ Đã hoàn tất đóng gói!');
+                const todayCount = document.getElementById('today-count');
+                todayCount.textContent = parseInt(todayCount.textContent) + 1;
+                setTimeout(resetUI, 1500);
+            } else {
+                showError(data.message || 'Có lỗi xảy ra');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Lỗi kết nối. Vui lòng thử lại.');
+        }
+        hideLoading();
+    }
+
+    // Cancel/Reset - Restore user's preferred input mode
+    function resetUI() {
+        if (isCameraActive) {
+            stopCamera();
+        }
+
+        currentOrder = null;
+        currentFulfillmentId = null;
+
+        document.getElementById('manual-input').value = '';
+        document.getElementById('product-list').innerHTML = '';
+        document.getElementById('order-notes').classList.add('hidden');
+        document.getElementById('action-buttons').classList.add('hidden'); // Hide action buttons
+
+        document.getElementById('qr-section').classList.remove('hidden');
+        document.getElementById('order-section').classList.add('hidden');
+
+        // Restore user's preferred input mode
+        if (lastInputMode === 'camera') {
+            setTimeout(() => startCamera(), 300);
+        } else {
+            document.getElementById('manual-input').focus();
+        }
+    }
+
+    // Helper functions
+    function showLoading() {
+        document.getElementById('loading').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+        document.getElementById('loading').classList.add('hidden');
+    }
+
+    function showError(message) {
+        showToast(message, 'error');
+    }
+
+    function showSuccess(message) {
+        showToast(message, 'success');
+    }
+
+    function showToast(message, type) {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
             }
         }
+        return cookieValue;
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function () {
+        const manualInput = document.getElementById('manual-input');
+        const toggleCameraBtn = document.getElementById('toggle-camera-btn');
+        const packerAvatar = document.getElementById('packer-avatar');
+
+        // Handle avatar fallback: png -> jpg -> default
+        packerAvatar.onerror = function () {
+            if (this.src.endsWith('.png')) {
+                this.src = this.src.replace('.png', '.jpg');
+            } else {
+                this.src = '/static/nhanvien/kho-avatar.png';
+                this.onerror = null;
+            }
+        };
+
+        // Auto-submit on Enter
+        manualInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                const code = this.value.trim();
+                if (code) {
+                    scanOrder(code);
+                }
+            }
+        });
+
+        // Toggle camera - update lastInputMode when user manually toggles
+        toggleCameraBtn.addEventListener('click', function () {
+            if (isCameraActive) {
+                lastInputMode = 'manual'; // User explicitly chose manual
+                stopCamera();
+            } else {
+                startCamera(); // lastInputMode set to 'camera' inside startCamera
+            }
+        });
+
+        // Complete button
+        document.getElementById('btn-complete').addEventListener('click', completePacking);
+
+        // Cancel button
+        document.getElementById('btn-cancel').addEventListener('click', function () {
+            if (confirm('Bạn có chắc muốn hủy và làm lại?')) {
+                resetUI();
+            }
+        });
+
+        // Auto focus
+        manualInput.focus();
     });
-});
 </script>
 {% endblock %}
-

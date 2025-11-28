@@ -122,7 +122,7 @@ def index(request):
             except Exception as e:
                 print(f"Error print: {e}")
 
-        writejsonfile(LIST_CHAT,'settings/logs/temp_mes.json')
+        writejsonfile(LIST_CHAT,'logs/temp_mes.json')
 
     return render(request, 'index.html')
 
@@ -139,10 +139,10 @@ def realtime(request):
         if "banhang.shopee.vn/api/selleraccount/subaccount/get" in request.url:
             print("Update cookies!")
             header_dict = dict(request.headers)
-            with open('settings/logs/current-cookie.txt', 'w') as f:
+            with open('logs/current-cookie.txt', 'w') as f:
                 json.dump(header_dict, f)
 
-    with open('settings/logs/current-cookie.txt', 'r') as f:
+    with open('logs/current-cookie.txt', 'r') as f:
         headers = json.load(f)
     loginsp.headers.update(headers)
 
@@ -238,7 +238,7 @@ def thongtinthanhtoan(request):
 
 
 def xnk_variant(request):
-    excel_file_path = 'settings/logs/log excel/ALL-VARIANTS.xls'
+    excel_file_path = 'logs/log excel/ALL-VARIANTS.xls'
     def to_float_safe(val):
         try:
             if val is None:
@@ -1263,7 +1263,7 @@ def api_kho_getshopeereport(request):
 
 
 def kho_product(request):
-    excel_file_path = 'settings/logs/log excel/ALL-VARIANTS.xls'
+    excel_file_path = 'logs/log excel/ALL-VARIANTS.xls'
 
     all_vari = get_all_variants("&product_types=normal&packsize=false&status=active")
     all_data = get_json_variants(CUSTOMER_ID_JSON["VARIANTS"])
@@ -1286,7 +1286,7 @@ def kho_product(request):
 
 def kho_barcode(request):
     TICKET_CUSTOMER_IDS = ['760093681']
-    excel_file_path = 'settings/logs/log excel/ALL-PRODUCTS.xls'
+    excel_file_path = 'logs/log excel/ALL-PRODUCTS.xls'
 
     # STEP 1 - Xử lý reload từ Excel
     if request.GET.get('action') == 'reload_from_file':
@@ -1458,7 +1458,7 @@ def api_kho_editproduct(request):
 
 def xnk_code(request):
     TICKET_CUSTOMER_ID = '759930912'
-    excel_file_path = 'settings/logs/log excel/nhap-khau-model.xls'
+    excel_file_path = 'logs/log excel/nhap-khau-model.xls'
 
     # STEP 1 - Xử lý reload từ Excel
     if request.GET.get('action') == 'reload_from_file':
@@ -1596,9 +1596,9 @@ def api_qt_editmodel(request):
 
 def nhacungcap(request):
     action = request.GET['action']
-    all_sup = json.loads(readfile("settings/logs/all_sup.json"))
+    all_sup = json.loads(readfile("logs/all_sup.json"))
     if action == 'list':
-        all_sup = json.loads(readfile("settings/logs/all_sup.json"))
+        all_sup = json.loads(readfile("logs/all_sup.json"))
         for sup in all_sup["suppliers"]:
             if sup['description'] == None:
                 sup['description'] = 'noname.jpg'
@@ -1776,7 +1776,7 @@ def nhacungcap(request):
                         sup["sum_khoi"] += float(variant["goiynhap"]*variant["so_khoi"])
                         sup["sum_sanpham"] += variant["goiynhap"]
 
-        writejsonfile(all_sup,"settings/logs/all_sup.json")
+        writejsonfile(all_sup,"logs/all_sup.json")
     #So sánh tốc độ bán 30 & 15
     for sup in all_sup["suppliers"]:
         sup["ss_30"] = 0
@@ -2340,7 +2340,7 @@ def editdonnhap(request):
                             
                             obj['all_vari'].append(variant)
 
-                    writejsonfile(obj, f"settings/logs/save_po/{sup_code}.log")
+                    writejsonfile(obj, f"logs/save_po/{sup_code}.log")
 
         elif action == 'edit':
             if 'search' in request.GET:
@@ -2352,7 +2352,7 @@ def editdonnhap(request):
                 time_to_sale = int(request.GET['time_to_sale'])
 
             sup_code = request.GET['brand_id']
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
             obj['save_data']['sum_cpm'] = 0
             obj['save_data']['brand_id'] = sup_code
             if 'vari' in request.GET:
@@ -2391,7 +2391,7 @@ def editdonnhap(request):
 
                 obj['time_to_sale'] = time_to_sale
             obj['save_data']['search_key'] = search_key
-            writejsonfile(obj, f"settings/logs/save_po/{sup_code}.log")
+            writejsonfile(obj, f"logs/save_po/{sup_code}.log")
 
         elif action == 'export':
             json_order = {
@@ -2469,7 +2469,7 @@ def editdonnhap(request):
 
                 #print(f"Chưa tồn tại nên tạo mới PO: {json_order['order_supplier']["code"]}")
             
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
 
             for variant in obj["all_vari"]:
                 variant['display'] = 1
@@ -2509,7 +2509,7 @@ def editdonnhap(request):
             po = js_get_url(f"{MAIN_URL}/order_suppliers/{po_id}.json")['order_supplier']
             sup_code = po["supplier_id"]
             obj['save_data']['brand_id'] = sup_code
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
 
             for variant in obj["all_vari"]:
                 variant['display'] = 1
@@ -2536,7 +2536,7 @@ def editdonnhap(request):
                     variant["nhap"] = 0
                     variant["box_nhap"] = 0
 
-            writejsonfile(obj,f"settings/logs/save_po/{sup_code}.log")
+            writejsonfile(obj,f"logs/save_po/{sup_code}.log")
         
         elif action == 'excel':
             po_id = request.GET['po_id']
@@ -2544,7 +2544,7 @@ def editdonnhap(request):
             po = js_get_url(f"{MAIN_URL}/order_suppliers/{po_id}.json")['order_supplier']
             sup_code = po["supplier_id"]
             obj['save_data']['brand_id'] = sup_code
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
             for variant in obj["all_vari"]:
                 variant["nhap"] = 0
                 
@@ -2554,7 +2554,7 @@ def editdonnhap(request):
                         variant["nhap"] = line["quantity"]
                         break
 
-            writejsonfile(obj,f"settings/logs/save_po/{sup_code}.log")
+            writejsonfile(obj,f"logs/save_po/{sup_code}.log")
 
             # Create a workbook and add a worksheet.
             workbook = xlsxwriter.Workbook(f"assets/excel_po/{po['supplier_data']['name']}-{po['code']}.xlsx")
@@ -2674,7 +2674,7 @@ def editdonnhap(request):
             po = js_get_url(f"{MAIN_URL}/order_suppliers/{po_id}.json")['order_supplier']
             sup_code = po["supplier_id"]
             obj['save_data']['brand_id'] = sup_code
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
             for variant in obj["all_vari"]:
                 for line in po["line_items"]:
                     if variant["id"] == line["variant_id"]:
@@ -2711,7 +2711,7 @@ def editdonnhap(request):
                     variant["po_code"] = po["code"]
                     variant["po_day"] = datetime.datetime.strptime(po['created_on'], "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d")
 
-            writejsonfile(obj,f"settings/logs/save_po/{sup_code}.log")
+            writejsonfile(obj,f"logs/save_po/{sup_code}.log")
             obj["all_vari"] = sorted(obj["all_vari"], key=lambda x: x['sku'])
             return render(request, 'nhanthungxnk.html',obj)
         
@@ -2724,7 +2724,7 @@ def editdonnhap(request):
             po = js_get_url(f"{MAIN_URL}/order_suppliers/{po_id}.json")['order_supplier']
             sup_code = po["supplier_id"]
             obj['save_data']['brand_id'] = sup_code
-            obj = json.loads(readfile(f"settings/logs/save_po/{sup_code}.log"))
+            obj = json.loads(readfile(f"logs/save_po/{sup_code}.log"))
             obj['sum'] = {'sum_nhap':0, 'sum_box':0,'sum_money':0,'sum_khoi':0}
             for variant in obj["all_vari"]:
                 flag = 0
@@ -2766,7 +2766,7 @@ def editdonnhap(request):
                     obj['sum']['sum_money'] += variant["sum_tien"]
 
             obj["all_vari"] = sorted(obj["all_vari"], key=lambda x: x['sku'])
-            writejsonfile(obj, f"settings/logs/save_po/{sup_code}.log")
+            writejsonfile(obj, f"logs/save_po/{sup_code}.log")
             return render(request, 'viewdonnhap.html',obj)
 
     obj["real_po"] = js_get_url(f"{MAIN_URL}/order_suppliers.json?page=1&limit=20&supplier_ids={obj['save_data']['brand_id']}&statuses=pending")["order_suppliers"]
@@ -2784,10 +2784,10 @@ def updategiavon(request):
         # Đọc file lên.
         action = request.POST['action']
         upload_file = request.FILES['document']
-        os.remove("settings/logs/log excel/update_giavon.xlsx")
+        os.remove("logs/log excel/update_giavon.xlsx")
         fs = FileSystemStorage()
-        fs.save('settings/logs/log excel/update_giavon.xlsx',upload_file)
-        loc = ("settings/logs/log excel/update_giavon.xlsx")
+        fs.save('logs/log excel/update_giavon.xlsx',upload_file)
+        loc = ("logs/log excel/update_giavon.xlsx")
         wb = xlrd.open_workbook(loc)
         sheet = wb.sheet_by_index(0)     
         sheet.cell_value(0, 0)
@@ -3131,7 +3131,7 @@ def flash_sale(request):
 
         all_product = []
 
-        loc = (f"settings/logs/flash_sale/{shop_name}.xlsx")
+        loc = (f"logs/flash_sale/{shop_name}.xlsx")
         wb = xlrd.open_workbook(loc)
         sheet = wb.sheet_by_index(0)     
         sheet.cell_value(0, 0)
@@ -3147,7 +3147,7 @@ def flash_sale(request):
                 if ids == str(product['item_id']):
                     xuatfile.append(product)
 
-        workbook = xlsxwriter.Workbook(f'settings/logs/flash_sale/flash_sale_total.xlsx')
+        workbook = xlsxwriter.Workbook(f'logs/flash_sale/flash_sale_total.xlsx')
         worksheet = workbook.add_worksheet()
         # Header cho các cột
         headers = ['item_id','variation_id', 'flash_sale_price']
@@ -3169,7 +3169,7 @@ def flash_sale(request):
 
     if 'update' in request.GET:
         # Tạo workbook và worksheet
-        workbook = xlsxwriter.Workbook(f'settings/logs/flash_sale/{shop_name}-new.xlsx')
+        workbook = xlsxwriter.Workbook(f'logs/flash_sale/{shop_name}-new.xlsx')
         worksheet = workbook.add_worksheet()
         # Header cho các cột
         headers = ['name','item_id', 'variation_id','sapo_variant_id', 'sapo_variant_sku','vari_name', 'price','flash_sale_price']
@@ -3276,10 +3276,10 @@ def ketoan_doisoat(request):
     # ĐỐI SOÁT GIAO HÀNG TIẾT KIỆM
     if request.method == "POST" and 'ghtk' in request.POST["doitac"]:
         upload_file = request.FILES['document']
-        os.remove("settings/logs/input_doisoat.xlsx")
+        os.remove("logs/input_doisoat.xlsx")
         fs = FileSystemStorage()
-        fs.save('settings/logs/input_doisoat.xlsx',upload_file)
-        loc = ("settings/logs/input_doisoat.xlsx")
+        fs.save('logs/input_doisoat.xlsx',upload_file)
+        loc = ("logs/input_doisoat.xlsx")
         wb = xlrd.open_workbook(loc)
         sheet = wb.sheet_by_index(0)     
         sheet.cell_value(0, 0)
@@ -3360,10 +3360,10 @@ def ketoan_doisoat(request):
         upload_file = request.FILES['document']
         FILE_UPLOAD = upload_file.name
 
-        os.remove("settings/logs/input_doisoat.xlsx")
+        os.remove("logs/input_doisoat.xlsx")
         fs = FileSystemStorage()
-        fs.save('settings/logs/input_doisoat.xlsx',upload_file)
-        loc = ("settings/logs/input_doisoat.xlsx")
+        fs.save('logs/input_doisoat.xlsx',upload_file)
+        loc = ("logs/input_doisoat.xlsx")
         wb = xlrd.open_workbook(loc)
         sheet = wb.sheet_by_index(0)     
         sheet.cell_value(0, 0)
@@ -3604,8 +3604,8 @@ def ketoan_1mdonhang(request):
             # Xử lý sản phẩm trong đơn
             obj["orders"].append(order)
 
-    writejsonfile(obj['orders'],'settings/logs/power-bi/orders/orders.json')
-    writejsonfile(obj['products'],'settings/logs/power-bi/product_orders/product_orders.json')
+    writejsonfile(obj['orders'],'logs/power-bi/orders/orders.json')
+    writejsonfile(obj['products'],'logs/power-bi/product_orders/product_orders.json')
     
     return render(request, 'ketoan_1mdonhang.html', obj)
 
@@ -3968,25 +3968,25 @@ def kho_hoatoc(request):
 
     if kho == 'geleximco':
         location = '241737'
-        with open('settings/logs/auto-gele.txt', 'r') as file:
+        with open('logs/auto-gele.txt', 'r') as file:
             auto_status = file.read().strip()
 
         if 'auto' in request.GET:
             auto_status = request.GET['auto']
             if auto_status.upper() in ['ON', 'OFF']:
-                with open('settings/logs/auto-gele.txt', 'w') as file:
+                with open('logs/auto-gele.txt', 'w') as file:
                     file.write(auto_status.upper())
             obj['boloc']['auto'] = auto_status
 
     else:
         location = '548744'
-        with open('settings/logs/auto-toky.txt', 'r') as file:
+        with open('logs/auto-toky.txt', 'r') as file:
             auto_status = file.read().strip()
 
         if 'auto' in request.GET:
             auto_status = request.GET['auto']
             if auto_status.upper() in ['ON', 'OFF']:
-                with open('settings/logs/auto-toky.txt', 'w') as file:
+                with open('logs/auto-toky.txt', 'w') as file:
                     file.write(auto_status.upper())
             obj['boloc']['auto'] = auto_status
 
@@ -4076,11 +4076,11 @@ def kho_qlpickup(request):
 
     HOME_PARAM = os.environ.get('DJANGO_HOME', None)
     if HOME_PARAM == "HN":
-        URL_PICKUP = 'settings/logs/pickup/gele.txt'
+        URL_PICKUP = 'logs/pickup/gele.txt'
     elif HOME_PARAM == "HCM":
-        URL_PICKUP = 'settings/logs/pickup/toky.txt'
+        URL_PICKUP = 'logs/pickup/toky.txt'
     else:
-        URL_PICKUP = 'settings/logs/pickup/test.txt'
+        URL_PICKUP = 'logs/pickup/test.txt'
 
     with open(URL_PICKUP, 'r') as file:
         temp_pickup = file.read().strip()
@@ -4255,13 +4255,13 @@ def kho_pickup(request):
 
     HOME_PARAM = os.environ.get('DJANGO_HOME', None)
     if HOME_PARAM == "HN":
-        URL_PICKUP = 'settings/logs/pickup/gele.txt'
+        URL_PICKUP = 'logs/pickup/gele.txt'
         LOCALTION_ID = 241737
     elif HOME_PARAM == "HCM":
-        URL_PICKUP = 'settings/logs/pickup/toky.txt'
+        URL_PICKUP = 'logs/pickup/toky.txt'
         LOCALTION_ID = 548744
     else:
-        URL_PICKUP = 'settings/logs/pickup/test.txt'
+        URL_PICKUP = 'logs/pickup/test.txt'
         LOCALTION_ID = 241737
 
     with open(URL_PICKUP, 'r') as file:
@@ -4393,14 +4393,14 @@ def kho_scanphanhang(request):
 
     #check_login_sapo()
     # Đọc và xử lý dữ liệu từ file toky.txt
-    with open('settings/logs/nhanvien/toky.txt', 'r', encoding='utf-8') as file:
+    with open('logs/nhanvien/toky.txt', 'r', encoding='utf-8') as file:
         lines = file.readlines()
         for line in lines:
             name, password = line.strip().split('/')
             obj['nhanvien_data'][f'TOKY: {name}'] = password
 
     # Đọc và xử lý dữ liệu từ file geleximco.txt
-    with open('settings/logs/nhanvien/geleximco.txt', 'r', encoding='utf-8') as file:
+    with open('logs/nhanvien/geleximco.txt', 'r', encoding='utf-8') as file:
         lines = file.readlines()
         for line in lines:
             name, password = line.strip().split('/')
@@ -4418,11 +4418,11 @@ def kho_scanphanhang(request):
 
     HOME_PARAM = os.environ.get('DJANGO_HOME', None)
     if HOME_PARAM == "HN":
-        URL_PICKUP = 'settings/logs/pickup/gele.txt'
+        URL_PICKUP = 'logs/pickup/gele.txt'
     elif HOME_PARAM == "HCM":
-        URL_PICKUP = 'settings/logs/pickup/toky.txt'
+        URL_PICKUP = 'logs/pickup/toky.txt'
     else:
-        URL_PICKUP = 'settings/logs/pickup/test.txt'
+        URL_PICKUP = 'logs/pickup/test.txt'
 
     with open(URL_PICKUP, 'r') as file:
         temp_pickup = file.read().strip()
@@ -4501,14 +4501,14 @@ def kho_phanhang(request):
     pwd = request.session['pwd']
      
     # Đọc và xử lý dữ liệu từ file toky.txt
-    with open('settings/logs/nhanvien/toky.txt', 'r', encoding='utf-8') as file:
+    with open('logs/nhanvien/toky.txt', 'r', encoding='utf-8') as file:
         lines = file.readlines()
         for line in lines:
             name, password = line.strip().split('/')
             obj['nhanvien_data'][f'TOKY: {name}'] = password
 
     # Đọc và xử lý dữ liệu từ file geleximco.txt
-    with open('settings/logs/nhanvien/geleximco.txt', 'r', encoding='utf-8') as file:
+    with open('logs/nhanvien/geleximco.txt', 'r', encoding='utf-8') as file:
         lines = file.readlines()
         for line in lines:
             name, password = line.strip().split('/')
@@ -5093,7 +5093,7 @@ def kho_setupmayin(request):
         mayin = request.GET['mayin']
         
         print("Set up printer: "+mayin)
-        writefile(mayin, 'settings/logs/mayin.log')
+        writefile(mayin, 'logs/mayin.log')
 
     return render(request, 'kho_setupmayin.html',{'mayin': mayin})
 
@@ -5195,7 +5195,7 @@ def kho_donhang(request):
             # Lấy thông tin từ Shopee
             tmdt_order = js_get_url(f"https://market-place.sapoapps.vn/v2/orders?page=1&limit=1&connectionIds={connectID}&query={order['reference_number']}")['orders'][0]
 
-            directory_path = 'settings/logs/print-cover/'
+            directory_path = 'logs/print-cover/'
 
             shop_name = existing_shop_map.get(tmdt_order['connection_id'], "")
             link_to_cover = directory_path + "/" + shop_name + "/"
@@ -6398,7 +6398,7 @@ def kd_sanpham(request):
 
     # ==== BƯỚC 1: XÁC THỰC GOOGLE SHEET ====
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    creds = Credentials.from_service_account_file("settings/logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
+    creds = Credentials.from_service_account_file("logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
     client = gspread.authorize(creds)
 
     # ==== BƯỚC 2: MỞ FILE GOOGLE SHEET ====
@@ -6532,7 +6532,7 @@ def kd_api_getproductinfo(request):
     list_qa = []
     # ==== BƯỚC 1: XÁC THỰC GOOGLE SHEET ====
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    creds = Credentials.from_service_account_file("settings/logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
+    creds = Credentials.from_service_account_file("logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
     client = gspread.authorize(creds)
 
     # ==== BƯỚC 2: MỞ FILE GOOGLE SHEET ====
@@ -6600,7 +6600,7 @@ def kd_qa(request):
     }
     # ==== BƯỚC 1: XÁC THỰC GOOGLE SHEET ====
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    creds = Credentials.from_service_account_file("settings/logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
+    creds = Credentials.from_service_account_file("logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
     client = gspread.authorize(creds)
 
     # ==== BƯỚC 2: MỞ FILE GOOGLE SHEET ====
@@ -6928,7 +6928,7 @@ def kd_repdanhgia(request):
         male = request.GET['male']
         name = request.GET['name']
         obj["save"].update({"male": male, "name": name.title()})
-        excel_file_path = 'settings/logs/log excel/GOIYDANHGIA.xlsx'
+        excel_file_path = 'logs/log excel/GOIYDANHGIA.xlsx'
         listgoiy, all_tags = load_goi_y_danh_gia(excel_file_path, shop_name, rate_star, male, name)
         obj['goiy'] = listgoiy
         obj['tags'] = all_tags
@@ -6937,7 +6937,7 @@ def kd_repdanhgia(request):
     if 'repcomment' in request.GET and request.GET['repcomment'] != '':
         repcomment = request.GET['repcomment']
         now = datetime.datetime.now()
-        log_dir = "settings/logs/comment"
+        log_dir = "logs/comment"
         log_filename = f"{now.month}_{now.year}-{SERVER_ID}.jsonl"
         log_path = os.path.join(log_dir, log_filename)
 
@@ -6970,12 +6970,12 @@ def kd_repdanhgia(request):
                 send_messages_to_customer(COVER_ID, MESS_REP, logintmdt)
             elif order_comment_rep == 0 and COVER_ID == 0:
                 log_entry['send_flag'] = 0
-                with open('settings/logs/comment/message/log.jsonl', "a", encoding="utf-8") as f:
+                with open('logs/comment/message/log.jsonl', "a", encoding="utf-8") as f:
                     f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
         else:
             # Ghi vào Google Sheet cho đánh giá xấu
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-            creds = ServiceAccountCredentials.from_json_keyfile_name("settings/logs/app-project-sapo-plus-eb0edec5c0dc.json", scope)
+            creds = ServiceAccountCredentials.from_json_keyfile_name("logs/app-project-sapo-plus-eb0edec5c0dc.json", scope)
             client = gspread.authorize(creds)
             sheet = client.open("DANHGIAXAU-DUYET").sheet1
             sheet.append_row([
@@ -7008,7 +7008,7 @@ def kd_tenkhach(request):
     from openai import OpenAI
 
     API_KEY = "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"
-    with open('settings/logs/openai/prompt-customer-name.txt', 'r', encoding='utf-8') as f:
+    with open('logs/openai/prompt-customer-name.txt', 'r', encoding='utf-8') as f:
         prompt_content = f.read()
 
     # --- Tham số tinh chỉnh nhanh ---
@@ -7426,8 +7426,8 @@ def kd_repauto(request):
     connection_id = get_connection_id(shop_name, existing_shop_map)
 
     log_path = "assets/openai/new-comment.json"
-    log_comment = "settings/logs/openai/log_comment.json"
-    log_name = "settings/logs/openai/log-name.json"
+    log_comment = "logs/openai/log_comment.json"
+    log_name = "logs/openai/log-name.json"
 
     if request.GET.get("update") == "1":
         cmt_id = request.GET.get("cmt_id")
@@ -7706,7 +7706,7 @@ def kd_repauto(request):
                 rs = loginsp.post(URL,json=POST_JSON)
                 
                 now = datetime.datetime.now()
-                log_dir = "settings/logs/comment"
+                log_dir = "logs/comment"
                 log_filename = f"{now.month}_{now.year}-{SERVER_ID}.jsonl"
                 log_path = os.path.join(log_dir, log_filename)
 
@@ -7739,7 +7739,7 @@ def kd_repauto(request):
                         send_messages_to_customer(COVER_ID, MESS_REP, logintmdt)
                     elif order_comment_rep == 0 and COVER_ID == 0:
                         log_entry['send_flag'] = 0
-                        with open('settings/logs/comment/message/log.jsonl', "a", encoding="utf-8") as f:
+                        with open('logs/comment/message/log.jsonl', "a", encoding="utf-8") as f:
                             f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
     
     # ----------------------------
@@ -7774,7 +7774,7 @@ def kd_repauto(request):
             }
             all_data_final.append(item)
 
-        with open("settings/logs/openai/history_rep/shopee_ratings.json", "w", encoding="utf-8") as f:
+        with open("logs/openai/history_rep/shopee_ratings.json", "w", encoding="utf-8") as f:
             json.dump(all_data_final, f, ensure_ascii=False, indent=2)
     
     # ----------------------------
@@ -7803,7 +7803,7 @@ def kd_repauto(request):
             comment["image_of_customer"] = f"https://cf.shopee.vn/file/{comment['user_portrait']}"
             
         # Lưu vào log file
-        with open(f"settings/logs/openai/history_rep/file_500_{str(random.randint(1, 5000))}.json", "w", encoding="utf-8") as f:
+        with open(f"logs/openai/history_rep/file_500_{str(random.randint(1, 5000))}.json", "w", encoding="utf-8") as f:
             json.dump(all_comment, f, ensure_ascii=False, indent=2)
 
 
@@ -8276,7 +8276,7 @@ def mkt_listproduct(request):
 
     # ==== BƯỚC 1: XÁC THỰC GOOGLE SHEET ====
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    creds = Credentials.from_service_account_file("settings/logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
+    creds = Credentials.from_service_account_file("logs/app-project-sapo-plus-eb0edec5c0dc.json", scopes=SCOPES)
     client = gspread.authorize(creds)
 
     # ==== BƯỚC 2: MỞ FILE GOOGLE SHEET ====
@@ -8877,4 +8877,184 @@ def api_uploadimage_ticket(request):
 
 
 def lovepage(request):
-    return render(request, 'love.html') 
+    return render(request, 'love.html')
+
+
+@csrf_exempt
+def sync_nhanphu_from_customer_note(request):
+    """
+    Đồng bộ thông tin nhãn phụ từ customer note lên product description metagdp.
+    
+    Customer note ID: 760093681
+    Format JSON trong note:
+    {
+        "product_id": 193446020.0,
+        "sku_first": "LT-0437",
+        "nsx": "LTENG",
+        "brand": "lteng",
+        "vi_name": "Giỏ kệ khăn tắm",
+        "en_name": "LTENG Wall Towel Basket",
+        "descreption": "Giỏ kệ nhôm LTENG dán tường chắc chắn...",
+        "material": "Nhôm không gian",
+        "sku": ""
+    }
+    
+    Push lên các thông tin: brand, vi_name, en_name, descreption, material
+    Lưu vào nhanphu_info của product description metagdp.
+    """
+    from core.sapo_client import get_sapo_client
+    from products.services.sapo_product_service import SapoProductService
+    from products.services.dto import NhanPhuInfoDTO
+    from products.services.metadata_helper import init_empty_metadata
+    
+    CUSTOMER_ID = 760093681
+    
+    result = {
+        "status": "ok",
+        "processed": 0,
+        "success": 0,
+        "errors": 0,
+        "details": []
+    }
+    
+    try:
+        # Khởi tạo Sapo client và product service
+        sapo_client = get_sapo_client()
+        product_service = SapoProductService(sapo_client)
+        
+        # Lấy customer note
+        print(f"[DEBUG] Đang lấy customer {CUSTOMER_ID}...")
+        customer_response = sapo_client.core.get_customer_raw(CUSTOMER_ID)
+        customer = customer_response.get("customer", {})
+        
+        if not customer:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Customer {CUSTOMER_ID} không tồn tại"
+            }, safe=False)
+        
+        # Lấy active notes
+        notes = customer.get("notes", [])
+        active_notes = [n for n in notes if n.get("status") == "active"]
+        print(f"[DEBUG] Tìm thấy {len(active_notes)} active notes")
+        
+        if not active_notes:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Customer {CUSTOMER_ID} không có active notes"
+            }, safe=False)
+        
+        # Xử lý từng note
+        for note in active_notes:
+            try:
+                content_str = note.get("content", "{}")
+                content = json.loads(content_str)
+                
+                # Kiểm tra có product_id không
+                product_id = content.get("product_id")
+                if not product_id:
+                    print(f"[DEBUG] Skip note {note.get('id')}: Không có product_id")
+                    continue
+                
+                product_id = int(float(product_id))  # Convert to int (có thể là float)
+                result["processed"] += 1
+                
+                # Extract thông tin nhãn phụ
+                vi_name = content.get("vi_name", "").strip() or None
+                en_name = content.get("en_name", "").strip() or None
+                description = content.get("descreption", "").strip() or None  # Note: user viết "descreption"
+                material = content.get("material", "").strip() or None
+                brand = content.get("brand", "").strip() or None
+                
+                # Tạo NhanPhuInfoDTO
+                nhanphu_info = NhanPhuInfoDTO(
+                    vi_name=vi_name,
+                    en_name=en_name,
+                    description=description,
+                    material=material,
+                    hdsd=None  # Không có trong customer note
+                )
+                
+                # Lấy product hiện tại
+                product = product_service.get_product(product_id)
+                if not product:
+                    result["errors"] += 1
+                    result["details"].append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "reason": "Product không tồn tại"
+                    })
+                    print(f"[ERROR] Product {product_id} không tồn tại")
+                    continue
+                
+                # Lấy metadata hiện tại
+                current_metadata = product.gdp_metadata
+                
+                if not current_metadata:
+                    # Nếu chưa có metadata, init empty metadata trước
+                    variant_ids = [v.id for v in product.variants]
+                    current_metadata = init_empty_metadata(product_id, variant_ids)
+                
+                # Update nhanphu_info
+                current_metadata.nhanphu_info = nhanphu_info
+                
+                # Lưu vào product description
+                success = product_service.update_product_metadata(
+                    product_id,
+                    current_metadata,
+                    preserve_description=True
+                )
+                
+                if success:
+                    result["success"] += 1
+                    result["details"].append({
+                        "product_id": product_id,
+                        "status": "success",
+                        "nhanphu_info": {
+                            "vi_name": vi_name,
+                            "en_name": en_name,
+                            "description": description,
+                            "material": material,
+                            "brand": brand  # Lưu brand vào details (không có trong DTO)
+                        }
+                    })
+                    print(f"[SUCCESS] Đã đồng bộ nhãn phụ cho product {product_id}")
+                else:
+                    result["errors"] += 1
+                    result["details"].append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "reason": "Không thể update product metadata"
+                    })
+                    print(f"[ERROR] Không thể update product {product_id}")
+                    
+            except json.JSONDecodeError as e:
+                print(f"[ERROR] Lỗi parse JSON note {note.get('id')}: {e}")
+                result["errors"] += 1
+                result["details"].append({
+                    "note_id": note.get("id"),
+                    "status": "error",
+                    "reason": f"Lỗi parse JSON: {e}"
+                })
+                continue
+            except Exception as e:
+                print(f"[ERROR] Lỗi xử lý note {note.get('id')}: {e}")
+                result["errors"] += 1
+                result["details"].append({
+                    "note_id": note.get("id"),
+                    "status": "error",
+                    "reason": str(e)
+                })
+                continue
+        
+        print(f"[DEBUG] Hoàn thành: {result['success']} thành công, {result['errors']} lỗi")
+        return JsonResponse(result, safe=False)
+        
+    except Exception as e:
+        print(f"[ERROR] Lỗi tổng quát: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, safe=False) 
