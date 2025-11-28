@@ -1,0 +1,61 @@
+# Django và core dependencies
+django>=4.1.4
+djangorestframework
+whitenoise
+
+# Database
+psycopg2-binary  # PostgreSQL adapter cho production
+
+# Excel/CSV processing
+xlrd==1.2.0
+openpyxl
+xlwt==1.3.0
+xlsxwriter
+pandas
+
+# PDF processing
+pypdf2
+pdfplumber
+fpdf
+reportlab
+
+# Web scraping và parsing
+requests
+lxml
+BeautifulSoup4
+htmlparser
+
+# Browser automation (Selenium)
+selenium
+selenium-wire
+
+# Image processing
+pillow
+
+# Barcode và QR code
+python-barcode
+qrcode
+
+# Utilities
+py3dbp==1.1.2
+blinker==1.7.0
+setuptools
+python-dateutil
+pydantic>=2.0.0
+
+# Google Sheets
+gspread
+oauth2client
+
+# AI
+openai
+
+# Development/Testing (có thể bỏ trong production)
+django-sslserver  # Chỉ dùng cho dev, production dùng nginx
+
+# Production server
+gunicorn
+
+# Note: pywin32 chỉ dùng trên Windows, không cần trên Linux
+# pygame - chỉ cần nếu ứng dụng sử dụng
+
