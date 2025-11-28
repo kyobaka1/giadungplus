@@ -41,7 +41,7 @@ class ExpressOrderService:
             "limit": limit,
             "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED",
             "shippingCarrierIds": (
-                "134097,1285481,108346,17426,60176,1283785,1285470,"
+                "134097,1285481,108346,17426,60176,1283785,1285470,1292451,"
                 "35696,47741,14895,1272209,176002"
             ),
             "sortBy": "ISSUED_AT",

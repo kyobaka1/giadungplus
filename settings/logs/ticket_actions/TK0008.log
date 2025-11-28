@@ -1,0 +1,7 @@
+{"timestamp": "2025-11-26T18:00:04.421727", "user": "giadungplus", "action": "added_cost", "details": {"cost_type": "Chi phí hoàn tiền", "amount": 20000.0}}
+{"timestamp": "2025-11-26T18:00:12.588945", "user": "giadungplus", "action": "uploaded_cost_files", "details": {"cost_id": 4, "files": ["billhoantien/20251126_180012_582072.png"]}}
+{"timestamp": "2025-11-26T18:40:57.129638", "user": "giadungplus", "action": "added_event", "details": {"event_id": 17, "tags": "KHÁCH KHÓ TÍNH"}}
+{"timestamp": "2025-11-26T18:41:12.509323", "user": "giadungplus", "action": "added_event", "details": {"event_id": 18, "tags": ""}}
+{"timestamp": "2025-11-26T18:45:25.487971", "user": "giaphuc", "action": "added_event", "details": {"event_id": 19, "tags": "GẤP GẤP GẤP!!!"}}
+{"timestamp": "2025-11-26T18:46:32.868159", "user": "giaphuc", "action": "added_event", "details": {"event_id": 20, "tags": "KHÁCH KHÓ TÍNH"}}
+{"timestamp": "2025-11-26T21:46:41.282665", "user": "giadungplus", "action": "transferred_department", "details": {"from": "cskh", "to": "warehouse", "reason": "CHUYỂN BỘ PHẬN: KHO qua Trouble & Event", "event_id": 23}}

@@ -1,0 +1,124 @@
+{
+  "cached_at": "2025-11-25T22:48:31.821855",
+  "promotions": [
+    {
+      "id": 256528,
+      "tenant_id": 236571,
+      "name": "TẶNG KEO 6GR CHO MÓC NHỎ",
+      "code": "TANGKEO-6GR",
+      "type": "gift_by_variant",
+      "status": "active",
+      "start_date": "2025-11-25T11:28:43Z",
+      "end_date": null,
+      "description": "- Tặng keo 6gr cho kẹp chổi, móc nhỏ dán tường.",
+      "location_ids": [],
+      "order_source_ids": [],
+      "condition_items": [
+        {
+          "id": 21509547,
+          "multiple": false,
+          "limit": null,
+          "group": null,
+          "group_limit": null,
+          "conditions": [
+            {
+              "id": 21986881,
+              "condition_item_id": 21509547,
+              "goods_range_from": 1,
+              "goods_range_to": null,
+              "goods_condition": [
+                99401945,
+                99401935,
+                99401845,
+                82030353,
+                82030198,
+                82030319,
+                82030168,
+                82028875,
+                63564233,
+                63564232,
+                63564231,
+                63564230,
+                63564229,
+                63564228,
+                220496762,
+                208061453,
+                208061559,
+                208061729,
+                208061798,
+                223716040,
+                223716064,
+                63564595,
+                63564596,
+                63564597,
+                63564598,
+                63564599,
+                193812220,
+                193812502,
+                208041353,
+                193812087,
+                193812086,
+                193812085,
+                193812084
+              ],
+              "goods_condition_labels": [
+                {
+                  "goods_id": 99401945,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn Lớn/Xanh"
+                },
+                {
+                  "goods_id": 99401935,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn Lớn Inox / Xám"
+                },
+                {
+                  "goods_id": 99401845,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn Lớn / Đen"
+                },
+                {
+                  "goods_id": 82030353,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - INOX 201 / Xám"
+                },
+                {
+                  "goods_id": 82030319,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - INOX 201 /  Đen"
+                },
+                {
+                  "goods_id": 82030198,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn/ Móc/ Xanh"
+                },
+                {
+                  "goods_id": 82030168,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đôi / Xanh"
+                },
+                {
+                  "goods_id": 82028875,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn Nhỏ/Xanh"
+                },
+                {
+                  "goods_id": 63564233,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đôi / Xám"
+                },
+                {
+                  "goods_id": 63564232,
+                  "goods_label": "Kẹp chổi, cây lau nhà INOX/ móc nhỏ dán tường INOX 304 đơn cao cấp - Đơn Móc Inox / Xám"
+                }
+              ],
+              "promotion_type": "gift_by_variant",
+              "limit": null
+            }
+          ],
+          "gifts": [
+            {
+              "variant_id": 123996615,
+              "quantity": 1,
+              "variant_name": "Keo dán+miếng cố định/ dán tường siêu chắc - KEO 6G",
+              "sku": "KEO-6G",
+              "unit": "lọ",
+              "opt1": "KEO 6G"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -181,8 +181,13 @@
                             <li>
                                 <a href="{% url 'cskh:ticket_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Danh sách</span>
-                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
+                                    <span class="truncate">Danh sách ticket</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:ticket_list' %}?status=closed" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Ticket đã đóng</span>
                                 </a>
                             </li>
                         </ul>

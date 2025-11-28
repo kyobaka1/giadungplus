@@ -83,7 +83,7 @@ def express_orders(request):
     allowed_location_id = LOCATION_BY_KHO.get(current_kho)
 
     # Filter cho Marketplace orders
-    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED","shippingCarrierIds":"134097,1285481,108346,17426,60176,1283785,1285470,35696,47741,14895,1272209,176002,4329", "sortBy": "ISSUED_AT", "orderBy": "desc", })
+    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED","shippingCarrierIds":"134097,1285481,108346,17426,60176,1283785,1285470,1292451,35696,47741,14895,1272209,176002,4329", "sortBy": "ISSUED_AT", "orderBy": "desc", })
 
     mp_resp = mp_service.list_orders(mp_filter)
     mp_orders = mp_resp.get("orders", [])
@@ -393,10 +393,10 @@ def shopee_orders(request):
             skipped_location += 1
             continue
 
-        # 3) Lọc theo packing_status
-        if order_dto.packing_status and order_dto.packing_status != 0:
+        # 3) Lọc theo packing_status (chỉ lấy đơn chưa xử lý, bỏ qua đã in/đã gói)
+        if order_dto.packing_status and order_dto.packing_status >= 3:
             skipped_packed += 1
-            debug_print(f"shopee_orders Skip order {o.get('id')} - Already packed (status={order_dto.packing_status})")
+            debug_print(f"shopee_orders Skip order {o.get('id')} - Already processed (status={order_dto.packing_status})")
             continue
 
         # 4) Gắn thêm info từ DTO cho template dùng
@@ -762,17 +762,15 @@ def packing_orders(request):
     """
     Đóng gói hàng:
     - Scan barcode đơn hàng -> bắn đơn
-    - Scan barcode sản phẩm -> bắn sản phẩm
+    - Xem danh sách sản phẩm (visual check, không cần scan từng sản phẩm)
     - Đảm bảo tính chính xác của đơn hàng
     - Lưu thông tin: người gói, time gói (phục vụ KPI và rà soát camera)
     """
     context = {
         "title": "Đóng Gói Hàng - GIA DỤNG PLUS",
-        "orders": [],
         "current_kho": request.session.get("current_kho", "geleximco"),
+        "packer_name": request.user.username,
     }
-    # TODO: Logic scan barcode đóng gói
-    # TODO: API endpoint để handle scan barcode
     return render(request, "kho/orders/packing_orders.html", context)
 
 
@@ -797,17 +795,421 @@ def connect_shipping(request):
 def sos_shopee(request):
     """
     SOS Shopee:
-    - Quản lý các trạng thái của đơn hàng
-    - Phục vụ mục tiêu rà soát lại các đơn hàng cần xử lý và đã xử lý
-    - Để kịp tiến độ SLA giao hàng của sàn
-    - Ví dụ: để biết đơn nào đã in, chưa gói -> xử lý sót...
+    - Quản lý, rà soát trạng thái các đơn hàng đang cần xử lý tại kho (chưa xuất kho, đang cần xử lý)
+    - Bao gồm đơn Shopee / đơn Sapo (trừ đơn hoả tốc)
+    - 3 trạng thái: chưa xử lý, đã in/chưa gói, đã gói/chưa ship
+    - Sắp xếp từ đơn gấp nhất (thời gian tạo đơn xa nhất đến gần nhất)
     """
+    start_time = time.time()
+    api_call_count = {"marketplace": 0, "sapo_core": 0, "get_order": 0}
+    
     context = {
         "title": "SOS Shopee - GIA DỤNG PLUS",
         "orders": [],
         "current_kho": request.session.get("current_kho", "geleximco"),
     }
-    # TODO: Logic lấy đơn có vấn đề (đã in nhưng chưa gói, etc.)
+    
+    # Giờ VN
+    tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+    now_vn = datetime.now(tz_vn)
+    
+    # Service layer
+    mp_service = SapoMarketplaceService()
+    core_service = SapoCoreOrderService()
+    
+    # Kho hiện tại từ session
+    current_kho = request.session.get("current_kho", "geleximco")
+    allowed_location_id = LOCATION_BY_KHO.get(current_kho)
+    
+    all_orders = []
+    
+    # ========== 1. LẤY ĐƠN TỪ MARKETPLACE (SHOPEE) ==========
+    debug_print("sos_shopee Fetching Marketplace orders...")
+    mp_orders = []
+    page = 1
+    limit = 250
+    
+    while True:
+        mp_filter = BaseFilter(params={
+            "connectionIds": connection_ids,
+            "page": page,
+            "limit": limit,
+            "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED",
+            "shippingCarrierIds": "51237,1218211,68301,36287,1218210,4110,59778,3411,1236070,37407,171067,1270129,57740,1236040,55646,166180,1289173,4095",
+            "sortBy": "ISSUED_AT",
+            "orderBy": "desc",
+        })
+        
+        mp_resp = mp_service.list_orders(mp_filter)
+        api_call_count["marketplace"] += 1
+        orders = mp_resp.get("orders", [])
+        metadata = mp_resp.get("metadata", {})
+        total = metadata.get("total", 0)
+        
+        mp_orders.extend(orders)
+        
+        if not orders or len(mp_orders) >= total:
+            break
+        
+        page += 1
+    
+    debug_print(f"sos_shopee Fetched {len(mp_orders)} Marketplace orders")
+    
+    # ========== 2. LẤY ĐƠN TỪ SAPO CORE (SAPO ORDERS) ==========
+    debug_print("sos_shopee Fetching Sapo Core orders...")
+    from core.sapo_client import get_sapo_client
+    from orders.services.order_builder import OrderDTOFactory
+    
+    sapo = get_sapo_client()
+    factory = OrderDTOFactory()
+    
+    sapo_orders_raw = []
+    page = 1
+    max_pages = 10
+    
+    while page <= max_pages:
+        try:
+            filters = {
+                "status": "finalized",
+                "composite_fulfillment_status": "wait_to_pack,packed_processing,packed",
+                "limit": limit,
+                "page": page,
+            }
+            
+            if allowed_location_id:
+                filters["location_id"] = allowed_location_id
+            
+            raw_response = sapo.core.list_orders_raw(**filters)
+            api_call_count["sapo_core"] += 1
+            orders_data = raw_response.get("orders", [])
+            
+            if not orders_data:
+                break
+            
+            sapo_orders_raw.extend(orders_data)
+            page += 1
+        except Exception as e:
+            logger.error(f"sos_shopee Error fetching Sapo Core page {page}: {e}", exc_info=True)
+            break
+    
+    debug_print(f"sos_shopee Fetched {len(sapo_orders_raw)} Sapo Core orders")
+    
+    # ========== 3. XỬ LÝ MARKETPLACE ORDERS ==========
+    for o in mp_orders:
+        if not o.get("sapo_order_id"):
+            continue
+        
+        # Lọc bỏ đơn hoả tốc
+        shipping_carrier = (o.get("shipping_carrier_name") or "").lower()
+        is_express = (
+            "trong ngày" in shipping_carrier
+            or "giao trong ngày" in shipping_carrier
+            or "hoả tốc" in shipping_carrier
+            or "hoa toc" in shipping_carrier
+            or "grab" in shipping_carrier
+            or "bedelivery" in shipping_carrier
+            or "be delivery" in shipping_carrier
+            or "ahamove" in shipping_carrier
+            or "instant" in shipping_carrier
+        )
+        if is_express:
+            continue
+        
+        try:
+            order_dto: OrderDTO = core_service.get_order_dto(o["sapo_order_id"])
+            api_call_count["get_order"] += 1
+        except Exception as e:
+            debug_print(f"sos_shopee Skip order {o.get('id')} - Error getting DTO: {e}")
+            continue
+        
+        # Lọc theo kho
+        if allowed_location_id and order_dto.location_id != allowed_location_id:
+            continue
+        
+        # Chỉ lấy đơn chưa ship
+        if order_dto.fulfillment_status == "shipped":
+            continue
+        
+        # Tính thời gian tạo đơn
+        ts = o.get("created_at", 0) or 0
+        dt = datetime.fromtimestamp(ts, tz_vn)
+        
+        # Phân loại trạng thái
+        packing_status = order_dto.packing_status or 0
+        if packing_status == 0:
+            status_label = "Chưa xử lý"
+            status_class = "bg-yellow-50 text-yellow-700 border-yellow-300"
+        elif packing_status == 3:
+            status_label = "Đã in / Chưa gói"
+            status_class = "bg-orange-50 text-orange-700 border-orange-300"
+        elif packing_status == 4:
+            status_label = "Đã gói / Chưa ship"
+            status_class = "bg-blue-50 text-blue-700 border-blue-300"
+        else:
+            status_label = "Khác"
+            status_class = "bg-gray-50 text-gray-700 border-gray-300"
+        
+        # Lấy thông tin vận chuyển
+        shipment_name = None
+        tracking_code = None
+        if order_dto.fulfillments:
+            last_f = order_dto.fulfillments[-1]
+            if last_f.shipment:
+                shipment_name = last_f.shipment.service_name
+                tracking_code = last_f.shipment.tracking_code
+        
+        # Tính thời gian còn lại từ deadline
+        deadline_remaining = ""
+        deadline_delivery_text = ""
+        if order_dto.ship_deadline_fast:
+            deadline_dt = order_dto.ship_deadline_fast
+            if deadline_dt.tzinfo is None:
+                deadline_dt = deadline_dt.replace(tzinfo=tz_vn)
+            elif deadline_dt.tzinfo != tz_vn:
+                deadline_dt = deadline_dt.astimezone(tz_vn)
+            
+            remaining_seconds = (deadline_dt - now_vn).total_seconds()
+            if remaining_seconds < 0:
+                deadline_remaining = "Quá hạn"
+                deadline_delivery_text = ""
+            elif remaining_seconds < 3600:
+                minutes = int(remaining_seconds // 60)
+                deadline_remaining = f"Còn {minutes} phút"
+                deadline_delivery_text = f"Bàn giao trong {minutes} phút"
+            elif remaining_seconds < 86400:
+                hours = int(remaining_seconds // 3600)
+                deadline_remaining = f"Còn {hours} giờ"
+                deadline_delivery_text = f"Bàn giao trong {hours} giờ"
+            else:
+                days = int(remaining_seconds // 86400)
+                deadline_remaining = f"Còn {days} ngày"
+                deadline_delivery_text = f"Bàn giao trong {days} ngày"
+        
+        # Gộp trạng thái với thông tin người gói
+        if packing_status == 4 and order_dto.nguoi_goi:
+            kho_label = "HN" if order_dto.location_id == 241737 else "SG"
+            status_with_packer = f"{status_label} - {kho_label}: {order_dto.nguoi_goi}"
+        else:
+            status_with_packer = status_label
+        
+        # Lấy products với images
+        from kho.services.product_service import get_variant_image
+        products = []
+        for line_item in order_dto.line_items[:4]:  # Chỉ lấy 4 sản phẩm đầu
+            image_url = get_variant_image(line_item.variant_id) if line_item.variant_id else ""
+            products.append({
+                "sku": line_item.sku or "",
+                "quantity": int(line_item.quantity) if line_item.quantity else 0,
+                "image": image_url,
+            })
+        
+        order_dict = {
+            "id": o.get("id"),
+            "sapo_order_id": order_dto.id,
+            "sapo_order_code": order_dto.code,
+            "channel_order_number": o.get("channel_order_number") or order_dto.reference_number or "",
+            "sapo_channel": order_dto.channel or "Shopee",
+            "shop_name": order_dto.shop_name or "",
+            "shipping_carrier_name": shipment_name or o.get("shipping_carrier_name") or "",
+            "tracking_code": tracking_code or "",
+            "deadline": order_dto.ship_deadline_fast_str or "",
+            "deadline_remaining": deadline_remaining,
+            "deadline_delivery_text": deadline_delivery_text,
+            "created_at": ts,
+            "issued_dt": dt,
+            "packing_status": packing_status,
+            "status_label": status_label,
+            "status_with_packer": status_with_packer,
+            "status_class": status_class,
+            "nguoi_goi": order_dto.nguoi_goi or "",
+            "time_packing": order_dto.time_packing or "",
+            "time_print": order_dto.time_print or "",
+            "order_type": "marketplace",
+            "location_id": order_dto.location_id,
+            "products": products,
+            "sapo_order_dto": order_dto,
+        }
+        
+        # Tính thời gian đã trôi qua
+        diff = now_vn - dt
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            order_dict["issued_ago"] = f"{int(seconds)} giây trước"
+        elif seconds < 3600:
+            order_dict["issued_ago"] = f"{int(seconds // 60)} phút trước"
+        elif seconds < 86400:
+            order_dict["issued_ago"] = f"{int(seconds // 3600)} giờ trước"
+        else:
+            days = int(seconds // 86400)
+            order_dict["issued_ago"] = f"{days} ngày trước"
+        
+        all_orders.append(order_dict)
+    
+    # ========== 4. XỬ LÝ SAPO CORE ORDERS ==========
+    for raw_order in sapo_orders_raw:
+        try:
+            order_dto: OrderDTO = factory.from_sapo_json(raw_order, sapo_client=sapo)
+        except Exception as e:
+            debug_print(f"sos_shopee Skip order {raw_order.get('id')} - Error parsing DTO: {e}")
+            continue
+        
+        # Lọc theo kho
+        if allowed_location_id and order_dto.location_id != allowed_location_id:
+            continue
+        
+        # Chỉ lấy đơn ngoài sàn (bỏ qua đơn sàn TMĐT)
+        if order_dto.is_marketplace_order:
+            continue
+        
+        # Lọc bỏ đơn hoả tốc
+        shipping_carrier = (order_dto.dvvc or "").lower()
+        is_express = (
+            "trong ngày" in shipping_carrier
+            or "giao trong ngày" in shipping_carrier
+            or "hoả tốc" in shipping_carrier
+            or "hoa toc" in shipping_carrier
+            or "grab" in shipping_carrier
+            or "bedelivery" in shipping_carrier
+            or "ahamove" in shipping_carrier
+            or "instant" in shipping_carrier
+        )
+        if is_express:
+            continue
+        
+        # Parse created_on
+        created_dt = None
+        if order_dto.created_on:
+            try:
+                created_dt = datetime.fromisoformat(order_dto.created_on.replace('Z', '+00:00'))
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=tz_vn)
+                if created_dt.tzinfo != tz_vn:
+                    created_dt = created_dt.astimezone(tz_vn)
+            except (ValueError, AttributeError):
+                created_dt = None
+        
+        if not created_dt:
+            continue
+        
+        # Phân loại trạng thái
+        packing_status = order_dto.packing_status or 0
+        if packing_status == 0:
+            status_label = "Chưa xử lý"
+            status_class = "bg-yellow-50 text-yellow-700 border-yellow-300"
+        elif packing_status == 3:
+            status_label = "Đã in / Chưa gói"
+            status_class = "bg-orange-50 text-orange-700 border-orange-300"
+        elif packing_status == 4:
+            status_label = "Đã gói / Chưa ship"
+            status_class = "bg-blue-50 text-blue-700 border-blue-300"
+        else:
+            status_label = "Khác"
+            status_class = "bg-gray-50 text-gray-700 border-gray-300"
+        
+        # Lấy thông tin vận chuyển
+        shipment_name = None
+        tracking_code = None
+        if order_dto.fulfillments:
+            last_f = order_dto.fulfillments[-1]
+            if last_f.shipment:
+                shipment_name = last_f.shipment.service_name
+                tracking_code = last_f.shipment.tracking_code
+        
+        # Tính thời gian còn lại từ deadline
+        deadline_remaining = ""
+        deadline_delivery_text = ""
+        if order_dto.ship_deadline_fast:
+            deadline_dt = order_dto.ship_deadline_fast
+            if deadline_dt.tzinfo is None:
+                deadline_dt = deadline_dt.replace(tzinfo=tz_vn)
+            elif deadline_dt.tzinfo != tz_vn:
+                deadline_dt = deadline_dt.astimezone(tz_vn)
+            
+            remaining_seconds = (deadline_dt - now_vn).total_seconds()
+            if remaining_seconds < 0:
+                deadline_remaining = "Quá hạn"
+                deadline_delivery_text = ""
+            elif remaining_seconds < 3600:
+                minutes = int(remaining_seconds // 60)
+                deadline_remaining = f"Còn {minutes} phút"
+                deadline_delivery_text = f"Bàn giao trong {minutes} phút"
+            elif remaining_seconds < 86400:
+                hours = int(remaining_seconds // 3600)
+                deadline_remaining = f"Còn {hours} giờ"
+                deadline_delivery_text = f"Bàn giao trong {hours} giờ"
+            else:
+                days = int(remaining_seconds // 86400)
+                deadline_remaining = f"Còn {days} ngày"
+                deadline_delivery_text = f"Bàn giao trong {days} ngày"
+        
+        # Gộp trạng thái với thông tin người gói
+        if packing_status == 4 and order_dto.nguoi_goi:
+            kho_label = "HN" if order_dto.location_id == 241737 else "SG"
+            status_with_packer = f"{status_label} - {kho_label}: {order_dto.nguoi_goi}"
+        else:
+            status_with_packer = status_label
+        
+        # Lấy products với images
+        from kho.services.product_service import get_variant_image
+        products = []
+        for line_item in order_dto.line_items[:4]:  # Chỉ lấy 4 sản phẩm đầu
+            image_url = get_variant_image(line_item.variant_id) if line_item.variant_id else ""
+            products.append({
+                "sku": line_item.sku or "",
+                "quantity": int(line_item.quantity) if line_item.quantity else 0,
+                "image": image_url,
+            })
+        
+        order_dict = {
+            "id": order_dto.id,
+            "sapo_order_id": order_dto.id,
+            "sapo_order_code": order_dto.code,
+            "channel_order_number": order_dto.reference_number or "",
+            "sapo_channel": order_dto.channel or "Sapo",
+            "shop_name": "",
+            "shipping_carrier_name": shipment_name or order_dto.dvvc or "",
+            "tracking_code": tracking_code or "",
+            "deadline": order_dto.ship_deadline_fast_str or "",
+            "deadline_remaining": deadline_remaining,
+            "created_at": created_dt.timestamp(),
+            "issued_dt": created_dt,
+            "packing_status": packing_status,
+            "status_label": status_label,
+            "status_with_packer": status_with_packer,
+            "status_class": status_class,
+            "nguoi_goi": order_dto.nguoi_goi or "",
+            "time_packing": order_dto.time_packing or "",
+            "time_print": order_dto.time_print or "",
+            "order_type": "sapo",
+            "location_id": order_dto.location_id,
+            "products": products,
+            "sapo_order_dto": order_dto,
+        }
+        
+        # Tính thời gian đã trôi qua
+        diff = now_vn - created_dt
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            order_dict["issued_ago"] = f"{int(seconds)} giây trước"
+        elif seconds < 3600:
+            order_dict["issued_ago"] = f"{int(seconds // 60)} phút trước"
+        elif seconds < 86400:
+            order_dict["issued_ago"] = f"{int(seconds // 3600)} giờ trước"
+        else:
+            days = int(seconds // 86400)
+            order_dict["issued_ago"] = f"{days} ngày trước"
+        
+        all_orders.append(order_dict)
+    
+    # ========== 5. SẮP XẾP THEO THỜI GIAN TẠO ĐƠN (XA NHẤT ĐẾN GẦN NHẤT) ==========
+    all_orders.sort(key=lambda x: x["created_at"])
+    
+    total_time = time.time() - start_time
+    debug_print(f"sos_shopee TOTAL: {len(all_orders)} orders in {total_time:.2f}s")
+    logger.info(f"[PERF] sos_shopee: {len(all_orders)} orders in {total_time:.2f}s | "
+                f"API calls: marketplace={api_call_count['marketplace']}, sapo_core={api_call_count['sapo_core']}, get_order={api_call_count['get_order']}")
+    
+    context["orders"] = all_orders
     return render(request, "kho/orders/sos_shopee.html", context)
 
 
@@ -815,17 +1217,290 @@ def sos_shopee(request):
 def packing_cancel(request):
     """
     Đơn đã gói nhưng bị huỷ:
-    - Quản lý các đơn đã gói hàng nhưng bị huỷ ngang
-    - Cần thu hồi lại đơn hàng
-    - Theo dõi quá trình này tránh bị mất hàng
+    - Hiển thị danh sách các đơn đã gói (packing_status=4), nhưng trạng thái trên Sapo là Đã huỷ
+    - Quản lý quá trình nhận lại hàng từ các đơn bị huỷ
     """
+    start_time = time.time()
+    api_call_count = {"sapo_core": 0}
+    
     context = {
-        "title": "Đã Gói Nhưng Bị Huỷ - GIA DỤNG PLUS",
+        "title": "Đã Gói, Bị Huỷ - GIA DỤNG PLUS",
         "orders": [],
         "current_kho": request.session.get("current_kho", "geleximco"),
     }
-    # TODO: Logic lấy đơn đã packed nhưng bị cancelled
+    
+    # Giờ VN
+    tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+    now_vn = datetime.now(tz_vn)
+    
+    # Kho hiện tại từ session
+    current_kho = request.session.get("current_kho", "geleximco")
+    allowed_location_id = LOCATION_BY_KHO.get(current_kho)
+    
+    all_orders = []
+    
+    # ========== 1. LẤY ĐƠN TỪ SAPO CORE (SAPO ORDERS) ==========
+    debug_print("packing_cancel Fetching Sapo Core cancelled orders...")
+    from core.sapo_client import get_sapo_client
+    from orders.services.order_builder import OrderDTOFactory
+    
+    sapo = get_sapo_client()
+    factory = OrderDTOFactory()
+    
+    sapo_orders_raw = []
+    page = 1
+    limit = 250
+    max_pages = 1
+    
+    while page <= max_pages:
+        try:
+            filters = {
+                "status": "cancelled",
+                "limit": limit,
+                "page": page,
+            }
+            
+            if allowed_location_id:
+                filters["location_id"] = allowed_location_id
+            
+            raw_response = sapo.core.list_orders_raw(**filters)
+            api_call_count["sapo_core"] += 1
+            orders_data = raw_response.get("orders", [])
+            
+            if not orders_data:
+                break
+            
+            sapo_orders_raw.extend(orders_data)
+            page += 1
+        except Exception as e:
+            logger.error(f"packing_cancel Error fetching Sapo Core page {page}: {e}", exc_info=True)
+            break
+    
+    debug_print(f"packing_cancel Fetched {len(sapo_orders_raw)} Sapo Core cancelled orders")
+    
+    # ========== 2. XỬ LÝ SAPO CORE ORDERS ==========
+    for raw_order in sapo_orders_raw:
+        try:
+            order_dto: OrderDTO = factory.from_sapo_json(raw_order, sapo_client=sapo)
+        except Exception as e:
+            debug_print(f"packing_cancel Skip order {raw_order.get('id')} - Error parsing DTO: {e}")
+            continue
+        
+        # Lọc theo kho
+        if allowed_location_id and order_dto.location_id != allowed_location_id:
+            continue
+        
+        # CHỈ lấy đơn đã gói (packing_status = 4)
+        if order_dto.packing_status != 4:
+            continue
+        
+        # Lấy receive_cancel từ shipment note (từ raw order data)
+        receive_cancel = 0
+        try:
+            # Lấy raw order để extract note từ shipment
+            # get_order_raw() trả về {"order": {...}}, cần lấy từ key "order"
+            raw_order_response = sapo.core.get_order_raw(order_dto.id)
+            raw_order = raw_order_response.get("order") or raw_order_response
+            
+            if raw_order and raw_order.get("fulfillments"):
+                last_fulfillment = raw_order["fulfillments"][-1]
+                if last_fulfillment.get("shipment"):
+                    shipment = last_fulfillment["shipment"]
+                    note_str = shipment.get("note") or ""
+                    if note_str and "{" in note_str:
+                        from orders.services.sapo_service import mo_rong_gon
+                        note_data = mo_rong_gon(note_str)
+                        receive_cancel = note_data.get("receive_cancel") or note_data.get("rc") or 0
+                        # Convert sang int để đảm bảo
+                        try:
+                            receive_cancel = int(receive_cancel)
+                        except (ValueError, TypeError):
+                            receive_cancel = 0
+                        debug_print(f"packing_cancel Order {order_dto.id}: note={note_str[:100]}, receive_cancel={receive_cancel}")
+        except Exception as e:
+            debug_print(f"packing_cancel Error getting receive_cancel for order {order_dto.id}: {e}")
+            receive_cancel = 0
+        
+        print(f"packing_cancel Order {order_dto.id}: receive_cancel={receive_cancel}")
+        # Parse created_on
+        created_dt = None
+        if order_dto.created_on:
+            try:
+                created_dt = datetime.fromisoformat(order_dto.created_on.replace('Z', '+00:00'))
+                if created_dt.tzinfo is None:
+                    created_dt = created_dt.replace(tzinfo=tz_vn)
+                if created_dt.tzinfo != tz_vn:
+                    created_dt = created_dt.astimezone(tz_vn)
+            except (ValueError, AttributeError):
+                created_dt = None
+        
+        if not created_dt:
+            continue
+        
+        # Lấy thông tin vận chuyển
+        shipment_name = None
+        tracking_code = None
+        if order_dto.fulfillments:
+            last_f = order_dto.fulfillments[-1]
+            if last_f.shipment:
+                shipment_name = last_f.shipment.service_name
+                tracking_code = last_f.shipment.tracking_code
+        
+        # Lấy products với images
+        from kho.services.product_service import get_variant_image
+        products = []
+        for line_item in order_dto.line_items[:4]:  # Chỉ lấy 4 sản phẩm đầu
+            image_url = get_variant_image(line_item.variant_id) if line_item.variant_id else ""
+            products.append({
+                "sku": line_item.sku or "",
+                "quantity": int(line_item.quantity) if line_item.quantity else 0,
+                "image": image_url,
+                "product_name": line_item.product_name or "",
+            })
+        
+        order_dict = {
+            "id": order_dto.id,
+            "sapo_order_id": order_dto.id,
+            "sapo_order_code": order_dto.code,
+            "channel_order_number": order_dto.reference_number or "",
+            "sapo_channel": order_dto.channel or "Sapo",
+            "shop_name": "",
+            "shipping_carrier_name": shipment_name or order_dto.dvvc or "",
+            "tracking_code": tracking_code or "",
+            "created_at": created_dt.timestamp(),
+            "issued_dt": created_dt,
+            "packing_status": 4,
+            "receive_cancel": receive_cancel,
+            "order_type": "sapo",
+            "location_id": order_dto.location_id,
+            "products": products,
+            "sapo_order_dto": order_dto,
+            "nguoi_goi": order_dto.nguoi_goi or "",
+            "time_packing": order_dto.time_packing or "",
+        }
+        
+        # Tính thời gian đã trôi qua
+        diff = now_vn - created_dt
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            order_dict["issued_ago"] = f"{int(seconds)} giây trước"
+        elif seconds < 3600:
+            order_dict["issued_ago"] = f"{int(seconds // 60)} phút trước"
+        elif seconds < 86400:
+            order_dict["issued_ago"] = f"{int(seconds // 3600)} giờ trước"
+        else:
+            days = int(seconds // 86400)
+            order_dict["issued_ago"] = f"{days} ngày trước"
+        
+        all_orders.append(order_dict)
+    
+    # ========== 2. SẮP XẾP THEO THỜI GIAN TẠO ĐƠN (XA NHẤT ĐẾN GẦN NHẤT) ==========
+    all_orders.sort(key=lambda x: x["created_at"])
+    
+    total_time = time.time() - start_time
+    debug_print(f"packing_cancel TOTAL: {len(all_orders)} orders in {total_time:.2f}s")
+    logger.info(f"[PERF] packing_cancel: {len(all_orders)} orders in {total_time:.2f}s | "
+                f"API calls: sapo_core={api_call_count['sapo_core']}")
+    
+    context["orders"] = all_orders
     return render(request, "kho/orders/packing_cancel.html", context)
+
+
+@login_required
+def mark_received_cancel(request):
+    """
+    API endpoint để đánh dấu đã nhận lại hàng cho đơn bị huỷ.
+    POST /kho/orders/packing_cancel/mark_received/
+    Body: {"sapo_order_id": 123456}
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Method not allowed"}, status=405)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        sapo_order_id = int(data.get("sapo_order_id", 0))
+        
+        if not sapo_order_id:
+            return JsonResponse({"error": "sapo_order_id is required"}, status=400)
+        
+        # Lấy order DTO
+        core_service = SapoCoreOrderService()
+        order_dto = core_service.get_order_dto(sapo_order_id)
+        
+        if not order_dto:
+            return JsonResponse({"error": "Order not found"}, status=404)
+        
+        # Kiểm tra đơn có fulfillments không
+        if not order_dto.fulfillments:
+            return JsonResponse({"error": "Order has no fulfillments"}, status=400)
+        
+        # Lấy fulfillment cuối cùng
+        last_f = order_dto.fulfillments[-1]
+        if not last_f.shipment or not last_f.id:
+            return JsonResponse({"error": "Order has no shipment"}, status=400)
+        
+        # Lấy fulfillment raw để update note (lấy từ API để có note đầy đủ nhất)
+        from orders.services.sapo_service import mo_rong_gon, gopnhan_gon
+        from core.sapo_client import get_sapo_client
+        
+        sapo = get_sapo_client()
+        
+        # Get fulfillment để lấy note hiện tại
+        fulfillment_url = f"shipments/{last_f.id}.json"
+        fulfillment_result = sapo.core.get(fulfillment_url)
+        
+        if not fulfillment_result or "fulfillment" not in fulfillment_result:
+            return JsonResponse({"error": "Fulfillment not found"}, status=404)
+        
+        fulfillment = fulfillment_result["fulfillment"]
+        shipment = fulfillment.get("shipment")
+        
+        if not shipment:
+            return JsonResponse({"error": "Order has no shipment"}, status=400)
+        
+        # Lấy note hiện tại từ fulfillment và parse
+        note_data = {}
+        current_note = shipment.get("note") or ""
+        
+        if current_note and "{" in current_note:
+            try:
+                note_data = mo_rong_gon(current_note)
+                logger.debug(f"[mark_received_cancel] Current note data: {note_data}")
+            except Exception as e:
+                logger.warning(f"[mark_received_cancel] Error parsing note: {e}")
+                note_data = {}
+        
+        # Thêm receive_cancel = 1 vào note hiện có (không ghi đè)
+        note_data["receive_cancel"] = 1
+        
+        # Nén và lưu lại
+        compressed = gopnhan_gon(note_data)
+        new_note = json.dumps(compressed, ensure_ascii=False, separators=(',', ':'))
+        
+        logger.debug(f"[mark_received_cancel] New note: {new_note}")
+        
+        # Update note trong fulfillment
+        fulfillment["shipment"]["note"] = new_note
+        
+        # PUT update
+        update_url = f"orders/{order_dto.id}/fulfillments/{last_f.id}.json"
+        update_result = sapo.core.put(
+            update_url,
+            json={"fulfillment": fulfillment}
+        )
+        
+        if update_result:
+            logger.info(f"[packing_cancel] Marked received for order {sapo_order_id}")
+            return JsonResponse({"success": True, "message": "Đã đánh dấu nhận lại hàng thành công"})
+        
+        return JsonResponse({"error": "Failed to update shipment note"}, status=500)
+        
+    except ValueError as e:
+        return JsonResponse({"error": f"Invalid sapo_order_id: {e}"}, status=400)
+    except Exception as e:
+        logger.error(f"[packing_cancel] Error marking received: {e}", exc_info=True)
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @login_required
@@ -963,12 +1638,33 @@ def print_now(request: HttpRequest):
                     if models and models[0].get("time_slot_list"):
                         pickup_time_id = models[0]["time_slot_list"][0]["pickup_time_id"]
 
-                    pick_up_type = 1
+                    # Xác định pick_up_type:
+                    # - Đơn hoả tốc (SPX Express - Giao Trong Ngày, Ahamove - Giao trong ngày, Hoả Tốc - Trong ngày, etc.) 
+                    #   -> LUÔN dùng pick_up_type = 1 (pickup - yêu cầu đơn vị vận chuyển tới lấy)
+                    # - SPX Express thường + kho Hà Nội -> pick_up_type = 2 (dropoff - mang tới bưu cục)
+                    # - Các trường hợp khác -> pick_up_type = 1 (pickup)
+                    
+                    shipping_carrier_lower = (shipping_carrier or "").lower()
+                    is_express = (
+                        "trong ngày" in shipping_carrier_lower
+                        or "giao trong ngày" in shipping_carrier_lower
+                        or "hoả tốc" in shipping_carrier_lower
+                        or "hoa toc" in shipping_carrier_lower
+                        or "grab" in shipping_carrier_lower
+                        or "bedelivery" in shipping_carrier_lower
+                        or "be delivery" in shipping_carrier_lower
+                        or "ahamove" in shipping_carrier_lower
+                        or "instant" in shipping_carrier_lower
+                    )
+                    
+                    pick_up_type = 1  # Mặc định: pickup
                     if (
-                            "SPX Express" in shipping_carrier
+                            not is_express  # Không phải hoả tốc
+                            and "SPX Express" in shipping_carrier
                             and address_id
                             and is_geleximco_address(address_id)
                     ):
+                        # Chỉ SPX Express thường (không phải hoả tốc) + kho Hà Nội mới dùng dropoff
                         pick_up_type = 2
 
                     confirm_items.append(
@@ -1408,29 +2104,29 @@ def print_now(request: HttpRequest):
                         # Kiểm tra packing_status hiện tại
                         current_packing_status = dto.packing_status or 0
                         
-                        # Chỉ update nếu packing_status < 2 (giữ nguyên nếu >= 2)
-                        if current_packing_status < 2:
+                        # Chỉ update nếu packing_status < 3 (giữ nguyên nếu >= 3)
+                        if current_packing_status < 3:
                             # Use resolved carrier name (already resolved above)
                             shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
                             
                             success = core_service.update_fulfillment_packing_status(
                                 order_id=dto.id,
                                 fulfillment_id=last_ff.id,
-                                packing_status=1,
+                                packing_status=3,  # Đã in
                                 shopee_id=channel_order_number,  # Shopee order number
                                 split=split_count,  # Package count
                                 dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
                             )
                             if success:
-                                debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
+                                debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=3, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
                                 debug_info.setdefault("logs", []).append(
-                                    f"Updated fulfillment {last_ff.id}: packing_status=1, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
+                                    f"Updated fulfillment {last_ff.id}: packing_status=3, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
                                 )
                         else:
-                            # Giữ nguyên packing_status hiện tại (>= 2)
-                            debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 2, keeping unchanged)")
+                            # Giữ nguyên packing_status hiện tại (>= 3)
+                            debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 3, keeping unchanged)")
                             debug_info.setdefault("logs", []).append(
-                                f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 2, keeping unchanged)"
+                                f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 3, keeping unchanged)"
                             )
                 else:
                     debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")

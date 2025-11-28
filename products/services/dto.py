@@ -86,7 +86,8 @@ class VariantMetadataDTO(BaseDTO):
     
     # Thông tin bắt buộc mới
     price_tq: Optional[float] = None            # Giá nhân dân tệ (CNY)
-    sku_tq: Optional[str] = None                 # SKU của nhà sản xuất
+    sku_tq: Optional[str] = None                 # SKU của nhà sản xuất (SKU phân loại TQ)
+    name_tq: Optional[str] = None                # Tên/mô tả sản phẩm TQ (để mô tả độ dày, độ nặng cho NCC khi xuất đơn)
     box_info: Optional[BoxInfoDTO] = None        # Thông tin thùng (full_box, dài x rộng x cao)
     packed_info: Optional[PackedInfoDTO] = None  # Thông tin đóng gói 1 chiếc
     sku_model_xnk: Optional[str] = None          # SKU-MODEL-XNK (nhập khẩu)

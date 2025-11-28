@@ -1,0 +1,136 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi-VN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In Barcode</title>
+    <style type="text/css">
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: block;
+            margin: 0;
+            padding: 0;
+            color: #000;
+            font-family: sans-serif;
+        }
+        
+        .print_div {
+            font-size: 7px;
+            font-family: sans-serif;
+        }
+        
+        p {
+            margin: 0;
+            line-height: 10px;
+            font-size: 7px;
+        }
+        
+        h5 {
+            font-size: 9px;
+            margin: 0;
+        }
+        
+        h2, h3, h4 {
+            margin: 0;
+        }
+        
+        img {
+            margin: 0;
+        }
+        
+        @media print {
+            @page {
+                size: 50mm 70mm;
+                margin: 0;
+                padding: 0;
+            }
+            
+            * {
+                margin: 0;
+                padding: 0;
+            }
+            
+            body {
+                margin: 0;
+                padding: 0;
+                width: 70mm;
+                height: 50mm;
+            }
+            
+            #containerPrint {
+                margin: 0;
+                padding: 0;
+                width: 70mm;
+                height: 50mm;
+            }
+            
+            .print_div {
+                margin: 0;
+                padding: 0;
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="containerPrint">
+    <!-- Thư viện JsBarcode -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+     {% for vari in vari_list %}
+     <div class="print_div" id="print-div-se" style="width: 70mm; height: 50mm; border: 1px solid #ccc; position: relative; padding: 2px; page-break-after: always; margin: 0; z-index: 9; overflow: hidden; box-sizing: border-box;">
+         <div style="padding: 3px; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+             <div style="width: 100%; text-align: center; border-bottom: 2px solid #000; border-top: 2px solid #000; margin: 0; padding: 3px 0; height: 80px; display: flex; align-items: center; justify-content: center;">
+                 {% if vari.barcode %}
+                 <svg id="barcode-{{vari.id}}" style="width: 100%; height: 100%;"></svg>
+                 {% else %}
+                 <svg id="barcode-sku-{{vari.id}}" style="width: 100%; height: 100%;"></svg>
+                 {% endif %}
+             </div>
+             <div style="width: 100%; text-align: center; padding-top: 2px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                 <p style="font-size: 40px; line-height: 45px; margin: 0; font-weight: bold;">
+                     {{ vari.sku_short|default:vari.sku }}
+                 </p>
+                 {% if vari.opt1 %}
+                 <p style="line-height: 20px; font-size: 16px; margin-top: 2px; font-weight: bold;">【{{vari.opt1}}】</p>
+                 {% endif %}
+             </div>
+         </div>
+     </div>
+
+     <script>
+     document.addEventListener('DOMContentLoaded', function () {
+         {% if vari.barcode %}
+         JsBarcode("#barcode-{{vari.id}}", "{{vari.barcode}}", {
+             format: "CODE128",
+             lineColor: "#000",
+             width: 3,
+             height: 58,
+             displayValue: false,
+             margin: 0
+         });
+         {% else %}
+         JsBarcode("#barcode-sku-{{vari.id}}", "{{vari.sku}}", {
+             format: "CODE128",
+             lineColor: "#000",
+             width: 3,
+             height: 58,
+             displayValue: false,
+             margin: 0
+         });
+         {% endif %}
+     });
+     </script>
+     {% endfor %}
+</div>
+
+
+</body>
+</html>
+

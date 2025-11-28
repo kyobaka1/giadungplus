@@ -1,5 +1,5 @@
 from django.urls import path
-from kho.views import overview, orders, management, tickets, printing
+from kho.views import overview, orders, management, tickets, printing, packing_api, excel
 
 app_name = "kho"
 
@@ -16,9 +16,14 @@ urlpatterns = [
     path("orders/connect_shipping/", orders.connect_shipping, name="connect_shipping"),
     path("orders/sos_shopee/", orders.sos_shopee, name="sos_shopee"),
     path("orders/packing_cancel/", orders.packing_cancel, name="packing_cancel"),
+    path("orders/packing_cancel/mark_received/", orders.mark_received_cancel, name="mark_received_cancel"),
     path("orders/return_orders/", orders.return_orders, name="return_orders"),
     path("orders/print_now/", orders.print_now, name="print_now"),
     path("orders/packing/", orders.packing_board, name="orders_packing"),  # Legacy - có thể xóa sau
+    
+    # Packing Orders API
+    path("orders/packing/get_order/", packing_api.get_order, name="packing_get_order"),
+    path("orders/packing/complete/", packing_api.complete, name="packing_complete"),
 
     # ----- QUẢN TRỊ -----
     path("management/stats/", management.stats, name="management_stats"),
@@ -30,5 +35,14 @@ urlpatterns = [
 
     # ----- IN ẤN -----
     path("print/sorry_letter/", printing.sorry_letter, name="sorry_letter"),
+    path("print/sorry_letter/print/", printing.sorry_letter_print, name="sorry_letter_print"),
     path("print/barcode/", printing.product_barcode, name="product_barcode"),
+    
+    # ----- SẢN PHẨM -----
+    path("products/", printing.product, name="product"),
+    path("products/export-excel/", excel.export_products_excel, name="products_export_excel"),
+    path("products/import-excel/", excel.import_products_excel, name="products_import_excel"),
+    path("products/print-label/", printing.print_product_label, name="products_print_label"),
+    path("products/print-barcode/", printing.print_product_barcode, name="products_print_barcode"),
+    path("products/inventory-history/", printing.get_variant_inventory_history, name="products_inventory_history"),
 ]

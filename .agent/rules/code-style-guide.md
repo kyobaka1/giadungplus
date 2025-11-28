@@ -6,3 +6,8 @@ trigger: always_on
 
 # Hãy test manage.py check hết lỗi và tự sửa lỗi trước khi hoàn thành task.
 
+# Không debug bằng loger -> hãy debug bằng debug_print.
+
+- Khi viết HTML/template code, KHÔNG tự động xuống dòng
+- Giữ nguyên dòng dài, đặc biệt với template tags {% %}
+- Chỉ xuống dòng khi có chỉ thị rõ ràng

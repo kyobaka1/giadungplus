@@ -161,6 +161,7 @@ def init_empty_metadata(product_id: int, variant_ids: list[int]) -> ProductMetad
             id=vid,
             price_tq=None,
             sku_tq=None,
+            name_tq=None,
             box_info=BoxInfoDTO(
                 full_box=None,
                 length_cm=None,

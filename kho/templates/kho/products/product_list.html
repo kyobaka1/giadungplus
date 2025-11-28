@@ -1,0 +1,1595 @@
+{% extends "kho/base_kho.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Xem thông tin tất cả phân loại sản phẩm</p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-[95%] mx-auto">
+
+        <!-- BỘ LỌC VÀ TÌM KIẾM -->
+        <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xs font-semibold text-slate-700">Tìm kiếm & Lọc</h2>
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2">
+                    <!-- Export Excel -->
+                    <a href="{% url 'kho:products_export_excel' %}?brand_id={{ selected_brand_id }}" 
+                       id="export-excel-btn"
+                       class="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-xs font-medium flex items-center gap-1.5">
+                        <span>📥</span>
+                        <span>Export Excel</span>
+                    </a>
+                    <!-- Import Excel -->
+                    <label for="import-excel-input" 
+                           class="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition text-xs font-medium flex items-center gap-1.5 cursor-pointer">
+                        <span>📤</span>
+                        <span>Import Excel</span>
+                    </label>
+                    <input type="file" 
+                           id="import-excel-input" 
+                           accept=".xlsx,.xls" 
+                           class="hidden">
+                </div>
+            </div>
+            <!-- Bộ lọc Nhãn hiệu -->
+            <div class="mb-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-[10px] text-slate-600 font-medium">Nhãn hiệu:</span>
+                    <div class="flex flex-wrap gap-1.5">
+                        {% for brand in brands %}
+                        <button type="button"
+                                class="brand-filter-btn px-2.5 py-1.5 text-xs rounded-md border transition font-medium {% if brand.id == selected_brand_id %}bg-orange-500 text-white border-orange-500{% else %}bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100{% endif %}"
+                                data-brand-id="{{ brand.id }}"
+                                data-brand-name="{{ brand.name }}">
+                            {{ brand.name }} <span class="text-[10px] opacity-75">({{ brand.id }})</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <span class="text-[10px] text-slate-500 ml-2">Tổng: {{ total }} variants</span>
+                </div>
+            </div>
+            
+            <!-- Bộ lọc Trạng thái -->
+            <div class="mb-2">
+                <div class="flex items-center gap-1 flex-wrap">
+                    <span class="text-[10px] text-slate-600 font-medium mr-1">Trạng thái:</span>
+                    <button id="filter-status-all" 
+                            class="filter-btn filter-status-btn active px-1.5 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[10px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="status"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-status-all-count">0</span>)
+                    </button>
+                    <div id="filter-status-container" class="flex flex-wrap gap-1">
+                        {% for status_item in statuses %}
+                        <button class="filter-btn filter-status-btn px-1.5 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[10px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                                data-filter-type="status"
+                                data-filter-value="{{ status_item }}">
+                            {% if status_item == "active" %}Hoạt động{% elif status_item == "inactive" %}Ngừng hoạt động{% else %}{{ status_item }}{% endif %} (<span class="filter-status-count" data-status="{{ status_item }}">0</span>)
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tìm kiếm -->
+            <div class="flex items-center gap-3 flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" 
+                           id="variant-search-input"
+                           name="search" 
+                           value=""
+                           placeholder="Tìm kiếm theo SKU..." 
+                           class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent">
+                </div>
+
+                <!-- Reset -->
+                <button type="button" 
+                        id="reset-filters-btn"
+                        class="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-xs font-medium">
+                    Đặt lại
+                </button>
+            </div>
+        </div>
+
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg">
+            <p class="text-xs font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- BẢNG DANH SÁCH PHÂN LOẠI -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin sản phẩm</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Mua hàng TQ</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin nhãn phụ</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200" id="variants-tbody">
+                        {% if variants %}
+                            {% for variant in variants %}
+                            <tr class="js-variant-row hover:bg-slate-50 transition"
+                                data-brand="{{ variant.brand|default:'' }}"
+                                data-status="{{ variant.status|default:'' }}"
+                                data-variant-id="{{ variant.id }}">
+                                <!-- SKU -->
+                                <td class="px-2 py-2">
+                                    <a href="https://sisapsan.mysapogo.com/admin/products/{{ variant.product_id }}/variants/{{ variant.id }}" 
+                                       target="_blank"
+                                       class="font-mono text-[11px] text-blue-600 hover:text-blue-800 font-medium font-semibold">
+                                        {{ variant.sku }}
+                                    </a>
+                                    {% if variant.opt1 or variant.opt2 or variant.opt3 %}
+                                    <div class="flex gap-0.5 mt-0.5 flex-wrap">
+                                        {% if variant.opt1 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-blue-50 text-blue-700 rounded">{{ variant.opt1 }}</span>
+                                        {% endif %}
+                                        {% if variant.opt2 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
+                                        {% endif %}
+                                        {% if variant.opt3 %}
+                                        <span class="text-[9px] px-1 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Tồn kho -->
+                                <td class="px-2 py-2 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <span class="text-[11px] font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
+                                            {{ variant.total_available|floatformat:0|intcomma }}
+                                        </span>
+                                        <span class="text-[9px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
+                                    </div>
+                                </td>
+                                
+                                <!-- Trạng thái -->
+                                <td class="px-2 py-2">
+                                    {% if variant.status == "active" %}
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-green-100 text-green-800">
+                                            Hoạt động
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800">
+                                            Ngừng
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Thông tin thùng -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.box_info %}
+                                        {% if variant.box_info.full_box %}
+                                        <div><span class="font-medium"><b>{{ variant.box_info.full_box }}</b></span> cái/thùng</div>
+                                        {% endif %}
+                                        {% if variant.box_info.length_cm or variant.box_info.width_cm or variant.box_info.height_cm %}
+                                        <div class="text-[9px] text-slate-500">
+                                            {{ variant.box_info.length_cm|default:"-" }} × {{ variant.box_info.width_cm|default:"-" }} × {{ variant.box_info.height_cm|default:"-" }} cm
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Thông tin sản phẩm (đóng gói đơn lẻ) -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.packed_info %}
+                                        {% if variant.packed_info.length_cm or variant.packed_info.width_cm or variant.packed_info.height_cm %}
+                                        <div class="text-[9px] text-slate-600">
+                                            <span class="font-medium">Kích thước:</span> {{ variant.packed_info.length_cm|default:"-" }} × {{ variant.packed_info.width_cm|default:"-" }} × {{ variant.packed_info.height_cm|default:"-" }} cm
+                                        </div>
+                                        {% endif %}
+                                        {% if variant.packed_info.weight_with_box_g %}
+                                        <div class="text-[9px] text-slate-500 mt-0.5">
+                                            <span class="font-medium">Cân nặng (có hộp):</span> {{ variant.packed_info.weight_with_box_g|floatformat:0|intcomma }} g
+                                        </div>
+                                        {% endif %}
+                                        {% if variant.packed_info.weight_without_box_g %}
+                                        <div class="text-[9px] text-slate-500 mt-0.5">
+                                            <span class="font-medium">Cân nặng (không hộp):</span> {{ variant.packed_info.weight_without_box_g|floatformat:0|intcomma }} g
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Mua hàng TQ (chỉ sku và name_tq, ẩn giá) -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.sku_tq or variant.name_tq %}
+                                        {% if variant.sku_tq %}
+                                        <div class="text-[9px] text-slate-500 font-mono max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">SKU: {{ variant.sku_tq }}</div>
+                                        {% endif %}
+                                        {% if variant.name_tq %}
+                                        <div class="text-[9px] text-slate-600 mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{{ variant.name_tq }}</div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Thông tin nhãn phụ -->
+                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                    {% if variant.nhanphu_info %}
+                                        {% if variant.nhanphu_info.vi_name %}
+                                        <div class="text-[9px] text-slate-600 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            <span class="font-medium">VN:</span> {{ variant.nhanphu_info.vi_name }}
+                                        </div>
+                                        {% endif %}
+                                        {% if variant.nhanphu_info.en_name %}
+                                        <div class="text-[9px] text-slate-500 mt-0.5 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            <span class="font-medium">EN:</span> {{ variant.nhanphu_info.en_name }}
+                                        </div>
+                                        {% endif %}
+                                        {% if variant.nhanphu_info.material %}
+                                        <div class="text-[9px] text-slate-500 mt-0.5 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">
+                                            <span class="font-medium">Chất liệu:</span> {{ variant.nhanphu_info.material }}
+                                        </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                </td>
+                                
+                                 <!-- Thao tác -->
+                                 <td class="px-2 py-2">
+                                     <div class="flex items-center gap-1 flex-wrap">
+                                         <button type="button"
+                                                 class="variant-edit-btn text-[9px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition"
+                                                 data-variant-id="{{ variant.id }}"
+                                                 data-variant-sku="{{ variant.sku }}"
+                                                 data-variant-box-full-box="{{ variant.box_info.full_box|default:'' }}"
+                                                 data-variant-box-length="{{ variant.box_info.length_cm|default:'' }}"
+                                                 data-variant-box-width="{{ variant.box_info.width_cm|default:'' }}"
+                                                 data-variant-box-height="{{ variant.box_info.height_cm|default:'' }}"
+                                                 data-variant-packed-length="{{ variant.packed_info.length_cm|default:'' }}"
+                                                 data-variant-packed-width="{{ variant.packed_info.width_cm|default:'' }}"
+                                                 data-variant-packed-height="{{ variant.packed_info.height_cm|default:'' }}"
+                                                 data-variant-packed-weight-with-box="{{ variant.packed_info.weight_with_box_g|default:'' }}"
+                                                 data-variant-packed-weight-without-box="{{ variant.packed_info.weight_without_box_g|default:'' }}"
+                                                 data-variant-sku-tq="{{ variant.sku_tq|default:'' }}"
+                                                 data-variant-name-tq="{{ variant.name_tq|default:'' }}"
+                                                 data-variant-nhanphu-vi-name="{{ variant.nhanphu_info.vi_name|default:'' }}"
+                                                 data-variant-nhanphu-en-name="{{ variant.nhanphu_info.en_name|default:'' }}"
+                                                 data-variant-nhanphu-description="{{ variant.nhanphu_info.description|default:'' }}"
+                                                 data-variant-nhanphu-material="{{ variant.nhanphu_info.material|default:'' }}">
+                                             Sửa
+                                         </button>
+                                         
+                                         <a href="{% url 'kho:products_print_label' %}?variant_id={{ variant.id }}&quantity=1"
+                                            target="_blank"
+                                            class="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition"
+                                            title="In nhãn phụ A7">
+                                             📄 Nhãn phụ
+                                         </a>
+                                         
+                                         <a href="{% url 'kho:products_print_barcode' %}?variant_id={{ variant.id }}&quantity=1"
+                                            target="_blank"
+                                            class="text-[9px] px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded hover:bg-purple-100 transition"
+                                            title="In barcode 5x7cm">
+                                             🏷️ Barcode
+                                         </a>
+                                         
+                                         <button type="button"
+                                                 class="inventory-history-btn text-[9px] px-1.5 py-0.5 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 transition"
+                                                 data-variant-id="{{ variant.id }}"
+                                                 data-variant-sku="{{ variant.sku }}"
+                                                 title="Xem lịch sử xuất nhập kho">
+                                             📊 Lịch sử
+                                         </button>
+                                     </div>
+                                 </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="8" class="px-4 py-8 text-center text-xs text-slate-500">
+                                    Chưa có phân loại nào
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+       
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL LỊCH SỬ XUẤT NHẬP KHO -->
+<div id="inventory-history-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
+        <div class="flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-semibold text-slate-800">Lịch sử xuất nhập kho</h2>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    SKU: <span id="history-modal-sku" class="font-mono font-medium">-</span>
+                </p>
+            </div>
+            <button type="button" id="inventory-history-modal-close" class="text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Filters -->
+        <div class="flex-shrink-0 bg-slate-50 border-b border-slate-200 px-4 py-3">
+            <div class="space-y-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-xs text-slate-600 font-medium">Loại:</span>
+                    <button type="button" 
+                            class="history-filter-action-type-btn px-2.5 py-1 text-xs rounded-md border transition font-medium bg-orange-500 text-white border-orange-500"
+                            data-action-type="">
+                        Tất cả
+                    </button>
+                    <button type="button" 
+                            class="history-filter-action-type-btn px-2.5 py-1 text-xs rounded-md border transition font-medium bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                            data-action-type="in">
+                        Nhập
+                    </button>
+                    <button type="button" 
+                            class="history-filter-action-type-btn px-2.5 py-1 text-xs rounded-md border transition font-medium bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
+                            data-action-type="out">
+                        Xuất
+                    </button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap" id="history-source-filters-container">
+                    <span class="text-xs text-slate-600 font-medium">Lý do:</span>
+                    <button type="button" 
+                            class="history-filter-source-btn px-2.5 py-1 text-xs rounded-md border transition font-medium bg-orange-500 text-white border-orange-500"
+                            data-source="">
+                        Tất cả
+                    </button>
+                    <!-- Source buttons will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Content -->
+        <div class="flex-1 overflow-y-auto px-4 py-3">
+            <div id="history-loading" class="hidden text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                <p class="text-xs text-slate-500 mt-2">Đang tải dữ liệu...</p>
+            </div>
+            
+            <div id="history-error" class="hidden text-center py-8">
+                <p class="text-sm text-red-600"></p>
+            </div>
+            
+            <div id="history-content" class="hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase">Thời gian</th>
+                                <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase">Mã đơn</th>
+                                <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase">Thao tác</th>
+                                <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase">Lý do</th>
+                                <th class="px-2 py-2 text-right text-[10px] font-semibold text-slate-700 uppercase">Số lượng</th>
+                                <th class="px-2 py-2 text-right text-[10px] font-semibold text-slate-700 uppercase">Tồn sau</th>
+                                <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase">Tài khoản</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-tbody" class="bg-white divide-y divide-slate-200">
+                            <!-- Data will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Summary -->
+                <div id="history-summary" class="mt-3 flex items-center justify-between text-xs">
+                    <div class="text-slate-600">
+                        Tổng cộng: <span id="history-total-count" class="font-medium">0</span> bản ghi
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="flex-shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex items-center justify-end">
+            <button type="button" 
+                    id="inventory-history-modal-close-footer"
+                    class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                Đóng
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL EDIT VARIANT -->
+<div id="variant-edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden flex flex-col max-h-[95vh]">
+        <div class="flex-shrink-0 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+            <h2 class="text-base font-semibold text-slate-800">Sửa thông tin phân loại</h2>
+            <button type="button" id="variant-edit-modal-close" class="text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto px-4 py-3">
+            <!-- Variant Info -->
+            <div class="mb-3 pb-3 border-b border-slate-200">
+                <div class="text-xs text-slate-600">
+                    <span class="font-medium">SKU:</span> <span class="font-mono" id="modal-variant-sku">-</span>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-0.5">
+                    <span class="font-medium">ID:</span> <span id="modal-variant-id">-</span>
+                </div>
+            </div>
+            
+            <!-- Form -->
+            <form id="variant-edit-form">
+                <input type="hidden" id="modal-variant-id-input" name="variant_id">
+                
+                <!-- Thông tin thùng -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Thông tin thùng</h3>
+                    <div class="flex items-end gap-1.5">
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Số cái/thùng</label>
+                            <input type="number" 
+                                   id="modal-box-full-box"
+                                   name="full_box"
+                                   placeholder="Số cái"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Dài (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-box-length"
+                                   name="box_length_cm"
+                                   placeholder="Dài"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Rộng (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-box-width"
+                                   name="box_width_cm"
+                                   placeholder="Rộng"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Cao (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-box-height"
+                                   name="box_height_cm"
+                                   placeholder="Cao"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Thông tin sản phẩm (đóng gói đơn lẻ) -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Thông tin sản phẩm (đóng gói đơn lẻ)</h3>
+                    <div class="flex items-end gap-1.5">
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Dài (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-packed-length"
+                                   name="packed_length_cm"
+                                   placeholder="Dài"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Rộng (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-packed-width"
+                                   name="packed_width_cm"
+                                   placeholder="Rộng"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Cao (cm)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-packed-height"
+                                   name="packed_height_cm"
+                                   placeholder="Cao"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Cân nặng có hộp (g)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-packed-weight-with-box"
+                                   name="packed_weight_with_box_g"
+                                   placeholder="Có hộp"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Cân nặng không hộp (g)</label>
+                            <input type="number" 
+                                   step="0.1"
+                                   id="modal-packed-weight-without-box"
+                                   name="packed_weight_without_box_g"
+                                   placeholder="Không hộp"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Mua hàng TQ -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Mua hàng Trung Quốc</h3>
+                    <div class="flex items-end gap-1.5">
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">SKU TQ</label>
+                            <input type="text" 
+                                   id="modal-sku-tq"
+                                   name="sku_tq"
+                                   placeholder="SKU TQ"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded font-mono focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Tên sản phẩm TQ</label>
+                            <input type="text" 
+                                   id="modal-name-tq"
+                                   name="name_tq"
+                                   placeholder="Tên sản phẩm"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Thông tin nhãn phụ -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Thông tin nhãn phụ</h3>
+                    <div class="space-y-2">
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Tên tiếng Việt</label>
+                            <input type="text" 
+                                   id="modal-nhanphu-vi-name"
+                                   name="nhanphu_vi_name"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Tên tiếng Anh</label>
+                            <input type="text" 
+                                   id="modal-nhanphu-en-name"
+                                   name="nhanphu_en_name"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Mô tả</label>
+                            <textarea 
+                                   id="modal-nhanphu-description"
+                                   name="nhanphu_description"
+                                   rows="3"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-600 mb-0.5">Chất liệu</label>
+                            <input type="text" 
+                                   id="modal-nhanphu-material"
+                                   name="nhanphu_material"
+                                   class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Footer -->
+        <div class="flex-shrink-0 bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex items-center justify-end gap-2">
+            <button type="button" 
+                    id="variant-edit-modal-cancel"
+                    class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                Đóng
+            </button>
+            <button type="button" 
+                    id="variant-edit-modal-save"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition">
+                Lưu
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- JS: BỘ LỌC PHÂN LOẠI -->
+<script>
+    // ==================== CONFIG ====================
+    let totalVariantsCount = 0;
+    
+    // Debug mode - log performance metrics
+    const DEBUG_PERFORMANCE = false;
+    
+    function debugLog(message, data = null) {
+        if (DEBUG_PERFORMANCE) {
+            console.log(`[Performance] ${message}`, data || '');
+        }
+    }
+    
+    // ==================== STATE & CACHE ====================
+    let activeFilters = {
+        status: null
+    };
+    
+    // Cache DOM elements để tối ưu performance
+    let allRowsCache = null;
+    let searchInputCache = null;
+    let rowsTextCache = null;
+    let searchDebounce = null;
+
+    // Thu thập số lượng từ TẤT CẢ variants
+    function collectAllData() {
+        const startTime = performance.now();
+        
+        if (!allRowsCache) {
+            allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
+        }
+        
+        const statuses = new Map();
+        let totalCount = 0;
+
+        if (!searchInputCache) {
+            searchInputCache = document.getElementById('variant-search-input');
+        }
+        const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+        if (!rowsTextCache || searchQuery) {
+            rowsTextCache = new Map();
+            allRowsCache.forEach((row, index) => {
+                rowsTextCache.set(index, (row.textContent || '').toLowerCase());
+            });
+        }
+
+        allRowsCache.forEach((row, index) => {
+            const rowText = rowsTextCache.get(index) || '';
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+            
+            if (!matchesSearch) return;
+
+            const statusName = row.dataset.status || '';
+
+            if (statusName) {
+                statuses.set(statusName, (statuses.get(statusName) || 0) + 1);
+            }
+            totalCount++;
+        });
+
+        const endTime = performance.now();
+        debugLog(`collectAllData: ${(endTime - startTime).toFixed(2)}ms`, { total: totalCount });
+
+        return { statuses, total: totalCount };
+    }
+
+    // Cập nhật số lượng trong các filter buttons
+    let updateCountsTimeout = null;
+    function updateFilterCounts() {
+        if (updateCountsTimeout) {
+            clearTimeout(updateCountsTimeout);
+        }
+        updateCountsTimeout = setTimeout(() => {
+            const startTime = performance.now();
+            const data = collectAllData();
+            
+            const statusAllCount = document.getElementById('filter-status-all-count');
+            if (statusAllCount) statusAllCount.textContent = data.total;
+            
+            document.querySelectorAll('.filter-status-count').forEach(span => {
+                const status = span.dataset.status;
+                const count = data.statuses.get(status) || 0;
+                span.textContent = count;
+            });
+            
+            const endTime = performance.now();
+            debugLog(`updateFilterCounts: ${(endTime - startTime).toFixed(2)}ms`);
+        }, 100);
+    }
+
+    // Toggle filter
+    function toggleFilter(filterType, filterValue) {
+        if (filterValue === 'all') {
+            activeFilters[filterType] = null;
+        } else {
+            if (activeFilters[filterType] === filterValue) {
+                activeFilters[filterType] = null;
+            } else {
+                activeFilters[filterType] = filterValue;
+            }
+        }
+        
+        applyFilters();
+        updateFilterButtons();
+    }
+
+    // Update filter button states
+    function updateFilterButtons() {
+        const statusAllBtn = document.getElementById('filter-status-all');
+        const statusButtons = document.querySelectorAll('.filter-status-btn');
+
+        statusButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        if (!activeFilters.status) {
+            if (statusAllBtn) {
+                statusAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                statusAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            statusButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.status) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+    }
+
+    // Apply filters to rows
+    let filterTimeout = null;
+    function applyFilters(immediate = false) {
+        if (filterTimeout) {
+            clearTimeout(filterTimeout);
+            filterTimeout = null;
+        }
+        
+        if (immediate) {
+            executeFilter();
+            return;
+        }
+        
+        filterTimeout = setTimeout(() => {
+            executeFilter();
+        }, 50);
+    }
+    
+    function executeFilter() {
+        const startTime = performance.now();
+        
+        if (!allRowsCache) {
+            const cacheStart = performance.now();
+            allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
+            debugLog(`DOM Query: ${(performance.now() - cacheStart).toFixed(2)}ms`, { count: allRowsCache.length });
+        }
+        
+        if (!searchInputCache) {
+            searchInputCache = document.getElementById('variant-search-input');
+        }
+        const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+        if (!rowsTextCache) {
+            const cacheStart = performance.now();
+            rowsTextCache = new Map();
+            allRowsCache.forEach((row, index) => {
+                rowsTextCache.set(index, (row.textContent || '').toLowerCase());
+            });
+            debugLog(`Text Cache: ${(performance.now() - cacheStart).toFixed(2)}ms`);
+        }
+
+        let visibleCount = 0;
+        const changes = [];
+        
+        allRowsCache.forEach((row, index) => {
+            const statusName = row.dataset.status || '';
+            const rowText = rowsTextCache.get(index) || '';
+
+            const matchesStatus = !activeFilters.status || statusName === activeFilters.status;
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+
+            if (matchesStatus && matchesSearch) {
+                if (row.classList.contains('hidden')) {
+                    changes.push({ row, action: 'show' });
+                }
+                visibleCount++;
+            } else {
+                if (!row.classList.contains('hidden')) {
+                    changes.push({ row, action: 'hide' });
+                }
+            }
+        });
+        
+        const domStart = performance.now();
+        if (changes.length > 50) {
+            requestAnimationFrame(() => {
+                changes.forEach(({ row, action }) => {
+                    if (action === 'show') {
+                        row.classList.remove('hidden');
+                    } else {
+                        row.classList.add('hidden');
+                    }
+                });
+            });
+        } else {
+            changes.forEach(({ row, action }) => {
+                if (action === 'show') {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        }
+        debugLog(`DOM Updates: ${(performance.now() - domStart).toFixed(2)}ms`, { changes: changes.length });
+        
+        const endTime = performance.now();
+        const duration = endTime - startTime;
+        debugLog(`applyFilters: ${duration.toFixed(2)}ms`, { 
+            total: allRowsCache.length, 
+            visible: visibleCount,
+            changes: changes.length 
+        });
+        
+        updateFilterCounts();
+    }
+    
+    // Initialize filters
+    document.addEventListener('DOMContentLoaded', function() {
+        const initStart = performance.now();
+        
+        const cacheStart = performance.now();
+        allRowsCache = Array.from(document.querySelectorAll('.js-variant-row'));
+        totalVariantsCount = allRowsCache.length;
+        debugLog(`DOM Query (init): ${(performance.now() - cacheStart).toFixed(2)}ms`, { 
+            count: totalVariantsCount
+        });
+        
+        searchInputCache = document.getElementById('variant-search-input');
+        
+        updateFilterCounts();
+        updateFilterButtons();
+        
+        debugLog(`Total init time: ${(performance.now() - initStart).toFixed(2)}ms`);
+        
+        // Brand filter buttons - reload page khi chọn brand khác
+        document.querySelectorAll('.brand-filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const selectedBrandId = this.dataset.brandId;
+                const url = new URL(window.location.href);
+                url.searchParams.set('brand_id', selectedBrandId);
+                window.location.href = url.toString();
+            });
+        });
+        
+        // Status filter buttons
+        document.querySelectorAll('.filter-status-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterValue = btn.dataset.filterValue;
+                toggleFilter('status', filterValue);
+            });
+        });
+        
+        // Search input
+        if (searchInputCache) {
+            const newInput = searchInputCache.cloneNode(true);
+            searchInputCache.parentNode.replaceChild(newInput, searchInputCache);
+            searchInputCache = newInput;
+            
+            searchInputCache.addEventListener('input', () => {
+                applyFilters();
+            });
+            debugLog('Search mode: Real-time');
+        }
+        
+        // Reset button
+        const resetBtn = document.getElementById('reset-filters-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                activeFilters.status = null;
+                if (searchInputCache) searchInputCache.value = '';
+                applyFilters();
+                updateFilterButtons();
+            });
+        }
+        
+        // Import Excel handler
+        function handleImportExcel(file) {
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show loading
+            const importBtn = document.querySelector('label[for="import-excel-input"]');
+            const originalText = importBtn.innerHTML;
+            importBtn.innerHTML = '<span>⏳</span><span>Đang xử lý...</span>';
+            importBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            // Get CSRF token
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+            const csrftoken = getCookie('csrftoken');
+            
+            // Upload file
+            fetch('{% url "kho:products_import_excel" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const result = data.result;
+                    const message = `Import thành công!\n` +
+                        `- Tổng dòng: ${result.total_rows}\n` +
+                        `- Đã xử lý: ${result.processed}\n` +
+                        `- Thành công: ${result.success}\n` +
+                        `- Bỏ qua: ${result.skipped}\n` +
+                        `- Lỗi: ${result.errors}`;
+                    
+                    if (result.errors > 0 && result.error_details.length > 0) {
+                        const errorMsg = result.error_details.slice(0, 5).join('\n');
+                        alert(message + '\n\nChi tiết lỗi:\n' + errorMsg);
+                    } else {
+                        alert(message);
+                    }
+                    
+                    // Reload page sau 1s để cập nhật dữ liệu
+                    if (result.success > 0) {
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    }
+                } else {
+                    alert('Lỗi: ' + (data.message || 'Không thể import file'));
+                }
+            })
+            .catch(error => {
+                alert('Lỗi: ' + error.message);
+            })
+            .finally(() => {
+                // Restore button
+                importBtn.innerHTML = originalText;
+                importBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                // Reset file input
+                document.getElementById('import-excel-input').value = '';
+            });
+        }
+        
+        // Import Excel input
+        const importInput = document.getElementById('import-excel-input');
+        if (importInput) {
+            importInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    handleImportExcel(file);
+                }
+            });
+        }
+        
+        // ==================== VARIANT EDIT MODAL ====================
+        const variantEditModal = document.getElementById('variant-edit-modal');
+        const variantEditModalClose = document.getElementById('variant-edit-modal-close');
+        const variantEditModalCancel = document.getElementById('variant-edit-modal-cancel');
+        const variantEditModalSave = document.getElementById('variant-edit-modal-save');
+        let currentEditingVariantId = null;
+        
+        // Helper function để get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Mở modal và load data variant
+        function openVariantEditModal(btn) {
+            const variantId = parseInt(btn.dataset.variantId);
+            currentEditingVariantId = variantId;
+            
+            // Load data từ data attributes
+            document.getElementById('modal-variant-id').textContent = variantId;
+            document.getElementById('modal-variant-id-input').value = variantId;
+            document.getElementById('modal-variant-sku').textContent = btn.dataset.variantSku || '-';
+            
+            // Box info
+            document.getElementById('modal-box-full-box').value = btn.dataset.variantBoxFullBox || '';
+            document.getElementById('modal-box-length').value = btn.dataset.variantBoxLength || '';
+            document.getElementById('modal-box-width').value = btn.dataset.variantBoxWidth || '';
+            document.getElementById('modal-box-height').value = btn.dataset.variantBoxHeight || '';
+            
+            // Packed info
+            document.getElementById('modal-packed-length').value = btn.dataset.variantPackedLength || '';
+            document.getElementById('modal-packed-width').value = btn.dataset.variantPackedWidth || '';
+            document.getElementById('modal-packed-height').value = btn.dataset.variantPackedHeight || '';
+            document.getElementById('modal-packed-weight-with-box').value = btn.dataset.variantPackedWeightWithBox || '';
+            document.getElementById('modal-packed-weight-without-box').value = btn.dataset.variantPackedWeightWithoutBox || '';
+            
+            // TQ info
+            document.getElementById('modal-sku-tq').value = btn.dataset.variantSkuTq || '';
+            document.getElementById('modal-name-tq').value = btn.dataset.variantNameTq || '';
+            
+            // Nhanphu info
+            document.getElementById('modal-nhanphu-vi-name').value = btn.dataset.variantNhanphuViName || '';
+            document.getElementById('modal-nhanphu-en-name').value = btn.dataset.variantNhanphuEnName || '';
+            document.getElementById('modal-nhanphu-description').value = btn.dataset.variantNhanphuDescription || '';
+            document.getElementById('modal-nhanphu-material').value = btn.dataset.variantNhanphuMaterial || '';
+            
+            // Show modal
+            variantEditModal.classList.remove('hidden');
+        }
+        
+        // Đóng modal
+        function closeVariantEditModal() {
+            variantEditModal.classList.add('hidden');
+            currentEditingVariantId = null;
+        }
+        
+        // Edit button click - mở modal
+        document.querySelectorAll('.variant-edit-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                openVariantEditModal(this);
+            });
+        });
+        
+        // Close modal handlers
+        if (variantEditModalClose) {
+            variantEditModalClose.addEventListener('click', closeVariantEditModal);
+        }
+        if (variantEditModalCancel) {
+            variantEditModalCancel.addEventListener('click', closeVariantEditModal);
+        }
+        
+        // Close modal khi click outside
+        variantEditModal.addEventListener('click', function(e) {
+            if (e.target === variantEditModal) {
+                closeVariantEditModal();
+            }
+        });
+        
+        // Save variant metadata
+        if (variantEditModalSave) {
+            variantEditModalSave.addEventListener('click', function() {
+                if (!currentEditingVariantId) return;
+                
+                // Collect data from modal inputs
+                const data = {};
+                
+                // Box info
+                const fullBox = document.getElementById('modal-box-full-box').value.trim();
+                const boxLength = document.getElementById('modal-box-length').value.trim();
+                const boxWidth = document.getElementById('modal-box-width').value.trim();
+                const boxHeight = document.getElementById('modal-box-height').value.trim();
+                
+                if (fullBox !== '') data.full_box = parseInt(fullBox);
+                if (boxLength !== '') data.box_length_cm = parseFloat(boxLength);
+                if (boxWidth !== '') data.box_width_cm = parseFloat(boxWidth);
+                if (boxHeight !== '') data.box_height_cm = parseFloat(boxHeight);
+                
+                // Packed info
+                const packedLength = document.getElementById('modal-packed-length').value.trim();
+                const packedWidth = document.getElementById('modal-packed-width').value.trim();
+                const packedHeight = document.getElementById('modal-packed-height').value.trim();
+                const packedWeightWithBox = document.getElementById('modal-packed-weight-with-box').value.trim();
+                const packedWeightWithoutBox = document.getElementById('modal-packed-weight-without-box').value.trim();
+                
+                if (packedLength !== '') data.packed_length_cm = parseFloat(packedLength);
+                if (packedWidth !== '') data.packed_width_cm = parseFloat(packedWidth);
+                if (packedHeight !== '') data.packed_height_cm = parseFloat(packedHeight);
+                if (packedWeightWithBox !== '') data.packed_weight_with_box_g = parseFloat(packedWeightWithBox);
+                if (packedWeightWithoutBox !== '') data.packed_weight_without_box_g = parseFloat(packedWeightWithoutBox);
+                
+                // TQ info
+                const skuTq = document.getElementById('modal-sku-tq').value.trim();
+                const nameTq = document.getElementById('modal-name-tq').value.trim();
+                
+                if (skuTq !== '') data.sku_tq = skuTq;
+                if (nameTq !== '') data.name_tq = nameTq;
+                
+                // Nhanphu info
+                const nhanphuViName = document.getElementById('modal-nhanphu-vi-name').value.trim();
+                const nhanphuEnName = document.getElementById('modal-nhanphu-en-name').value.trim();
+                const nhanphuDescription = document.getElementById('modal-nhanphu-description').value.trim();
+                const nhanphuMaterial = document.getElementById('modal-nhanphu-material').value.trim();
+                
+                if (nhanphuViName !== '') data.nhanphu_vi_name = nhanphuViName;
+                if (nhanphuEnName !== '') data.nhanphu_en_name = nhanphuEnName;
+                if (nhanphuDescription !== '') data.nhanphu_description = nhanphuDescription;
+                if (nhanphuMaterial !== '') data.nhanphu_material = nhanphuMaterial;
+                
+                const csrftoken = getCookie('csrftoken');
+                
+                // Show loading state
+                const originalText = variantEditModalSave.innerHTML;
+                variantEditModalSave.innerHTML = '⏳ Đang lưu...';
+                variantEditModalSave.disabled = true;
+                
+                // Send request
+                fetch(`{% url 'products:update_variant_metadata' 0 %}`.replace('0', currentEditingVariantId), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.status === 'success') {
+                        // Update row display (reload page để đảm bảo data mới nhất)
+                        window.location.reload();
+                    } else {
+                        // Show error message
+                        const errorMsg = document.createElement('div');
+                        errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                        errorMsg.textContent = '✗ Lỗi: ' + (result.message || 'Không thể lưu dữ liệu');
+                        document.body.appendChild(errorMsg);
+                        setTimeout(() => {
+                            if (errorMsg.parentNode) {
+                                errorMsg.remove();
+                            }
+                        }, 3000);
+                        
+                        // Restore button state
+                        variantEditModalSave.innerHTML = originalText;
+                        variantEditModalSave.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    // Show error message
+                    const errorMsg = document.createElement('div');
+                    errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded shadow-lg z-50 text-sm';
+                    errorMsg.textContent = '✗ Lỗi: ' + error.message;
+                    document.body.appendChild(errorMsg);
+                    setTimeout(() => {
+                        if (errorMsg.parentNode) {
+                            errorMsg.remove();
+                        }
+                    }, 3000);
+                    
+                    // Restore button state
+                    variantEditModalSave.innerHTML = originalText;
+                    variantEditModalSave.disabled = false;
+                });
+            });
+        }
+        
+        // ==================== INVENTORY HISTORY MODAL ====================
+        const inventoryHistoryModal = document.getElementById('inventory-history-modal');
+        const inventoryHistoryModalClose = document.getElementById('inventory-history-modal-close');
+        const inventoryHistoryModalCloseFooter = document.getElementById('inventory-history-modal-close-footer');
+        const historyLoading = document.getElementById('history-loading');
+        const historyError = document.getElementById('history-error');
+        const historyContent = document.getElementById('history-content');
+        const historyTbody = document.getElementById('history-tbody');
+        const historyTotalCount = document.getElementById('history-total-count');
+        
+        let currentHistoryVariantId = null;
+        let currentHistoryFilters = {
+            action_type: '',  // 'in' (nhập) hoặc 'out' (xuất)
+            source: ''
+        };
+        let availableSources = [];  // Danh sách các source có sẵn
+        
+        // Mapping trans_type labels
+        const transTypeLabels = {
+            '104': 'Nhập hàng từ nhà sản xuất',
+            '200': 'Nhập kho',
+            '201': 'Nhập kho khác',
+            '301': 'Xuất kho',
+            '302': 'Xuất kho giao hàng cho khách/shipper',
+            '303': 'Xuất kho khác',
+            '400': 'Điều chuyển kho',
+            '401': 'Nhận hàng kho khác',
+            '500': 'Điều chỉnh tồn kho',
+            '501': 'Kiểm kê kho',
+        };
+        
+        function getTransTypeLabel(transType) {
+            const transTypeStr = String(transType);
+            return transTypeLabels[transTypeStr] || `Loại ${transType}`;
+        }
+        
+        function getTransTypeClass(transType) {
+            const transTypeStr = String(transType);
+            // Nhập kho: màu xanh
+            if (['104', '200', '201', '401'].includes(transTypeStr)) {
+                return 'bg-green-100 text-green-800';
+            }
+            // Xuất kho: màu đỏ
+            if (['301', '302', '303'].includes(transTypeStr)) {
+                return 'bg-red-100 text-red-800';
+            }
+            // Khác: màu xám
+            return 'bg-slate-100 text-slate-800';
+        }
+        
+        // Format datetime
+        function formatDateTime(isoString) {
+            if (!isoString) return '-';
+            try {
+                const date = new Date(isoString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${day}/${month}/${year} ${hours}:${minutes}`;
+            } catch (e) {
+                return isoString;
+            }
+        }
+        
+        // Format số lượng
+        function formatQuantity(value) {
+            if (value === null || value === undefined) return '-';
+            const num = parseFloat(value);
+            if (isNaN(num)) return '-';
+            return num.toLocaleString('vi-VN', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+        
+        // Load inventory history - LẤY TẤT CẢ (không pagination)
+        function loadInventoryHistory(variantId, filters = {}) {
+            if (!variantId) return;
+            
+            currentHistoryVariantId = variantId;
+            currentHistoryFilters = { ...filters };
+            
+            // Show loading
+            historyLoading.classList.remove('hidden');
+            historyError.classList.add('hidden');
+            historyContent.classList.add('hidden');
+            
+            // Build query params
+            const params = new URLSearchParams({
+                variant_id: variantId
+            });
+            
+            if (filters.action_type) {
+                params.append('action_type', filters.action_type);
+            }
+            if (filters.source) {
+                params.append('source', filters.source);
+            }
+            
+            // Call API
+            fetch(`{% url 'kho:products_inventory_history' %}?${params.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    historyLoading.classList.add('hidden');
+                    
+                    if (data.error) {
+                        historyError.classList.remove('hidden');
+                        historyError.querySelector('p').textContent = data.error;
+                        return;
+                    }
+                    
+                    // Show content
+                    historyContent.classList.remove('hidden');
+                    
+                    const allData = data.data || [];
+                    
+                    // Populate source filters từ dữ liệu - phụ thuộc vào action_type filter
+                    const actionType = filters.action_type || '';
+                    
+                    // Nếu chưa có filter action_type, load tất cả để lấy danh sách sources đầy đủ
+                    if (!actionType && availableSources.length === 0) {
+                        // Load lại tất cả để lấy danh sách sources đầy đủ
+                        fetch(`{% url 'kho:products_inventory_history' %}?variant_id=${variantId}`)
+                            .then(response => response.json())
+                            .then(allDataResponse => {
+                                if (allDataResponse.data && allDataResponse.data.length > 0) {
+                                    populateSourceFilters(allDataResponse.data, '');
+                                }
+                            })
+                            .catch(() => {
+                                // Fallback: dùng data hiện tại nếu có
+                                if (allData.length > 0) {
+                                    populateSourceFilters(allData, '');
+                                }
+                            });
+                    } else {
+                        // Có filter action_type hoặc đã có sources, populate từ data hiện tại
+                        if (allData.length > 0) {
+                            populateSourceFilters(allData, actionType);
+                        }
+                    }
+                    
+                    // Render table
+                    renderHistoryTable(allData, data.metadata || {});
+                })
+                .catch(error => {
+                    historyLoading.classList.add('hidden');
+                    historyError.classList.remove('hidden');
+                    historyError.querySelector('p').textContent = 'Lỗi: ' + error.message;
+                });
+        }
+        
+        // Render history table
+        function renderHistoryTable(items, metadata) {
+            historyTbody.innerHTML = '';
+            
+            if (items.length === 0) {
+                historyTbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-xs text-slate-500">
+                            Không có dữ liệu
+                        </td>
+                    </tr>
+                `;
+                historyTotalCount.textContent = '0';
+                return;
+            }
+            
+            items.forEach(item => {
+                const onhandAdj = parseFloat(item.onhand_adj || 0);
+                const isPositive = onhandAdj > 0;
+                
+                // Hiển thị dựa vào onhand_adj, không phải trans_type
+                // onhand_adj > 0 = Nhập kho, onhand_adj < 0 = Xuất kho
+                const actionLabel = isPositive ? 'Nhập kho' : 'Xuất kho';
+                const actionClass = isPositive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50';
+                row.innerHTML = `
+                    <td class="px-2 py-2 text-[10px] text-slate-600">${formatDateTime(item.issued_at_utc)}</td>
+                    <td class="px-2 py-2">
+                        <span class="text-[10px] font-mono text-slate-700">${item.trans_object_code || '-'}</span>
+                    </td>
+                    <td class="px-2 py-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium ${actionClass}">
+                            ${actionLabel}
+                        </span>
+                    </td>
+                    <td class="px-2 py-2 text-[10px] text-slate-600">${item.source || '-'}</td>
+                    <td class="px-2 py-2 text-right text-[10px] font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}">
+                        ${isPositive ? '+' : ''}${formatQuantity(onhandAdj)}
+                    </td>
+                    <td class="px-2 py-2 text-right text-[10px] text-slate-700 font-medium">
+                        ${formatQuantity(item.onhand)}
+                    </td>
+                    <td class="px-2 py-2 text-[10px] text-slate-600">${item.account_name || '-'}</td>
+                `;
+                historyTbody.appendChild(row);
+            });
+            
+            // Update total count
+            const total = metadata.total || items.length;
+            historyTotalCount.textContent = total.toLocaleString('vi-VN');
+        }
+        
+        // Update filter button states for inventory history
+        function updateHistoryFilterButtons() {
+            // Update action_type buttons (Nhập/Xuất)
+            document.querySelectorAll('.history-filter-action-type-btn').forEach(btn => {
+                const btnActionType = btn.dataset.actionType || '';
+                const isActive = btnActionType === (currentHistoryFilters.action_type || '');
+                
+                if (isActive) {
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                    btn.classList.add('bg-orange-500', 'text-white', 'border-orange-500');
+                } else {
+                    btn.classList.remove('bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+            
+            // Update source buttons
+            document.querySelectorAll('.history-filter-source-btn').forEach(btn => {
+                const btnSource = btn.dataset.source || '';
+                const isActive = btnSource === (currentHistoryFilters.source || '');
+                
+                if (isActive) {
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                    btn.classList.add('bg-orange-500', 'text-white', 'border-orange-500');
+                } else {
+                    btn.classList.remove('bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+        
+        // Populate source filter buttons from data - chỉ lấy sources theo action_type
+        function populateSourceFilters(items, actionType = '') {
+            // Lấy danh sách source unique từ dữ liệu, filter theo action_type
+            const sourcesSet = new Set();
+            items.forEach(item => {
+                const onhandAdj = parseFloat(item.onhand_adj || 0);
+                const source = item.source || '';
+                
+                if (!source) return;
+                
+                // Nếu có filter action_type, chỉ lấy sources phù hợp
+                if (actionType === 'in' && onhandAdj <= 0) return;
+                if (actionType === 'out' && onhandAdj >= 0) return;
+                
+                sourcesSet.add(source);
+            });
+            
+            availableSources = Array.from(sourcesSet).sort();
+            
+            // Render source buttons
+            const container = document.getElementById('history-source-filters-container');
+            if (!container) return;
+            
+            // Giữ lại label và button "Tất cả"
+            const allBtn = container.querySelector('.history-filter-source-btn[data-source=""]');
+            
+            // Xóa các button source cũ (trừ "Tất cả")
+            container.querySelectorAll('.history-filter-source-btn:not([data-source=""])').forEach(btn => btn.remove());
+            
+            // Thêm các button source mới
+            availableSources.forEach(source => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'history-filter-source-btn px-2.5 py-1 text-xs rounded-md border transition font-medium bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100';
+                btn.dataset.source = source;
+                btn.textContent = source;
+                
+                // Insert sau button "Tất cả"
+                if (allBtn && allBtn.nextSibling) {
+                    container.insertBefore(btn, allBtn.nextSibling);
+                } else {
+                    container.appendChild(btn);
+                }
+                
+                // Event listener được handle bởi event delegation ở trên
+            });
+        }
+        
+        // Open modal
+        function openInventoryHistoryModal(btn) {
+            const variantId = parseInt(btn.dataset.variantId);
+            const sku = btn.dataset.variantSku || '-';
+            
+            document.getElementById('history-modal-sku').textContent = sku;
+            
+            // Reset filters và sources
+            currentHistoryFilters = { action_type: '', source: '' };
+            availableSources = [];
+            updateHistoryFilterButtons();
+            
+            // Clear source buttons (trừ "Tất cả")
+            const container = document.getElementById('history-source-filters-container');
+            if (container) {
+                container.querySelectorAll('.history-filter-source-btn:not([data-source=""])').forEach(btn => btn.remove());
+            }
+            
+            // Show modal
+            inventoryHistoryModal.classList.remove('hidden');
+            
+            // Load data (load tất cả trước để lấy danh sách sources)
+            loadInventoryHistory(variantId, {});
+        }
+        
+        // Close modal
+        function closeInventoryHistoryModal() {
+            inventoryHistoryModal.classList.add('hidden');
+            currentHistoryVariantId = null;
+            currentHistoryFilters = { action_type: '', source: '' };
+        }
+        
+        // Event listeners
+        document.querySelectorAll('.inventory-history-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                openInventoryHistoryModal(this);
+            });
+        });
+        
+        if (inventoryHistoryModalClose) {
+            inventoryHistoryModalClose.addEventListener('click', closeInventoryHistoryModal);
+        }
+        if (inventoryHistoryModalCloseFooter) {
+            inventoryHistoryModalCloseFooter.addEventListener('click', closeInventoryHistoryModal);
+        }
+        
+        inventoryHistoryModal.addEventListener('click', function(e) {
+            if (e.target === inventoryHistoryModal) {
+                closeInventoryHistoryModal();
+            }
+        });
+        
+        // Filter button handlers - Action Type (Nhập/Xuất)
+        document.querySelectorAll('.history-filter-action-type-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                if (!currentHistoryVariantId) return;
+                
+                const actionType = this.dataset.actionType || '';
+                
+                // Toggle: nếu click vào button đang active thì reset
+                if (currentHistoryFilters.action_type === actionType) {
+                    currentHistoryFilters.action_type = '';
+                } else {
+                    currentHistoryFilters.action_type = actionType;
+                }
+                
+                // Reset source filter khi đổi action type
+                currentHistoryFilters.source = '';
+                
+                updateHistoryFilterButtons();
+                
+                // Load lại tất cả data (không filter source) để lấy danh sách sources đầy đủ cho action_type
+                const filtersForSources = {
+                    action_type: currentHistoryFilters.action_type,
+                    source: ''  // Không filter source để lấy tất cả sources
+                };
+                
+                // Load để lấy danh sách sources
+                fetch(`{% url 'kho:products_inventory_history' %}?variant_id=${currentHistoryVariantId}&action_type=${filtersForSources.action_type}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.data && data.data.length > 0) {
+                            populateSourceFilters(data.data, filtersForSources.action_type);
+                        }
+                    })
+                    .catch(() => {
+                        // Fallback: load với filter hiện tại
+                        loadInventoryHistory(currentHistoryVariantId, currentHistoryFilters);
+                    });
+                
+                // Load data với filter đầy đủ để hiển thị
+                loadInventoryHistory(currentHistoryVariantId, currentHistoryFilters);
+            });
+        });
+        
+        // Filter button handlers - Source
+        // Button "Tất cả" được add sẵn, các button khác được add động
+        // Sử dụng event delegation để handle cả button có sẵn và button được add sau
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('history-filter-source-btn')) {
+                if (!currentHistoryVariantId) return;
+                
+                const source = e.target.dataset.source || '';
+                
+                // Toggle: nếu click vào button đang active thì reset
+                if (currentHistoryFilters.source === source) {
+                    currentHistoryFilters.source = '';
+                } else {
+                    currentHistoryFilters.source = source;
+                }
+                
+                updateHistoryFilterButtons();
+                loadInventoryHistory(currentHistoryVariantId, currentHistoryFilters);
+            }
+        });
+    });
+</script>
+{% endblock %}
+

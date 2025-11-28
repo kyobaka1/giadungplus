@@ -217,14 +217,35 @@ class SapoProductService:
             
             # Update via Sapo API
             update_data = {"description": new_description}
-            response = self.core_api.update_product(product_id, update_data)
             
-            if response.get('product'):
-                logger.info(f"Updated GDP metadata for product {product_id}")
-                return True
-            else:
-                logger.error(f"Failed to update product {product_id}: No product in response")
-                return False
+            # Log description length để debug
+            desc_length = len(new_description)
+            logger.debug(f"Updating product {product_id} with description length: {desc_length}")
+            
+            try:
+                response = self.core_api.update_product(product_id, update_data)
+                
+                if response.get('product'):
+                    logger.info(f"Updated GDP metadata for product {product_id}")
+                    return True
+                else:
+                    logger.error(f"Failed to update product {product_id}: No product in response")
+                    logger.error(f"Response: {response}")
+                    return False
+            except Exception as api_error:
+                # Log chi tiết lỗi từ API
+                error_msg = str(api_error)
+                logger.error(f"API error updating product {product_id}: {error_msg}")
+                
+                # Nếu là HTTPError, log response text
+                if hasattr(api_error, 'response') and api_error.response is not None:
+                    try:
+                        error_response = api_error.response.text
+                        logger.error(f"Sapo API error response: {error_response}")
+                    except:
+                        pass
+                
+                raise  # Re-raise để được catch ở ngoài
                 
         except Exception as e:
             logger.error(f"Error updating product metadata {product_id}: {e}", exc_info=True)

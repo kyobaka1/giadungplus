@@ -140,7 +140,7 @@ class OrderDTOFactory:
             time_print=packing_data.get("time_print"),
             split=int(packing_data.get("split") or 0),
             time_chia=packing_data.get("time_chia"),
-            shipdate=packing_data.get("shipdate"),
+            shipdate=self._normalize_shipdate(packing_data.get("shipdate")),
             nguoi_chia=packing_data.get("nguoi_chia"),
         )
     
@@ -608,6 +608,25 @@ class OrderDTOFactory:
         except Exception as e:
             logger.warning(f"Failed to parse packing data from note: {e}")
             return {}
+    
+    def _normalize_shipdate(self, shipdate_value: Any) -> Optional[str]:
+        """
+        Normalize shipdate value to string.
+        Handles both integer (timestamp) and string formats.
+        """
+        if shipdate_value is None:
+            return None
+        
+        # If already a string, return as is
+        if isinstance(shipdate_value, str):
+            return shipdate_value
+        
+        # If integer (timestamp), convert to string
+        if isinstance(shipdate_value, (int, float)):
+            return str(int(shipdate_value))
+        
+        # Fallback: convert to string
+        return str(shipdate_value)
 
 
 # Backward compatibility: Keep old function name

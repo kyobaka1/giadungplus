@@ -21,7 +21,8 @@ def gopnhan_gon(json_data: Dict[str, Any]) -> Dict[str, Any]:
     key_mapping = {
         "packing_status": "pks", "nguoi_goi": "human", "time_packing": "tgoi",
         "dvvc": "vc", "shopee_id": "spid", "time_print": "tin",
-        "split": "sp", "time_chia": "tc", "shipdate": "sd", "nguoi_chia": "nc"
+        "split": "sp", "time_chia": "tc", "shipdate": "sd", "nguoi_chia": "nc",
+        "receive_cancel": "rc"
     }
     return {key_mapping.get(k, k): v for k, v in json_data.items()}
 
@@ -34,7 +35,8 @@ def mo_rong_gon(json_string: str) -> Dict[str, Any]:
     reverse_mapping = {
         "pks": "packing_status", "human": "nguoi_goi", "tgoi": "time_packing",
         "vc": "dvvc", "spid": "shopee_id", "tin": "time_print",
-        "sp": "split", "sd": "shipdate", "tc": "time_chia", "nc": "nguoi_chia"
+        "sp": "split", "sd": "shipdate", "tc": "time_chia", "nc": "nguoi_chia",
+        "rc": "receive_cancel"
     }
     return {reverse_mapping.get(k, k): v for k, v in data.items()}
 

@@ -1,22 +1,41 @@
-Cookie:SPC_F=DT0TzojQctCMb7S6czYZUsG9KRAg4pjk; REC_T_ID=57e9eb52-737b-11f0-b2a8-5229195f4f73; _fbp=fb.1.1754563404303.597777788959842155; SPC_CLIENTID=RFQwVHpvalFjdENNbelccaleqtmllcpk; _med=affiliates; _hjSessionUser_868286=eyJpZCI6IjJmMGY4ZDlhLTgwOTktNTJlYy1hNGU3LWZhMjUxYjA3NmYzNyIsImNyZWF0ZWQiOjE3NTg3NzE4MjU3MTUsImV4aXN0aW5nIjp0cnVlfQ==; SC_DFP=KTwwzPamgfoizpUgQjuhJrMnEanqIoUp; _QPWSDCXHZQA=6344dff0-1c85-460a-9c4a-3155ac06f861; REC7iLP4Q=75b267b0-a5cc-461a-b578-9a4c9958807e; fulfillment-language=vi; __stripe_mid=7fbc0929-bce4-4f8e-84e2-421c6372130c8e802b; _gcl_au=1.1.756719383.1762340328; SPC_CDS=d39ca669-24a3-4227-81db-3535e63c325d; SPC_SC_SA_TK=; SPC_SC_SA_UD=; SPC_SC_OFFLINE_TOKEN=; SC_SSO=-; SC_SSO_U=-; SPC_SI=OucfaQAAAABFY1ZLRFlUYUwgIAMAAAAAOEo1cGJDSDE=; SPC_SEC_SI=v1-MUY4UWE4WmMwcUI4cVIxVu2SBMOr2dDPekjVFlSucoIqHs3/FyKWs0EMhTBkhmmcdVfKNzrgXvB7UedMruyVCsJlMQ7tuiivywutMHus8yE=; csrftoken=ocLU3nlEpFn5MxXPhlhCeh4hywsVVUCV; SPC_R_T_ID=g40pLVbcYRKgnLJD6MLqBwNIRrvLxB1QScH+BqBHYJ9bQZrZCXPUijlalUzkBHM6OT0BY902L0lNwy3/NLJroUacdOWclLhrjseD5MO8zwdaHDZOCrb5tBNtRDvxhGwZx8+BvMYq41aaEfKmIMszzsjurXT3Tbhjyp3S7vOLvig=; SPC_T_ID=g40pLVbcYRKgnLJD6MLqBwNIRrvLxB1QScH+BqBHYJ9bQZrZCXPUijlalUzkBHM6OT0BY902L0lNwy3/NLJroUacdOWclLhrjseD5MO8zwdaHDZOCrb5tBNtRDvxhGwZx8+BvMYq41aaEfKmIMszzsjurXT3Tbhjyp3S7vOLvig=; SPC_SI=RYwdaQAAAABDbWlPdXdOTkZROQEAAAAAbFY5Q0lOd2Q=; SPC_R_T_IV=RnlYZjVEbTlqRFRxWlVOcA==; SPC_T_IV=RnlYZjVEbTlqRFRxWlVOcA==; _gid=GA1.2.575891399.1763950067; _ga=GA1.1.1904914627.1710317951; SPC_ST=.eFp2RW1GMjhpeHcwekxWZicM4xero4rfFqwAxhS6mrK+BiycOGRzMXhbAuQliuwTdM1idYTcGzh5aVYYlkQHkdKqkep4PmPfVGByQMH0YXFKRCcB5i6BmYUEz1qf6Sr5bbDCt+Or1k7VVQtgbM1cgv7fi2ZaIMAz+zIlIMXU1xx5rkAsx+HOsrAS4JEML87YIqhq3b2TMURbH7dswmzj9wVdQ/q0yOHtssSJx6vkidlT04+g6JItnFpcyFiWKNniMkDsIedD/zw9E8yPrbw+1w==; _ga_4GPP1ZXG63=GS2.1.s1763950067$o29$g0$t1763950070$j57$l1$h2002108457; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_SC_SESSION=goQytdM95N+GmhJOBeUOc67geyK7phW3tNk5D0tCU+Ybv2tZc7SSnBaW1XBm7r00Q+lNQQ0vfACAvvftbx0/Rpt7tNdbAAltlUpW/DQgaC0ZPEuMrnwCo5P5VtnnCMPmGDJL9bokzda6XLmYSsiCA1LCG46gvH1HHg0nhqlx2gwHSvyKggddNmccyZNP28uZuv4ru+iEKwFdPy9bjm1Hvs+i8ScqJdXG1gU2cBr5lyW7PhLpWfQ+AD3KuhiSuBv1Tc//4GsPakHu54A0VSpj3BA==_1_1639480824; SPC_STK=56idVFdDKy5Qr8DbxYCiLD/RJXZbzmq/s0Tev+CeF01GEr0YLPPacSeRH0dNYz1KlFasSRFo3OK0Tw/11fdV73TZn1tXonb0vC1YG5GRya5O06xPNoKEyNTiFyGBt2f/+wjxL1denwjBeQofXfbbZ5KE62m3nn/pKMqY8ODKbu5UIIBPFriOmwNHgzkiyxR+Pj2ao4TnfzVFM73LWV+ZJqH3GbALBuemTia1yaIUiz6zgePUasW9iqifj9HKxf5J9BPnhyoY2Q/TqTsFAzglfJn1AVn9FtCAmxe8zJ/RPAqIgIMEAtOM49wDZDT5KWxtglZ/aQ4NXJIv7U6g8Pb4X+g+kZt/y3C+Vk6yK24NGq3A+m+FldO1HYvHfyqUBU8puZkBB1c6q5Aj5EbC7qYWC8rYmgKdPBy6W8I9kDobGO/6r4PxOzEEfVUmXP9Q6T7sx9cbbpbnl1FlxWVbwV6/vOcRh38VmKD3gt6Ue+Ra4MeHqXlTT1ECXjU9di7NLpXi; SPC_U=1639480824; SPC_EC=.WGxBdkJzZ3NJQ0ltSHBpVB/b1WsnKtgmnCi4HS5w5jSDr1jWi2+NoEkHsRW0UgRh2FI6BSxfBKMy5tdoLvZC2qwWiX2LnQNR4kUkiwemNxr7TqkzjOD+hk+o1ZvX8oEIWfOYvUEJ99+oKEWL/9r38kUQcM5UyFIYKXY0lcGOjjZ6cZZ+ZoefCttiaajOi4JmbbjsBFeQbApYR7iKySbTQigYW80EXwQSu81otBsZTTec076Ng4wbJe2RZhppMpidxz7PPS9Uhug54sKj9Y68Ug==; SPC_CDS_CHAT=4def3ace-8e52-44e5-97c2-a63d82bc333b; CTOKEN=ZpYVaMjaEfCdplK0yhSVEQ%3D%3D; shopee_webUnique_ccd=gWJWeN9%2FCvYAeRVacmPbjg%3D%3D%7CzWlsIwMzdobFge4RwVbLeyKrThbjme0id69mMmMQSwsMMwZPNZuZvT3cOEC3Eh%2BOu0ZjdStKNAU%3D%7CTV2AzMkM75CGfUa8%7C08%7C3; ds=edcba1867851a0d97447f7416b825b47; _sapid=3ad89541e91678293f85594301b4e67089a5db768c2a6e2c3d81e635
-
-Origin:https://banhang.shopee.vn
-
-Referer:https://banhang.shopee.vn/portal/sale/order
-
-Sc-Fe-Session:841FC700146E466D
-
-Sc-Fe-Ver:21.126360
-
-Sec-Ch-Ua:"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"
-
-Sec-Ch-Ua-Mobile:?0
-
-Sec-Ch-Ua-Platform:"Windows"
-
-Sec-Fetch-Dest:empty
-
-Sec-Fetch-Mode:cors
-
-Sec-Fetch-Site:same-origin
-
+accept
+application/json, text/plain, */*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+cookie
+SPC_F=DT0TzojQctCMb7S6czYZUsG9KRAg4pjk; REC_T_ID=57e9eb52-737b-11f0-b2a8-5229195f4f73; _fbp=fb.1.1754563404303.597777788959842155; SPC_CLIENTID=RFQwVHpvalFjdENNbelccaleqtmllcpk; _med=affiliates; _hjSessionUser_868286=eyJpZCI6IjJmMGY4ZDlhLTgwOTktNTJlYy1hNGU3LWZhMjUxYjA3NmYzNyIsImNyZWF0ZWQiOjE3NTg3NzE4MjU3MTUsImV4aXN0aW5nIjp0cnVlfQ==; SC_DFP=KTwwzPamgfoizpUgQjuhJrMnEanqIoUp; _QPWSDCXHZQA=6344dff0-1c85-460a-9c4a-3155ac06f861; REC7iLP4Q=75b267b0-a5cc-461a-b578-9a4c9958807e; fulfillment-language=vi; __stripe_mid=7fbc0929-bce4-4f8e-84e2-421c6372130c8e802b; _gcl_au=1.1.756719383.1762340328; SPC_ST=.eFp2RW1GMjhpeHcwekxWZicM4xero4rfFqwAxhS6mrK+BiycOGRzMXhbAuQliuwTdM1idYTcGzh5aVYYlkQHkdKqkep4PmPfVGByQMH0YXFKRCcB5i6BmYUEz1qf6Sr5bbDCt+Or1k7VVQtgbM1cgv7fi2ZaIMAz+zIlIMXU1xx5rkAsx+HOsrAS4JEML87YIqhq3b2TMURbH7dswmzj9wVdQ/q0yOHtssSJx6vkidlT04+g6JItnFpcyFiWKNniMkDsIedD/zw9E8yPrbw+1w==; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_SC_SESSION=goQytdM95N+GmhJOBeUOc67geyK7phW3tNk5D0tCU+Ybv2tZc7SSnBaW1XBm7r00Q+lNQQ0vfACAvvftbx0/Rpt7tNdbAAltlUpW/DQgaC0ZPEuMrnwCo5P5VtnnCMPmGDJL9bokzda6XLmYSsiCA1LCG46gvH1HHg0nhqlx2gwHSvyKggddNmccyZNP28uZuv4ru+iEKwFdPy9bjm1Hvs+i8ScqJdXG1gU2cBr5lyW7PhLpWfQ+AD3KuhiSuBv1Tc//4GsPakHu54A0VSpj3BA==_1_1639480824; SPC_STK=56idVFdDKy5Qr8DbxYCiLD/RJXZbzmq/s0Tev+CeF01GEr0YLPPacSeRH0dNYz1KlFasSRFo3OK0Tw/11fdV73TZn1tXonb0vC1YG5GRya5O06xPNoKEyNTiFyGBt2f/+wjxL1denwjBeQofXfbbZ5KE62m3nn/pKMqY8ODKbu5UIIBPFriOmwNHgzkiyxR+Pj2ao4TnfzVFM73LWV+ZJqH3GbALBuemTia1yaIUiz6zgePUasW9iqifj9HKxf5J9BPnhyoY2Q/TqTsFAzglfJn1AVn9FtCAmxe8zJ/RPAqIgIMEAtOM49wDZDT5KWxtglZ/aQ4NXJIv7U6g8Pb4X+g+kZt/y3C+Vk6yK24NGq3A+m+FldO1HYvHfyqUBU8puZkBB1c6q5Aj5EbC7qYWC8rYmgKdPBy6W8I9kDobGO/6r4PxOzEEfVUmXP9Q6T7sx9cbbpbnl1FlxWVbwV6/vOcRh38VmKD3gt6Ue+Ra4MeHqXlTT1ECXjU9di7NLpXi; SPC_U=1639480824; SPC_R_T_IV=NmdIY3hLQlFkNWVWZjJGZw==; SPC_T_ID=UY3I2NugzrQ0c8lRhq9IhSpbYZIknp+tMBpjWHXFdlgwzNFzwDOebJVrmztmgHedMTwe1yNPTAcjQ9Zpq3bJbQ9nYdsrp6nITQ2k1ejtQHOmXmo+nUPDKlC5IZsgyZeXRX+xoJPqJba/MgZCZ3zfA4MyNg4b/UHyZGQA+1a5nl8=; SPC_T_IV=NmdIY3hLQlFkNWVWZjJGZw==; SPC_R_T_ID=UY3I2NugzrQ0c8lRhq9IhSpbYZIknp+tMBpjWHXFdlgwzNFzwDOebJVrmztmgHedMTwe1yNPTAcjQ9Zpq3bJbQ9nYdsrp6nITQ2k1ejtQHOmXmo+nUPDKlC5IZsgyZeXRX+xoJPqJba/MgZCZ3zfA4MyNg4b/UHyZGQA+1a5nl8=; SPC_SI=fmseaQAAAABjUXB3RGFkdTUHsAUAAAAAMUd5OTVZV2Y=; SPC_SEC_SI=v1-VFhhM1FVRjFxS251cE05MCmgOWaUQ1WmpSxEqwUor7rItb0idL2dyzoZr68rKmh1xURCS4lwPMu2o7rRF9R12YV1aM4Jnq/wwdJxkO9iCmg=; SPC_CDS=e07db359-f9ff-4a89-9347-6e1d061557a7; SPC_SI=VYwdaQAAAABDdHNCeHgwc6zUVQAAAAAAS21NcEZTZ0c=; SPC_CDS_CHAT=4d8c2f91-e694-484b-9cc1-f92d46637c10; _sapid=3ad89541e91678293f85594301b4e67089a5db768c2a6e2c3d81e635; language=vi; csrftoken=oLe5ug2PYVKEPKxmwMcKrcHbocsjT3qK; _gid=GA1.2.606013193.1764047150; _ga=GA1.1.1904914627.1710317951; _ga_4GPP1ZXG63=GS2.1.s1764047149$o30$g1$t1764047177$j32$l1$h1793258043; CTOKEN=GYEPI8n6EfCDW%2BaKO%2BXsyg%3D%3D; SPC_EC=.MlpXZUtkdzJLSnh4SHc2dx+JpPOM5rdbdhEt40Kph2sp5wWv+jrsHIpsroCWoduCUVXKtSjH9pghl1TuKq+eGpexYngcKKy3bMQ39G4N97fx1JosT2owu7n4BtBaiu0jJg2B6pCrfUBGAPdbfNX0l7/COi4Ae8N+ofm+zffquXQOhdHEy9R0WDMvMjW2b7pWCpglYR07qShumft+v5hJu7mGZB677ltsFlJG79PzkAp+re1uxVdsNQ9e/U6OLgfem9fo/PIy7ZhTwHkgBz7fHQ==; shopee_webUnique_ccd=MY9j0W6ksQQDb3YvK%2Bacxg%3D%3D%7CMmlsIwMzdobFge4RwVbLeyKrThbjme0id69mMrmVLgIMMwZPNZuZvT3cOEC3Eh%2BOu0ZjdStKNAVR7Q%3D%3D%7CTV2AzMkM75CGfUa8%7C08%7C3; ds=7d1879d9c4e97546b9ed7faa8803e768
+priority
+u=1, i
+referer
+https://banhang.shopee.vn/portal/product/list/live/all
+sc-fe-session
+7A2909A97D5B5E33
+sc-fe-ver
+21.126575
+sec-ch-ua
+"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36
+Full stack trace AI agent in Performance panel
+The Performance panel now integrates a more capable AI agent that has full access to the stack trace.
+
+AI code completion in Sources and Console
+Code completion powered by AI is now available in the Sources panel and the Console.
+
+Google Developer Program support
+The Google Developer Program, a ready-made subscription and community platform, is now in DevTools, offering a more personalized experience, a badge system, and easier discovery of new features.
+
+One main 'Debug with AI' button
+The primary action bar at the top of DevTools now features the primary "Debug with AI" button which opens the 'AI assistance' panel in a right-hand side bar.

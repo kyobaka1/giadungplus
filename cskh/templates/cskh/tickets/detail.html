@@ -1,101 +1,1772 @@
 {% extends "cskh/base_cskh.html" %}
+{% load humanize %}
 
-{% block title %}Chi tiết Ticket #{{ ticket.code }} – CSKH{% endblock %}
+{% block title %}Chi tiết Ticket {{ ticket.ticket_number }} – CSKH{% endblock %}
 
 {% block overview %}
 <section class="flex items-center justify-between">
     <div>
-        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket #{{ ticket.code }}</h1>
-        <p class="text-sm md:text-xs text-gray-500 mt-1">{{ ticket.category }}</p>
+        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket {{ ticket.ticket_number }}</h1>
+        <p class="text-sm md:text-xs text-gray-500 mt-1">{{ ticket.get_ticket_type_display|default:"-" }}</p>
     </div>
-    <a href="{% url 'cskh:ticket_list' %}"
-        class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
-        ← Quay lại
-    </a>
+    <div class="flex gap-2">
+        <a href="{% url 'cskh:ticket_list' %}"
+            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+            ← Quay lại
+        </a>
+        <button id="btnSaveTicket"
+            class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+            Lưu ticket
+        </button>
+    </div>
 </section>
 {% endblock %}
 
 {% block main_content %}
-<div class="flex-1 min-w-0 space-y-6">
+<style>
+    /* Hiệu ứng sọc đỏ chéo cho sản phẩm không được tích (không liên quan đến ticket) */
+    .variant-item.variant-not-selected {
+        position: relative;
+        /* Nền trắng với sọc đỏ nhạt chéo */
+        background: repeating-linear-gradient(135deg,
+                #ffffff 0px,
+                #ffffff 8px,
+                rgba(239, 68, 68, 0.1) 8px,
+                rgba(239, 68, 68, 0.1) 10px);
+    }
+</style>
+<div class="flex-1 min-w-0 overflow-x-hidden">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- CỘT TRÁI -->
+        <div class="space-y-6">
+            
+            <!-- Thông tin đơn hàng -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm space-y-5">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-800 mb-4">Thông tin đơn hàng</h3>
+                    
+                    {% if order_info %}
+                    <div class="p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <!-- Cột 1: Mã đơn + Trạng thái -->
+                            <div class="space-y-2">
+                                <div>
+                                    <strong>Mã đơn:</strong>
+                                    {% if ticket.order_id %}
+                                    <a href="https://sisapsan.mysapogo.com/admin/orders/{{ ticket.order_id }}" 
+                                       target="_blank"
+                                       class="text-sky-700 hover:text-sky-900 font-medium underline">
+                                        {{ order_info.order_code|default:order_info.reference_number }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-gray-700">{{ order_info.order_code|default:order_info.reference_number }}</span>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Trạng thái đơn hàng và giao hàng -->
+                                <div class="space-y-1.5">
+                                    {% if order_info.order_status %}
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Trạng thái đơn:</span>
+                                        <span class="px-2 py-0.5 rounded-full font-medium ml-1
+                                            {% if order_info.order_status == 'finalized' %}bg-blue-100 text-blue-700
+                                            {% elif order_info.order_status == 'completed' %}bg-green-100 text-green-700
+                                            {% elif order_info.order_status == 'cancelled' %}bg-red-100 text-red-700
+                                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                            {{ order_info.order_status_label|default:order_info.order_status }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% if order_info.fulfillment_status %}
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Giao hàng:</span>
+                                        <span class="px-2 py-0.5 rounded-full font-medium ml-1
+                                            {% if order_info.fulfillment_status == 'shipped' %}bg-green-100 text-green-700
+                                            {% elif order_info.fulfillment_status == 'unshipped' %}bg-yellow-100 text-yellow-700
+                                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                            {{ order_info.fulfillment_status_label|default:order_info.fulfillment_status }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <!-- Đóng gói tại kho -->
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Đóng gói tại kho:</span>
+                                        {% if order_info.packing_status %}
+                                            {% if order_info.packing_status >= 3 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-green-100 text-green-700">
+                                                    Đã đóng gói
+                                                </span>
+                                                {% if order_info.nguoi_goi %}
+                                                    <span class="text-gray-600 ml-1">(Người gói: {{ order_info.nguoi_goi }})</span>
+                                                {% endif %}
+                                            {% elif order_info.packing_status == 2 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-yellow-100 text-yellow-700">
+                                                    Đang đóng gói
+                                                </span>
+                                            {% elif order_info.packing_status == 1 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-blue-100 text-blue-700">
+                                                    Đã in nhãn
+                                                </span>
+                                            {% else %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-gray-100 text-gray-700">
+                                                    Chưa đóng gói
+                                                </span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-gray-100 text-gray-700">
+                                                Chưa đóng gói
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Cột 2: Kho/Shop, Tên/SĐT, Địa chỉ -->
+                            <div class="space-y-2">
+                                <!-- Kho hàng / Shop cùng 1 cột -->
+                                <div>
+                                    <strong>Kho hàng:</strong> <span class="text-gray-700">{{ order_info.warehouse|default:"-" }}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-sm text-gray-700">Shop:</span>
+                                    {% with shop_lower=order_info.shop|default_if_none:""|lower %}
+                                    <div class="flex items-center gap-2">
+                                        <img src="{% if 'lteng' in shop_lower %}
+                                                        /static/logo-lteng.jpg
+                                                      {% elif 'phaledo' in shop_lower %}
+                                                        /static/logo-phaledo.jpg
+                                                      {% else %}
+                                                        /static/giaodiensang.png
+                                                      {% endif %}"
+                                             class="w-5 h-5 rounded-sm border border-slate-200 object-contain bg-white"
+                                             alt="logo">
 
-    <!-- Thông tin ticket -->
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ ticket.title }}</h3>
+                                        <span class="px-2 py-0.5 text-[11px] font-medium rounded border
+                                                       {% if 'lteng' in shop_lower %}
+                                                           bg-orange-50 border-orange-300 text-orange-700
+                                                       {% elif 'phaledo' in shop_lower %}
+                                                           bg-amber-50 border-amber-300 text-amber-700
+                                                       {% else %}
+                                                           bg-sky-50 border-sky-300 text-sky-700
+                                                       {% endif %}">
+                                            {{ order_info.shop|default:"-" }}
+                                        </span>
+                                    </div>
+                                    {% endwith %}
+                                </div>
+                                
+                                <!-- Tên / SĐT cùng 1 cột -->
+                                <div>
+                                    <strong>Tên khách:</strong> <span class="text-gray-700">{{ order_info.customer_name|default:"-" }}</span>
+                                </div>
+                                <div>
+                                    <strong>SĐT:</strong> <span class="text-gray-700">{{ order_info.customer_phone|default:"-" }}</span>
+                                </div>
+                                
+                                <!-- Địa chỉ 1 cột -->
+                                <div>
+                                    <strong>Địa chỉ:</strong> <span class="text-gray-700">{{ order_info.customer_address|default:"-" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-500">Không có thông tin đơn hàng</p>
+                    </div>
+                    {% endif %}
+                </div>
 
-        <div class="grid grid-cols-2 gap-4 mb-6">
-            <div>
-                <div class="text-sm text-gray-600">Khách hàng</div>
-                <div class="font-medium">{{ ticket.customer_name }}</div>
-                <div class="text-sm text-gray-600">{{ ticket.customer_phone }}</div>
-                <div class="text-sm text-gray-600">{{ ticket.customer_email }}</div>
+                <!-- Thông tin đơn xử lý (order_process) -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-semibold text-gray-800">Thông tin đơn xử lý</h3>
+                        {% if ticket.process_order_code %}
+                        <span class="text-xs text-gray-500">Đang gắn: <strong>{{ ticket.process_order_code }}</strong></span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Tìm & gắn đơn xử lý -->
+                    <div class="mb-3 flex gap-2 items-center">
+                        <input type="text" id="search_process_order"
+                               class="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                               placeholder="Nhập mã SON hoặc mã sàn để gắn đơn xử lý...">
+                        <button type="button" id="btnSearchProcessOrder"
+                                class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+                            Tìm đơn
+                        </button>
+                    </div>
+
+                    <div id="processOrderResult" class="hidden mb-2 p-3 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-xs"></div>
+
+                    {% if process_order_info %}
+                    <div id="processOrderInfo" class="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <!-- Cột 1: Mã đơn + Trạng thái -->
+                            <div class="space-y-2">
+                                <div>
+                                    <strong>Mã đơn xử lý:</strong>
+                                    {% if ticket.process_order_id %}
+                                    <a href="https://sisapsan.mysapogo.com/admin/orders/{{ ticket.process_order_id }}" 
+                                       target="_blank"
+                                       class="text-sky-700 hover:text-sky-900 font-medium underline">
+                                        {{ process_order_info.order_code|default:process_order_info.reference_number }}
+                                    </a>
+                                    {% else %}
+                                    <span class="text-gray-800">
+                                        {{ process_order_info.order_code|default:process_order_info.reference_number }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Trạng thái đơn hàng và giao hàng -->
+                                <div class="space-y-1.5">
+                                    {% if process_order_info.order_status %}
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Trạng thái đơn:</span>
+                                        <span class="px-2 py-0.5 rounded-full font-medium ml-1
+                                            {% if process_order_info.order_status == 'finalized' %}bg-blue-100 text-blue-700
+                                            {% elif process_order_info.order_status == 'completed' %}bg-green-100 text-green-700
+                                            {% elif process_order_info.order_status == 'cancelled' %}bg-red-100 text-red-700
+                                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                            {{ process_order_info.order_status_label|default:process_order_info.order_status }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% if process_order_info.fulfillment_status %}
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Giao hàng:</span>
+                                        <span class="px-2 py-0.5 rounded-full font-medium ml-1
+                                            {% if process_order_info.fulfillment_status == 'shipped' %}bg-green-100 text-green-700
+                                            {% elif process_order_info.fulfillment_status == 'unshipped' %}bg-yellow-100 text-yellow-700
+                                            {% else %}bg-gray-100 text-gray-700{% endif %}">
+                                            {{ process_order_info.fulfillment_status_label|default:process_order_info.fulfillment_status }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    <!-- Đóng gói tại kho -->
+                                    <div class="text-xs">
+                                        <span class="font-semibold text-gray-700">Đóng gói tại kho:</span>
+                                        {% if process_order_info.packing_status %}
+                                            {% if process_order_info.packing_status >= 3 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-green-100 text-green-700">
+                                                    Đã đóng gói
+                                                </span>
+                                                {% if process_order_info.nguoi_goi %}
+                                                    <span class="text-gray-600 ml-1">(Người gói: {{ process_order_info.nguoi_goi }})</span>
+                                                {% endif %}
+                                            {% elif process_order_info.packing_status == 2 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-yellow-100 text-yellow-700">
+                                                    Đang đóng gói
+                                                </span>
+                                            {% elif process_order_info.packing_status == 1 %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-blue-100 text-blue-700">
+                                                    Đã in nhãn
+                                                </span>
+                                            {% else %}
+                                                <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-gray-100 text-gray-700">
+                                                    Chưa đóng gói
+                                                </span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="px-2 py-0.5 rounded-full font-medium ml-1 bg-gray-100 text-gray-700">
+                                                Chưa đóng gói
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Cột 2: Kho, Nguồn -->
+                            <div class="space-y-2">
+                                <div>
+                                    <strong>Kho:</strong> <span class="text-gray-700">{{ process_order_info.warehouse|default:"-" }}</span>
+                                </div>
+                                <div>
+                                    <strong>Nguồn:</strong> <span class="text-gray-700">{{ process_order_info.channel|default:"-" }}</span>
+                                </div>
+                                {% if process_order_info.shop %}
+                                <div class="flex items-center gap-2">
+                                    <span class="font-semibold text-sm text-gray-700">Shop:</span>
+                                    {% with shop_lower=process_order_info.shop|default_if_none:""|lower %}
+                                    <div class="flex items-center gap-2">
+                                        <img src="{% if 'lteng' in shop_lower %}
+                                                        /static/logo-lteng.jpg
+                                                      {% elif 'phaledo' in shop_lower %}
+                                                        /static/logo-phaledo.jpg
+                                                      {% else %}
+                                                        /static/giaodiensang.png
+                                                      {% endif %}"
+                                             class="w-5 h-5 rounded-sm border border-slate-200 object-contain bg-white"
+                                             alt="logo">
+
+                                        <span class="px-2 py-0.5 text-[11px] font-medium rounded border
+                                                       {% if 'lteng' in shop_lower %}
+                                                           bg-orange-50 border-orange-300 text-orange-700
+                                                       {% elif 'phaledo' in shop_lower %}
+                                                           bg-amber-50 border-amber-300 text-amber-700
+                                                       {% else %}
+                                                           bg-sky-50 border-sky-300 text-sky-700
+                                                       {% endif %}">
+                                            {{ process_order_info.shop|default:"-" }}
+                                        </span>
+                                    </div>
+                                    {% endwith %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div id="processOrderInfo" class="p-4 bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 text-center text-xs text-gray-500">
+                        Chưa có đơn xử lý được gắn với ticket này.
+                    </div>
+                    {% endif %}
+                </div>
             </div>
-            <div>
-                <div class="text-sm text-gray-600">Đơn hàng</div>
-                <div class="font-medium">{{ ticket.order_code }}</div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-4 gap-4 mb-6">
-            <div>
-                <div class="text-sm text-gray-600 mb-1">Độ ưu tiên</div>
-                {% if ticket.priority == 'high' %}
-                <span class="px-3 py-1 text-sm rounded-full bg-red-100 text-red-700 font-medium">High</span>
+            
+            <!-- Thông tin sản phẩm -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <h3 class="text-base font-semibold text-gray-800 mb-4">Sản phẩm liên quan</h3>
+                
+                {% if variants %}
+                <div class="space-y-2 max-h-96 overflow-y-auto">
+                    {% for variant in variants %}
+                    <div class="flex items-center gap-3 p-3 border rounded-lg variant-item hover:bg-gray-50 {% if variant.is_selected %}bg-blue-50 border-blue-200{% else %}variant-not-selected{% endif %}"
+                         data-variant-id="{{ variant.variant_id }}"
+                         data-product-name="{{ variant.product_name|default:variant.variant_name }}"
+                         data-variant-name="{{ variant.variant_name|default:'' }}"
+                         data-sku="{{ variant.sku|default:'' }}"
+                         data-price="{{ variant.price|default:0 }}"
+                         data-quantity="{{ variant.quantity|default:0 }}">
+                        <input type="checkbox" 
+                            name="variants_issue" 
+                            value="{{ variant.variant_id }}"
+                            class="variant-checkbox w-4 h-4 text-brand focus:ring-brand border-gray-300 rounded"
+                            {% if variant.is_selected %}checked{% endif %}>
+                        <div class="w-12 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                            {% if variant.image_url %}
+                            <img src="{{ variant.image_url }}" alt="Ảnh"
+                                 class="w-full h-full object-cover"
+                                 onerror="this.style.display='none'; this.parentElement.classList.add('bg-gray-200');">
+                            {% endif %}
+                        </div>
+                        <div class="flex-1">
+                            <div class="font-medium text-sm">
+                                {{ variant.product_name|default:variant.variant_name }}
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                SKU: {{ variant.sku|default:"-" }}
+                                {% if variant.price %}
+                                    · Giá: {{ variant.price|floatformat:0|intcomma }} đ
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
                 {% else %}
-                <span class="px-3 py-1 text-sm rounded-full bg-yellow-100 text-yellow-700 font-medium">{{
-                    ticket.priority }}</span>
+                <div class="p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Chưa có thông tin sản phẩm</p>
+                </div>
                 {% endif %}
             </div>
-            <div>
-                <div class="text-sm text-gray-600 mb-1">Trạng thái</div>
-                <span class="px-3 py-1 text-sm rounded-full bg-blue-100 text-blue-700 font-medium">{{ ticket.status
-                    }}</span>
-            </div>
-            <div>
-                <div class="text-sm text-gray-600 mb-1">Người phụ trách</div>
-                <div class="font-medium">{{ ticket.assignee }}</div>
-            </div>
-            <div>
-                <div class="text-sm text-gray-600 mb-1">Ngày tạo</div>
-                <div class="font-medium text-sm">{{ ticket.created_at }}</div>
-            </div>
-        </div>
-
-        <div class="border-t pt-4">
-            <div class="text-sm text-gray-600 mb-2">Mô tả</div>
-            <div class="text-gray-900">{{ ticket.description }}</div>
-        </div>
-    </div>
-
-    <!-- Comments -->
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-        <h3 class="text-base font-semibold text-gray-800 mb-4">Lịch sử xử lý</h3>
-        <div class="space-y-4">
-            {% for comment in ticket.comments %}
-            <div class="flex gap-3">
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <span class="text-xs font-semibold text-blue-600">{{ comment.user|first }}</span>
+            
+            <!-- Thiệt hại - Ticket Cost -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800">Thiệt hại</h3>
+                    <button id="btnAddCost" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
+                        + Thêm thiệt hại
+                    </button>
                 </div>
-                <div class="flex-1">
-                    <div class="flex items-center gap-2">
-                        <span class="font-medium text-sm">{{ comment.user }}</span>
-                        <span class="text-xs text-gray-500">{{ comment.created_at }}</span>
+                
+                <div id="costsList" class="space-y-2">
+                    {% for cost in costs %}
+                    <div class="p-3 bg-gray-50 rounded-lg space-y-2 border border-gray-100"
+                         data-cost-id="{{ cost.id }}">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <div class="font-medium">{{ cost.cost_type }}</div>
+                                    {% if cost.payment_date %}
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700">
+                                        Thanh toán: {{ cost.payment_date|date:"d/m/Y" }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% if cost.variant_id %}
+                                <div class="text-xs text-gray-600">
+                                    <span class="font-semibold">SP:</span>
+                                    {{ cost.product_name|default:cost.variant_name|default:"(Không rõ sản phẩm)" }}
+                                    {% if cost.sku %}- SKU: {{ cost.sku }}{% endif %}
+                                </div>
+                                <div class="text-xs text-gray-600">
+                                    {% if cost.quantity and cost.unit_price %}
+                                        {{ cost.quantity }} x {{ cost.unit_price|floatformat:0|intcomma }} đ
+                                    {% elif cost.quantity %}
+                                        Số lượng: {{ cost.quantity }}
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                <div class="text-sm text-gray-600">
+                                    {{ cost.note|default:"-" }}
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    {{ cost.created_at|date:"d/m/Y H:i" }}
+                                    {% if cost.person %} - {{ cost.person.get_full_name|default:cost.person.username }}{% endif %}
+                                </div>
+                            </div>
+                            <div class="text-right flex-shrink-0">
+                                <div class="text-lg font-semibold text-red-600">
+                                    {{ cost.amount|intcomma }} đ
+                                </div>
+                                <button type="button"
+                                        class="mt-2 px-2 py-1 text-[11px] border rounded bg-white text-gray-700 hover:bg-gray-100 transition cost-upload-trigger"
+                                        data-cost-id="{{ cost.id }}">
+                                    Upload ảnh chứng từ
+                                </button>
+                            </div>
+                        </div>
+                        {% if cost.images %}
+                        <div class="grid grid-cols-4 gap-2 mt-1">
+                            {% for img_path in cost.images %}
+                            {% with path_lower=img_path|lower %}
+                            <div class="relative ticket-media-item cursor-pointer"
+                                 data-media-src="/static/{{ img_path }}"
+                                 data-media-type="image">
+                                <img src="/static/{{ img_path }}" alt="Bill image"
+                                     class="w-full h-16 object-cover rounded border border-gray-200">
+                            </div>
+                            {% endwith %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="text-sm text-gray-700 mt-1">{{ comment.content }}</div>
+                    {% empty %}
+                    <p class="text-sm text-gray-500">Chưa có thiệt hại nào</p>
+                    {% endfor %}
+                </div>
+
+                <!-- Khu vực upload ảnh chứng từ cho thiệt hại -->
+                <div class="mt-4 pt-3 border-t border-dashed">
+                    <p class="text-xs text-gray-500 mb-2">
+                        Chọn một khoản thiệt hại ở trên rồi bấm <span class="font-semibold">Upload ảnh chứng từ</span>,
+                        sau đó có thể chọn file hoặc dán (Ctrl+V) ảnh để lưu vào <code>assets/billhoantien</code>.
+                    </p>
+                    <input type="file" id="costImagesInput" multiple accept="image/*"
+                           class="hidden">
+                    <div id="costImagesPreview" class="grid grid-cols-6 gap-1 text-[10px] text-gray-500"></div>
+                </div>
+                
+                {% if costs %}
+                <div class="mt-4 pt-4 border-t">
+                    <div class="flex justify-between items-center">
+                        <span class="font-semibold">Tổng thiệt hại:</span>
+                        <span class="text-xl font-bold text-red-600">{{ total_cost|intcomma }} đ</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Lịch sử xử lý -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-semibold text-gray-800">Lịch sử xử lý</h3>
+                    <button type="button" id="btnToggleLogs"
+                            class="text-xs text-sky-700 hover:text-sky-900 flex items-center gap-1">
+                        <span id="btnToggleLogsText">Xem thêm</span>
+                        <span id="btnToggleLogsIcon">▼</span>
+                    </button>
+                </div>
+                <div id="logsContainer" class="space-y-4 max-h-64 overflow-y-hidden transition-all duration-300 ease-in-out">
+                    {% for log in logs %}
+                    <div class="flex gap-3">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <span class="text-xs font-semibold text-blue-600">{{ log.user|first|upper }}</span>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-sm">{{ log.user }}</span>
+                                <span class="text-xs text-gray-500">
+                                    {{ log.formatted_time|default:log.timestamp }}
+                                </span>
+                            </div>
+                            <div class="text-sm text-gray-700 mt-1">
+                                <strong>{{ log.action }}</strong>
+                                {% if log.details %}
+                                <span class="text-gray-500">- {{ log.details|safe }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-sm text-gray-500">Chưa có lịch sử</p>
+                    {% endfor %}
                 </div>
             </div>
-            {% empty %}
-            <p class="text-sm text-gray-500">Chưa có comment nào</p>
-            {% endfor %}
+            
         </div>
+        
+        <!-- CỘT PHẢI -->
+        <div class="space-y-6">
+            
+            <!-- Thông tin bổ sung -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-gray-800">Thông tin bổ sung</h3>
+                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </div>
+                
+                <div class="space-y-3" id="ticketMetaForm">
+                    <!-- Bộ phận xử lý -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Bộ phận xử lý</label>
+                        <div class="flex-1 flex items-center gap-2">
+                            <span class="px-3 py-1 text-sm rounded-full border font-semibold
+                                {% if ticket.depart == 'cskh' %}bg-sky-50 text-sky-700 border-sky-200
+                                {% elif ticket.depart == 'warehouse' %}bg-orange-50 text-orange-700 border-orange-200
+                                {% else %}bg-slate-50 text-slate-700 border-slate-200{% endif %}">
+                                {% if ticket.depart == 'cskh' %}CSKH{% elif ticket.depart == 'warehouse' %}KHO{% else %}{{ ticket.depart|upper|default:"-" }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
 
-        <div class="mt-4 pt-4 border-t">
-            <textarea class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
-                rows="3" placeholder="Thêm comment..."></textarea>
-            <button class="mt-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
-                Gửi comment
-            </button>
+                    <!-- Loại vấn đề - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề</label>
+                        <select disabled
+                            class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
+                            <option>{{ ticket.get_ticket_type_display|default:"-" }}</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Nguồn lỗi - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Nguồn lỗi</label>
+                        <select id="source_reason"
+                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                            <option value="">-- Chọn nguồn lỗi --</option>
+                            {% for source in reason_sources %}
+                            <option value="{{ source }}" {% if ticket.source_reason == source %}selected{% endif %}>{{ source }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Loại lỗi - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại lỗi</label>
+                        <select id="reason_type"
+                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                            <option value="">-- Chọn loại lỗi --</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Trạng thái - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Trạng thái</label>
+                        <select id="ticket_status"
+                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                            {% for value, label in status_choices %}
+                                {% if value != 'new' or ticket.ticket_status == 'new' %}
+                                    <option value="{{ value }}" {% if ticket.ticket_status == value %}selected{% endif %}>{{ label }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Nguồn ticket (readonly) - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Nguồn ticket</label>
+                        <select disabled
+                            class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
+                            <option>{{ ticket.get_source_ticket_display }}</option>
+                        </select>
+                    </div>
+                    <!-- Người tạo ticket (readonly) - label và select cùng hàng -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Người tạo ticket</label>
+                        <select disabled
+                            class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
+                            <option>{% if ticket.created_by %}{{ ticket.created_by.first_name|default:ticket.created_by.username }}
+                            {% else %}-{% endif %}</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Nút hành động đã gom thành nút Lưu ticket ở header -->
+            </div>
+            
+            <!-- Người chịu trách nhiệm 
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <h3 class="text-sm font-semibold text-gray-800 mb-3">Lỗi sai do ai</h3>
+                
+                {% if not ticket.responsible_user and not ticket.responsible_department and not ticket.responsible_note %}
+                    <p class="text-xs text-gray-500 italic mb-3">Chưa có ai chịu trách nhiệm cho lỗi sai này.</p>
+                {% endif %}
+                
+                <div class="space-y-3">
+                   
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Bộ phận</label>
+                            <select id="responsible_department" class="w-full px-2.5 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-xs">
+                                <option value="">-- Chọn bộ phận --</option>
+                                {% for dept in departments %}
+                                <option value="{{ dept }}" {% if ticket.responsible_department == dept %}selected{% endif %}>{{ dept }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Nhân viên</label>
+                            <select id="responsible_user" class="w-full px-2.5 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-xs">
+                                <option value="">-- Chọn nhân viên --</option>
+                                {% for user in users %}
+                                <option value="{{ user.id }}" 
+                                        data-department="{{ user.department|default:'' }}"
+                                        {% if ticket.responsible_user and ticket.responsible_user.id == user.id %}selected{% endif %}>
+                                    {{ user.full_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Ghi chú</label>
+                        <textarea id="responsible_note" rows="2" 
+                                  class="w-full px-2.5 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-xs"
+                                  placeholder="Ghi chú về trách nhiệm...">{{ ticket.responsible_note|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="flex justify-end">
+                        <button type="button" id="btnSaveResponsible"
+                                class="px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-medium">
+                            Lưu
+                        </button>
+                    </div>
+                </div>
+            </div>
+            -->
+
+            <!-- Upload ảnh/video -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <h3 class="text-base font-semibold text-gray-800 mb-4">Upload ảnh/video</h3>
+                <div class="flex items-center gap-3">
+                    <input type="file" name="images" id="images" multiple accept="image/*,video/*" 
+                        class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                    <button type="button" id="btnUploadImages"
+                        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
+                        Tải lên
+                    </button>
+                </div>
+                <div id="imagePreview" class="mt-4 grid grid-cols-3 gap-2">
+                    {% if ticket.images %}
+                        {% for image_path in ticket.images %}
+                        {% with path_lower=image_path|lower %}
+                        <div class="relative ticket-media-item cursor-pointer"
+                             data-media-src="/static/{{ image_path }}"
+                             data-media-type="{% if '.mp4' in path_lower or '.mov' in path_lower or '.webm' in path_lower %}video{% else %}image{% endif %}">
+                            {% if '.mp4' in path_lower or '.mov' in path_lower or '.webm' in path_lower %}
+                                <video src="/static/{{ image_path }}"
+                                       class="w-full h-24 object-cover rounded bg-black"
+                                       muted preload="metadata"></video>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="px-2 py-1 text-xs bg-black/60 text-white rounded">Video</span>
+                                </div>
+                            {% else %}
+                                <img src="/static/{{ image_path }}" alt="Ticket image" 
+                                     class="w-full h-24 object-cover rounded">
+                            {% endif %}
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Lightbox xem ảnh/video -->
+            <div id="mediaLightbox" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center">
+                <div class="relative max-w-5xl w-full h-full flex items-center justify-center px-4">
+                    <button type="button" id="mediaCloseBtn"
+                        class="absolute top-4 right-6 text-white text-2xl font-bold">
+                        ×
+                    </button>
+                    <button type="button" id="mediaPrevBtn"
+                        class="absolute left-4 md:left-10 text-white text-3xl font-bold select-none">
+                        ‹
+                    </button>
+                    <button type="button" id="mediaNextBtn"
+                        class="absolute right-4 md:right-10 text-white text-3xl font-bold select-none">
+                        ›
+                    </button>
+                    <div id="mediaContent" class="max-h-[90vh] max-w-full flex items-center justify-center">
+                        <!-- Ảnh / video lớn sẽ được render bằng JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Trouble & Event timeline -->
+            <div class="bg-white border rounded-xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-base font-semibold text-gray-800">Trouble & Event</h3>
+                        <p class="text-xs text-gray-500 mt-1">Timeline làm việc với khách hàng (theo thời gian).</p>
+                    </div>
+                </div>
+                
+                <!-- Danh sách event - Chat style -->
+                <div id="eventList" class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                    {% for ev in events %}
+                        {% if 'CHUYỂN BỘ PHẬN: KHO' in ev.tag_list %}
+                            <!-- Event chuyển bộ phận: hiển thị dạng thông báo đỏ full width -->
+                            <div class="w-full bg-red-600 text-white rounded-lg px-3 py-2 shadow-sm text-xs md:text-sm">
+                                <div class="font-semibold tracking-wide">CSKH CHUYỂN TICKET SANG KHO XỬ LÝ</div>
+                                {% if ev.content %}
+                                <div class="mt-1 whitespace-pre-line">{{ ev.content }}</div>
+                                {% endif %}
+                                <div class="mt-1 text-[10px] opacity-80">
+                                    {{ ev.created_at|date:"d/m H:i" }}
+                                    {% if ev.created_by %}
+                                        - {{ ev.created_by.get_full_name|default:ev.created_by.username }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% elif ev.created_by and ev.created_by.id == request.user.id %}
+                            <!-- Event của mình - bên phải, background xanh nhạt -->
+                            <div class="flex justify-end">
+                                <div class="max-w-[75%] flex flex-col items-end">
+                                    <div class="bg-blue-100 rounded-lg px-3 py-2 shadow-sm">
+                                        {% if ev.tag_list %}
+                                        <div class="mb-1.5 flex flex-wrap gap-1 justify-end">
+                                            {% for tag in ev.tag_list %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-200 text-blue-800 border border-blue-300 text-[10px] font-medium">
+                                                {{ tag }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                        <div class="text-gray-800 whitespace-pre-line text-sm">{{ ev.content }}</div>
+                                    </div>
+                                    <div class="text-[10px] text-gray-500 mt-1 mr-1">
+                                        {{ ev.created_at|date:"d/m H:i" }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% else %}
+                            <!-- Event của người khác - bên trái, có avatar -->
+                            <div class="flex justify-start gap-2">
+                                {% if ev.show_avatar %}
+                                <!-- Chỉ hiển thị avatar ở event đầu tiên trong nhóm -->
+                                <div class="flex-shrink-0">
+                                    {% if ev.created_by %}
+                                        <img src="/static/nhanvien/{{ ev.created_by.username }}.png" 
+                                             alt="{{ ev.created_by.username }}"
+                                             class="w-10 h-10 rounded-full object-cover border border-gray-200"
+                                             onerror="this.src='/static/nhanvien/kho-avatar.png';">
+                                    {% else %}
+                                        <img src="/static/nhanvien/kho-avatar.png" 
+                                             alt="Hệ thống"
+                                             class="w-10 h-10 rounded-full object-cover border border-gray-200">
+                                    {% endif %}
+                                </div>
+                                {% else %}
+                                <!-- Event tiếp theo trong nhóm - chỉ có khoảng trống để align -->
+                                <div class="flex-shrink-0 w-10"></div>
+                                {% endif %}
+                                <div class="flex-1 max-w-[75%]">
+                                    {% if ev.show_avatar %}
+                                    <!-- Chỉ hiển thị name và dept ở event đầu tiên trong nhóm -->
+                                    <div class="mb-1">
+                                        {% if ev.created_by %}
+                                            {% with dept=ev.created_by.last_name|default_if_none:"" name=ev.created_by.first_name|default:ev.created_by.username %}
+                                                <div class="flex items-center gap-2">
+                                                    <span class="font-semibold text-sm text-gray-800">{{ name }}</span>
+                                                    {% if dept %}
+                                                        <span class="px-1.5 py-0.5 rounded-full border text-[10px] font-semibold
+                                                            {% if dept == 'KHO_HN' %}
+                                                                bg-orange-50 border-orange-300 text-orange-700
+                                                            {% elif dept == 'KHO_HCM' %}
+                                                                bg-emerald-50 border-emerald-300 text-emerald-700
+                                                            {% elif dept == 'CSKH' %}
+                                                                bg-sky-50 border-sky-300 text-sky-700
+                                                            {% elif dept == 'QUẢN TRỊ VIÊN' %}
+                                                                bg-purple-50 border-purple-300 text-purple-700
+                                                            {% else %}
+                                                                bg-slate-50 border-slate-300 text-slate-700
+                                                            {% endif %}">
+                                                            {{ dept }}
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endwith %}
+                                        {% else %}
+                                            <span class="font-semibold text-sm text-gray-800">Hệ thống</span>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    <div class="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-sm">
+                                        {% if ev.tag_list %}
+                                        <div class="mb-1.5 flex flex-wrap gap-1">
+                                            {% for tag in ev.tag_list %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-medium">
+                                                {{ tag }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                        <div class="text-gray-800 whitespace-pre-line text-sm">{{ ev.content }}</div>
+                                    </div>
+                                    <div class="text-[10px] text-gray-500 mt-1 ml-1">
+                                        {{ ev.created_at|date:"d/m H:i" }}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% empty %}
+                    <p class="text-xs text-gray-400 italic text-center py-4">Chưa có event nào cho ticket này.</p>
+                    {% endfor %}
+                </div>
+                
+                <!-- Thêm event mới -->
+                <div class="mt-4 pt-4 border-t border-slate-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-semibold text-gray-700">Thêm event mới</h4>
+                    </div>
+                    <textarea id="event_content" rows="3"
+                        class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm mb-2"
+                        placeholder="VD: Đã gọi lại cho khách, khách xác nhận nhận đủ hàng, hẹn ngày kiểm tra lại..."></textarea>
+                    
+                    <!-- Tags preset -->
+                    <div class="mb-2 flex flex-wrap gap-2 text-[10px]">
+                        <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-red-300 bg-red-50 text-red-700 cursor-pointer">
+                            <input type="checkbox" class="event-tag-option w-3 h-3" value="GẤP GẤP GẤP!!!">
+                            <span>GẤP GẤP GẤP!!!</span>
+                        </label>
+                        <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-700 cursor-pointer">
+                            <input type="checkbox" class="event-tag-option w-3 h-3" value="CHỜ KHÁCH PHẢN HỒI">
+                            <span>CHỜ KHÁCH PHẢN HỒI</span>
+                        </label>
+                        <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-slate-300 bg-slate-50 text-slate-700 cursor-pointer">
+                            <input type="checkbox" class="event-tag-option w-3 h-3" value="KHÁCH KHÓ TÍNH">
+                            <span>KHÁCH KHÓ TÍNH</span>
+                        </label>
+                        {% if ticket.depart == 'cskh' %}
+                        <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-orange-400 bg-orange-50 text-orange-700 cursor-pointer">
+                            <input type="checkbox" class="event-tag-option w-3 h-3" value="CHUYỂN BỘ PHẬN: KHO">
+                            <span>CHUYỂN BỘ PHẬN: KHO</span>
+                        </label>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex justify-end">
+                        <button type="button" id="btnAddEvent"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-medium">
+                            + Thêm event
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
-
 </div>
+
+<!-- Modal thêm thiệt hại -->
+<div id="modalAddCost" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-4 max-w-md w-full mx-4 text-sm">
+        <h3 class="text-base font-semibold mb-3">Thêm thiệt hại</h3>
+        <form id="formAddCost">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1.5">Loại chi phí *</label>
+                    <select id="cost_type" required class="w-full px-3 py-1.5 border rounded-lg text-sm">
+                        <option value="">-- Chọn loại chi phí --</option>
+                        {% for cost_type in cost_types %}
+                        <option value="{{ cost_type }}">{{ cost_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div id="damage_product_section" class="space-y-2 hidden">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1.5">Sản phẩm hỏng vỡ</label>
+                        <select id="cost_variant_id" class="w-full px-3 py-1.5 border rounded-lg text-xs">
+                            <option value="">-- Chọn sản phẩm --</option>
+                        </select>
+                        <p class="mt-0.5 text-[10px] text-gray-500">
+                            Danh sách lấy từ các sản phẩm trong đơn hàng của ticket này.
+                        </p>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Số lượng hỏng vỡ</label>
+                            <input type="number" id="cost_quantity" min="1" step="1" value="1"
+                                   class="w-full px-4 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Đơn giá (đ)</label>
+                            <input type="number" id="cost_unit_price" min="0" step="1"
+                                   class="w-full px-4 py-2 border rounded-lg text-sm" placeholder="Tự động từ Sapo / đơn hàng">
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-gray-500">
+                        Giá trị thiệt hại sẽ được auto-fill = Số lượng × Đơn giá, bạn vẫn có thể chỉnh sửa thủ công ô số tiền bên dưới.
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1.5">Số tiền *</label>
+                    <input type="number" id="cost_amount" required step="0.01" min="0"
+                        class="w-full px-3 py-1.5 border rounded-lg text-sm" placeholder="0">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1.5">Ngày thanh toán</label>
+                    <input type="date" id="cost_payment_date"
+                           class="w-full px-3 py-1.5 border rounded-lg text-xs">
+                    <p class="mt-0.5 text-[10px] text-gray-500">
+                        Mặc định là ngày hiện tại, có thể chọn lại nếu thanh toán vào ngày khác.
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1.5">Ghi chú</label>
+                    <textarea id="cost_note" rows="3" class="w-full px-3 py-1.5 border rounded-lg text-sm"></textarea>
+                </div>
+            </div>
+            <div class="flex gap-2 mt-4">
+                <button type="submit" class="flex-1 px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
+                    Thêm
+                </button>
+                <button type="button" id="btnCloseModal" class="flex-1 px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm">
+                    Huỷ
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sourceReasonSelect = document.getElementById('source_reason');
+    const reasonTypeSelect = document.getElementById('reason_type');
+    const ticketStatusSelect = document.getElementById('ticket_status');
+    const imagesInput = document.getElementById('images');
+    const imagePreview = document.getElementById('imagePreview');
+    const btnSaveTicket = document.getElementById('btnSaveTicket');
+    const btnUploadImages = document.getElementById('btnUploadImages');
+    const btnAddEvent = document.getElementById('btnAddEvent');
+    const eventContentInput = document.getElementById('event_content');
+    const processOrderSearchInput = document.getElementById('search_process_order');
+    const btnSearchProcessOrder = document.getElementById('btnSearchProcessOrder');
+    const processOrderResult = document.getElementById('processOrderResult');
+    const btnSaveResponsible = document.getElementById('btnSaveResponsible');
+    const responsibleUserSelect = document.getElementById('responsible_user');
+    const responsibleDepartmentSelect = document.getElementById('responsible_department');
+    const responsibleNoteTextarea = document.getElementById('responsible_note');
+    const logsContainer = document.getElementById('logsContainer');
+    const btnToggleLogs = document.getElementById('btnToggleLogs');
+    const btnToggleLogsText = document.getElementById('btnToggleLogsText');
+    const btnToggleLogsIcon = document.getElementById('btnToggleLogsIcon');
+    
+    // Lọc nhân viên theo bộ phận
+    if (responsibleDepartmentSelect && responsibleUserSelect) {
+        // Lưu tất cả options ban đầu
+        const allUserOptions = Array.from(responsibleUserSelect.options).map(opt => ({
+            value: opt.value,
+            text: opt.text,
+            department: opt.dataset.department || '',
+            element: opt.cloneNode(true)
+        }));
+        
+        function filterUsersByDepartment() {
+            const selectedDept = responsibleDepartmentSelect.value;
+            const currentValue = responsibleUserSelect.value;
+            
+            // Xóa tất cả options (trừ option đầu tiên "-- Chọn nhân viên --")
+            responsibleUserSelect.innerHTML = '<option value="">-- Chọn nhân viên --</option>';
+            
+            // Thêm lại các options phù hợp
+            allUserOptions.forEach(userOpt => {
+                if (!selectedDept || userOpt.department === selectedDept || !userOpt.value) {
+                    responsibleUserSelect.appendChild(userOpt.element.cloneNode(true));
+                }
+            });
+            
+            // Giữ lại giá trị đã chọn nếu vẫn còn trong danh sách
+            if (currentValue) {
+                const optionExists = Array.from(responsibleUserSelect.options).some(opt => opt.value === currentValue);
+                if (optionExists) {
+                    responsibleUserSelect.value = currentValue;
+                } else {
+                    responsibleUserSelect.value = '';
+                }
+            }
+        }
+        
+        // Lắng nghe sự kiện thay đổi bộ phận
+        responsibleDepartmentSelect.addEventListener('change', filterUsersByDepartment);
+        
+        // Filter ngay khi page load nếu đã có bộ phận được chọn
+        if (responsibleDepartmentSelect.value) {
+            filterUsersByDepartment();
+        }
+    }
+    
+    // Load reason types
+    function loadReasonTypes(source) {
+        reasonTypeSelect.innerHTML = '<option value="">-- Chọn loại lỗi --</option>';
+        if (source) {
+            fetch(`{% url 'cskh:api_get_reason_types' %}?source_reason=${encodeURIComponent(source)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        data.types.forEach(type => {
+                            const option = document.createElement('option');
+                            option.value = type;
+                            option.textContent = type;
+                            if (type === '{{ ticket.reason_type }}') {
+                                option.selected = true;
+                            }
+                            reasonTypeSelect.appendChild(option);
+                        });
+                    }
+                });
+        }
+    }
+    
+    // Load reason types khi page load
+    if (sourceReasonSelect.value) {
+        loadReasonTypes(sourceReasonSelect.value);
+    }
+    
+    sourceReasonSelect.addEventListener('change', function() {
+        loadReasonTypes(this.value);
+    });
+
+    // =======================
+    // TÌM & GẮN ĐƠN XỬ LÝ
+    // =======================
+    function renderProcessOrderResult(order) {
+        if (!processOrderResult) return;
+        processOrderResult.classList.remove('hidden');
+        processOrderResult.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+                <div class="space-y-0.5">
+                    <div><span class="font-semibold">Đơn tìm thấy:</span> ${order.order_code || order.reference_number || '-'}</div>
+                    <div class="text-[11px] text-gray-600">
+                        Kho: ${order.warehouse || '-'} · Nguồn: ${order.channel || '-'}
+                    </div>
+                </div>
+                <button type="button" id="btnAttachProcessOrder"
+                        class="px-2.5 py-1 bg-emerald-600 text-white text-xs rounded-lg hover:bg-emerald-700">
+                    Gắn làm đơn xử lý
+                </button>
+            </div>
+        `;
+
+        const btnAttach = document.getElementById('btnAttachProcessOrder');
+        if (btnAttach) {
+            btnAttach.addEventListener('click', function() {
+                fetch(`{% url 'cskh:api_update_process_order' ticket.id %}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        order_id: order.order_id,
+                        order_code: order.order_code,
+                        reference_number: order.reference_number,
+                    }),
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Đã gắn đơn xử lý cho ticket');
+                        location.reload();
+                    } else {
+                        alert('Lỗi gắn đơn xử lý: ' + (data.error || ''));
+                    }
+                })
+                .catch(err => {
+                    alert('Lỗi gắn đơn xử lý: ' + err);
+                });
+            });
+        }
+    }
+
+    function searchProcessOrder() {
+        if (!processOrderSearchInput) return;
+        const key = (processOrderSearchInput.value || '').trim();
+        if (!key) {
+            alert('Vui lòng nhập mã đơn xử lý (SON hoặc mã sàn)');
+            return;
+        }
+
+        fetch(`{% url 'cskh:api_search_order' %}?q=${encodeURIComponent(key)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.order) {
+                    renderProcessOrderResult(data.order);
+                } else {
+                    alert('Không tìm thấy đơn xử lý: ' + (data.error || ''));
+                }
+            })
+            .catch(err => {
+                alert('Lỗi khi tìm đơn xử lý: ' + err);
+            });
+    }
+
+    if (btnSearchProcessOrder && processOrderSearchInput) {
+        btnSearchProcessOrder.addEventListener('click', searchProcessOrder);
+        processOrderSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchProcessOrder();
+            }
+        });
+    }
+    
+    // Visual feedback khi tick/untick checkbox sản phẩm
+    document.querySelectorAll('.variant-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const item = this.closest('.variant-item');
+            if (this.checked) {
+                item.classList.add('bg-blue-50', 'border-blue-200');
+                item.classList.remove('hover:bg-gray-50', 'variant-not-selected');
+            } else {
+                item.classList.remove('bg-blue-50', 'border-blue-200');
+                item.classList.add('hover:bg-gray-50', 'variant-not-selected');
+            }
+        });
+    });
+    
+    // Lưu toàn bộ ticket
+    btnSaveTicket.addEventListener('click', function() {
+        // Thu thập các variant_id đã được tick
+        const checkedVariants = [];
+        document.querySelectorAll('.variant-checkbox:checked').forEach(checkbox => {
+            checkedVariants.push(parseInt(checkbox.value));
+        });
+        
+        const payload = {
+            ticket_type: "{{ ticket.ticket_type }}",
+            source_reason: sourceReasonSelect.value || "",
+            reason_type: reasonTypeSelect.value || "",
+            ticket_status: ticketStatusSelect.value || "",
+            variants_issue: checkedVariants
+        };
+        
+        fetch(`{% url 'cskh:api_save_ticket' ticket.id %}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Lưu ticket thành công');
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data.error || ''));
+            }
+        });
+    });
+    
+    // Modal add cost
+    const modal = document.getElementById('modalAddCost');
+    const btnAddCost = document.getElementById('btnAddCost');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const formAddCost = document.getElementById('formAddCost');
+    const damageProductSection = document.getElementById('damage_product_section');
+    const costVariantSelect = document.getElementById('cost_variant_id');
+    const costQuantityInput = document.getElementById('cost_quantity');
+    const costUnitPriceInput = document.getElementById('cost_unit_price');
+    const costPaymentDateInput = document.getElementById('cost_payment_date');
+
+    const costImagesInput = document.getElementById('costImagesInput');
+    const costImagesPreview = document.getElementById('costImagesPreview');
+    let activeCostIdForUpload = null;
+    let lastDamageVariantId = null;
+    
+    btnAddCost.addEventListener('click', () => {
+        modal.classList.remove('hidden');
+
+        // Mặc định loại chi phí đầu tiên, reset form
+        formAddCost.reset();
+        if (costPaymentDateInput) {
+            const today = new Date().toISOString().slice(0, 10);
+            costPaymentDateInput.value = today;
+        }
+
+        // Ẩn/hiện section sản phẩm theo loại chi phí
+        if (damageProductSection) {
+            damageProductSection.classList.add('hidden');
+        }
+    });
+    btnCloseModal.addEventListener('click', () => modal.classList.add('hidden'));
+    
+    // Khi chọn loại chi phí -> hiển thị section chọn sản phẩm cho "Hàng hỏng vỡ"
+    if (document.getElementById('cost_type')) {
+        document.getElementById('cost_type').addEventListener('change', function() {
+            const val = this.value || '';
+            if (val === 'Hàng hỏng vỡ') {
+                if (damageProductSection) {
+                    damageProductSection.classList.remove('hidden');
+                }
+
+                // Build danh sách sản phẩm từ DOM nếu chưa có options
+                if (costVariantSelect && costVariantSelect.options.length <= 1) {
+                    const variantItems = document.querySelectorAll('.variant-item');
+                    variantItems.forEach(item => {
+                        const vid = item.dataset.variantId;
+                        if (!vid) return;
+                        const name = item.dataset.productName || item.dataset.variantName || '';
+                        const sku = item.dataset.sku || '';
+                        const price = parseFloat(item.dataset.price || '0') || 0;
+                        const qty = parseFloat(item.dataset.quantity || '0') || 0;
+
+                        const opt = document.createElement('option');
+                        opt.value = vid;
+                        // Hiển thị theo yêu cầu: SKU - Số lượng - Giá (không cần tên)
+                        const skuText = sku || 'Chưa có SKU';
+                        const qtyText = qty ? `SL: ${qty}` : 'SL: ?';
+                        const priceText = price ? `Giá: ${price.toLocaleString('vi-VN')} đ` : 'Giá: ?';
+                        opt.textContent = `${skuText} - ${qtyText} - ${priceText}`;
+                        opt.dataset.productName = name;
+                        opt.dataset.variantName = item.dataset.variantName || '';
+                        opt.dataset.sku = sku;
+                        opt.dataset.price = String(price);
+                        opt.dataset.quantity = String(qty);
+                        costVariantSelect.appendChild(opt);
+                    });
+                }
+            } else if (damageProductSection) {
+                damageProductSection.classList.add('hidden');
+            }
+        });
+    }
+
+    function recalcDamageAmount() {
+        if (!costVariantSelect || !costQuantityInput || !document.getElementById('cost_amount')) return;
+        const opt = costVariantSelect.selectedOptions[0];
+        if (!opt) return;
+
+        const price = parseFloat(opt.dataset.price || '0') || 0;
+        let qty = parseInt(costQuantityInput.value || '0', 10) || 0;
+        const maxQty = parseInt(opt.dataset.quantity || '0', 10) || 0;
+
+        if (maxQty && qty > maxQty) {
+            qty = maxQty;
+            if (costQuantityInput) {
+                costQuantityInput.value = String(maxQty);
+            }
+            alert(`Số lượng hỏng vỡ không được vượt quá số lượng trong đơn (${maxQty}).`);
+        }
+
+        // Nếu đổi sang sản phẩm khác -> luôn auto-fill lại đơn giá theo sản phẩm
+        const currentVariantId = opt.value;
+        if (currentVariantId !== lastDamageVariantId) {
+            if (costUnitPriceInput) {
+                costUnitPriceInput.value = price > 0 ? Math.round(price) : '';
+            }
+            lastDamageVariantId = currentVariantId;
+        }
+
+        if (price > 0 && qty > 0) {
+            const unit = costUnitPriceInput && parseFloat(costUnitPriceInput.value || '0') > 0
+                ? parseFloat(costUnitPriceInput.value || '0')
+                : price;
+            const amount = unit * qty;
+            const amountInput = document.getElementById('cost_amount');
+            if (amountInput) {
+                amountInput.value = Math.round(amount);
+            }
+        }
+    }
+
+    if (costVariantSelect) {
+        costVariantSelect.addEventListener('change', recalcDamageAmount);
+    }
+    if (costQuantityInput) {
+        costQuantityInput.addEventListener('input', recalcDamageAmount);
+    }
+    if (costUnitPriceInput) {
+        costUnitPriceInput.addEventListener('input', recalcDamageAmount);
+    }
+
+    formAddCost.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const costType = document.getElementById('cost_type').value;
+        const amount = document.getElementById('cost_amount').value;
+        const note = document.getElementById('cost_note').value;
+
+        let payload = {cost_type: costType, amount: amount, note: note};
+
+        // Gửi thêm thông tin sản phẩm + ngày thanh toán nếu là Hàng hỏng vỡ
+        if (costType === 'Hàng hỏng vỡ' && costVariantSelect && costVariantSelect.value) {
+            const opt = costVariantSelect.selectedOptions[0];
+            const maxQty = parseInt(opt.dataset.quantity || '0', 10) || 0;
+            const currentQty = costQuantityInput ? parseInt(costQuantityInput.value || '0', 10) : 0;
+            if (maxQty && currentQty > maxQty) {
+                alert(`Số lượng hỏng vỡ không được vượt quá số lượng trong đơn (${maxQty}).`);
+                return;
+            }
+
+            payload.variant_id = opt.value;
+            payload.product_name = opt.dataset.productName || '';
+            payload.variant_name = opt.dataset.variantName || '';
+            payload.sku = opt.dataset.sku || '';
+            payload.quantity = costQuantityInput ? costQuantityInput.value : null;
+            payload.unit_price = costUnitPriceInput ? costUnitPriceInput.value : null;
+        }
+
+        if (costPaymentDateInput && costPaymentDateInput.value) {
+            payload.payment_date = costPaymentDateInput.value;
+        }
+        
+        fetch(`{% url 'cskh:api_add_cost' ticket.id %}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Thêm thiệt hại thành công');
+                location.reload();
+            } else {
+                alert('Lỗi: ' + (data.error || ''));
+            }
+        });
+    });
+    
+    // Visual feedback khi tick/untick checkbox sản phẩm
+    document.querySelectorAll('.variant-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const item = this.closest('.variant-item');
+            if (this.checked) {
+                item.classList.add('bg-blue-50', 'border-blue-200');
+                item.classList.remove('hover:bg-gray-50', 'variant-not-selected');
+            } else {
+                item.classList.remove('bg-blue-50', 'border-blue-200');
+                item.classList.add('hover:bg-gray-50', 'variant-not-selected');
+            }
+        });
+    });
+    
+    // Gán costId cho nút upload chứng từ
+    document.querySelectorAll('.cost-upload-trigger').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const cid = this.dataset.costId;
+            if (!cid) return;
+            activeCostIdForUpload = cid;
+            if (costImagesInput) {
+                costImagesInput.click();
+            }
+        });
+    });
+
+    function uploadCostFiles(files) {
+        if (!files || !files.length || !activeCostIdForUpload) {
+            alert('Vui lòng chọn khoản thiệt hại và ít nhất một file để upload');
+            return;
+        }
+        const formData = new FormData();
+        Array.from(files).forEach(file => {
+            formData.append('images', file);
+        });
+
+        fetch(`{% url 'cskh:api_upload_cost_files' ticket.id 0 %}`.replace('/0/upload-files/', `/${activeCostIdForUpload}/upload-files/`), {
+            method: 'POST',
+            body: formData,
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                alert('Upload ảnh chứng từ thành công');
+                if (costImagesPreview) {
+                    costImagesPreview.innerHTML = '';
+                }
+                location.reload();
+            } else {
+                alert('Lỗi upload: ' + (data.error || ''));
+            }
+        })
+        .catch(err => {
+            alert('Lỗi upload: ' + err);
+        });
+    }
+
+    if (costImagesInput) {
+        costImagesInput.addEventListener('change', function(e) {
+            uploadCostFiles(e.target.files);
+        });
+    }
+
+    // Hàm chung để thêm preview file (ảnh/video) khi chọn tại chỗ
+    function addPreviewFileDetail(file) {
+        const div = document.createElement('div');
+        div.className = 'relative ticket-media-item cursor-pointer';
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'w-full h-24 object-cover rounded';
+            div.appendChild(img);
+            div.dataset.mediaType = 'image';
+            div.dataset.mediaSrc = img.src;
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.className = 'w-full h-24 object-cover rounded';
+            video.controls = true;
+            div.appendChild(video);
+            div.dataset.mediaType = 'video';
+            div.dataset.mediaSrc = video.src;
+
+            // Overlay label "Video"
+            const badge = document.createElement('div');
+            badge.className = 'absolute inset-0 flex items-center justify-center';
+            badge.innerHTML = '<span class="px-2 py-1 text-xs bg-black/60 text-white rounded">Video</span>';
+            div.appendChild(badge);
+        }
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = function() {
+            div.remove();
+        };
+        div.appendChild(removeBtn);
+        imagePreview.appendChild(div);
+    }
+    
+    // Preview images khi chọn file
+    imagesInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        files.forEach(file => {
+            addPreviewFileDetail(file);
+        });
+    });
+    
+    // Chuyển ngữ cảnh paste giữa upload ảnh ticket & upload ảnh thiệt hại
+    let uploadPasteContext = 'ticket'; // 'ticket' | 'cost'
+
+    if (imagePreview && imagePreview.parentElement) {
+        imagePreview.parentElement.addEventListener('click', function() {
+            uploadPasteContext = 'ticket';
+        });
+    }
+    const costsListEl = document.getElementById('costsList');
+    if (costsListEl) {
+        costsListEl.addEventListener('click', function(e) {
+            if (e.target.closest('.cost-upload-trigger') || e.target.closest('[data-cost-id]')) {
+                uploadPasteContext = 'cost';
+            }
+        });
+    }
+
+    // Hỗ trợ dán (Ctrl+V) ảnh từ clipboard vào upload (ticket images hoặc cost images)
+    document.addEventListener('paste', function(e) {
+        // Không can thiệp khi đang gõ trong input/textarea
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+            return;
+        }
+
+        const clipboardData = e.clipboardData || window.clipboardData;
+        if (!clipboardData || !clipboardData.items) return;
+
+        const items = Array.from(clipboardData.items);
+        const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+        if (!imageItems.length) return;
+
+        e.preventDefault();
+
+        if (uploadPasteContext === 'cost' && costImagesInput) {
+            const dt = new DataTransfer();
+            imageItems.forEach(item => {
+                const file = item.getAsFile();
+                if (file) {
+                    dt.items.add(file);
+                }
+            });
+            uploadCostFiles(dt.files);
+        } else if (imagesInput) {
+            const dt = new DataTransfer();
+            Array.from(imagesInput.files || []).forEach(f => dt.items.add(f));
+
+            imageItems.forEach(item => {
+                const file = item.getAsFile();
+                if (file) {
+                    dt.items.add(file);
+                    addPreviewFileDetail(file);
+                }
+            });
+
+            imagesInput.files = dt.files;
+        }
+    });
+    
+    // Upload images to server
+    if (btnUploadImages) {
+        btnUploadImages.addEventListener('click', function() {
+            const files = imagesInput.files;
+            if (!files || !files.length) {
+                alert('Vui lòng chọn ít nhất một file để upload');
+                return;
+            }
+            
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('images', file);
+            });
+            
+            fetch(`{% url 'cskh:api_upload_ticket_files' ticket.id %}`, {
+                method: 'POST',
+                body: formData,
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Upload ảnh/video thành công');
+                    imagesInput.value = '';
+                    location.reload();
+                } else {
+                    alert('Lỗi upload: ' + (data.error || ''));
+                }
+            })
+            .catch(err => {
+                alert('Lỗi upload: ' + err);
+            });
+        });
+    }
+
+    // Cập nhật thông tin người chịu trách nhiệm
+    if (btnSaveResponsible) {
+        btnSaveResponsible.addEventListener('click', function() {
+            const responsibleUserId = responsibleUserSelect ? responsibleUserSelect.value : '';
+            const responsibleDepartment = responsibleDepartmentSelect ? responsibleDepartmentSelect.value : '';
+            const responsibleNote = responsibleNoteTextarea ? responsibleNoteTextarea.value.trim() : '';
+            
+            fetch(`{% url 'cskh:api_update_responsible' ticket.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    responsible_user_id: responsibleUserId || null,
+                    responsible_department: responsibleDepartment,
+                    responsible_note: responsibleNote,
+                }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Cập nhật thông tin trách nhiệm thành công');
+                    location.reload();
+                } else {
+                    alert('Lỗi cập nhật: ' + (data.error || ''));
+                }
+            })
+            .catch(err => {
+                alert('Lỗi cập nhật: ' + err);
+            });
+        });
+    }
+
+    // Expand/Collapse lịch sử xử lý
+    if (logsContainer && btnToggleLogs && btnToggleLogsText && btnToggleLogsIcon) {
+        let logsExpanded = false;
+
+        function updateLogsState() {
+            if (logsExpanded) {
+                logsContainer.classList.remove('max-h-64', 'overflow-y-hidden');
+                logsContainer.classList.add('max-h-[480px]', 'overflow-y-auto');
+                btnToggleLogsText.textContent = 'Thu gọn';
+                btnToggleLogsIcon.textContent = '▲';
+            } else {
+                logsContainer.classList.remove('max-h-[480px]', 'overflow-y-auto');
+                logsContainer.classList.add('max-h-64', 'overflow-y-hidden');
+                btnToggleLogsText.textContent = 'Xem thêm';
+                btnToggleLogsIcon.textContent = '▼';
+            }
+        }
+
+        btnToggleLogs.addEventListener('click', function() {
+            logsExpanded = !logsExpanded;
+            updateLogsState();
+        });
+
+        // Khởi tạo trạng thái ban đầu (thu gọn)
+        updateLogsState();
+    }
+    
+    // Thêm Trouble & Event mới
+    if (btnAddEvent) {
+        btnAddEvent.addEventListener('click', function() {
+            const content = (eventContentInput.value || '').trim();
+            
+            // Thu thập tags từ checkbox preset
+            const selectedTags = [];
+            document.querySelectorAll('.event-tag-option:checked').forEach(cb => {
+                if (cb.value) selectedTags.push(cb.value);
+            });
+            
+            const tags = selectedTags.join(', ');
+            
+            if (!content) {
+                alert('Vui lòng nhập nội dung event');
+                return;
+            }
+            
+            fetch(`{% url 'cskh:api_add_event' ticket.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ content: content, tags: tags }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    eventContentInput.value = '';
+                    document.querySelectorAll('.event-tag-option').forEach(cb => cb.checked = false);
+                    location.reload();
+                } else {
+                    alert('Lỗi thêm event: ' + (data.error || ''));
+                }
+            })
+            .catch(err => {
+                alert('Lỗi thêm event: ' + err);
+            });
+        });
+    }
+
+    // Lightbox xem ảnh / video
+    const lightbox = document.getElementById('mediaLightbox');
+    const mediaContent = document.getElementById('mediaContent');
+    const btnClose = document.getElementById('mediaCloseBtn');
+    const btnPrev = document.getElementById('mediaPrevBtn');
+    const btnNext = document.getElementById('mediaNextBtn');
+    
+    let mediaItems = [];
+    let currentIndex = 0;
+    
+    function collectMediaItems() {
+        // Lấy tất cả ticket-media-item (ảnh/vídeo của ticket + thiệt hại)
+        mediaItems = Array.from(document.querySelectorAll('.ticket-media-item'));
+        mediaItems.forEach((el, idx) => {
+            el.dataset.index = idx;
+        });
+    }
+    
+    function openLightbox(index) {
+        if (!lightbox || !mediaContent) return;
+        collectMediaItems();
+        if (!mediaItems.length) return;
+        
+        currentIndex = ((index % mediaItems.length) + mediaItems.length) % mediaItems.length;
+        const el = mediaItems[currentIndex];
+        const type = el.dataset.mediaType || 'image';
+        const src = el.dataset.mediaSrc || el.querySelector('img,video')?.src;
+        if (!src) return;
+        
+        mediaContent.innerHTML = '';
+        
+        if (type === 'video') {
+            const video = document.createElement('video');
+            video.src = src;
+            video.controls = true;
+            video.autoplay = true;
+            video.className = 'max-h-[90vh] max-w-full rounded bg-black';
+            mediaContent.appendChild(video);
+        } else {
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'max-h-[90vh] max-w-full rounded';
+            mediaContent.appendChild(img);
+        }
+        
+        lightbox.classList.remove('hidden');
+    }
+    
+    function closeLightbox() {
+        if (!lightbox || !mediaContent) return;
+        lightbox.classList.add('hidden');
+        mediaContent.innerHTML = '';
+    }
+    
+    function showNext(delta) {
+        if (!mediaItems.length) return;
+        currentIndex = (currentIndex + delta + mediaItems.length) % mediaItems.length;
+        openLightbox(currentIndex);
+    }
+    
+    // Gán click cho các media item hiện có
+    function attachMediaClickHandlers() {
+        collectMediaItems();
+        mediaItems.forEach((el) => {
+            el.onclick = function() {
+                const idx = parseInt(this.dataset.index || '0', 10) || 0;
+                openLightbox(idx);
+            };
+        });
+    }
+    
+    attachMediaClickHandlers();
+    
+    // Đóng khi click nút X hoặc nền đen
+    if (btnClose) {
+        btnClose.addEventListener('click', closeLightbox);
+    }
+    if (lightbox) {
+        lightbox.addEventListener('click', function(e) {
+            if (e.target === lightbox) {
+                closeLightbox();
+            }
+        });
+    }
+    
+    if (btnPrev) {
+        btnPrev.addEventListener('click', function(e) {
+            e.stopPropagation();
+            showNext(-1);
+        });
+    }
+    
+    if (btnNext) {
+        btnNext.addEventListener('click', function(e) {
+            e.stopPropagation();
+            showNext(1);
+        });
+    }
+    
+    // Điều khiển bằng phím ← → và Esc khi lightbox mở
+    document.addEventListener('keydown', function(e) {
+        if (!lightbox || lightbox.classList.contains('hidden')) {
+            return;
+        }
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            showNext(1);
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            showNext(-1);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            closeLightbox();
+        }
+    });
+});
+</script>
 {% endblock %}

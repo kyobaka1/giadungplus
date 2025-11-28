@@ -1,69 +1,313 @@
 {% extends "kho/base_kho.html" %}
 {% load static %}
-{% load humanize %}
 
 {% block title %}{{ title }}{% endblock %}
-
 {% block overview %}
 <section>
-    <h1 class="text-lg font-semibold text-slate-800">Thư Cảm Ơn/Xin Lỗi</h1>
-    <p class="text-xs text-gray-500 mt-1">Tạo file PDF thư cảm ơn, thư xin lỗi, thư ngỏ để gửi kèm đơn</p>
+    <h1 class="text-lg font-semibold text-slate-800">In Thư Xin Lỗi</h1>
+    <p class="text-xs text-gray-500 mt-1">Áp dụng với các đơn đổi hàng, trả hàng, thiếu hàng... để gửi kèm cho khách hàng.</p>
 </section>
 {% endblock %}
+{% block content %}
 
-{% block main_content %}
-<div class="min-h-screen bg-slate-100">
-    <div class="max-w-2xl mx-auto">
-        
-        <!-- Form tạo thư -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-            <h2 class="text-sm font-semibold text-slate-800 mb-4">Tạo thư</h2>
-            
-            <form method="post" class="space-y-4">
-                {% csrf_token %}
-                
-                <div>
-                    <label class="block text-xs text-gray-600 mb-2">Mã đơn hàng</label>
-                    <input type="text" name="order_code" 
-                           placeholder="Nhập mã đơn hàng"
-                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
+
+<head>
+    <style>
+        @font-face {
+            font-family: 'Averta Std CY Bold';
+            src: url("{% static 'font/AvetaStdCY/AvertaStdCY-Bold.woff2' %}") format('woff2'),
+            url("{% static 'font/AvertaStdCY-Bold.woff' %}") format('woff');
+            font-weight: bold;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'Averta Std CY Regular';
+            src: url("{% static 'font/AvetaStdCY/AvertaStdCY-Regular.woff2' %}") format('woff2'),
+            url("{% static 'font/AvertaStdCY-Regular.woff' %}") format('woff');
+            font-weight: 500;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Averta Std CY Regular', sans-serif;
+            font-weight: 500;
+            color: black;
+            line-height: 1.3 !important;
+        }
+
+        p {
+            margin-bottom: 4px;
+        }
+
+        .bold {
+            font-family: 'Averta Std CY Bold', sans-serif;
+        }
+
+        .form-container {
+            max-width: 400px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .form-container label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .form-container input,
+        .form-container textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .form-container button {
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .option {
+            display: block;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .option input {
+            margin-right: 5px;
+        }
+
+        .option .option-label {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #f2f2f2;
+            display: inline-block;
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .option input:checked+.option-label {
+            background-color: orange;
+            color: white;
+        }
+
+    </style>
+</head>
+
+<div class="w-full bg-slate-100 p-4">
+    <div class="w-full max-w-[1600px] mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- CỘT 1: FORM NHẬP THÔNG TIN -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6 no-print">
+                <h2 class="text-lg font-semibold text-slate-800 mb-4">Nhập thông tin</h2>
+                <form method="get" action="{% url 'kho:sorry_letter' %}">
+                    <!-- Tên khách hàng -->
+                    <div class="mb-4">
+                        <label for="username" class="block text-sm font-medium text-slate-700 mb-1">
+                            <span class="text-red-600">*</span> Tên khách hàng
+                        </label>
+                        <p class="text-xs text-slate-500 mb-2">Xem trên đơn hàng! Anh Vương hoặc Chị Trang...</p>
+                        <input name="username" id="username" type="text" 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500" 
+                               value="{{save.username}}" required placeholder="Nhập tên khách hàng">
+                    </div>
+
+                    <!-- Shop -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Shop:</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center p-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition">
+                                <input type="radio" name="shop_name" value="Gia Dụng Plus Official" 
+                                       {%if save.shop_name == "Gia Dụng Plus Official" %}checked{%endif%}
+                                       class="mr-2 text-sky-600 focus:ring-sky-500">
+                                <span class="text-sm text-slate-700">Gia Dụng Plus Official</span>
+                            </label>
+                            <label class="flex items-center p-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition">
+                                <input type="radio" name="shop_name" value="Phaledo Official" 
+                                       {%if save.shop_name == "Phaledo Official" %}checked{%endif%}
+                                       class="mr-2 text-sky-600 focus:ring-sky-500">
+                                <span class="text-sm text-slate-700">Phaledo Official</span>
+                            </label>
+                            <label class="flex items-center p-2 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-50 transition">
+                                <input type="radio" name="shop_name" value="LTENG Official" 
+                                       {%if save.shop_name == "LTENG Official" %}checked{%endif%}
+                                       class="mr-2 text-sky-600 focus:ring-sky-500">
+                                <span class="text-sm text-slate-700">LTENG Official</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Sản phẩm bị thiếu -->
+                    <div class="mb-4">
+                        <label for="sanphamthieu" class="block text-sm font-medium text-slate-700 mb-1">
+                            <span class="text-red-600">*</span> Sản phẩm bị thiếu
+                        </label>
+                        <input name="sanphamthieu" id="sanphamthieu" type="text" 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                               value="{{save.sanphamthieu}}" required placeholder="Nhập tên sản phẩm bị thiếu">
+                    </div>
+
+                    <!-- Cách xử lý -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">
+                            <span class="text-red-600">*</span> Cách xử lý cho khách hàng
+                        </label>
+                        <p class="text-xs text-sky-600 mb-2">💡 Click vào phương án bên dưới để tự động điền!</p>
+                        <div class="space-y-2 mb-2">
+                            <button type="button" class="solution-option w-full text-left px-3 py-2 text-sm border border-red-300 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">
+                                GỬI THIẾU và HOÀN TIỀN
+                            </button>
+                            <button type="button" class="solution-option w-full text-left px-3 py-2 text-sm border border-red-300 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">
+                                GỬI THIẾU và GỬI BÙ
+                            </button>
+                            <button type="button" class="solution-option w-full text-left px-3 py-2 text-sm border border-red-300 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition">
+                                ĐỔI SANG:
+                            </button>
+                        </div>
+                        <input name="phuonganxuly" id="phuonganxuly" type="text" 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                               value="{{save.phuonganxuly}}" required placeholder="Nhập phương án xử lý">
+                    </div>
+
+                    <!-- Nút submit -->
+                    <button type="submit" 
+                            class="w-full px-4 py-2.5 bg-sky-600 text-white text-sm font-semibold rounded-lg hover:bg-sky-700 transition shadow-sm">
+                        🔍 XEM THƯ XIN LỖI
+                    </button>
+                </form>
+            </div>
+
+            <!-- CỘT 2: PREVIEW THƯ XIN LỖI -->
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-semibold text-slate-800 mb-4">Xem trước thư xin lỗi</h2>
+                <div class="flex justify-center items-start mb-4">
+                    <div id="printableArea" style="position: relative; width: 105mm; height: 148mm; border: 1px solid #000; padding: 10px; overflow: hidden; background: white;">
+                        <style type="text/css">
+                            #printableArea {
+                                width: 105mm;
+                                height: 148mm;
+                                border: 1px solid #000;
+                                padding: 10px;
+                                position: relative;
+                                overflow: hidden;
+                                background: white;
+                                box-sizing: border-box;
+                            }
+
+                            #printableArea p {
+                                margin: 0;
+                                margin-bottom: 8px;
+                            }
+                        </style>
+                        {% if save.shop_name == "Phaledo Official" %}
+                        <div style=" width: 100%;display: flex; height: 60px;">
+                            <img src="{% static 'logo-phaledo.jpg' %}" style="height: 60px;margin-bottom: 2px" />
+                            <div
+                                style="font-size: 16px; width: 70%; text-align: right; height: 60px; font-family: inherit; display: flex">
+                                <div style="margin: auto 0 0 auto" class="bold">
+                                    PHALEDO OFFICIAL <br>
+                                    www.phaledo.vn
+                                </div>
+                            </div>
+                        </div>
+                        {% elif save.shop_name == "LTENG Official" %}
+                        <div style=" width: 100%;display: flex; height: 60px;">
+                            <img src="{% static 'logo-lteng.jpg' %}" style="height: 60px;margin-bottom: 2px" />
+                            <div
+                                style="font-size: 16px; width: 70%; text-align: right; height: 60px; font-family: inherit; display: flex">
+                                <div style="margin: auto 0 0 auto" class="bold">
+                                    LTENG OFFICIAL <br>
+                                    www.lteng.vn
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div style=" width: 100%;display: flex; height: 60px;">
+                            <img src="{% static 'giaodiensang.png' %}" style="height: 60px;margin-bottom: 2px" />
+                            <div
+                                style="font-size: 16px; width: 70%; text-align: right; height: 60px; font-family: inherit; display: flex">
+                                <div style="margin: auto 0 0 auto" class="bold">
+                                    GIA DỤNG PLUS + <br>
+                                    www.giadungplus.com
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div style="width: 100%;padding-top:4px;  margin-top: 8px ">
+                            <p class="bold"
+                                style="font-size:32px;line-height: 42px; margin-bottom: 2px; text-align: center;"><b>THƯ
+                                    XIN LỖI</b></p>
+                        </div>
+                        <div style="width: 100%; padding:8px">
+                            <p style="font-size: 18px; text-align: left;font-weight: bold">Kính gửi: {{save.username}}
+                            </p>
+                            <p style="font-size: 18px; text-align: left;">Xin lỗi đã làm phiền mình, nhưng do shop đã
+                                hết hàng sản phẩm:</p>
+                            <p class="bold" style="font-size: 20px; text-align: left;">- {{save.sanphamthieu}}</p>
+
+                            <p style="font-size: 18px; text-align: left;">Shop đã cố liên hệ mình qua Shopee nhưng không
+                                được. Nên tụi em đã chủ động xử lý tạm thời:</p>
+                            <p class="bold" style="font-size: 20px; text-align: left;">- {{save.phuonganxuly}}</p>
+
+                            <p style="font-size: 17px; text-align: left;">Khi mình nhận được hàng, liên hệ để tụi em xử lý cho mình ngay nha. Một lần nữa, {% if save.shop_name == "Phaledo Official" %}PHALEDO{% elif save.shop_name == "LTENG Official" %}LTENG{% else %}GIA DỤNG PLUS{% endif %} ngàn lần xin lỗi {{save.username}} và mong được mình tha thứ ạ!</p>
+                            <div>
+                                <div
+                                    style="width: 100%; height: 42px; background: #000; position: absolute;bottom: 0;left: 0; padding-top: 4px">
+                                    <p style="font-size: 24px; text-align: center;font-weight: bold; color: white"
+                                        class="bold">ZALO: 084.295.1305</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                
-                <div>
-                    <label class="block text-xs text-gray-600 mb-2">Loại thư</label>
-                    <select name="letter_type" 
-                            class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="sorry">Thư xin lỗi</option>
-                        <option value="thank_you">Thư cảm ơn</option>
-                        <option value="greeting">Thư ngỏ</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label class="block text-xs text-gray-600 mb-2">Nội dung tùy chỉnh (tùy chọn)</label>
-                    <textarea name="custom_content" rows="4"
-                              placeholder="Nhập nội dung tùy chỉnh nếu có..."
-                              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
-                </div>
-                
-                <button type="submit" 
-                        class="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition">
-                    Tạo và tải PDF
+                <button onclick="printLetter()"
+                    class="w-full px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition shadow-sm">
+                    🖨️ BẤM VÀO ĐÂY ĐỂ IN!
                 </button>
-            </form>
-        </div>
-
-        <!-- Instructions -->
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4 text-sm text-blue-800">
-            <p class="font-semibold mb-2">Hướng dẫn:</p>
-            <ul class="list-disc list-inside space-y-1">
-                <li>Nhập mã đơn hàng cần tạo thư</li>
-                <li>Chọn loại thư phù hợp</li>
-                <li>Hệ thống sẽ tự động tạo PDF và tải về</li>
-                <li>In thư và bỏ vào hộp hàng trước khi đóng gói</li>
-            </ul>
+                <script>
+                    function printLetter() {
+                        // Lấy các giá trị từ form
+                        const username = document.getElementById('username').value;
+                        const shopName = document.querySelector('input[name="shop_name"]:checked')?.value || 'Gia Dụng Plus Official';
+                        const sanphamthieu = document.getElementById('sanphamthieu').value;
+                        const phuonganxuly = document.getElementById('phuonganxuly').value;
+                        
+                        // Tạo URL với các tham số
+                        const url = new URL("{% url 'kho:sorry_letter_print' %}", window.location.origin);
+                        url.searchParams.set('username', username);
+                        url.searchParams.set('shop_name', shopName);
+                        url.searchParams.set('sanphamthieu', sanphamthieu);
+                        url.searchParams.set('phuonganxuly', phuonganxuly);
+                        
+                        // Mở tab mới
+                        window.open(url.href, '_blank');
+                    }
+                </script>
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
+    <script>
+        const solutionButtons = document.querySelectorAll('.solution-option');
+        const solutionInput = document.getElementById('phuonganxuly');
+
+        solutionButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                solutionInput.value = btn.textContent.trim();
+            });
+        });
+    </script>
+
+{% endblock %}

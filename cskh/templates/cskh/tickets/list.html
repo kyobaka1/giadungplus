@@ -1,12 +1,20 @@
 {% extends "cskh/base_cskh.html" %}
+{% load humanize %}
 
 {% block title %}Danh sách Tickets – CSKH{% endblock %}
 
 {% block overview %}
 <section class="flex items-center justify-between">
-    <div>
-        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Danh sách Tickets</h1>
-        <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} tickets</p>
+    <div class="flex items-center gap-3">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">Danh sách Tickets</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} tickets</p>
+        </div>
+        <!-- Auto-refresh indicator -->
+        <div id="refreshIndicator" class="flex items-center gap-2 text-xs text-gray-500">
+            <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+            <span>Tự động cập nhật mỗi 10s</span>
+        </div>
     </div>
     <a href="{% url 'cskh:ticket_create' %}"
         class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
@@ -16,88 +24,258 @@
 {% endblock %}
 
 {% block main_content %}
-<div class="flex-1 min-w-0">
+<div class="flex-1 min-w-0 overflow-x-hidden">
 
-    <!-- Filters & Search -->
-    <div class="bg-white border rounded-xl p-4 shadow-sm mb-4">
-        <div class="flex flex-col md:flex-row gap-4">
-            <input type="text" placeholder="Tìm kiếm tickets..."
-                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
-            <select class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
-                <option value="">Tất cả trạng thái</option>
-                <option value="new">Mới</option>
-                <option value="processing">Đang xử lý</option>
-                <option value="overdue">Quá hạn</option>
-                <option value="completed">Hoàn thành</option>
-            </select>
+    <!-- Bộ lọc lồng nhau -->
+    <form method="GET" class="bg-white border rounded-xl p-4 shadow-sm mb-2">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <!-- Loại ticket -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Loại ticket</label>
+                <select name="ticket_type" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                    <option value="">Tất cả loại ticket</option>
+                    {% for value, label in ticket_type_choices %}
+                    <option value="{{ value }}" {% if ticket_type_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Bộ phận xử lý -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Bộ phận xử lý</label>
+                <select name="depart" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                    <option value="">Tất cả bộ phận</option>
+                    {% for value, label in depart_choices %}
+                    <option value="{{ value }}" {% if depart_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Trạng thái -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Trạng thái</label>
+                <select name="status" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                    <option value="">Tất cả trạng thái</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Nút hành động -->
+            <div class="flex gap-2 md:justify-end">
+                <button type="submit"
+                        class="flex-1 md:flex-none px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                    Lọc
+                </button>
+                <a href="{% url 'cskh:ticket_list' %}"
+                   class="flex-1 md:flex-none px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
+                    Xoá lọc
+                </a>
+            </div>
+        </div>
+    </form>
+
+    <!-- Tìm kiếm nhanh theo nội dung hiển thị -->
+    <div class="bg-white border rounded-xl p-3 shadow-sm mb-4">
+        <div class="flex items-center gap-2">
+            <label for="ticketQuickSearch" class="text-xs font-semibold text-gray-700 whitespace-nowrap">Tìm nhanh:</label>
+            <input id="ticketQuickSearch" type="text" placeholder="Nhập từ khoá để lọc theo nội dung hiển thị..."
+                   class="flex-1 px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
         </div>
     </div>
 
     <!-- Table -->
     <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full">
+            <table class="w-full text-sm">
                 <thead class="bg-slate-50 border-b">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Phân loại</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tiêu đề</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Khách hàng</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Độ ưu tiên</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã ticket</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã đơn hàng</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Ngày tạo ticket</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Nguồn tạo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Người tạo</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Loại ticket</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Người phụ trách
-                        </th>
-                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bộ phận xử lý</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Tổng thiệt hại</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                     {% for ticket in tickets %}
                     <tr class="hover:bg-slate-50">
-                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ ticket.code }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.category }}</td>
-                        <td class="px-4 py-3 text-sm text-gray-900">
-                            <div class="max-w-xs truncate">{{ ticket.title }}</div>
-                            <div class="text-xs text-gray-500">{{ ticket.order_code }}</div>
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.customer_name }}</td>
-                        <td class="px-4 py-3">
-                            {% if ticket.priority == 'high' or ticket.priority == 'urgent' %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">{{
-                                ticket.priority }}</span>
-                            {% elif ticket.priority == 'medium' %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 font-medium">{{
-                                ticket.priority }}</span>
-                            {% else %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-700 font-medium">{{
-                                ticket.priority }}</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3">
-                            {% if ticket.status == 'new' %}
-                            <span
-                                class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">Mới</span>
-                            {% elif ticket.status == 'processing' %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 font-medium">Đang
-                                xử lý</span>
-                            {% elif ticket.status == 'overdue' %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700 font-medium">Quá
-                                hạn</span>
-                            {% else %}
-                            <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700 font-medium">Hoàn
-                                thành</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-sm text-gray-600">{{ ticket.assignee }}</td>
-                        <td class="px-4 py-3">
+                        <!-- Mã ticket -->
+                        <td class="px-4 py-3 whitespace-nowrap">
                             <a href="{% url 'cskh:ticket_detail' ticket.id %}"
-                                class="text-brand hover:text-red-700 font-medium text-sm">
-                                Xem
+                               class="text-sky-700 hover:text-sky-900 font-semibold">
+                                {{ ticket.ticket_number }}
                             </a>
+                        </td>
+
+                        <!-- Mã đơn hàng (link Sapo) -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if ticket.order_id %}
+                            <a href="https://sisapsan.mysapogo.com/admin/orders/{{ ticket.order_id }}"
+                               target="_blank"
+                               class="text-sky-700 hover:text-sky-900 font-medium">
+                                {{ ticket.order_code|default:ticket.reference_number|default:"-" }}
+                            </a>
+                            {% else %}
+                            <span class="text-slate-500">-</span>
+                            {% endif %}
+                            {% if ticket.process_order_id %}
+                            <div class="text-[11px] text-slate-500 mt-0.5">
+                                Đơn xử lý: {{ ticket.process_order_code|default:ticket.process_reference_number|default:"-" }}
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Ngày tạo ticket -->
+                        <td class="px-4 py-3 whitespace-nowrap text-[13px] text-slate-700">
+                            {{ ticket.created_at|date:"d/m/Y H:i" }}
+                        </td>
+
+                        <!-- Nguồn tạo ticket -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if ticket.source_ticket == 'cskh_created' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                                {{ ticket.get_source_ticket_display }}
+                            </span>
+                            {% elif ticket.source_ticket == 'customer_request' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                {{ ticket.get_source_ticket_display }}
+                            </span>
+                            {% elif ticket.source_ticket == 'automation' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                                {{ ticket.get_source_ticket_display }}
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-slate-50 text-slate-700 border border-slate-200 font-medium">
+                                {{ ticket.get_source_ticket_display|default:"-" }}
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Người tạo ticket -->
+                        <td class="px-4 py-3 whitespace-nowrap text-[13px] text-slate-700">
+                            {% if ticket.created_by %}
+                                {{ ticket.created_by.first_name|default:ticket.created_by.username }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <!-- Loại ticket (màu sắc) -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if ticket.ticket_type %}
+                                {% if ticket.ticket_type == 'bad_review' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% elif ticket.ticket_type == 'return_exchange' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% elif ticket.ticket_type == 'warranty' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% elif ticket.ticket_type == 'damaged' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% elif ticket.ticket_type == 'customer_request' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% elif ticket.ticket_type == 'wrong_delivery' or ticket.ticket_type == 'wrong_order' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-slate-50 text-slate-700 border border-slate-200 font-medium">
+                                    {{ ticket.get_ticket_type_display }}
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-slate-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Trạng thái ticket (màu sắc) -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% with new_count=ticket.new_events_count|default:0 %}
+                            {% if ticket.ticket_status == 'new' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">Mới</span>
+                            {% elif ticket.ticket_status == 'processing' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">Đang xử lý</span>
+                            {% elif ticket.ticket_status == 'waiting_customer' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-medium">
+                                Chờ khách
+                            </span>
+                            {% elif ticket.ticket_status == 'waiting_warehouse' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-purple-50 text-purple-700 border border-purple-200 font-medium">
+                                Chờ kho
+                            </span>
+                            {% elif ticket.ticket_status == 'resolved' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
+                                Đã xử lý
+                            </span>
+                            {% elif ticket.ticket_status == 'closed' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-slate-50 text-slate-700 border border-slate-200 font-medium">
+                                Đóng
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-slate-50 text-slate-700 border border-slate-200 font-medium">
+                                {{ ticket.ticket_status }}
+                            </span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+
+                        <!-- Bộ phận xử lý -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if ticket.depart == 'cskh' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-sky-50 text-sky-700 border border-sky-200 font-medium">
+                                CSKH
+                            </span>
+                            {% elif ticket.depart == 'warehouse' %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-medium">
+                                KHO
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-slate-50 text-slate-700 border border-slate-200 font-medium">
+                                {{ ticket.depart|upper|default:"-" }}
+                            </span>
+                            {% endif %}
+                            
+                        </td>
+
+                        <!-- Tổng thiệt hại -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right text-[13px]">
+                            {% if ticket.total_cost %}
+                            <span class="font-semibold text-red-600">{{ ticket.total_cost|floatformat:0|intcomma }} đ</span>
+                            {% else %}
+                            <span class="text-slate-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Thao tác -->
+                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                            <a style="display: block;" href="{% url 'cskh:ticket_detail' ticket.id %}"
+                               class="text-sky-700 hover:text-sky-900 font-medium text-xs">
+                                Xem chi tiết
+                            </a>
+                            {% with new_count=ticket.new_events_count|default:0 %}
+                            {% if new_count > 0 %} <span class="text-[11px] text-red-600 font-bold">({{ new_count }} thông báo mới)</span>{% endif %}
+                            {% endwith %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">Không tìm thấy tickets</td>
+                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">Không tìm thấy tickets</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -106,4 +284,134 @@
     </div>
 
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const refreshIndicator = document.getElementById('refreshIndicator');
+    let countdown = 30;
+
+    // Hàm cập nhật indicator
+    function updateIndicator(seconds) {
+        if (refreshIndicator) {
+            const dot = refreshIndicator.querySelector('.w-2');
+            const text = refreshIndicator.querySelector('span');
+            if (text) {
+                text.textContent = `Tự động cập nhật sau ${seconds}s`;
+            }
+            if (dot) {
+                if (seconds <= 5) {
+                    dot.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
+                } else {
+                    dot.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+                }
+            }
+        }
+    }
+
+    // Hàm refresh trang
+    function refreshPage() {
+        // Lưu scroll position
+        const scrollPos = window.scrollY;
+        sessionStorage.setItem('ticketListScrollPos', scrollPos);
+
+        // Reload trang nhưng giữ filter/search params
+        window.location.reload();
+    }
+
+    // Khôi phục scroll position sau khi reload
+    window.addEventListener('load', function() {
+        const savedScrollPos = sessionStorage.getItem('ticketListScrollPos');
+        if (savedScrollPos) {
+            window.scrollTo(0, parseInt(savedScrollPos));
+            sessionStorage.removeItem('ticketListScrollPos');
+        }
+    });
+
+    // Bắt đầu countdown
+    function startCountdown() {
+        countdown = 30;
+        updateIndicator(countdown);
+
+        const countdownInterval = setInterval(function() {
+            countdown--;
+            updateIndicator(countdown);
+
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                refreshPage();
+            }
+        }, 1000);
+    }
+
+    // Bắt đầu auto-refresh
+    startCountdown();
+
+    // Tìm kiếm nhanh trên giao diện
+    const searchInput = document.getElementById('ticketQuickSearch');
+    const tableBody = document.querySelector('table tbody');
+
+    function normalizeText(text) {
+        return (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function filterRows() {
+        if (!searchInput || !tableBody) return;
+        const keywordRaw = searchInput.value || '';
+        const keyword = normalizeText(keywordRaw.trim());
+        const rows = tableBody.querySelectorAll('tr');
+
+        if (!keyword) {
+            rows.forEach(row => row.classList.remove('hidden'));
+            return;
+        }
+
+        rows.forEach(row => {
+            const text = normalizeText(row.innerText || row.textContent || '');
+            if (text.includes(keyword)) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+    }
+
+    if (searchInput && tableBody) {
+        searchInput.addEventListener('input', filterRows);
+    }
+
+    // Nếu user đang tương tác (scroll, click, etc), reset countdown
+    let userActivityTimeout;
+    function resetCountdownOnActivity() {
+        clearTimeout(userActivityTimeout);
+        userActivityTimeout = setTimeout(function() {
+            startCountdown();
+        }, 2000); // Chờ 2s sau khi user ngừng tương tác mới reset
+    }
+
+    // Lắng nghe các sự kiện user activity
+    window.addEventListener('scroll', resetCountdownOnActivity);
+    document.addEventListener('click', resetCountdownOnActivity);
+    document.addEventListener('keydown', resetCountdownOnActivity);
+
+    // Pause auto-refresh khi tab không active
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            // Tab không active - tạm dừng
+            if (refreshIndicator) {
+                const text = refreshIndicator.querySelector('span');
+                if (text) {
+                    text.textContent = 'Tạm dừng (tab không active)';
+                }
+                const dot = refreshIndicator.querySelector('.w-2');
+                if (dot) {
+                    dot.className = 'w-2 h-2 rounded-full bg-gray-400';
+                }
+            }
+        } else {
+            // Tab active lại - tiếp tục
+            startCountdown();
+        }
+    });
+});
+</script>
 {% endblock %}

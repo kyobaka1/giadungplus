@@ -17,15 +17,13 @@
     .order-finding-shipper {
         position: relative;
         /* Nền trắng với sọc xanh lá nhạt chéo */
-        background: repeating-linear-gradient(
-            135deg,
-            #ffffff 0px,
-            #ffffff 8px,
-            rgba(34, 197, 94, 0.08) 8px,
-            rgba(34, 197, 94, 0.08) 10px
-        );
+        background: repeating-linear-gradient(135deg,
+                #ffffff 0px,
+                #ffffff 8px,
+                rgba(34, 197, 94, 0.08) 8px,
+                rgba(34, 197, 94, 0.08) 10px);
     }
-    
+
     /* Border xanh lá ở trên cho đơn đang tìm shipper */
     .order-finding-shipper::before {
         content: '';
@@ -37,10 +35,10 @@
         background-color: #22c55e;
         z-index: 9;
     }
-    
+
     /* Badge "Đang tìm shipper" ở giữa dòng xanh lá */
     .order-finding-shipper::after {
-        content: 'Đang tìm shipper';
+        content: 'Đã in đơn';
         position: absolute;
         top: -6px;
         left: 50%;
@@ -55,20 +53,18 @@
         white-space: nowrap;
         line-height: 1.2;
     }
-    
-    /* Hiệu ứng gạch đỏ chéo cho đơn đã đóng gói (packing_status >= 2) */
+
+    /* Hiệu ứng gạch đỏ chéo cho đơn đã đóng gói (packing_status >= 4) */
     .order-packed {
         position: relative;
         /* Nền trắng với sọc đỏ nhạt chéo */
-        background: repeating-linear-gradient(
-            135deg,
-            #ffffff 0px,
-            #ffffff 8px,
-            rgba(239, 68, 68, 0.08) 8px,
-            rgba(239, 68, 68, 0.08) 10px
-        );
+        background: repeating-linear-gradient(135deg,
+                #ffffff 0px,
+                #ffffff 8px,
+                rgba(239, 68, 68, 0.08) 8px,
+                rgba(239, 68, 68, 0.08) 10px);
     }
-    
+
     /* Border đỏ ở trên cho đơn đã đóng gói */
     .order-packed::before {
         content: '';
@@ -80,7 +76,7 @@
         background-color: #ef4444;
         z-index: 9;
     }
-    
+
     /* Badge "Đã gói" ở giữa dòng đỏ */
     .order-packed::after {
         content: 'Đã gói';
@@ -100,72 +96,92 @@
     }
 </style>
 <div class="min-h-screen bg-slate-100">
-        <!-- Tiêu đề + filter -->
-        <div class="mb-4 flex items-center justify-between">
-            <div class="flex items-center gap-3 text-sm">
-                <!-- Ô tìm kiếm mã đơn (tuỳ anh xử lý backend) -->
-                <form method="get" class="relative">
-                    <input type="text" id="order-search-input" name="q" value="{{ request.GET.q }}"
-                        placeholder="Tìm mã đơn / người mua" oninput="filterOrders()"
-                        class="pl-8 pr-3 py-1.5 text-sm rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
-                    <span class="absolute left-2 top-1.5 text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
-                        </svg>
-                    </span>
-                </form>
+    <!-- Tiêu đề + filter -->
+    <div class="mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-3 text-sm">
+            <!-- Ô tìm kiếm mã đơn (tuỳ anh xử lý backend) -->
+            <form method="get" class="relative">
+                <input type="text" id="order-search-input" name="q" value="{{ request.GET.q }}"
+                    placeholder="Tìm mã đơn / người mua" oninput="filterOrders()"
+                    class="pl-8 pr-3 py-1.5 text-sm rounded border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500">
+                <span class="absolute left-2 top-1.5 text-slate-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z" />
+                    </svg>
+                </span>
+            </form>
+        </div>
+    </div>
+
+    <!-- Khung danh sách -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <!-- Header cột -->
+        <div class="flex items-center bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
+            <div class="w-10 flex items-center justify-center py-3">
+                <input type="checkbox" class="rounded border-slate-300">
+            </div>
+            <div
+                class="flex-1 grid grid-cols-[minmax(220px,2fr),minmax(140px,1.2fr),minmax(150px,1.2fr),minmax(170px,1.4fr),minmax(230px,1.6fr)] gap-4 px-4">
+                <div>Sản phẩm</div>
+                <div>Mã đơn hàng</div>
+                <div>Người mua</div>
+                <div>Đơn vị vận chuyển</div>
+                <div class="text-right">Thời gian xác nhận &amp; trạng thái</div>
             </div>
         </div>
 
-        <!-- Khung danh sách -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-            <!-- Header cột -->
-            <div class="flex items-center bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
-                <div class="w-10 flex items-center justify-center py-3">
-                    <input type="checkbox" class="rounded border-slate-300">
-                </div>
-                <div
-                    class="flex-1 grid grid-cols-[minmax(220px,2fr),minmax(140px,1.2fr),minmax(150px,1.2fr),minmax(170px,1.4fr),minmax(230px,1.6fr)] gap-4 px-4">
-                    <div>Sản phẩm</div>
-                    <div>Mã đơn hàng</div>
-                    <div>Người mua</div>
-                    <div>Đơn vị vận chuyển</div>
-                    <div class="text-right">Thời gian xác nhận &amp; trạng thái</div>
-                </div>
+        {% if orders %}
+        {% for order in orders %}
+        {# Lấy sản phẩm đầu tiên cho phần thumbnail #}
+        {% with first_product=order.products.0 %}
+        <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row{% if order.packing_status == 3 %} order-finding-shipper{% elif order.packing_status >= 4 %} order-packed{% endif %}"
+            data-order-id="{{ order.id }}">
+            <!-- Checkbox -->
+            <div class="w-10 flex items-start justify-center pt-4">
+                <input type="checkbox" class="mt-1 rounded border-slate-300 js-order-checkbox"
+                    data-order-id="{{ order.id }}">
             </div>
 
-            {% if orders %}
-            {% for order in orders %}
-            {# Lấy sản phẩm đầu tiên cho phần thumbnail #}
-            {% with first_product=order.products.0 %}
-            <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row{% if order.packing_status == 1 %} order-finding-shipper{% elif order.packing_status >= 2 %} order-packed{% endif %}"
-                data-order-id="{{ order.id }}">
-                <!-- Checkbox -->
-                <div class="w-10 flex items-start justify-center pt-4">
-                    <input type="checkbox" class="mt-1 rounded border-slate-300 js-order-checkbox"
-                        data-order-id="{{ order.id }}">
-                </div>
+            <!-- Nội dung đơn -->
+            <div class="flex-1 px-3 py-3">
+                <div
+                    class="grid grid-cols-[minmax(220px,2fr),minmax(140px,1.2fr),minmax(150px,1.2fr),minmax(170px,1.4fr),minmax(230px,1.6fr)] gap-4 text-sm">
 
-                <!-- Nội dung đơn -->
-                <div class="flex-1 px-3 py-3">
-                    <div
-                        class="grid grid-cols-[minmax(220px,2fr),minmax(140px,1.2fr),minmax(150px,1.2fr),minmax(170px,1.4fr),minmax(230px,1.6fr)] gap-4 text-sm">
+                    <!-- Sản phẩm -->
+                    <div class="flex gap-3">
+                        <div class="shrink-0">
+                            <div class="w-20 h-20 border border-slate-200 rounded bg-white overflow-hidden relative">
+                                {% with prods=order.products %}
 
-                        <!-- Sản phẩm -->
-                        <div class="flex gap-3">
-                            <div class="shrink-0">
-                                <div
-                                    class="w-20 h-20 border border-slate-200 rounded bg-white overflow-hidden relative">
-                                    {% with prods=order.products %}
+                                {% if prods|length == 1 %}
+                                {% with p=prods.0 %}
+                                {% if p.image %}
+                                <div class="relative w-full h-full">
+                                    <img src="{{ p.image }}" title="{{ p.sku }}"
+                                        class="w-full h-full object-contain p-0.5 rounded border border-slate-200">
 
-                                    {% if prods|length == 1 %}
-                                    {% with p=prods.0 %}
-                                    {% if p.image %}
-                                    <div class="relative w-full h-full">
+                                    {% if p.quantity > 0 %}
+                                    <span class="absolute top-0 right-0 text-[11px] px-1.5
+                                             bg-red-600 text-white font-semibold rounded-full
+                                             border border-white shadow">
+                                        {{ p.quantity }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                {% endwith %}
+
+                                {% elif prods|length == 2 %}
+                                <div class="grid grid-cols-2 w-full h-full gap-0.5 p-0.5">
+                                    {% for p in prods|slice:":2" %}
+                                    <div
+                                        class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
+                                        {% if p.image %}
                                         <img src="{{ p.image }}" title="{{ p.sku }}"
-                                            class="w-full h-full object-contain p-0.5 rounded border border-slate-200">
+                                            class="max-w-full max-h-full object-contain rounded">
+                                        {% endif %}
 
                                         {% if p.quantity > 0 %}
                                         <span class="absolute top-0 right-0 text-[11px] px-1.5
@@ -175,130 +191,108 @@
                                         </span>
                                         {% endif %}
                                     </div>
-                                    {% endif %}
-                                    {% endwith %}
+                                    {% endfor %}
+                                </div>
 
-                                    {% elif prods|length == 2 %}
-                                    <div class="grid grid-cols-2 w-full h-full gap-0.5 p-0.5">
-                                        {% for p in prods|slice:":2" %}
-                                        <div
-                                            class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
-                                            {% if p.image %}
-                                            <img src="{{ p.image }}" title="{{ p.sku }}"
-                                                class="max-w-full max-h-full object-contain rounded">
-                                            {% endif %}
-
-                                            {% if p.quantity > 0 %}
-                                            <span class="absolute top-0 right-0 text-[11px] px-1.5
-                                             bg-red-600 text-white font-semibold rounded-full
-                                             border border-white shadow">
-                                                {{ p.quantity }}
-                                            </span>
-                                            {% endif %}
-                                        </div>
-                                        {% endfor %}
-                                    </div>
-
-                                    {% elif prods|length == 3 %}
-                                    <div class="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5 p-0.5">
-                                        {% for p in prods|slice:":3" %}
-                                        {% if forloop.first %}
-                                        <div
-                                            class="relative col-span-2 flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
-                                            {% if p.image %}
-                                            <img src="{{ p.image }}" title="{{ p.sku }}"
-                                                class="max-w-full max-h-full object-contain rounded">
-                                            {% endif %}
-
-                                            {% if p.quantity > 0 %}
-                                            <span class="absolute top-0 right-0 text-[11px] px-1.5
-                                                 bg-red-600 text-white font-semibold rounded-full
-                                                 border border-white shadow">
-                                                {{ p.quantity }}
-                                            </span>
-                                            {% endif %}
-                                        </div>
-                                        {% else %}
-                                        <div
-                                            class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
-                                            {% if p.image %}
-                                            <img src="{{ p.image }}" title="{{ p.sku }}"
-                                                class="max-w-full max-h-full object-contain rounded">
-                                            {% endif %}
-
-                                            {% if p.quantity > 0 %}
-                                            <span class="absolute top-0 right-0 text-[11px] px-1.5
-                                                 bg-red-600 text-white font-semibold rounded-full
-                                                 border border-white shadow">
-                                                {{ p.quantity }}
-                                            </span>
-                                            {% endif %}
-                                        </div>
+                                {% elif prods|length == 3 %}
+                                <div class="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5 p-0.5">
+                                    {% for p in prods|slice:":3" %}
+                                    {% if forloop.first %}
+                                    <div
+                                        class="relative col-span-2 flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
+                                        {% if p.image %}
+                                        <img src="{{ p.image }}" title="{{ p.sku }}"
+                                            class="max-w-full max-h-full object-contain rounded">
                                         {% endif %}
-                                        {% endfor %}
+
+                                        {% if p.quantity > 0 %}
+                                        <span class="absolute top-0 right-0 text-[11px] px-1.5
+                                                 bg-red-600 text-white font-semibold rounded-full
+                                                 border border-white shadow">
+                                            {{ p.quantity }}
+                                        </span>
+                                        {% endif %}
                                     </div>
-
                                     {% else %}
-                                    <div class="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5 p-0.5">
-                                        {% for p in prods|slice:":4" %}
-                                        <div
-                                            class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
-                                            {% if p.image %}
-                                            <img src="{{ p.image }}" title="{{ p.sku }}"
-                                                class="max-w-full max-h-full object-contain rounded">
-                                            {% endif %}
+                                    <div
+                                        class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
+                                        {% if p.image %}
+                                        <img src="{{ p.image }}" title="{{ p.sku }}"
+                                            class="max-w-full max-h-full object-contain rounded">
+                                        {% endif %}
 
-                                            {% if p.quantity > 0 %}
-                                            <span class="absolute top-0 right-0 text-[11px] px-1.5
-                                             bg-red-600 text-white font-semibold rounded-full
-                                             border border-white shadow">
-                                                {{ p.quantity }}
-                                            </span>
-                                            {% endif %}
-                                        </div>
-                                        {% endfor %}
+                                        {% if p.quantity > 0 %}
+                                        <span class="absolute top-0 right-0 text-[11px] px-1.5
+                                                 bg-red-600 text-white font-semibold rounded-full
+                                                 border border-white shadow">
+                                            {{ p.quantity }}
+                                        </span>
+                                        {% endif %}
                                     </div>
                                     {% endif %}
-
-                                    {% endwith %}
+                                    {% endfor %}
                                 </div>
-                            </div>
 
+                                {% else %}
+                                <div class="grid grid-cols-2 grid-rows-2 w-full h-full gap-0.5 p-0.5">
+                                    {% for p in prods|slice:":4" %}
+                                    <div
+                                        class="relative flex items-center justify-center bg-white rounded border border-slate-200 overflow-hidden">
+                                        {% if p.image %}
+                                        <img src="{{ p.image }}" title="{{ p.sku }}"
+                                            class="max-w-full max-h-full object-contain rounded">
+                                        {% endif %}
 
-                            <div class="flex-1">
-                                <!-- Tag tất cả phân loại trong đơn -->
-                                <div class="mt-1 text-[11px] text-slate-500">
-                                    <div class="mt-1 flex flex-wrap gap-1">
-                                        {% for p in order.products %}
-                                        <span
-                                            class="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-[11px] text-slate-700">
-                                            {{ p.sku }}
+                                        {% if p.quantity > 0 %}
+                                        <span class="absolute top-0 right-0 text-[11px] px-1.5
+                                             bg-red-600 text-white font-semibold rounded-full
+                                             border border-white shadow">
+                                            {{ p.quantity }}
                                         </span>
-                                        {% endfor %}
+                                        {% endif %}
                                     </div>
+                                    {% endfor %}
                                 </div>
-                            </div>
+                                {% endif %}
 
+                                {% endwith %}
+                            </div>
                         </div>
 
-                        <!-- Mã đơn hàng -->
-                        <div class="flex flex-col justify-center">
-                            <p class="text-[13px] font-semibold text-sky-700">
-                                {{ order.channel_order_number }}
-                            </p>
-                            <p class="mt-1 text-xs text-slate-500">
-                                Sapo: <a
-                                    href="https://sisapsan.mysapogo.com/admin/orders/{{order.sapo_order_id}}"
-                                    target="_blank"> {{ order.sapo_order_code }} </a>
-                            </p>
-                            <!-- Shop / Brand -->
-                            <div class="flex items-center gap-2 mt-1">
 
-                                {# Chuẩn hoá tên shop về chữ thường, tránh None #}
-                                {% with shop_lower=order.shop_name|default_if_none:""|lower %}
+                        <div class="flex-1">
+                            <!-- Tag tất cả phân loại trong đơn -->
+                            <div class="mt-1 text-[11px] text-slate-500">
+                                <div class="mt-1 flex flex-wrap gap-1">
+                                    {% for p in order.products %}
+                                    <span
+                                        class="inline-flex items-center px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-[11px] text-slate-700">
+                                        {{ p.sku }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
 
-                                {# LOGO THEO BRAND #}
-                                <img src="{% if 'lteng' in shop_lower %}
+                    </div>
+
+                    <!-- Mã đơn hàng -->
+                    <div class="flex flex-col justify-center">
+                        <p class="text-[13px] font-semibold text-sky-700">
+                            {{ order.channel_order_number }}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            Sapo: <a href="https://sisapsan.mysapogo.com/admin/orders/{{order.sapo_order_id}}"
+                                target="_blank"> {{ order.sapo_order_code }} </a>
+                        </p>
+                        <!-- Shop / Brand -->
+                        <div class="flex items-center gap-2 mt-1">
+
+                            {# Chuẩn hoá tên shop về chữ thường, tránh None #}
+                            {% with shop_lower=order.shop_name|default_if_none:""|lower %}
+
+                            {# LOGO THEO BRAND #}
+                            <img src="{% if 'lteng' in shop_lower %}
                     /static/logo-lteng.jpg
                   {% elif 'phaledo' in shop_lower %}
                     /static/logo-phaledo.jpg
@@ -306,8 +300,8 @@
                     /static/giaodiensang.png
                   {% endif %}" class="w-5 h-5 rounded-sm border border-slate-200 object-contain bg-white" alt="logo">
 
-                                {# NỀN / VIỀN / MÀU CHỮ THEO BRAND #}
-                                <span class="px-2 py-0.5 text-[11px] font-medium rounded border
+                            {# NỀN / VIỀN / MÀU CHỮ THEO BRAND #}
+                            <span class="px-2 py-0.5 text-[11px] font-medium rounded border
                    {% if 'lteng' in shop_lower %}
                        bg-orange-50 border-orange-300 text-orange-700
                    {% elif 'phaledo' in shop_lower %}
@@ -315,133 +309,136 @@
                    {% else %}
                        bg-sky-50 border-sky-300 text-sky-700
                    {% endif %}">
-                                    {{ order.shop_name }}
-                                </span>
+                                {{ order.shop_name }}
+                            </span>
 
-                                {% endwith %}
-
-                            </div>
-
-
-
+                            {% endwith %}
 
                         </div>
 
-                        <!-- Người mua -->
-                        <div class="flex flex-col justify-center">
+
+
+
+                    </div>
+
+                    <!-- Người mua -->
+                    <div class="flex flex-col justify-center">
+                        <p class="text-[13px] font-medium text-slate-800">
+                            {% if order.customer.user_name %}{{ order.customer.user_name }}{% else %}{{
+                            order.customer_name }}{% endif %}
+                        </p>
+                        <p class="text-[13px] font-medium text-slate-800">
+                            {{order.customer.addresses.0.address1 }}
+                        </p>
+                        <p class="mt-1 text-xs text-slate-500">
+                            {% if order.customer.district or order.customer.city %}
+                            {{ order.customer.district }} - {{order.customer.city}}
+                            {%endif %}
+                        </p>
+                    </div>
+
+                    <!-- Đơn vị vận chuyển -->
+                    <div class="flex flex-col justify-center">
+
+                        {# Logo DVVC + tên thương hiệu #}
+                        <div class="flex items-center gap-2">
+                            {% if order.shipping_carrier_name == 'GrabExpress' %}
+                            <img src="/static/grab-logo.png" class="w-8 h-auto rounded" />
+                            {% elif order.shipping_carrier_name == 'beDelivery' %}
+                            <img src="/static/bee-logo.jpeg" class="w-8 h-auto rounded" />
+                            {% elif order.shipping_carrier_name == 'AhaMove' %}
+                            <img src="/static/aha-logo.png" class="w-8 h-auto rounded" />
+                            {% elif order.shipping_carrier_name == 'SPX Instant' %}
+                            <img src="/static/spx_logo.png" class="w-8 h-auto rounded" />
+                            {% else %}
+                            <img src="/static/nowship.jpg" class="w-8 h-auto rounded" />
+                            {% endif %}
+
                             <p class="text-[13px] font-medium text-slate-800">
-                                {% if order.customer.user_name %}{{ order.customer.user_name }}{% else %}{{ order.customer_name }}{% endif %}
+                                {{ order.shipping_carrier_name }}
                             </p>
+                        </div>
+
+                        <p class="mt-1 text-xs text-slate-500">
+                            MVD: {{ order.tracking_code }}
+                        </p>
+                    </div>
+
+
+                    <!-- Thời gian & trạng thái -->
+                    <div class="flex flex-col items-end justify-center text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <!-- Thời gian chuẩn -->
                             <p class="text-[13px] font-medium text-slate-800">
-                                {{order.customer.addresses.0.address1 }}
+                                {{ order.issued_dt|date:"H:i d/m/Y" }}
                             </p>
-                            <p class="mt-1 text-xs text-slate-500">
-                                {% if order.customer.district or order.customer.city %}{{ order.customer.district }}{% if order.customer.district and order.customer.city %}, {% endif %}{{ order.customer.city }}{% endif %}
-                            </p>
-                        </div>
 
-                        <!-- Đơn vị vận chuyển -->
-                        <div class="flex flex-col justify-center">
-
-                            {# Logo DVVC + tên thương hiệu #}
-                            <div class="flex items-center gap-2">
-                                {% if order.shipping_carrier_name == 'GrabExpress' %}
-                                <img src="/static/grab-logo.png" class="w-8 h-auto rounded" />
-                                {% elif order.shipping_carrier_name == 'beDelivery' %}
-                                <img src="/static/bee-logo.jpeg" class="w-8 h-auto rounded" />
-                                {% elif order.shipping_carrier_name == 'AhaMove' %}
-                                <img src="/static/aha-logo.png" class="w-8 h-auto rounded" />
-                                {% elif order.shipping_carrier_name == 'SPX Instant' %}
-                                <img src="/static/spx_logo.png" class="w-8 h-auto rounded" />
-                                {% else %}
-                                <img src="/static/nowship.jpg" class="w-8 h-auto rounded" />
-                                {% endif %}
-
-                                <p class="text-[13px] font-medium text-slate-800">
-                                    {{ order.shipping_carrier_name }}
-                                </p>
-                            </div>
-
-                            <p class="mt-1 text-xs text-slate-500">
-                                MVD: {{ order.tracking_code }}
-                            </p>
-                        </div>
-
-
-                        <!-- Thời gian & trạng thái -->
-                        <div class="flex flex-col items-end justify-center text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                <!-- Thời gian chuẩn -->
-                                <p class="text-[13px] font-medium text-slate-800">
-                                    {{ order.issued_dt|date:"H:i d/m/Y" }}
-                                </p>
-
-                                <!-- Badge 'mấy giờ trước' -->
-                                <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium
+                            <!-- Badge 'mấy giờ trước' -->
+                            <span class="inline-flex items-center px-2 py-0.5 text-[11px] font-medium
                  bg-yellow-50 text-yellow-700 border border-yellow-300 rounded">
-                                    {{ order.issued_ago }}
-                                </span>
-                            </div>
+                                {{ order.issued_ago }}
+                            </span>
+                        </div>
 
 
 
-                            {# Nhãn trạng thái giống Shopee #}
-                            <div class="mt-2">
-                                {% if not order.tracking_code %}
-                                <div class="flex items-center gap-2">
+                        {# Nhãn trạng thái giống Shopee #}
+                        <div class="mt-2">
+                            {% if not order.tracking_code %}
+                            <div class="flex items-center gap-2">
 
-                                    {# Nhãn #}
-                                    <span
-                                        class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 border border-red-300">
-                                        Chưa xử lý
-                                    </span>
-
-                                    {# Nút Tìm ship #}
-                                    <button
-                                        class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="timShip('{{ order.id }}')">
-                                        Tìm ship
-                                    </button>
-                                    <button
-                                        class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
-                                        onclick="inDon('{{ order.id }}')">
-                                        In Đơn
-                                    </button>
-                                </div>
-
-                                <p class="mt-1 text-xs text-slate-500 max-w-xs">
-                                    Đơn chưa có mã vận đơn.
-                                </p>
-
-                                {% else %}
+                                {# Nhãn #}
                                 <span
-                                    class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300">
-                                    Đang tìm shipper
+                                    class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-600 border border-red-300">
+                                    Chưa xử lý
                                 </span>
+
+                                {# Nút Tìm ship #}
+                                <button
+                                    class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
+                                    onclick="timShip('{{ order.id }}')">
+                                    Tìm ship
+                                </button>
                                 <button
                                     class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
                                     onclick="inDon('{{ order.id }}')">
                                     In Đơn
                                 </button>
-
-                                <p class="mt-1 text-xs text-slate-500 max-w-xs">
-                                    <b>Note</b>: Yêu cầu shipper chuyển trạng thái trước khi mang đơn đi.
-                                </p>
-                                {% endif %}
                             </div>
 
+                            <p class="mt-1 text-xs text-slate-500 max-w-xs">
+                                Đơn chưa có mã vận đơn.
+                            </p>
+
+                            {% else %}
+                            <span
+                                class="inline-flex px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                Đang tìm shipper
+                            </span>
+                            <button
+                                class="px-2 py-0.5 text-[11px] font-semibold border border-blue-400 text-blue-600 rounded hover:bg-blue-50 transition"
+                                onclick="inDon('{{ order.id }}')">
+                                In Đơn
+                            </button>
+
+                            <p class="mt-1 text-xs text-slate-500 max-w-xs">
+                                <b>Note</b>: Yêu cầu shipper chuyển trạng thái trước khi mang đơn đi.
+                            </p>
+                            {% endif %}
                         </div>
+
                     </div>
                 </div>
             </div>
-            {% endwith %}
-            {% endfor %}
-            {% else %}
-            <div class="py-10 text-center text-sm text-slate-500">
-                Hiện chưa có đơn hoả tốc nào cần xử lý.
-            </div>
-            {% endif %}
         </div>
+        {% endwith %}
+        {% endfor %}
+        {% else %}
+        <div class="py-10 text-center text-sm text-slate-500">
+            Hiện chưa có đơn hoả tốc nào cần xử lý.
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
 
