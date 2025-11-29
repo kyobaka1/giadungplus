@@ -18,6 +18,8 @@ from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import StaleElementReferenceException
 
 # Import Service cho Selenium 4.6+
 try:
@@ -715,51 +717,133 @@ class SapoClient:
                 debug_print(f"❌ [Selenium] LỖI khi mở trang login: {type(e).__name__}: {str(e)}")
                 raise
             
-            # Wait for form elements
+            # Wait for form elements - chỉ đợi để verify elements có sẵn
             debug_print("\n⏳ [Selenium] Bước 4: Đợi form elements xuất hiện...")
             try:
                 debug_print("   - Đang đợi username field...")
-                login_field = WebDriverWait(driver, 50).until(
-                    EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
+                WebDriverWait(driver, 50).until(
+                    EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
                 )
-                debug_print("   ✓ Username field đã xuất hiện")
+                debug_print("   ✓ Username field đã sẵn sàng")
                 
                 debug_print("   - Đang đợi password field...")
-                password_field = WebDriverWait(driver, 50).until(
-                    EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
+                WebDriverWait(driver, 50).until(
+                    EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
                 )
-                debug_print("   ✓ Password field đã xuất hiện")
+                debug_print("   ✓ Password field đã sẵn sàng")
                 
                 debug_print("   - Đang đợi login button...")
-                login_button = WebDriverWait(driver, 50).until(
-                    EC.presence_of_element_located((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
+                WebDriverWait(driver, 50).until(
+                    EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
                 )
-                debug_print("   ✓ Login button đã xuất hiện")
+                debug_print("   ✓ Login button đã sẵn sàng")
                 debug_print("✅ [Selenium] Tất cả form elements đã ready")
             except Exception as e:
                 debug_print(f"❌ [Selenium] LỖI khi đợi form elements: {type(e).__name__}: {str(e)}")
                 debug_print(f"   - Current URL: {driver.current_url}")
                 raise
             
-            # Submit credentials
+            # Submit credentials - Tìm lại elements ngay trước khi dùng để tránh stale element
             debug_print("\n🔑 [Selenium] Bước 5: Điền thông tin đăng nhập...")
             logger.debug("[SapoClient] Submitting login...")
+            
+            # Helper function để tìm lại element nếu bị stale
+            def find_and_interact_element(xpath, action_func, element_name, max_retries=3):
+                """Tìm lại element và thực hiện action với retry cho stale element"""
+                for attempt in range(max_retries):
+                    try:
+                        debug_print(f"   - [{attempt+1}/{max_retries}] Tìm {element_name}...")
+                        element = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, xpath))
+                        )
+                        action_func(element)
+                        return True
+                    except StaleElementReferenceException:
+                        debug_print(f"   - ⚠️  Stale element detected, retrying... ({attempt+1}/{max_retries})")
+                        time.sleep(0.5)  # Đợi một chút để DOM ổn định
+                        if attempt == max_retries - 1:
+                            raise
+                    except Exception as e:
+                        if attempt == max_retries - 1:
+                            raise
+                        debug_print(f"   - ⚠️  Lỗi: {e}, retrying... ({attempt+1}/{max_retries})")
+                        time.sleep(0.5)
+                return False
+            
             try:
+                # Điền username - tìm lại element ngay trước khi dùng
                 debug_print(f"   - Điền username: {SAPO_BASIC.USERNAME[:3]}***")
-                login_field.send_keys(SAPO_BASIC.USERNAME)
+                find_and_interact_element(
+                    SAPO_BASIC.LOGIN_USERNAME_FIELD,
+                    lambda el: el.send_keys(SAPO_BASIC.USERNAME),
+                    "username field"
+                )
                 
+                # Đợi một chút để form xử lý
+                time.sleep(0.5)
+                
+                # Điền password - tìm lại element ngay trước khi dùng
                 debug_print("   - Điền password: ***")
-                password_field.send_keys(SAPO_BASIC.PASSWORD)
+                find_and_interact_element(
+                    SAPO_BASIC.LOGIN_PASSWORD_FIELD,
+                    lambda el: el.send_keys(SAPO_BASIC.PASSWORD),
+                    "password field"
+                )
                 
-                debug_print("   - Đợi 2 giây...")
-                time.sleep(2)
+                # Đợi một chút trước khi submit
+                debug_print("   - Đợi 1 giây trước khi submit...")
+                time.sleep(1)
                 
+                # Click login button - tìm lại element ngay trước khi click
                 debug_print("   - Click nút đăng nhập...")
-                login_button.click()
+                find_and_interact_element(
+                    SAPO_BASIC.LOGIN_BUTTON,
+                    lambda el: el.click(),
+                    "login button"
+                )
+                
                 debug_print("✅ [Selenium] Đã submit form đăng nhập")
             except Exception as e:
-                debug_print(f"❌ [Selenium] LỖI khi submit login: {type(e).__name__}: {str(e)}")
-                raise
+                error_type = type(e).__name__
+                error_msg = str(e)
+                debug_print(f"❌ [Selenium] LỖI khi submit login: {error_type}: {error_msg}")
+                
+                # Thử cách khác nếu gặp stale element
+                if "StaleElementReferenceException" in error_type or "stale element" in error_msg.lower():
+                    debug_print("   💡 Thử cách khác: Tìm lại tất cả elements và retry...")
+                    try:
+                        time.sleep(1)  # Đợi DOM ổn định
+                        
+                        # Tìm lại tất cả elements
+                        login_field = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
+                        )
+                        password_field = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
+                        )
+                        login_button = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
+                        )
+                        
+                        # Clear và điền lại
+                        login_field.clear()
+                        login_field.send_keys(SAPO_BASIC.USERNAME)
+                        time.sleep(0.5)
+                        
+                        password_field.clear()
+                        password_field.send_keys(SAPO_BASIC.PASSWORD)
+                        time.sleep(0.5)
+                        
+                        # Sử dụng ActionChains để click nếu button bị stale
+                        actions = ActionChains(driver)
+                        actions.move_to_element(login_button).click().perform()
+                        
+                        debug_print("✅ [Selenium] Đã submit form đăng nhập (retry thành công)")
+                    except Exception as retry_error:
+                        debug_print(f"   ❌ Retry cũng thất bại: {type(retry_error).__name__}: {str(retry_error)}")
+                        raise
+                else:
+                    raise
             
             # Wait for dashboard
             debug_print("\n🏠 [Selenium] Bước 6: Đợi và điều hướng đến dashboard...")
