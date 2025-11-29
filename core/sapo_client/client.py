@@ -5,6 +5,7 @@ Quản lý 2 sessions riêng cho Core API và Marketplace API.
 """
 
 import json
+import os
 import time
 import threading
 import platform
@@ -390,23 +391,50 @@ class SapoClient:
         debug_print("   ⚠️  Token validation failed or no token, checking lock...")
         if self._check_selenium_lock_status():
             # Lock đang active - có thể login đang chạy
-            # Nhưng cũng có thể login vừa hoàn tất và chưa release lock
-            # Thử load token một lần nữa để tránh trigger login không cần thiết
-            logger.debug("[SapoClient] Lock active, checking if marketplace token is ready...")
-            debug_print("   - Lock active, checking token again...")
-            headers = self._load_tmdt_token()
-            if headers and self._check_tmdt_valid_remote(headers):
-                logger.info("[SapoClient] Marketplace token found in DB after lock check, using it")
-                debug_print("   ✅ Token found, applying to session")
-                self._apply_tmdt_headers_to_session(headers)
-                self.tmdt_valid = True
-                return
+            # Đợi một chút và kiểm tra lại token (có thể login đang hoàn tất)
+            logger.debug("[SapoClient] Lock active, waiting for login to complete...")
+            debug_print("   - Lock active, đợi login hoàn tất (tối đa 120 giây)...")
             
-            logger.warning("[SapoClient] Selenium login already in progress for marketplace")
-            debug_print("   ⚠️  Lock is active, raising exception")
-            raise SeleniumLoginInProgressException(
-                "Selenium login is currently in progress. Please wait."
-            )
+            # Đợi lock được release hoặc token sẵn sàng, check mỗi 2 giây
+            wait_timeout = 120  # 2 phút
+            check_interval = 2
+            elapsed = 0
+            
+            while elapsed < wait_timeout:
+                # Kiểm tra xem token đã sẵn sàng chưa
+                headers = self._load_tmdt_token()
+                if headers and self._check_tmdt_valid_remote(headers):
+                    logger.info("[SapoClient] Marketplace token found while waiting, using it")
+                    debug_print("   ✅ Token found, applying to session")
+                    self._apply_tmdt_headers_to_session(headers)
+                    self.tmdt_valid = True
+                    return
+                
+                # Kiểm tra xem lock còn active không
+                if not self._check_selenium_lock_status():
+                    debug_print("   ✓ Lock đã được release")
+                    # Lock đã release, kiểm tra token một lần nữa
+                    headers = self._load_tmdt_token()
+                    if headers and self._check_tmdt_valid_remote(headers):
+                        logger.info("[SapoClient] Marketplace token found after lock release, using it")
+                        debug_print("   ✅ Token found, applying to session")
+                        self._apply_tmdt_headers_to_session(headers)
+                        self.tmdt_valid = True
+                        return
+                    # Nếu không có token, thoát loop và tiếp tục trigger login
+                    break
+                
+                # Đợi trước khi check lại
+                time.sleep(check_interval)
+                elapsed += check_interval
+                if elapsed % 10 == 0:  # Log mỗi 10 giây
+                    debug_print(f"   - Đang đợi... ({elapsed}/{wait_timeout} giây)")
+            
+            if elapsed >= wait_timeout:
+                logger.warning("[SapoClient] Timeout waiting for login to complete")
+                debug_print("   ⚠️  Timeout đợi login, sẽ trigger login mới")
+            else:
+                debug_print("   - Lock đã được release, tiếp tục...")
         
         # Kiểm tra lại token một lần nữa trước khi trigger login
         # (có thể background thread khác vừa hoàn tất)
@@ -478,12 +506,18 @@ class SapoClient:
     def _acquire_selenium_lock(self) -> bool:
         """
         Acquire lock để đảm bảo chỉ 1 Selenium instance chạy tại một thời điểm.
+        Lưu timestamp để có thể check stale lock.
         
         Returns:
             True nếu acquire được lock, False nếu lock đang được giữ bởi process khác
         """
-        # Thử set lock với timeout
-        acquired = cache.add(SELENIUM_LOCK_KEY, True, SELENIUM_LOCK_TIMEOUT)
+        import time
+        # Thử set lock với timestamp
+        lock_value = {
+            'timestamp': time.time(),
+            'pid': os.getpid() if hasattr(os, 'getpid') else None
+        }
+        acquired = cache.add(SELENIUM_LOCK_KEY, lock_value, SELENIUM_LOCK_TIMEOUT)
         
         if acquired:
             logger.info("[SapoClient] Selenium lock acquired ✓")
@@ -491,6 +525,25 @@ class SapoClient:
             logger.warning("[SapoClient] Selenium lock is held by another process")
         
         return acquired
+    
+    def _refresh_selenium_lock(self):
+        """
+        Refresh lock để kéo dài timeout. Gọi định kỳ trong quá trình login.
+        """
+        import time
+        lock_value = cache.get(SELENIUM_LOCK_KEY)
+        if lock_value:
+            # Update timestamp và refresh timeout
+            if isinstance(lock_value, dict):
+                lock_value['timestamp'] = time.time()
+            else:
+                # Backward compatibility với lock cũ (chỉ là True)
+                lock_value = {
+                    'timestamp': time.time(),
+                    'pid': os.getpid() if hasattr(os, 'getpid') else None
+                }
+            cache.set(SELENIUM_LOCK_KEY, lock_value, SELENIUM_LOCK_TIMEOUT)
+            logger.debug("[SapoClient] Selenium lock refreshed ✓")
     
     def _release_selenium_lock(self):
         """Release Selenium lock."""
@@ -505,6 +558,29 @@ class SapoClient:
             True nếu lock đang active (login đang chạy), False nếu không
         """
         return cache.get(SELENIUM_LOCK_KEY) is not None
+    
+    def _wait_for_selenium_lock_release(self, timeout: int = 120, check_interval: int = 2) -> bool:
+        """
+        Đợi lock được release, đồng thời kiểm tra xem token đã sẵn sàng chưa.
+        
+        Args:
+            timeout: Tổng thời gian đợi (giây)
+            check_interval: Khoảng thời gian giữa các lần check (giây)
+            
+        Returns:
+            True nếu lock được release, False nếu timeout
+        """
+        import time
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            if not self._check_selenium_lock_status():
+                logger.debug("[SapoClient] Lock released, proceeding...")
+                return True
+            time.sleep(check_interval)
+        
+        logger.warning(f"[SapoClient] Lock wait timeout after {timeout} seconds")
+        return False
     
     # ========================= BROWSER LOGIN (SELENIUM) =========================
     
@@ -713,6 +789,8 @@ class SapoClient:
                 driver.get(f"{SAPO_BASIC.MAIN_URL}/authorization/login")
                 debug_print(f"   - URL: {SAPO_BASIC.MAIN_URL}/authorization/login")
                 debug_print("✅ [Selenium] Đã mở trang login thành công")
+                # Refresh lock sau khi mở trang thành công
+                self._refresh_selenium_lock()
             except Exception as e:
                 debug_print(f"❌ [Selenium] LỖI khi mở trang login: {type(e).__name__}: {str(e)}")
                 raise
@@ -803,6 +881,8 @@ class SapoClient:
                 )
                 
                 debug_print("✅ [Selenium] Đã submit form đăng nhập")
+                # Refresh lock sau khi submit form thành công
+                self._refresh_selenium_lock()
             except Exception as e:
                 error_type = type(e).__name__
                 error_msg = str(e)
@@ -839,6 +919,8 @@ class SapoClient:
                         actions.move_to_element(login_button).click().perform()
                         
                         debug_print("✅ [Selenium] Đã submit form đăng nhập (retry thành công)")
+                        # Refresh lock sau khi retry thành công
+                        self._refresh_selenium_lock()
                     except Exception as retry_error:
                         debug_print(f"   ❌ Retry cũng thất bại: {type(retry_error).__name__}: {str(retry_error)}")
                         raise
@@ -861,6 +943,8 @@ class SapoClient:
                 time.sleep(10)
                 debug_print(f"   - Current URL: {driver.current_url}")
                 debug_print("✅ [Selenium] Đã vào dashboard thành công")
+                # Refresh lock sau khi vào dashboard thành công
+                self._refresh_selenium_lock()
             except Exception as e:
                 debug_print(f"❌ [Selenium] LỖI khi vào dashboard: {type(e).__name__}: {str(e)}")
                 raise
