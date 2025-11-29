@@ -18,6 +18,8 @@ from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium import __version__ as selenium_version
 
 from core.models import SapoToken
 from core.system_settings import SAPO_BASIC, SAPO_TMDT
@@ -545,7 +547,17 @@ class SapoClient:
                 chromedriver_path = "chromedriver-linux"
                 debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path}")
             
-            driver = webdriver.Chrome(executable_path=chromedriver_path, options=chrome_options)
+            # Selenium 4.6+ không còn dùng executable_path, phải dùng Service
+            # Kiểm tra version để tương thích ngược
+            try:
+                # Thử dùng Service (Selenium 4.6+)
+                service = ChromeService(executable_path=chromedriver_path)
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+            except TypeError:
+                # Fallback cho Selenium cũ hơn (< 4.6) - không nên xảy ra nhưng để an toàn
+                debug_print("   ⚠️  Sử dụng cách cũ cho Selenium < 4.6")
+                driver = webdriver.Chrome(executable_path=chromedriver_path, options=chrome_options)
+            
             debug_print("✅ [Selenium] Chrome browser đã khởi động thành công")
             captured_core_headers: Dict[str, str] = {}
         except Exception as e:
