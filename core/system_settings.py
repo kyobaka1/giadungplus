@@ -57,10 +57,25 @@ SAPO_BASIC = SapoBasicConfig(
     USERNAME=env("SAPO_USERNAME", "0988700162"),
     PASSWORD=env("SAPO_PASSWORD", "giadungPlus2@@4"),
 
-    # Các XPATH dùng login – anh điền đúng như hiện tại
-    LOGIN_USERNAME_FIELD=env("SAPO_LOGIN_USERNAME_FIELD", '/html/body/div[2]/div/div[6]/form/div[1]/div[2]/input'),
-    LOGIN_PASSWORD_FIELD=env("SAPO_LOGIN_PASSWORD_FIELD", '/html/body/div[2]/div/div[6]/form/div[1]/div[3]/input'),
-    LOGIN_BUTTON=env("SAPO_LOGIN_BUTTON", '/html/body/div[2]/div/div[6]/form/div[4]/button'),
+    # Các selector dùng login – default theo giao diện mới của Sapo SSO
+    # Trang: https://accounts.sapo.vn/login?serviceType=omni
+    # - Username: ô "Email/Số điện thoại của bạn"
+    # - Password: ô "Mật khẩu đăng nhập cửa hàng"
+    # - Button: nút "Đăng nhập"
+    #
+    # Dùng XPATH đơn giản theo placeholder/text cho ổn định:
+    LOGIN_USERNAME_FIELD=env(
+        "SAPO_LOGIN_USERNAME_FIELD",
+        "//input[@placeholder='Email/Số điện thoại của bạn']",
+    ),
+    LOGIN_PASSWORD_FIELD=env(
+        "SAPO_LOGIN_PASSWORD_FIELD",
+        "//input[@type='password' and @placeholder='Mật khẩu đăng nhập cửa hàng']",
+    ),
+    LOGIN_BUTTON=env(
+        "SAPO_LOGIN_BUTTON",
+        "//button[normalize-space()='Đăng nhập']",
+    ),
 )
 
 
