@@ -1,17 +1,28 @@
 # 🚀 Hướng dẫn Deploy GIADUNGPLUS lên Ubuntu Server 22.04
 
+## 📋 Kiến trúc hệ thống
+
+- **Domain**: giadungplus.io.vn
+- **Server IP**: 103.110.85.223
+- **Gunicorn** – WSGI server serving Django (chạy trên port 8000)
+- **Supervisor** – Background process manager cho Gunicorn (auto-restart, logs)
+- **Traefik** – Reverse proxy/load balancer, xử lý routing và HTTPS tự động
+- **PostgreSQL** – Database server
+- **Database**: giadungplus_db (user: giadungplus, password: 123122aC@)
+
+---
+
 ## 📋 Mục lục
 1. [Chuẩn bị Server](#1-chuẩn-bị-server)
 2. [Cài đặt Dependencies](#2-cài-đặt-dependencies)
 3. [Cấu hình Database](#3-cấu-hình-database)
 4. [Deploy Application](#4-deploy-application)
-5. [Cấu hình Web Server (Nginx)](#5-cấu-hình-web-server-nginx)
-6. [Cấu hình SSL (Let's Encrypt)](#6-cấu-hình-ssl-lets-encrypt)
-7. [Cấu hình Systemd Service](#7-cấu-hình-systemd-service)
-8. [Cấu hình Firewall](#8-cấu-hình-firewall)
-9. [Kiểm tra và Troubleshooting](#9-kiểm-tra-và-troubleshooting)
-10. [Cập nhật Code (Deploy mới)](#10-cập-nhật-code-deploy-mới)
-11. [Backup](#11-backup)
+5. [Cấu hình Traefik](#5-cấu-hình-traefik)
+6. [Cấu hình Supervisor](#6-cấu-hình-supervisor)
+7. [Cấu hình Firewall](#7-cấu-hình-firewall)
+8. [Kiểm tra và Troubleshooting](#8-kiểm-tra-và-troubleshooting)
+9. [Cập nhật Code (Deploy mới)](#9-cập-nhật-code-deploy-mới)
+10. [Backup](#10-backup)
 
 ---
 
@@ -27,8 +38,8 @@ Nếu bạn muốn setup nhanh, có thể sử dụng các script tự động:
 
 | Script | Mô tả | Cách sử dụng |
 |--------|-------|--------------|
-| `setup_server.sh` | Setup server Ubuntu 22.04, cài đặt tất cả dependencies | `sudo bash setup_server.sh` |
-| `deploy.sh` | Deploy code mới, cập nhật dependencies, migrations, restart service | `bash deploy.sh` (trong thư mục project) |
+| `setup_server.sh` | Setup server Ubuntu 22.04, cài đặt Traefik, Supervisor, PostgreSQL | `sudo bash setup_server.sh` |
+| `deploy.sh` | Deploy code mới, cập nhật dependencies, migrations, restart Supervisor | `bash deploy.sh` (trong thư mục project) |
 | `backup.sh` | Backup database PostgreSQL và media/static files | `sudo bash backup.sh` |
 
 **Lưu ý:** 
@@ -67,8 +78,6 @@ Copy toàn bộ nội dung public key và thêm vào server qua control panel.
 ### 1.2. Kết nối SSH vào Server
 
 ```bash
-ssh root@YOUR_SERVER_IP
-# Hoặc
 ssh root@103.110.85.223
 ```
 
@@ -81,8 +90,6 @@ ssh root@103.110.85.223
 **Cách nhanh nhất:** Sử dụng script `setup_server.sh` để tự động cài đặt tất cả dependencies:
 
 **Bước 1: Upload script lên server**
-
-Có 2 cách:
 
 **Cách A: Upload bằng SCP (từ máy Windows)**
 ```powershell
@@ -108,10 +115,10 @@ sudo bash /root/setup_server.sh
 
 Script này sẽ tự động cài đặt:
 - ✅ Python 3.10 và pip
-- ✅ PostgreSQL
-- ✅ Nginx
+- ✅ PostgreSQL (và tạo database + user tự động)
+- ✅ Traefik (reverse proxy với HTTPS tự động)
+- ✅ Supervisor (process manager)
 - ✅ Chrome (cho Selenium)
-- ✅ Certbot (cho SSL)
 - ✅ Các tools và dependencies cần thiết
 - ✅ Tạo user `giadungplus`
 - ✅ Tạo thư mục `/var/www/giadungplus`
@@ -119,84 +126,33 @@ Script này sẽ tự động cài đặt:
 
 ### 2.2. Cài đặt Thủ Công (Nếu không dùng script)
 
-Nếu bạn muốn cài đặt thủ công từng bước:
+Nếu bạn muốn cài đặt thủ công từng bước, xem chi tiết trong script `setup_server.sh`.
+
+**Lưu ý quan trọng:** Database và user PostgreSQL sẽ được tạo tự động bởi script với:
+- Database: `giadungplus_db`
+- User: `giadungplus`
+- Password: `123122aC@`
+
+---
+
+## 3. Cấu hình Database
+
+Database đã được tạo tự động bởi script `setup_server.sh`. Nếu cần tạo thủ công:
 
 ```bash
-# Cập nhật hệ thống
-sudo apt update
-sudo apt upgrade -y
-
-# Cài đặt Python 3.10 và pip
-sudo apt install -y python3.10 python3.10-venv python3-pip python3-dev
-sudo apt install -y build-essential libssl-dev libffi-dev
-
-# Cài đặt PostgreSQL
-sudo apt install -y postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-
-# Cài đặt Nginx
-sudo apt install -y nginx
-sudo systemctl start nginx
-sudo systemctl enable nginx
-
-# Cài đặt Chrome cho Selenium
-wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
-sudo apt update
-sudo apt install -y google-chrome-stable
-sudo apt install -y xvfb x11vnc fluxbox wmctrl
-
-# Cài đặt các tools
-sudo apt install -y git curl wget unzip ufw
-sudo apt install -y libpq-dev libjpeg-dev zlib1g-dev
-
-# Cài đặt Certbot
-sudo apt install -y certbot python3-certbot-nginx
-
-# Tạo user và thư mục
-sudo adduser --disabled-password --gecos "" giadungplus
-sudo usermod -aG sudo giadungplus
-sudo mkdir -p /var/www/giadungplus
-sudo chown giadungplus:giadungplus /var/www/giadungplus
-sudo mkdir -p /var/www/giadungplus/logs
-sudo chown giadungplus:giadungplus /var/www/giadungplus/logs
-
-# Cấu hình firewall
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw --force enable
-```
-
-### 2.3. Cấu hình PostgreSQL
-
-Sau khi cài đặt PostgreSQL (bằng script hoặc thủ công), cần tạo database và user:
-
-```bash
-# Tạo database và user
 sudo -u postgres psql
 ```
 
 Trong PostgreSQL shell:
 ```sql
 CREATE DATABASE giadungplus_db;
-CREATE USER giadungplus_user WITH PASSWORD 'your_strong_password_here';
-ALTER ROLE giadungplus_user SET client_encoding TO 'utf8';
-ALTER ROLE giadungplus_user SET default_transaction_isolation TO 'read committed';
-ALTER ROLE giadungplus_user SET timezone TO 'UTC';
-GRANT ALL PRIVILEGES ON DATABASE giadungplus_db TO giadungplus_user;
+CREATE USER giadungplus WITH PASSWORD '123122aC@';
+ALTER ROLE giadungplus SET client_encoding TO 'utf8';
+ALTER ROLE giadungplus SET default_transaction_isolation TO 'read committed';
+ALTER ROLE giadungplus SET timezone TO 'UTC';
+GRANT ALL PRIVILEGES ON DATABASE giadungplus_db TO giadungplus;
 \q
 ```
-
-**⚠️ Lưu ý:** Nhớ lưu lại password database để cấu hình trong settings.py sau này!
-
----
-
-## 3. Cấu hình Database
-
-### 3.1. Cài đặt PostgreSQL client cho Python
-
-Sẽ được cài trong virtual environment ở bước sau.
 
 ---
 
@@ -204,20 +160,48 @@ Sẽ được cài trong virtual environment ở bước sau.
 
 ### 4.1. Upload code lên server
 
-> **Lưu ý:** User `giadungplus` và thư mục `/var/www/giadungplus` đã được tạo tự động bởi script `setup_server.sh`. Nếu chưa chạy script, hãy tạo thủ công:
-> ```bash
-> sudo adduser --disabled-password --gecos "" giadungplus
-> sudo usermod -aG sudo giadungplus
-> sudo mkdir -p /var/www/giadungplus
-> sudo chown giadungplus:giadungplus /var/www/giadungplus
-> ```
+> **Lưu ý:** User `giadungplus` và thư mục `/var/www/giadungplus` đã được tạo tự động bởi script `setup_server.sh`. Nếu thư mục đã có một số thư mục như `logs`, `media`, `staticfiles`, hãy làm theo hướng dẫn bên dưới.
 
 **Cách 1: Dùng Git (khuyến nghị)**
 
+Nếu thư mục `/var/www/giadungplus` đã có một số thư mục (logs, media, staticfiles), bạn có 2 lựa chọn:
+
+**Phương án A: Clone vào thư mục tạm rồi di chuyển (Khuyến nghị - giữ lại dữ liệu cũ)**
+
+```bash
+cd /var/www
+# Clone vào thư mục tạm
+git clone https://github.com/kyobaka1/giadungplus.git giadungplus-temp
+
+# Di chuyển nội dung vào thư mục chính
+cd giadungplus-temp
+mv * ../giadungplus/
+mv .* ../giadungplus/ 2>/dev/null || true  # Di chuyển các file ẩn (.git, .gitignore, etc.)
+
+# Xóa thư mục tạm
+cd ..
+rm -rf giadungplus-temp
+
+# Cấp quyền
+cd /var/www/giadungplus
+sudo chown -R giadungplus:giadungplus /var/www/giadungplus
+```
+
+**Phương án B: Xóa các thư mục cũ và clone trực tiếp (Mất dữ liệu cũ)**
+
 ```bash
 cd /var/www/giadungplus
-git clone YOUR_REPOSITORY_URL .
-# Hoặc nếu chưa có git repo, upload code bằng SCP từ máy Windows
+# Backup các thư mục quan trọng (nếu cần)
+# sudo tar -czf /tmp/old_data_backup.tar.gz logs media staticfiles
+
+# Xóa các thư mục cũ
+rm -rf logs media staticfiles
+
+# Clone vào thư mục hiện tại
+git clone https://github.com/kyobaka1/giadungplus.git .
+
+# Cấp quyền
+sudo chown -R giadungplus:giadungplus /var/www/giadungplus
 ```
 
 **Cách 2: Upload bằng SCP (từ máy Windows)**
@@ -229,7 +213,12 @@ Trên PowerShell của Windows:
 scp -r D:\giadungplus\giadungplus-1\* root@103.110.85.223:/var/www/giadungplus/
 ```
 
-### 4.4. Tạo Virtual Environment
+Sau khi upload, cấp quyền:
+```bash
+sudo chown -R giadungplus:giadungplus /var/www/giadungplus
+```
+
+### 4.2. Tạo Virtual Environment
 
 ```bash
 cd /var/www/giadungplus
@@ -237,9 +226,7 @@ python3.10 -m venv venv
 source venv/bin/activate
 ```
 
-### 4.5. Cài đặt Dependencies
-
-**Cách 1: Sử dụng requirements.txt (Khuyến nghị)**
+### 4.3. Cài đặt Dependencies
 
 ```bash
 # Nâng cấp pip
@@ -249,348 +236,212 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-**Cách 2: Cài đặt thủ công (nếu không có requirements.txt)**
+### 4.4. Cấu hình Settings cho Production
 
+File `GIADUNGPLUS/settings_production.py` đã được cấu hình sẵn với:
+- Database: giadungplus_db (user: giadungplus, password: 123122aC@)
+- ALLOWED_HOSTS: giadungplus.io.vn, 103.110.85.223
+- DEBUG: False (nên set True để test, sau đó đổi False)
+- Security settings đã được bật
+
+Để sử dụng production settings, export biến môi trường:
 ```bash
-# Nâng cấp pip
-pip install --upgrade pip
-
-# Cài đặt PostgreSQL adapter
-pip install psycopg2-binary
-
-# Cài đặt các packages từ rq.txt
-pip install django
-pip install xlrd==1.2.0
-pip install requests
-pip install lxml
-pip install py3dbp==1.1.2
-pip install selenium
-pip install selenium-wire
-pip install pypdf2
-pip install htmlparser
-pip install pillow
-pip install python-barcode
-pip install qrcode
-pip install xlsxwriter
-pip install pdfplumber
-pip install fpdf
-pip install reportlab
-pip install BeautifulSoup4
-pip install django-sslserver
-pip install setuptools
-pip install pygame
-pip install openpyxl
-pip install gspread
-pip install djangorestframework
-pip install oauth2client
-pip install blinker==1.7.0
-pip install whitenoise
-pip install openai
-pip install pandas
-pip install "pydantic>=2.0.0"
-pip install python-dateutil
-
-# Cài đặt Gunicorn cho production
-pip install gunicorn
+export DJANGO_SETTINGS_MODULE=GIADUNGPLUS.settings_production
 ```
 
-### 4.7. Cấu hình Settings cho Production
-
-Tạo file `GIADUNGPLUS/settings_production.py`:
-
-```python
-from .settings import *
-import os
-
-# Security settings
-DEBUG = False
-SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-here-change-this')
-
-ALLOWED_HOSTS = ['giadungplus.io.vn', '103.110.85.223', 'localhost']
-
-# Database - PostgreSQL
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'giadungplus_db',
-        'USER': 'giadungplus_user',
-        'PASSWORD': 'your_strong_password_here',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
-}
-
-# Static files
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'assets'),
-]
-
-# Media files (nếu có)
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
-
-# Security
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
-# Timezone
-TIME_ZONE = 'Asia/Ho_Chi_Minh'
-USE_TZ = True
+Hoặc chỉnh sửa `manage.py` hoặc sử dụng khi chạy lệnh:
+```bash
+python manage.py migrate --settings=GIADUNGPLUS.settings_production
 ```
 
-Hoặc sửa trực tiếp `settings.py`:
+### 4.5. Chạy Migrations
 
 ```bash
-nano GIADUNGPLUS/settings.py
+cd /var/www/giadungplus
+source venv/bin/activate
+python manage.py migrate --settings=GIADUNGPLUS.settings_production
 ```
 
-Cần sửa:
-- `DEBUG = False`
-- Thay đổi `SECRET_KEY` (dùng biến môi trường)
-- Cấu hình PostgreSQL database
-- Thêm `STATIC_ROOT`
-- Bật các security settings
-
-### 4.8. Chạy Migrations
+### 4.6. Tạo Superuser
 
 ```bash
-python manage.py migrate
+python manage.py createsuperuser --settings=GIADUNGPLUS.settings_production
 ```
 
-### 4.9. Tạo Superuser
+### 4.7. Collect Static Files
 
 ```bash
-python manage.py createsuperuser
+python manage.py collectstatic --noinput --settings=GIADUNGPLUS.settings_production
 ```
 
-### 4.10. Collect Static Files
+### 4.8. Sử dụng Script Deploy Tự Động (Khuyến nghị)
+
+Thay vì làm thủ công các bước trên, bạn có thể sử dụng script `deploy.sh`:
 
 ```bash
-python manage.py collectstatic --noinput
+cd /var/www/giadungplus
+chmod +x deploy.sh
+bash deploy.sh
+```
+
+Script này sẽ tự động:
+- ✅ Activate virtual environment
+- ✅ Pull code mới (nếu dùng git)
+- ✅ Cài đặt/update dependencies
+- ✅ Chạy migrations
+- ✅ Collect static files
+- ✅ Cấu hình Supervisor
+- ✅ Restart service
+
+---
+
+## 5. Cấu hình Traefik
+
+Traefik đã được cài đặt và cấu hình tự động bởi script `setup_server.sh`.
+
+### 5.1. Cấu hình Traefik
+
+File cấu hình chính: `/etc/traefik/traefik.yml`
+File cấu hình động: `/etc/traefik/dynamic/dynamic.yml`
+
+### 5.2. Kiểm tra Traefik
+
+```bash
+# Kiểm tra status
+sudo systemctl status traefik
+
+# Xem logs
+sudo journalctl -u traefik -f
+
+# Dashboard Traefik (truy cập qua IP:8080)
+# http://103.110.85.223:8080
+```
+
+### 5.3. SSL Certificate tự động
+
+Traefik sẽ tự động lấy SSL certificate từ Let's Encrypt cho domain `giadungplus.io.vn`. 
+Certificate sẽ được tự động renew.
+
+**Lưu ý:** Đảm bảo domain đã trỏ về IP `103.110.85.223` trước khi khởi động Traefik.
+
+### 5.4. Restart Traefik
+
+```bash
+sudo systemctl restart traefik
 ```
 
 ---
 
-## 5. Cấu hình Web Server (Nginx)
+## 6. Cấu hình Supervisor
 
-### 5.1. Tạo Nginx Configuration
+Supervisor đã được cài đặt tự động. File cấu hình sẽ được tạo tự động bởi script `deploy.sh`.
 
-```bash
-sudo nano /etc/nginx/sites-available/giadungplus
-```
+### 6.1. File cấu hình Supervisor
 
-Nội dung file:
+File: `/etc/supervisor/conf.d/giadungplus.conf`
 
-```nginx
-server {
-    listen 80;
-    server_name giadungplus.io.vn 103.110.85.223;
-
-    # Redirect HTTP to HTTPS (sau khi có SSL)
-    # return 301 https://$server_name$request_uri;
-
-    # Tạm thời để HTTP để cài SSL
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /static/ {
-        alias /var/www/giadungplus/staticfiles/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    location /media/ {
-        alias /var/www/giadungplus/media/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    client_max_body_size 100M;
-}
-```
-
-### 5.2. Enable Site
+File này sẽ được tạo tự động khi chạy `deploy.sh`. Nếu cần tạo thủ công:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/giadungplus /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
----
-
-## 6. Cấu hình SSL (Let's Encrypt)
-
-### 6.1. Cài đặt Certbot
-
-```bash
-sudo apt install -y certbot python3-certbot-nginx
-```
-
-### 6.2. Lấy SSL Certificate
-
-```bash
-sudo certbot --nginx -d giadungplus.io.vn
-```
-
-Làm theo hướng dẫn:
-- Nhập email
-- Đồng ý điều khoản
-- Chọn redirect HTTP to HTTPS
-
-### 6.3. Auto-renewal
-
-```bash
-sudo certbot renew --dry-run
-```
-
-Certbot sẽ tự động renew, nhưng có thể thêm vào crontab:
-
-```bash
-sudo crontab -e
-# Thêm dòng:
-0 0,12 * * * certbot renew --quiet
-```
-
-### 6.4. Cập nhật Nginx config sau khi có SSL
-
-Sau khi có SSL, uncomment dòng redirect trong nginx config:
-
-```nginx
-return 301 https://$server_name$request_uri;
-```
-
-Và thêm block server cho HTTPS:
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name giadungplus.io.vn;
-
-    ssl_certificate /etc/letsencrypt/live/giadungplus.io.vn/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/giadungplus.io.vn/privkey.pem;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /static/ {
-        alias /var/www/giadungplus/staticfiles/;
-    }
-
-    location /media/ {
-        alias /var/www/giadungplus/media/;
-    }
-
-    client_max_body_size 100M;
-}
-```
-
----
-
-## 7. Cấu hình Systemd Service
-
-### 7.1. Tạo Gunicorn Service
-
-```bash
-sudo nano /etc/systemd/system/giadungplus.service
+sudo nano /etc/supervisor/conf.d/giadungplus.conf
 ```
 
 Nội dung:
-
 ```ini
-[Unit]
-Description=GIADUNGPLUS Gunicorn daemon
-After=network.target
-
-[Service]
-User=giadungplus
-Group=www-data
-WorkingDirectory=/var/www/giadungplus
-Environment="PATH=/var/www/giadungplus/venv/bin"
-ExecStart=/var/www/giadungplus/venv/bin/gunicorn \
-    --workers 3 \
-    --bind 127.0.0.1:8000 \
-    --timeout 120 \
-    GIADUNGPLUS.wsgi:application
-
-[Install]
-WantedBy=multi-user.target
+[program:giadungplus]
+directory=/var/www/giadungplus
+command=/var/www/giadungplus/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 --timeout 120 --access-logfile /var/www/giadungplus/logs/gunicorn-access.log --error-logfile /var/www/giadungplus/logs/gunicorn-error.log GIADUNGPLUS.wsgi:application
+user=giadungplus
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+stderr_logfile=/var/www/giadungplus/logs/gunicorn-supervisor-error.log
+stdout_logfile=/var/www/giadungplus/logs/gunicorn-supervisor.log
+environment=PATH="/var/www/giadungplus/venv/bin"
 ```
 
-### 7.2. Start và Enable Service
+### 6.2. Quản lý Service với Supervisor
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl start giadungplus
-sudo systemctl enable giadungplus
-sudo systemctl status giadungplus
+# Reload config
+sudo supervisorctl reread
+sudo supervisorctl update
+
+# Quản lý service
+sudo supervisorctl start giadungplus
+sudo supervisorctl stop giadungplus
+sudo supervisorctl restart giadungplus
+sudo supervisorctl status giadungplus
+
+# Xem logs
+sudo supervisorctl tail -f giadungplus
+sudo supervisorctl tail -f giadungplus stderr
 ```
 
-### 7.3. Xem logs
+### 6.3. Xem Logs
 
 ```bash
-sudo journalctl -u giadungplus -f
+# Logs Supervisor
+sudo supervisorctl tail -f giadungplus
+
+# Logs Gunicorn
+tail -f /var/www/giadungplus/logs/gunicorn-access.log
+tail -f /var/www/giadungplus/logs/gunicorn-error.log
+tail -f /var/www/giadungplus/logs/gunicorn-supervisor.log
 ```
 
 ---
 
-## 8. Cấu hình Firewall
+## 7. Cấu hình Firewall
 
-### 8.1. Cấu hình UFW
+Firewall đã được cấu hình tự động bởi script `setup_server.sh`:
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'
-sudo ufw enable
+# Kiểm tra firewall
 sudo ufw status
+
+# Nếu cần mở thêm port
+sudo ufw allow 8080/tcp  # Cho Traefik dashboard (tùy chọn)
 ```
 
 ---
 
-## 9. Kiểm tra và Troubleshooting
+## 8. Kiểm tra và Troubleshooting
 
-### 9.1. Kiểm tra Services
+### 8.1. Kiểm tra Services
 
 ```bash
-# Kiểm tra Nginx
-sudo systemctl status nginx
+# Kiểm tra Traefik
+sudo systemctl status traefik
+
+# Kiểm tra Supervisor
+sudo systemctl status supervisor
 
 # Kiểm tra Gunicorn
-sudo systemctl status giadungplus
+sudo supervisorctl status giadungplus
 
 # Kiểm tra PostgreSQL
 sudo systemctl status postgresql
 ```
 
-### 9.2. Kiểm tra Logs
+### 8.2. Kiểm tra Logs
 
 ```bash
-# Nginx logs
-sudo tail -f /var/log/nginx/error.log
-sudo tail -f /var/log/nginx/access.log
+# Traefik logs
+sudo journalctl -u traefik -f
+
+# Supervisor logs
+sudo supervisorctl tail -f giadungplus
 
 # Gunicorn logs
-sudo journalctl -u giadungplus -n 50
+tail -f /var/www/giadungplus/logs/gunicorn-*.log
 
 # Django logs (nếu có cấu hình logging)
 tail -f /var/www/giadungplus/logs/*.log
 ```
 
-### 9.3. Test ứng dụng
+### 8.3. Test ứng dụng
 
 ```bash
 # Test từ server
@@ -601,55 +452,58 @@ curl http://103.110.85.223
 curl https://giadungplus.io.vn
 ```
 
-### 9.4. Các lệnh hữu ích
+### 8.4. Các lệnh hữu ích
 
 ```bash
 # Restart services
-sudo systemctl restart giadungplus
-sudo systemctl restart nginx
-
-# Reload config (không downtime)
-sudo systemctl reload nginx
+sudo supervisorctl restart giadungplus
+sudo systemctl restart traefik
 
 # Xem process
 ps aux | grep gunicorn
+ps aux | grep traefik
 
 # Kiểm tra port
 sudo netstat -tlnp | grep :8000
+sudo netstat -tlnp | grep :80
+sudo netstat -tlnp | grep :443
 ```
 
-### 9.5. Troubleshooting thường gặp
+### 8.5. Troubleshooting thường gặp
 
 **Lỗi 502 Bad Gateway:**
-- Kiểm tra Gunicorn có chạy không: `sudo systemctl status giadungplus`
-- Kiểm tra logs: `sudo journalctl -u giadungplus -n 50`
+- Kiểm tra Gunicorn có chạy không: `sudo supervisorctl status giadungplus`
+- Kiểm tra logs: `sudo supervisorctl tail -f giadungplus`
 - Kiểm tra permissions: `ls -la /var/www/giadungplus`
 
 **Lỗi Static files không load:**
 - Chạy lại: `python manage.py collectstatic --noinput`
-- Kiểm tra permissions: `sudo chown -R giadungplus:www-data /var/www/giadungplus/staticfiles`
-- Kiểm tra nginx config có đúng path không
+- Kiểm tra permissions: `sudo chown -R giadungplus:giadungplus /var/www/giadungplus/staticfiles`
+- Kiểm tra Traefik config có đúng path không
 
 **Lỗi Database connection:**
 - Kiểm tra PostgreSQL: `sudo systemctl status postgresql`
-- Test connection: `psql -U giadungplus_user -d giadungplus_db -h localhost`
-- Kiểm tra settings.py có đúng credentials không
+- Test connection: `psql -U giadungplus -d giadungplus_db -h localhost`
+- Kiểm tra settings_production.py có đúng credentials không
 
 **Lỗi Permission denied:**
 ```bash
-sudo chown -R giadungplus:www-data /var/www/giadungplus
+sudo chown -R giadungplus:giadungplus /var/www/giadungplus
 sudo chmod -R 755 /var/www/giadungplus
 ```
 
+**Lỗi SSL Certificate:**
+- Đảm bảo domain đã trỏ về IP server
+- Kiểm tra Traefik logs: `sudo journalctl -u traefik -f`
+- Kiểm tra file `/etc/traefik/acme.json` có quyền đọc/ghi
+
 ---
 
-## 10. Cập nhật Code (Deploy mới)
+## 9. Cập nhật Code (Deploy mới)
 
-### 10.1. Sử dụng Script Deploy (Khuyến nghị)
+### 9.1. Sử dụng Script Deploy (Khuyến nghị)
 
 **Cách nhanh nhất:** Sử dụng script `deploy.sh` để tự động deploy:
-
-> **Lưu ý:** Script `deploy.sh` phải có trong thư mục project (`/var/www/giadungplus/`). Nếu chưa có, upload lên server cùng với code.
 
 ```bash
 # SSH vào server
@@ -674,12 +528,11 @@ Script `deploy.sh` sẽ tự động:
 - ✅ Cài đặt/update dependencies
 - ✅ Chạy migrations
 - ✅ Collect static files
+- ✅ Cấu hình Supervisor
 - ✅ Restart Gunicorn service
 - ✅ Hiển thị status
 
-### 10.2. Deploy Thủ Công (Nếu không dùng script)
-
-Nếu bạn muốn deploy thủ công từng bước:
+### 9.2. Deploy Thủ Công (Nếu không dùng script)
 
 ```bash
 # SSH vào server
@@ -701,19 +554,19 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Chạy migrations
-python manage.py migrate
+python manage.py migrate --settings=GIADUNGPLUS.settings_production
 
 # Collect static files
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput --settings=GIADUNGPLUS.settings_production
 
 # Restart service
-sudo systemctl restart giadungplus
+sudo supervisorctl restart giadungplus
 
 # Kiểm tra logs
-sudo journalctl -u giadungplus -f
+sudo supervisorctl tail -f giadungplus
 ```
 
-### 10.3. Lưu ý khi Deploy
+### 9.3. Lưu ý khi Deploy
 
 - **Backup trước khi deploy:** Luôn backup database và code trước khi deploy code mới
 - **Kiểm tra migrations:** Đảm bảo migrations không gây lỗi
@@ -722,13 +575,11 @@ sudo journalctl -u giadungplus -f
 
 ---
 
-## 11. Backup
+## 10. Backup
 
-### 11.1. Sử dụng Script Backup (Khuyến nghị)
+### 10.1. Sử dụng Script Backup (Khuyến nghị)
 
 **Cách nhanh nhất:** Sử dụng script `backup.sh` để tự động backup:
-
-> **Lưu ý:** Script `backup.sh` phải có trong thư mục project (`/var/www/giadungplus/`). Nếu chưa có, upload lên server cùng với code.
 
 ```bash
 # Đảm bảo script có quyền thực thi
@@ -742,12 +593,14 @@ Script `backup.sh` sẽ tự động:
 - ✅ Backup database PostgreSQL (nén gzip)
 - ✅ Backup media files (nếu có)
 - ✅ Backup static files (nếu cần)
+- ✅ Backup code (nếu dùng git)
+- ✅ Backup cấu hình (Supervisor, Traefik, settings)
 - ✅ Xóa backup cũ hơn 7 ngày
 - ✅ Hiển thị thông tin backup
 
 Backup sẽ được lưu tại: `/var/backups/giadungplus/`
 
-### 11.2. Cấu hình Backup Tự Động (Crontab)
+### 10.2. Cấu hình Backup Tự Động (Crontab)
 
 Để backup tự động mỗi ngày, thêm vào crontab:
 
@@ -765,16 +618,16 @@ Hoặc nếu muốn backup nhiều lần trong ngày (ví dụ: 2h sáng và 2h 
 0 2,14 * * * /bin/bash /var/www/giadungplus/backup.sh >> /var/log/giadungplus-backup.log 2>&1
 ```
 
-### 11.3. Backup Thủ Công (Nếu không dùng script)
-
-Nếu bạn muốn backup thủ công:
+### 10.3. Backup Thủ Công (Nếu không dùng script)
 
 ```bash
 # Tạo thư mục backup
 sudo mkdir -p /var/backups/giadungplus
 
 # Backup database
-sudo -u postgres pg_dump giadungplus_db | gzip > /var/backups/giadungplus/db_$(date +%Y%m%d_%H%M%S).sql.gz
+export PGPASSWORD="123122aC@"
+pg_dump -U giadungplus -h localhost -d giadungplus_db | gzip > /var/backups/giadungplus/db_$(date +%Y%m%d_%H%M%S).sql.gz
+unset PGPASSWORD
 
 # Backup media files (nếu có)
 tar -czf /var/backups/giadungplus/media_$(date +%Y%m%d_%H%M%S).tar.gz -C /var/www/giadungplus media
@@ -783,30 +636,22 @@ tar -czf /var/backups/giadungplus/media_$(date +%Y%m%d_%H%M%S).tar.gz -C /var/ww
 find /var/backups/giadungplus -type f -mtime +7 -delete
 ```
 
-### 11.4. Restore từ Backup
+### 10.4. Restore từ Backup
 
-Để restore database từ backup:
-
+**Restore database:**
 ```bash
 # Giải nén file backup (nếu đã nén)
-gunzip /var/backups/giadungplus/db_YYYYMMDD_HHMMSS.sql.gz
+gunzip -c /var/backups/giadungplus/db_YYYYMMDD_HHMMSS.sql.gz | psql -U giadungplus -h localhost -d giadungplus_db
 
-# Restore database
-sudo -u postgres psql giadungplus_db < /var/backups/giadungplus/db_YYYYMMDD_HHMMSS.sql
-```
-
-Hoặc restore trực tiếp từ file nén:
-
-```bash
+# Hoặc
 gunzip -c /var/backups/giadungplus/db_YYYYMMDD_HHMMSS.sql.gz | sudo -u postgres psql giadungplus_db
 ```
 
-Để restore media files:
-
+**Restore media files:**
 ```bash
 # Giải nén và restore
 tar -xzf /var/backups/giadungplus/media_YYYYMMDD_HHMMSS.tar.gz -C /var/www/giadungplus
-sudo chown -R giadungplus:www-data /var/www/giadungplus/media
+sudo chown -R giadungplus:giadungplus /var/www/giadungplus/media
 ```
 
 ---
@@ -819,9 +664,11 @@ sudo chown -R giadungplus:www-data /var/www/giadungplus/media
 - [ ] Đã chạy script `setup_server.sh` hoặc cài đặt thủ công
 - [ ] Python 3.10 và pip đã được cài đặt
 - [ ] PostgreSQL đã được cài và cấu hình (database + user)
-- [ ] Nginx đã được cài đặt
+- [ ] Traefik đã được cài đặt và cấu hình
+- [ ] Supervisor đã được cài đặt
 - [ ] Chrome đã được cài cho Selenium
 - [ ] Firewall đã được cấu hình
+- [ ] Domain giadungplus.io.vn đã trỏ về IP server
 
 ### Deploy Application
 - [ ] Code đã được upload lên `/var/www/giadungplus`
@@ -832,12 +679,11 @@ sudo chown -R giadungplus:www-data /var/www/giadungplus/media
 - [ ] Superuser đã được tạo (`python manage.py createsuperuser`)
 - [ ] Static files đã được collect (`python manage.py collectstatic`)
 
-### Cấu hình Web Server
-- [ ] Nginx đã được cấu hình (`/etc/nginx/sites-available/giadungplus`)
-- [ ] Nginx site đã được enable
-- [ ] SSL certificate đã được cài đặt (`certbot --nginx`)
-- [ ] Gunicorn service đã được tạo (`/etc/systemd/system/giadungplus.service`)
-- [ ] Gunicorn service đã được start và enable
+### Cấu hình Services
+- [ ] Traefik đã được cấu hình và khởi động
+- [ ] SSL certificate đã được tạo tự động
+- [ ] Supervisor đã được cấu hình cho Gunicorn
+- [ ] Gunicorn service đã được start và chạy
 - [ ] Ứng dụng đã chạy thành công (kiểm tra qua browser)
 
 ### Backup & Maintenance
@@ -849,21 +695,33 @@ sudo chown -R giadungplus:www-data /var/www/giadungplus/media
 
 ## 🔒 Security Checklist
 
-- [ ] `DEBUG = False` trong settings
-- [ ] `SECRET_KEY` được lưu trong biến môi trường
-- [ ] Database password mạnh
-- [ ] SSL/HTTPS đã được bật
+- [ ] `DEBUG = False` trong settings_production.py
+- [ ] `SECRET_KEY` được lưu trong biến môi trường (khuyến nghị)
+- [ ] Database password mạnh (đã đặt: 123122aC@)
+- [ ] SSL/HTTPS đã được bật (tự động bởi Traefik)
 - [ ] Firewall đã được cấu hình
 - [ ] SSH key authentication thay vì password
 - [ ] Regular updates: `sudo apt update && sudo apt upgrade`
+- [ ] Traefik dashboard chỉ truy cập nội bộ (port 8080)
 
 ---
 
 ## 📞 Hỗ trợ
 
 Nếu gặp vấn đề, kiểm tra:
-1. Logs của Nginx: `/var/log/nginx/error.log`
-2. Logs của Gunicorn: `sudo journalctl -u giadungplus`
-3. Logs của Django (nếu có cấu hình)
-4. Status của các services: `sudo systemctl status <service-name>`
+1. Logs của Traefik: `sudo journalctl -u traefik -f`
+2. Logs của Supervisor: `sudo supervisorctl tail -f giadungplus`
+3. Logs của Gunicorn: `tail -f /var/www/giadungplus/logs/gunicorn-*.log`
+4. Logs của Django: `tail -f /var/www/giadungplus/logs/*.log`
+5. Status của các services: `sudo systemctl status <service-name>`
 
+---
+
+## 🔗 Thông tin hữu ích
+
+- **Traefik Dashboard**: http://103.110.85.223:8080
+- **Domain**: https://giadungplus.io.vn
+- **IP**: https://103.110.85.223
+- **Project Directory**: `/var/www/giadungplus`
+- **Backup Directory**: `/var/backups/giadungplus`
+- **Logs Directory**: `/var/www/giadungplus/logs`

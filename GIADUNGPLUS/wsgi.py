@@ -11,6 +11,9 @@ import os
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'GIADUNGPLUS.settings')
+# Sử dụng production settings nếu biến môi trường không được set
+# Hoặc có thể detect tự động dựa trên environment
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 
+    os.environ.get('DJANGO_SETTINGS_MODULE', 'GIADUNGPLUS.settings_production'))
 
 application = get_wsgi_application()
