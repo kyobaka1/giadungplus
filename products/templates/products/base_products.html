@@ -57,34 +57,55 @@
             }
         }
     </script>
+    <style>
+        /* Tăng kích thước cho màn hình 2K (tương đương zoom 110%) */
+        @media (min-width: 1920px) {
+            html {
+                font-size: 110%;
+            }
+
+            /* Placeholder cho right_panel khi không có nội dung - chỉ hiện trên màn hình >= 2K */
+            .right-panel-placeholder {
+                display: block;
+            }
+        }
+
+        /* Ẩn placeholder trên màn hình nhỏ hơn 2K */
+        .right-panel-placeholder {
+            display: none;
+        }
+    </style>
 </head>
-<body class="bg-slate-100 text-gray-900 antialiased text-[13px] sm:text-[14px] md:text-[15px]">
+<body class="bg-slate-100 text-gray-900 antialiased text-[14px] sm:text-[15px] md:text-[16px] lg:text-[17px]">
 
 <div class="min-h-screen flex flex-col">
 
     <!-- █▀ TOP BAR ───────────────────────────── -->
-    <header class="h-14 bg-white border-b shadow-sm flex items-center justify-between px-4">
+    <header class="h-16 md:h-14 bg-white border-b shadow-sm flex items-center justify-between px-4 md:px-6">
         <a href="/products/" class="flex items-center gap-2 hover:opacity-90 transition">
             <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
                 <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
             </div>
 
             <div>
-                <div class="text-sm font-semibold">Gia Dụng Plus – Sản Phẩm</div>
-                <div class="text-[11px] text-gray-500 -mt-1">Quản Lý Sản Phẩm & Phân Loại</div>
+                <div class="text-sm md:text-sm font-semibold leading-tight">Gia Dụng Plus – Sản Phẩm</div>
+                <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Quản Lý Sản Phẩm & Phân Loại</div>
             </div>
         </a>
 
         <div class="flex items-center gap-4">
-            <!-- Nút chuông -->
-            <button class="relative p-1.5 rounded-full hover:bg-slate-100">
-                🔔
-                <span class="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white px-1 rounded-full">0</span>
+            <!-- Mobile Menu Button (chỉ hiện trên mobile) -->
+            <button id="mobileMenuToggle" class="md:hidden p-2 rounded-full hover:bg-slate-100 text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
             </button>
 
             <!-- User info -->
-            <div class="flex items-center gap-2 px-2 py-1.5 rounded-full hover:bg-slate-100">
-                <div class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-700">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-600">
                     {% if request.user.is_authenticated %}
                         {{ request.user.get_full_name|first|upper }}
                     {% else %}
@@ -120,51 +141,57 @@
         </div>
     </header>
 
+    <!-- Mobile Menu Overlay -->
+    <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+
     <!-- █▀ MAIN LAYOUT ───────────────────────── -->
     <div class="flex flex-1 overflow-hidden">
 
-        <!-- SIDEBAR -->
-        <aside
+        <!-- SIDEBAR (ẩn trên mobile, hiện drawer khi bật menu) -->
+        <aside id="sidebar"
             class="bg-white border-r overflow-y-auto flex-shrink-0
-                   w-16 sm:w-32 md:w-32 lg:w-48
-                   text-[12px] sm:text-[13px]">
+                   fixed md:relative top-16 md:top-0 left-0 h-[calc(100vh-4rem)] md:h-auto
+                   w-1/2 md:w-16 lg:w-32 xl:w-48
+                   -translate-x-full md:translate-x-0
+                   transition-transform duration-300 ease-in-out z-40
+                   text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]">
             <nav class="py-4 space-y-4">
 
                 <!-- GROUP: Sản phẩm -->
-                <div class="px-4 mb-1">
+                <div class="px-3 md:px-4 mb-2 md:mb-1">
                     <button
                         type="button"
                         class="w-full flex items-center justify-between
-                               text-[11px] sm:text-[12px] text-gray-500 font-semibold
-                               uppercase tracking-wide mb-2 collapse-toggle"
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
                         data-collapse-id="menu-products"
                     >
                         <span>DATA SẢN PHẨM</span>
-                        <span class="collapse-arrow text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-products" class="space-y-1">
                         <li>
                             <a href="{% url 'products:product_list' %}"
-                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                 <span class="truncate">Sản phẩm</span>
-                                <span class="text-[10px] text-gray-500">{{ product_count|default:0 }}</span>
+                                <span class="text-xs md:text-[10px] text-gray-500">{{ product_count|default:0 }}</span>
                             </a>
                         </li>
                         <li>
                             <a href="{% url 'products:variant_list' %}"
-                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                 <span class="truncate">Phân loại</span>
-                                <span class="text-[10px] text-gray-500">{{ variant_count|default:0 }}</span>
+                                <span class="text-xs md:text-[10px] text-gray-500">{{ variant_count|default:0 }}</span>
                             </a>
                         </li>
                         <li>
                             <a href="{% url 'products:xnk_model_list' %}"
-                               class="flex items-center justify-between px-2.5 py-0.5 rounded-md
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                 <span class="truncate">Model XNK</span>
-                                <span class="text-[10px] text-gray-500">{{ xnk_model_count|default:0 }}</span>
+                                <span class="text-xs md:text-[10px] text-gray-500">{{ xnk_model_count|default:0 }}</span>
                             </a>
                         </li>
                     </ul>
@@ -176,15 +203,15 @@
 
         <!-- █▀ MAIN CONTENT -->
         <main class="flex-1 overflow-y-auto">
-            <div class="px-5 py-4 space-y-6">
+            <div class="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
 
                 <!-- █▀ OVERVIEW BLOCK -->
                 {% block overview %}
                 <section>
-                    <h1 class="text-lg font-semibold text-slate-800">
+                    <h1 class="text-xl md:text-lg font-semibold text-slate-800">
                         Quản lý sản phẩm
                     </h1>
-                    <p class="text-xs text-gray-500 mt-1">
+                    <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
                         Quản lý thông tin sản phẩm, phân loại, giá vốn, tồn kho.
                     </p>
                 </section>
@@ -233,6 +260,53 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+
+    if (mobileMenuToggle && sidebar && mobileMenuOverlay) {
+        // Toggle menu
+        mobileMenuToggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            sidebar.classList.toggle('-translate-x-full');
+            mobileMenuOverlay.classList.toggle('hidden');
+        });
+
+        // Close menu when clicking overlay
+        mobileMenuOverlay.addEventListener('click', function () {
+            sidebar.classList.add('-translate-x-full');
+            mobileMenuOverlay.classList.add('hidden');
+        });
+
+        // Close menu when clicking outside (on sidebar content)
+        sidebar.addEventListener('click', function (e) {
+            // If clicking on a link, close menu after a short delay
+            if (e.target.closest('a')) {
+                setTimeout(() => {
+                    sidebar.classList.add('-translate-x-full');
+                    mobileMenuOverlay.classList.add('hidden');
+                }, 100);
+            }
+        });
+
+        // Prevent body scroll when menu is open
+        let isMenuOpen = false;
+        mobileMenuToggle.addEventListener('click', function () {
+            isMenuOpen = !isMenuOpen;
+            if (isMenuOpen) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        });
+
+        mobileMenuOverlay.addEventListener('click', function () {
+            isMenuOpen = false;
+            document.body.style.overflow = '';
+        });
+    }
 });
 </script>
 

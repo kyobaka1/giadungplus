@@ -86,6 +86,8 @@ class SapoCoreOrderService:
         shopee_id: Optional[int] = None,
         split: Optional[int] = None,
         dvvc: Optional[str] = None,
+        nguoi_goi: Optional[str] = None,
+        time_packing: Optional[str] = None,
         max_retries: int = 3, 
         retry_delay: float = 2.0
     ) -> bool:
@@ -98,7 +100,9 @@ class SapoCoreOrderService:
             packing_status: Packing status to update
             shopee_id: Optional Shopee order ID
             split: Optional number of packages (split count)
-            dvvc: Optional shipping carrier name
+            dvvc: Optional shipping carrier name (only update if not already set)
+            nguoi_goi: Optional packer username
+            time_packing: Optional packing time (format: "HH:MM DD-MM-YYYY")
             max_retries: Maximum retry attempts
             retry_delay: Delay between retries in seconds
             
@@ -154,9 +158,25 @@ class SapoCoreOrderService:
                     note_data["split"] = split
                     debug_print(f"✏️ Set split = {split}")
                 
-                if dvvc is not None:
-                    note_data["dvvc"] = dvvc
-                    debug_print(f"✏️ Set dvvc = {dvvc}")
+                # Update dvvc: use provided value, or get from shipment.service_name if not already set
+                if not note_data.get("dvvc"):
+                    if dvvc is not None:
+                        note_data["dvvc"] = dvvc
+                        debug_print(f"✏️ Set dvvc = {dvvc}")
+                    elif shipment.get("service_name"):
+                        # Auto-fill from shipment if not provided and not in note
+                        note_data["dvvc"] = shipment.get("service_name")
+                        debug_print(f"✏️ Auto-set dvvc from shipment.service_name = {note_data['dvvc']}")
+                else:
+                    debug_print(f"📝 dvvc already set to '{note_data.get('dvvc')}', skipping update")
+                
+                if nguoi_goi is not None:
+                    note_data["nguoi_goi"] = nguoi_goi
+                    debug_print(f"✏️ Set nguoi_goi = {nguoi_goi}")
+                
+                if time_packing is not None:
+                    note_data["time_packing"] = time_packing
+                    debug_print(f"✏️ Set time_packing = {time_packing}")
                 
                 # Compress and create JSON
                 compressed = gopnhan_gon(note_data)

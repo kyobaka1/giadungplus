@@ -22,12 +22,21 @@ def sapo_config_view(request):
         data = {
             "SAPO_MAIN_URL": request.POST.get("SAPO_MAIN_URL"),
             "SAPO_USERNAME": request.POST.get("SAPO_USERNAME"),
-            "SAPO_PASSWORD": request.POST.get("SAPO_PASSWORD"),
             "SAPO_LOGIN_USERNAME_FIELD": request.POST.get("SAPO_LOGIN_USERNAME_FIELD"),
             "SAPO_LOGIN_PASSWORD_FIELD": request.POST.get("SAPO_LOGIN_PASSWORD_FIELD"),
             "SAPO_LOGIN_BUTTON": request.POST.get("SAPO_LOGIN_BUTTON"),
             "SAPO_TMDT_STAFF_ID": request.POST.get("SAPO_TMDT_STAFF_ID"),
         }
+        
+        # Xử lý password: nếu không nhập mới, giữ nguyên password cũ
+        new_password = request.POST.get("SAPO_PASSWORD", "").strip()
+        if new_password:
+            # Có nhập password mới
+            data["SAPO_PASSWORD"] = new_password
+        else:
+            # Không nhập password mới, giữ nguyên password cũ
+            current_config = SapoConfigService.get_config()
+            data["SAPO_PASSWORD"] = current_config.get("SAPO_PASSWORD", "")
         
         # Lưu vào file
         SapoConfigService.save_config(data)

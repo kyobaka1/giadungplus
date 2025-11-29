@@ -768,10 +768,15 @@ def packing_orders(request):
     - Đảm bảo tính chính xác của đơn hàng
     - Lưu thông tin: người gói, time gói (phục vụ KPI và rà soát camera)
     """
+    # Lấy first_name của user, nếu không có thì dùng username
+    packer_name = request.user.first_name or request.user.username
+    packer_username = request.user.username  # Dùng cho ảnh avatar
+    
     context = {
         "title": "Đóng Gói Hàng - GIA DỤNG PLUS",
         "current_kho": request.session.get("current_kho", "geleximco"),
-        "packer_name": request.user.username,
+        "packer_name": packer_name,
+        "packer_username": packer_username,
     }
     return render(request, "kho/orders/packing_orders.html", context)
 

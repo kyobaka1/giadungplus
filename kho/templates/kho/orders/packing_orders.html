@@ -5,20 +5,20 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block overview %}
-<section>
+<section class="hidden md:block">
     <h1 class="text-lg font-semibold text-slate-800">Đóng Gói Hàng</h1>
     <p class="text-xs text-gray-500 mt-1">Quét mã vận đơn → Xem danh sách → Hoàn tất</p>
 </section>
 {% endblock %}
 
 {% block main_content %}
-<div class="min-h-screen bg-slate-50">
+<div class="min-h-screen bg-slate-50 md:pt-0 pt-4">
 
     <!-- Packer Info Section - Compact 50px height -->
     <div class="bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg shadow-sm p-2 mb-3" style="height: 50px;">
         <div class="flex items-center gap-2 h-full">
             <div class="flex-shrink-0">
-                <img id="packer-avatar" src="/static/nhanvien/{{ packer_name }}.png" alt="{{ packer_name }}"
+                <img id="packer-avatar" src="/static/nhanvien/{{ packer_username }}.png" alt="{{ packer_name }}"
                     class="w-9 h-9 rounded-full border-2 border-white object-cover">
             </div>
             <div class="flex-1 min-w-0">
@@ -42,11 +42,17 @@
             <p class="text-sm text-gray-600 mt-2 text-center">Di chuyển camera để quét QR code</p>
         </div>
 
-        <!-- Manual Input -->
+        <!-- Manual Input với nút GÓI -->
         <div id="manual-input-container">
-            <input type="text" id="manual-input" placeholder="Hoặc nhập thủ công mã vận đơn..."
-                class="w-full px-4 py-4 text-sm border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                autofocus>
+            <div class="flex gap-2 items-stretch">
+                <input type="text" id="manual-input" placeholder="Nhập thủ công mã vận đơn..."
+                    class="flex-1 px-4 py-4 text-base border-2 border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    autofocus>
+                <button id="btn-scan-gop" 
+                    class="px-6 py-4 text-base font-semibold bg-orange-600 text-white rounded-lg hover:bg-orange-700 active:scale-95 transition whitespace-nowrap">
+                    GÓI
+                </button>
+            </div>
         </div>
 
         <!-- Toggle Camera Button -->
@@ -60,60 +66,85 @@
 
     <!-- Order Section (hidden initially) - with bottom padding for fixed buttons -->
     <div id="order-section" class="hidden pb-24">
-
-        <!-- Notes (if any) - FIRST -->
-        <div id="order-notes" class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 hidden">
-            <p class="text-xs font-semibold text-yellow-800 mb-1">📝 Ghi chú:</p>
-            <p id="notes-content" class="text-xs text-yellow-700"></p>
+        
+        <!-- Header với nút back - gọn -->
+        <div class="bg-blue-50 border-b border-blue-200 mb-3 sticky top-0 z-30">
+            <div class="flex items-center gap-2 px-3 py-2">
+                <button id="btn-back" class="p-1.5 rounded-full hover:bg-blue-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-blue-700">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                <h1 class="text-sm font-semibold text-blue-800 flex-1 truncate">
+                    Đóng Gói #<span id="header-order-code-value"></span>
+                </h1>
+            </div>
         </div>
 
-        <!-- Product List - SECOND -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 mb-4">
-            <h3 class="text-sm font-semibold text-slate-600 mb-4">📋 Danh Sách Sản Phẩm</h3>
-            <div id="product-list" class="space-y-3"></div>
-        </div>
+        <!-- Order Info Card - FIRST -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4">
+            <div class="space-y-3">
+                <!-- Dòng 1: Tên khách hàng + Trọng lượng -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="text-lg">👤</span>
+                        <span id="customer-name" class="text-sm font-semibold text-slate-800 truncate"></span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="text-lg">⚖️</span>
+                        <span class="text-sm text-gray-600">Trọng lượng: <span id="estimated-weight" class="font-semibold">-- kg</span></span>
+                    </div>
+                </div>
 
-        <!-- Order Info Card - THIRD -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5 mb-4">
-            <h3 class="text-sm font-semibold text-slate-600 mb-3">Thông Tin Đơn Hàng</h3>
+                <!-- Dòng 2: ĐVVC + Tổng SP -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="text-lg">🚚</span>
+                        <span id="dvvc" class="text-sm font-semibold text-blue-600 truncate"></span>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="text-lg">📦</span>
+                        <span class="text-sm font-semibold text-slate-800">Tổng SP: <span id="total-items" class="text-orange-600">0</span> món</span>
+                    </div>
+                </div>
 
-            <div class="space-y-2">
-                <div class="flex justify-between">
-                    <span class="text-sm text-gray-600">Mã đơn:</span>
-                    <span id="order-code" class="text-sm font-semibold"></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-sm text-gray-600">Khách hàng:</span>
-                    <span id="customer-name" class="text-sm font-semibold"></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-sm text-gray-600">SĐT:</span>
-                    <span id="customer-phone" class="text-sm"></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-sm text-gray-600">Đơn vị vận chuyển:</span>
-                    <span id="dvvc" class="text-sm font-bold text-blue-600"></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-sm text-gray-600">Tổng sản phẩm:</span>
-                    <span id="total-items" class="text-sm font-bold text-orange-600"></span>
+                <!-- Dòng 3: Logo Shop -->
+                <div class="flex items-center gap-2 pt-2 border-t border-slate-100">
+                    <div id="shop-logo" class="flex-shrink-0"></div>
+                    <span id="shop-name" class="text-sm font-semibold text-slate-800">Shop</span>
                 </div>
             </div>
         </div>
+
+        <!-- Notes Section (nếu có) -->
+        <div id="order-notes" class="bg-red-50 border-2 border-red-300 rounded-lg p-3 mb-4 hidden">
+            <p class="text-sm font-bold text-red-800 mb-1.5">⚠️ Ghi chú:</p>
+            <p id="notes-content" class="text-sm font-medium text-red-700 whitespace-pre-wrap"></p>
+        </div>
+
+        <!-- Product List - SECOND -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">
+                Sản Phẩm Cần Kiểm Tra (<span id="product-checked-count">0</span>/<span id="product-total-count">0</span>)
+            </h3>
+            <div id="product-list" class="space-y-3"></div>
+        </div>
     </div>
 
-    <!-- Fixed Action Buttons at Bottom - 70% Complete / 30% Cancel -->
+    <!-- Fixed Action Buttons at Bottom -->
     <div id="action-buttons"
-        class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg z-40">
-        <div class="flex gap-3">
-            <button id="btn-complete"
-                class="flex-[7] py-4 text-lg font-semibold bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition">
-                ✓ Hoàn Tất
-            </button>
-            <button id="btn-cancel"
-                class="flex-[3] py-4 text-base font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 active:scale-95 transition">
-                ✕ Hủy
-            </button>
+        class="hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-40">
+        <div class="p-4">
+            <div class="flex gap-3">
+                <button id="btn-complete"
+                    class="flex-[7] py-4 text-lg font-semibold bg-green-600 text-white rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition">
+                    HOÀN THÀNH
+                </button>
+                <button id="btn-cancel"
+                    class="flex-[3] py-4 text-base font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 active:scale-95 transition">
+                    Hủy Gói
+                </button>
+            </div>
         </div>
     </div>
 
@@ -125,9 +156,76 @@
         </div>
     </div>
 
+    <!-- Modal xác nhận quà tặng -->
+    <div id="gift-confirm-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 class="text-lg font-semibold text-slate-800 mb-3">Nhớ nhắc thêm:</h3>
+            <p class="text-sm text-gray-600 mb-4">Bạn có chắc chắn đã kiểm tra kĩ đơn hàng?</p>
+            
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4 max-h-60 overflow-y-auto">
+                <p class="text-sm font-semibold text-slate-700 mb-3">Danh sách quà tặng:</p>
+                <div id="gift-list" class="space-y-3">
+                    <!-- Sẽ được populate bằng JavaScript -->
+                </div>
+            </div>
+            <!-- Nhắc nhở Quà tặng -->
+            <div class="mb-4">
+                <!-- Ghi chú (nếu có) -->
+                <div id="gift-note-reminder" class="hidden bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p class="text-sm font-semibold text-red-800 mb-1">Ghi chú của đơn:</p>
+                    <p id="gift-note-content" class="text-sm text-red-700 whitespace-pre-wrap"></p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3">
+                <button id="btn-confirm-gift"
+                    class="flex-[7] py-3 text-base font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition">
+                    Đồng ý
+                </button>
+                <button id="btn-cancel-gift"
+                    class="flex-[3] py-3 text-sm font-medium bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 active:scale-95 transition">
+                    Chưa
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <style>
+    /* Ẩn header và sidebar trên mobile cho trang packing_orders */
+    @media (max-width: 768px) {
+        header,
+        #sidebar,
+        #mobileMenuToggle,
+        #mobileMenuOverlay {
+            display: none !important;
+        }
+        
+        main {
+            padding-top: 0 !important;
+            margin-top: 0 !important;
+        }
+        
+        .min-h-screen {
+            padding-top: 0;
+        }
+        
+        /* Đảm bảo main content chiếm toàn bộ màn hình */
+        body > div > div.flex {
+            margin: 0;
+        }
+        
+        main.flex-1 {
+            margin-left: 0 !important;
+        }
+    }
+    
+    /* Khóa zoom trên input - đặt font-size >= 16px để iOS không zoom */
+    #manual-input {
+        font-size: 16px !important;
+    }
+    
     /* Mobile-first responsive styles */
     #reader {
         width: 100%;
@@ -155,8 +253,8 @@
     }
 
     .product-image img {
-        width: 64px;
-        height: 64px;
+        width: 80px;
+        height: 80px;
         object-fit: cover;
         border-radius: 4px;
         border: 1px solid #e2e8f0;
@@ -168,7 +266,7 @@
     }
 
     .product-sku {
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 700;
         color: #1e293b;
         margin-bottom: 4px;
@@ -187,21 +285,10 @@
     }
 
     .product-quantity {
-        font-size: 15px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
         color: #ea580c;
-    }
-
-    .product-check {
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-    }
-
-    .product-check input[type="checkbox"] {
-        width: 24px;
-        height: 24px;
-        cursor: pointer;
+        white-space: nowrap;
     }
 
     .gift-header {
@@ -347,7 +434,7 @@
             if (data.success) {
                 currentOrder = data.order;
                 currentFulfillmentId = data.fulfillment_id;
-                displayOrderInfo(data.order, data.dvvc);
+                displayOrderInfo(data.order, data.dvvc, data.estimated_weight);
                 displayProductList(data.order.real_items, data.order.gifts);
 
                 // Show action buttons
@@ -364,17 +451,48 @@
     }
 
     // Display order information
-    function displayOrderInfo(order, dvvc) {
-        document.getElementById('order-code').textContent = order.code;
+    function displayOrderInfo(order, dvvc, estimatedWeight) {
+        // Header order code
+        document.getElementById('header-order-code-value').textContent = order.code || 'N/A';
+        
+        // Customer info
         document.getElementById('customer-name').textContent = order.customer_name || 'N/A';
-        document.getElementById('customer-phone').textContent = order.customer_phone || 'N/A';
+        
+        // Shop info - hiển thị logo và tên shop (logo chữ nhật)
+        const shopName = order.shop_name || 'Gia Dụng Plus';
+        const shopLower = shopName.toLowerCase();
+        let shopLogo = '/static/giaodiensang.png';
+        
+        if (shopLower.includes('lteng')) {
+            shopLogo = '/static/logo-lteng.jpg';
+        } else if (shopLower.includes('phaledo')) {
+            shopLogo = '/static/logo-phaledo.jpg';
+        }
+        
+        // Logo chữ nhật - chiều rộng lớn hơn chiều cao
+        document.getElementById('shop-logo').innerHTML = `<img src="${shopLogo}" alt="${shopName}" class="h-6 w-auto rounded-sm border border-slate-200 object-contain bg-white">`;
+        document.getElementById('shop-name').textContent = shopName;
+        
+        // ĐVVC
         document.getElementById('dvvc').textContent = dvvc || 'Chưa xác định';
-        document.getElementById('total-items').textContent = order.total_items || 0;
+        
+        // Total quantity - tổng sản phẩm sau quy đổi về đơn chiếc
+        const totalQuantity = order.total_quantity || 0;
+        document.getElementById('total-items').textContent = Math.round(totalQuantity);
+        
+        // Estimated weight
+        if (estimatedWeight) {
+            document.getElementById('estimated-weight').textContent = `${estimatedWeight} kg`;
+        } else {
+            document.getElementById('estimated-weight').textContent = '-- kg';
+        }
 
         // Show notes if available
         if (order.notes && order.notes.trim()) {
-            document.getElementById('notes-content').textContent = order.notes;
+            document.getElementById('notes-content').textContent = order.notes.trim();
             document.getElementById('order-notes').classList.remove('hidden');
+        } else {
+            document.getElementById('order-notes').classList.add('hidden');
         }
 
         document.getElementById('qr-section').classList.add('hidden');
@@ -385,6 +503,18 @@
     function displayProductList(realItems, gifts) {
         const container = document.getElementById('product-list');
         container.innerHTML = '';
+        
+        // Tính tổng số lượng sản phẩm từ real_items (sau quy đổi)
+        let totalProducts = 0;
+        if (realItems && realItems.length > 0) {
+            realItems.forEach(item => {
+                totalProducts += parseFloat(item.quantity) || 0;
+            });
+        }
+        
+        // Update total count
+        document.getElementById('product-total-count').textContent = Math.round(totalProducts);
+        document.getElementById('product-checked-count').textContent = 0;
 
         if (realItems && realItems.length > 0) {
             realItems.forEach((item, index) => {
@@ -392,10 +522,11 @@
             });
         }
 
+        // Gifts có thể hiển thị riêng nếu cần, nhưng không đếm vào tổng cần kiểm tra
         if (gifts && gifts.length > 0) {
-            const giftHeader = document.createElement('h3');
-            giftHeader.className = 'gift-header';
-            giftHeader.textContent = '🎁 Quà Tặng Kèm Theo';
+            const giftHeader = document.createElement('div');
+            giftHeader.className = 'gift-header mt-4 pt-4 border-t border-slate-200';
+            giftHeader.innerHTML = '<span class="text-sm font-semibold text-red-600">🎁 Quà Tặng Kèm Theo</span>';
             container.appendChild(giftHeader);
 
             gifts.forEach((gift, index) => {
@@ -403,28 +534,32 @@
             });
         }
     }
+    
 
     // Create product card HTML
     function createProductCard(item, index, isGift) {
         const div = document.createElement('div');
         div.className = 'product-card';
+        
+        const productId = isGift ? `gift-${index}` : `item-${index}`;
 
         const imageUrl = item.image_url || '/static/default-product.png';
         const productName = item.product_name || item.variant_name || item.sku;
+        const sku = item.sku || 'N/A';
 
         div.innerHTML = `
         <div class="product-image">
-            <img src="${imageUrl}" alt="${item.sku}" onerror="this.src='/static/default-product.png'">
+            <img src="${imageUrl}" alt="${sku}" onerror="this.src='/static/default-product.png'">
         </div>
-        <div class="product-info">
-            <div class="product-sku">${item.sku}</div>
-            <div class="product-name">${productName}</div>
-            <div class="product-quantity">SL: ${item.quantity} ${item.unit || ''}</div>
-        </div>
-        <div class="product-check">
-            <input type="checkbox" id="check-${isGift ? 'gift' : 'item'}-${index}" title="Đánh dấu đã kiểm tra">
+        <div class="product-info flex-1 min-w-0 flex items-center justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <div class="product-sku">${sku}</div>
+                <div class="product-name">${productName}</div>
+            </div>
+            <div class="product-quantity flex-shrink-0">x ${item.quantity}</div>
         </div>
     `;
+        
         return div;
     }
 
@@ -435,10 +570,73 @@
             return;
         }
 
-        if (!confirm(`Xác nhận đã gói xong đơn ${currentOrder.code}?`)) {
-            return;
+        // Kiểm tra nếu có quà tặng
+        const hasGifts = currentOrder.gifts && currentOrder.gifts.length > 0;
+        
+        if (hasGifts) {
+            // Hiển thị modal xác nhận quà tặng
+            showGiftConfirmModal();
+        } else {
+            // Không có quà tặng -> xác nhận như cũ
+            if (!confirm(`Xác nhận đã gói xong đơn ${currentOrder.code}?`)) {
+                return;
+            }
+            await doCompletePacking();
         }
+    }
 
+    // Hiển thị modal xác nhận quà tặng
+    function showGiftConfirmModal() {
+        const modal = document.getElementById('gift-confirm-modal');
+        const giftList = document.getElementById('gift-list');
+        const giftNoteReminder = document.getElementById('gift-note-reminder');
+        const giftNoteContent = document.getElementById('gift-note-content');
+        
+        // Hiển thị ghi chú nếu có
+        if (currentOrder.notes && currentOrder.notes.trim()) {
+            giftNoteContent.textContent = currentOrder.notes.trim();
+            giftNoteReminder.classList.remove('hidden');
+        } else {
+            giftNoteReminder.classList.add('hidden');
+        }
+        
+        // Populate danh sách quà tặng
+        giftList.innerHTML = '';
+        if (currentOrder.gifts && currentOrder.gifts.length > 0) {
+            currentOrder.gifts.forEach((gift, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-start gap-3 bg-white rounded border border-slate-200 p-3';
+                
+                const imageUrl = gift.image_url || '/static/default-product.png';
+                const sku = gift.sku || 'N/A';
+                const quantity = gift.quantity || 1;
+                
+                div.innerHTML = `
+                    <div class="flex-shrink-0 w-16 h-16">
+                        <img src="${imageUrl}" alt="${sku}" 
+                             onerror="this.src='/static/default-product.png'" 
+                             class="w-full h-full object-contain rounded border border-slate-200">
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-sm text-slate-800">${sku}</div>
+                        <div class="text-orange-600 font-medium text-sm mt-1">x ${quantity}</div>
+                    </div>
+                `;
+                giftList.appendChild(div);
+            });
+        }
+        
+        modal.classList.remove('hidden');
+    }
+
+    // Ẩn modal xác nhận quà tặng
+    function hideGiftConfirmModal() {
+        const modal = document.getElementById('gift-confirm-modal');
+        modal.classList.add('hidden');
+    }
+
+    // Thực hiện hoàn tất đóng gói
+    async function doCompletePacking() {
         showLoading();
         try {
             const response = await fetch('/kho/orders/packing/complete/', {
@@ -481,7 +679,6 @@
 
         document.getElementById('manual-input').value = '';
         document.getElementById('product-list').innerHTML = '';
-        document.getElementById('order-notes').classList.add('hidden');
         document.getElementById('action-buttons').classList.add('hidden'); // Hide action buttons
 
         document.getElementById('qr-section').classList.remove('hidden');
@@ -518,11 +715,11 @@
         toast.textContent = message;
         document.body.appendChild(toast);
 
-        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => toast.classList.add('show'), 500);
         setTimeout(() => {
             toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+            setTimeout(() => toast.remove(), 500);
+        }, 5000);
     }
 
     function getCookie(name) {
@@ -566,6 +763,17 @@
             }
         });
 
+        // Nút GÓI - submit mã vận đơn
+        document.getElementById('btn-scan-gop').addEventListener('click', function () {
+            const code = manualInput.value.trim();
+            if (code) {
+                scanOrder(code);
+            } else {
+                showError('Vui lòng nhập mã vận đơn');
+                manualInput.focus();
+            }
+        });
+
         // Toggle camera - update lastInputMode when user manually toggles
         toggleCameraBtn.addEventListener('click', function () {
             if (isCameraActive) {
@@ -579,11 +787,26 @@
         // Complete button
         document.getElementById('btn-complete').addEventListener('click', completePacking);
 
-        // Cancel button
-        document.getElementById('btn-cancel').addEventListener('click', function () {
-            if (confirm('Bạn có chắc muốn hủy và làm lại?')) {
+        // Back button
+        document.getElementById('btn-back').addEventListener('click', function () {
+            if (confirm('Bạn có chắc muốn quay lại và hủy đơn này?')) {
                 resetUI();
             }
+        });
+
+        // Cancel button - chỉ hủy gói và quay về màn hình gói tiếp
+        document.getElementById('btn-cancel').addEventListener('click', function () {
+            resetUI();
+        });
+
+        // Gift confirm modal buttons
+        document.getElementById('btn-confirm-gift').addEventListener('click', function () {
+            hideGiftConfirmModal();
+            doCompletePacking();
+        });
+
+        document.getElementById('btn-cancel-gift').addEventListener('click', function () {
+            hideGiftConfirmModal();
         });
 
         // Auto focus
