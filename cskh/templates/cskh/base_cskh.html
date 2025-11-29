@@ -89,13 +89,13 @@
                 </div>
 
                 <div>
-                    <div class="text-base md:text-sm font-semibold">Gia Dụng Plus – CSKH</div>
-                    <div class="text-xs md:text-[11px] text-gray-500 -mt-1">Chăm Sóc Khách Hàng</div>
+                    <div class="text-sm md:text-sm font-semibold leading-tight">Gia Dụng Plus – CSKH</div>
+                    <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Chăm Sóc Khách Hàng</div>
                 </div>
             </a>
 
             <div class="flex items-center gap-4">
-                <!-- Mobile Menu Button -->
+                <!-- Mobile Menu Button (chỉ hiện trên mobile) -->
                 <button id="mobileMenuToggle" class="md:hidden p-2 rounded-full hover:bg-slate-100 text-gray-700">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
                         stroke="currentColor" class="w-6 h-6">
@@ -114,7 +114,7 @@
                         U
                         {% endif %}
                     </div>
-                    <div class="hidden sm:block text-xs leading-tight">
+                    <div class="hidden sm:block text-xs leading-tight text-left">
                         <div class="font-medium text-sm">
                             {% if request.user.is_authenticated %}
                             {{ request.user.get_full_name }}
@@ -145,7 +145,7 @@
         <!-- █▀ MAIN LAYOUT ───────────────────────── -->
         <div class="flex flex-1 overflow-hidden">
 
-            <!-- SIDEBAR -->
+            <!-- SIDEBAR (ẩn trên mobile, hiện drawer khi bật menu) -->
             <aside id="sidebar" class="bg-white border-r overflow-y-auto flex-shrink-0
                    fixed md:relative top-16 md:top-0 left-0 h-[calc(100vh-4rem)] md:h-auto
                    w-1/2 md:w-16 lg:w-32 xl:w-48
@@ -156,9 +156,9 @@
 
                     <!-- Dashboard -->
                     <div class="px-3 md:px-4 mb-2 md:mb-1">
-                        <a href="{% url 'cskh:dashboard' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
-                              hover:bg-brandlight hover:text-brand sidebar-link font-semibold text-gray-700">
-                            Dashboard
+                        <a href="{% url 'cskh:dashboard' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                              hover:bg-brandlight hover:text-brand sidebar-link font-semibold">
+                            <span class="truncate">Dashboard</span>
                         </a>
                     </div>
 
@@ -173,19 +173,19 @@
                         </button>
                         <ul id="menu-ticket" class="space-y-1">
                             <li>
-                                <a href="{% url 'cskh:ticket_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:ticket_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Tổng quan</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:ticket_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:ticket_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Danh sách ticket</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:ticket_list' %}?status=closed" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:ticket_list' %}?status=closed" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Ticket đã đóng</span>
                                 </a>
@@ -204,13 +204,13 @@
                         </button>
                         <ul id="menu-warranty" class="space-y-1">
                             <li>
-                                <a href="{% url 'cskh:warranty_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:warranty_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Tổng quan</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:warranty_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:warranty_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Danh sách</span>
                                     <span class="text-xs md:text-[10px] text-gray-500">0</span>
@@ -230,13 +230,13 @@
                         </button>
                         <ul id="menu-review" class="space-y-1">
                             <li>
-                                <a href="{% url 'cskh:review_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:review_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Tổng quan</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:review_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md
+                                <a href="{% url 'cskh:review_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                     <span class="truncate">Danh sách</span>
                                     <span class="text-xs md:text-[10px] text-gray-500">0</span>
@@ -254,17 +254,17 @@
                             <span
                                 class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                         </button>
-                        <ul id="menu-lookup" class="space-y-1 pb-2">
+                        <ul id="menu-lookup" class="space-y-1">
                             <li>
-                                <a href="{% url 'cskh:orders_view' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
+                                <a href="{% url 'cskh:orders_view' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    Đơn hàng
+                                    <span class="truncate">Đơn hàng</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:products_view' %}" class="block px-3 md:px-2.5 py-2 md:py-1.5 rounded-md
+                                <a href="{% url 'cskh:products_view' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    Sản phẩm
+                                    <span class="truncate">Sản phẩm</span>
                                 </a>
                             </li>
                         </ul>
@@ -351,24 +351,44 @@
             const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
 
             if (mobileMenuToggle && sidebar && mobileMenuOverlay) {
+                // Toggle menu
                 mobileMenuToggle.addEventListener('click', function (e) {
                     e.stopPropagation();
                     sidebar.classList.toggle('-translate-x-full');
                     mobileMenuOverlay.classList.toggle('hidden');
                 });
 
+                // Close menu when clicking overlay
                 mobileMenuOverlay.addEventListener('click', function () {
                     sidebar.classList.add('-translate-x-full');
                     mobileMenuOverlay.classList.add('hidden');
                 });
 
+                // Close menu when clicking outside (on sidebar content)
                 sidebar.addEventListener('click', function (e) {
+                    // If clicking on a link, close menu after a short delay
                     if (e.target.closest('a')) {
                         setTimeout(() => {
                             sidebar.classList.add('-translate-x-full');
                             mobileMenuOverlay.classList.add('hidden');
                         }, 100);
                     }
+                });
+
+                // Prevent body scroll when menu is open
+                let isMenuOpen = false;
+                mobileMenuToggle.addEventListener('click', function () {
+                    isMenuOpen = !isMenuOpen;
+                    if (isMenuOpen) {
+                        document.body.style.overflow = 'hidden';
+                    } else {
+                        document.body.style.overflow = '';
+                    }
+                });
+
+                mobileMenuOverlay.addEventListener('click', function () {
+                    isMenuOpen = false;
+                    document.body.style.overflow = '';
                 });
             }
         });
