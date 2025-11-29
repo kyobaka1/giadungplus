@@ -527,6 +527,36 @@ sudo chown -R giadungplus:giadungplus /var/www/giadungplus
 sudo chmod -R 755 /var/www/giadungplus
 ```
 
+**Lỗi Permission denied cho settings/logs (Shopee cookies, Sapo config):**
+
+Nếu gặp lỗi `[Errno 13] Permission denied` khi lưu Shopee cookies hoặc Sapo config:
+
+1. **Sử dụng script tự động (khuyến nghị):**
+   ```bash
+   sudo bash fix_permissions.sh
+   ```
+
+2. **Hoặc fix thủ công:**
+   ```bash
+   # Tạo thư mục nếu chưa có
+   sudo mkdir -p /var/www/giadungplus/settings/logs/raw_cookie
+   
+   # Xác định user chạy Django (thường là www-data hoặc user trong supervisor)
+   DJANGO_USER=$(ps aux | grep '[g]unicorn' | head -1 | awk '{print $1}')
+   # Nếu không tìm thấy, dùng www-data
+   DJANGO_USER=${DJANGO_USER:-www-data}
+   
+   # Cấp quyền
+   sudo chown -R $DJANGO_USER:$DJANGO_USER /var/www/giadungplus/settings/logs
+   sudo chmod -R 775 /var/www/giadungplus/settings/logs
+   ```
+
+3. **Kiểm tra lại:**
+   ```bash
+   ls -la /var/www/giadungplus/settings/logs/
+   ls -la /var/www/giadungplus/settings/logs/raw_cookie/
+   ```
+
 **Lỗi SSL Certificate:**
 - Đảm bảo domain đã trỏ về IP server
 - Kiểm tra Traefik logs: `sudo journalctl -u traefik -f`
