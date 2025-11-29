@@ -342,7 +342,11 @@ class SapoClient:
             )
         
         # Kiểm tra lại token một lần nữa trước khi trigger login
-        # (có thể background thread khác vừa hoàn tất)
+        # (có thể background thread khác vừa hoàn tất và release lock)
+        # Đợi thêm một chút để đảm bảo token đã được commit vào DB
+        logger.debug("[SapoClient] Lock not active, waiting a bit for possible token commit...")
+        time.sleep(2)  # Đợi 2 giây để DB commit xong nếu login vừa hoàn thành
+        
         headers = self._load_token_from_db()
         if headers and self._check_token_valid_remote():
             logger.info("[SapoClient] Token found in DB, using it (avoid duplicate login)")
@@ -412,7 +416,10 @@ class SapoClient:
                 
                 # Kiểm tra xem lock còn active không
                 if not self._check_selenium_lock_status():
-                    debug_print("   ✓ Lock đã được release")
+                    debug_print("   ✓ Lock đã được release, đợi để token được commit...")
+                    # Đợi một chút để đảm bảo token đã được commit vào DB
+                    time.sleep(2)
+                    
                     # Lock đã release, kiểm tra token một lần nữa
                     headers = self._load_tmdt_token()
                     if headers and self._check_tmdt_valid_remote(headers):
@@ -434,7 +441,9 @@ class SapoClient:
                 logger.warning("[SapoClient] Timeout waiting for login to complete")
                 debug_print("   ⚠️  Timeout đợi login, sẽ trigger login mới")
             else:
-                debug_print("   - Lock đã được release, tiếp tục...")
+                debug_print("   - Lock đã được release, đợi thêm để token được commit...")
+                # Đợi thêm một chút để đảm bảo token đã được commit vào DB
+                time.sleep(2)
         
         # Kiểm tra lại token một lần nữa trước khi trigger login
         # (có thể background thread khác vừa hoàn tất)
@@ -474,6 +483,11 @@ class SapoClient:
                 logger.info("[BackgroundLogin] Starting Selenium login...")
                 core_headers = self._login_via_browser()
                 self._save_token_to_db(core_headers)
+                
+                # Đợi một chút để đảm bảo token đã được lưu vào DB thành công
+                # Tránh trường hợp request khác load token ngay sau khi save nhưng chưa commit
+                logger.debug("[BackgroundLogin] Waiting for DB commit...")
+                time.sleep(2)  # Đợi 2 giây để DB commit xong
                 
                 # Update state của instance sau khi login thành công
                 # Load token vào session và set core_valid = True
@@ -1203,6 +1217,11 @@ class SapoClient:
                     self._save_tmdt_token(tmdt_headers)
                     logger.info("[SapoClient] Marketplace headers captured ✓")
                     debug_print("✅ [Selenium] Đã lưu marketplace token vào database")
+                    
+                    # Đợi một chút để đảm bảo token đã được lưu vào DB thành công
+                    # Tránh trường hợp request khác load token ngay sau khi save nhưng chưa commit
+                    debug_print("   - Đợi 2 giây để DB commit xong...")
+                    time.sleep(2)
                 except Exception as e:
                     debug_print(f"❌ [Selenium] LỖI khi lưu marketplace token: {type(e).__name__}: {str(e)}")
             else:
