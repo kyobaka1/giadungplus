@@ -14,25 +14,28 @@ Write-Host "Remote: ${REMOTE_PATH}" -ForegroundColor Yellow
 Write-Host "Local: ${PROJECT_DIR}" -ForegroundColor Yellow
 Write-Host ""
 
-# Danh sách files/folders cần upload (trừ các thư mục không cần thiết)
-$EXCLUDE_PATTERNS = @(
-    "__pycache__",
-    "*.pyc",
-    ".git",
-    "db.sqlite3",
-    "venv",
-    ".env",
-    "*.log",
-    ".DS_Store"
-)
+# 1) Lấy danh sách các file vừa sửa (so với origin/main) và lưu vào log
+$ChangedFilesLog = Join-Path $PROJECT_DIR "changed_files_for_upload.log"
+try {
+    git -C $PROJECT_DIR diff --name-only origin/main..HEAD | Out-File -FilePath $ChangedFilesLog -Encoding UTF8
+} catch {
+    Write-Host "⚠️  Không thể chạy 'git diff', sẽ upload toàn bộ code." -ForegroundColor Yellow
+    $ChangedFilesLog = $null
+}
+
+$ChangedFiles = @()
+if ($ChangedFilesLog -and (Test-Path $ChangedFilesLog)) {
+    $ChangedFiles = Get-Content $ChangedFilesLog | Where-Object { $_ -and -not $_.StartsWith(" ") }
+}
+
+if ($ChangedFiles.Count -gt 0) {
+    Write-Host "📄 Sẽ upload CHỈ các file vừa sửa (đã lưu trong changed_files_for_upload.log):" -ForegroundColor Yellow
+    $ChangedFiles | ForEach-Object { Write-Host "   - $_" -ForegroundColor DarkGray }
+} else {
+    Write-Host "📄 Không tìm thấy file thay đổi (hoặc trống). Sẽ upload TOÀN BỘ code." -ForegroundColor Yellow
+}
 
 Write-Host "[1/2] Uploading code files..." -ForegroundColor Green
-
-# Tạo rsync command cho SCP (hoặc dùng rsync nếu có)
-# Vì SCP không hỗ trợ exclude tốt, dùng cách khác
-# Tạo temporary exclude file
-$EXCLUDE_FILE = "$env:TEMP\scp_exclude.txt"
-$EXCLUDE_PATTERNS | Out-File -FilePath $EXCLUDE_FILE -Encoding ASCII
 
 # SCP upload (Windows PowerShell có thể dùng pscp từ PuTTY hoặc OpenSSH)
 # Kiểm tra xem có OpenSSH client không
@@ -40,24 +43,44 @@ $opensshPath = Get-Command ssh -ErrorAction SilentlyContinue
 
 if ($opensshPath) {
     Write-Host "Using OpenSSH..." -ForegroundColor Gray
-    Write-Host "  ⚡ Uploading all files (this may take a while)..." -ForegroundColor Gray
-    
-    # Upload tất cả, sẽ bỏ qua venv và các file lớn tự động
-    # SCP sẽ upload theo thứ tự, bỏ qua các file không cần thiết
-    $items = Get-ChildItem -Path $PROJECT_DIR -Force | Where-Object {
-        $name = $_.Name
-        $name -ne "venv" -and 
-        $name -ne ".git" -and 
-        $name -ne "__pycache__" -and 
-        $name -ne "db.sqlite3" -and
-        $name -ne ".env" -and
-        $name -ne "node_modules"
-    }
-    
-    foreach ($item in $items) {
-        $itemPath = Join-Path $PROJECT_DIR $item.Name
-        Write-Host "  → Uploading: $($item.Name)..." -ForegroundColor DarkGray
-        scp -r "$itemPath" "${SERVER_USER}@${SERVER_IP}:${REMOTE_PATH}/"
+
+    if ($ChangedFiles.Count -gt 0) {
+        # Upload CHỈ các file/thư mục vừa sửa
+        foreach ($relPath in $ChangedFiles) {
+            $localPath = Join-Path $PROJECT_DIR $relPath
+            if (-not (Test-Path $localPath)) {
+                Write-Host "  ⚠️  Bỏ qua (không tồn tại): $relPath" -ForegroundColor DarkYellow
+                continue
+            }
+
+            $remoteDir = Split-Path $relPath -Parent
+            if ($remoteDir -and $remoteDir -ne ".") {
+                Write-Host "  → Uploading changed: $relPath" -ForegroundColor DarkGray
+                ssh "${SERVER_USER}@${SERVER_IP}" "mkdir -p ${REMOTE_PATH}/$remoteDir"
+                scp -r "$localPath" "${SERVER_USER}@${SERVER_IP}:${REMOTE_PATH}/$remoteDir/"
+            } else {
+                Write-Host "  → Uploading changed: $relPath" -ForegroundColor DarkGray
+                scp -r "$localPath" "${SERVER_USER}@${SERVER_IP}:${REMOTE_PATH}/"
+            }
+        }
+    } else {
+        # Upload TOÀN BỘ code nếu không có danh sách file thay đổi
+        Write-Host "  ⚡ Uploading ALL files (this may take a while)..." -ForegroundColor Gray
+        $items = Get-ChildItem -Path $PROJECT_DIR -Force | Where-Object {
+            $name = $_.Name
+            $name -ne "venv" -and 
+            $name -ne ".git" -and 
+            $name -ne "__pycache__" -and 
+            $name -ne "db.sqlite3" -and
+            $name -ne ".env" -and
+            $name -ne "node_modules"
+        }
+        
+        foreach ($item in $items) {
+            $itemPath = Join-Path $PROJECT_DIR $item.Name
+            Write-Host "  → Uploading: $($item.Name)..." -ForegroundColor DarkGray
+            scp -r "$itemPath" "${SERVER_USER}@${SERVER_IP}:${REMOTE_PATH}/"
+        }
     }
     
 } else {
