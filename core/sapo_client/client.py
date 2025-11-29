@@ -20,7 +20,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import StaleElementReferenceException, NoSuchWindowException
 
 # Import Service cho Selenium 4.6+
 try:
@@ -620,19 +620,23 @@ class SapoClient:
             
             chrome_options = webdriver.ChromeOptions()
             
-            # Tự động bật headless trên Linux server (không có display)
+            # Mode headless / GPU config theo OS
             if system == "Linux":
-                chrome_options.add_argument("--headless=new")  # Sử dụng headless mode mới
+                # Server Linux: luôn headless + tắt GPU
+                chrome_options.add_argument("--headless=new")
                 debug_print("   - Headless mode: ENABLED (Linux server)")
             else:
-                # Windows/Mac - có thể bật/tắt tùy chỉnh
-                # chrome_options.add_argument("--headless=new")  # Uncomment nếu cần headless trên Windows
-                debug_print("   - Headless mode: DISABLED (có display)")
+                # Windows/Mac: cho phép cấu hình qua env, default cũng dùng headless để ổn định
+                import os as _os
+                headless_flag = (_os.getenv("SELENIUM_HEADLESS") or "1").strip()
+                if headless_flag in ("1", "true", "True", "yes", "YES"):
+                    chrome_options.add_argument("--headless=new")
+                    debug_print("   - Headless mode: ENABLED (Windows/Mac via env/DEFAULT)")
+                else:
+                    debug_print("   - Headless mode: DISABLED (Windows/Mac, SELENIUM_HEADLESS=0)")
             
-            # Options cần thiết cho server Linux
-            chrome_options.add_argument("--no-sandbox")  # Bắt buộc khi chạy với root
-            chrome_options.add_argument("--disable-dev-shm-usage")  # Tránh lỗi /dev/shm full
-            chrome_options.add_argument("--disable-gpu")  # Không cần GPU trên server
+            # Options chung để tránh lỗi GPU / renderer trên cả 2 môi trường
+            chrome_options.add_argument("--disable-gpu")
             chrome_options.add_argument("--disable-software-rasterizer")
             chrome_options.add_argument("--disable-extensions")
             chrome_options.add_argument("--disable-logging")
@@ -640,10 +644,20 @@ class SapoClient:
             chrome_options.add_argument("--disable-backgrounding-occluded-windows")
             chrome_options.add_argument("--disable-renderer-backgrounding")
             chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--remote-debugging-port=9222")  # Hữu ích cho debugging
             
-            # User agent để tránh bị phát hiện là bot
-            chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            # Chỉ dùng no-sandbox + disable-dev-shm-usage trên Linux (root / container)
+            if system == "Linux":
+                chrome_options.add_argument("--no-sandbox")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+            
+            # Không set cứng remote-debugging-port để tránh conflict "Only one usage of each socket address..."
+            # Nếu cần debug, có thể bật qua env riêng (ví dụ: SELENIUM_REMOTE_DEBUG_PORT)
+            
+            # User agent để tránh bị phát hiện là bot (dùng UA general, không hard-code Linux)
+            chrome_options.add_argument(
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
             
             debug_print("   - Chrome options đã cấu hình xong")
             
@@ -786,11 +800,56 @@ class SapoClient:
             debug_print("\n📄 [Selenium] Bước 3: Mở trang login Sapo...")
             logger.debug("[SapoClient] Opening login page...")
             try:
-                driver.get(f"{SAPO_BASIC.MAIN_URL}/authorization/login")
-                debug_print(f"   - URL: {SAPO_BASIC.MAIN_URL}/authorization/login")
-                debug_print("✅ [Selenium] Đã mở trang login thành công")
-                # Refresh lock sau khi mở trang thành công
-                self._refresh_selenium_lock()
+                login_url = f"{SAPO_BASIC.MAIN_URL}/authorization/login"
+                debug_print(f"   - URL ban đầu: {login_url}")
+                driver.get(login_url)
+                
+                # Đợi trang load và redirect xong (nếu có)
+                debug_print("   - Đợi trang redirect và load xong...")
+                time.sleep(3)  # Đợi redirect
+                
+                # Kiểm tra window còn tồn tại không
+                try:
+                    current_url = driver.current_url
+                    window_handles = driver.window_handles
+                    debug_print(f"   - Current URL sau redirect: {current_url}")
+                    debug_print(f"   - Số windows: {len(window_handles)}")
+                    
+                    # Nếu có nhiều windows, chuyển sang window mới (có thể là redirect)
+                    if len(window_handles) > 1:
+                        debug_print(f"   - Phát hiện {len(window_handles)} windows, chuyển sang window mới...")
+                        driver.switch_to.window(window_handles[-1])  # Chuyển sang window mới nhất
+                        current_url = driver.current_url
+                        debug_print(f"   - Current URL sau khi switch window: {current_url}")
+                    elif len(window_handles) == 0:
+                        debug_print("   ⚠️  Không có window nào!")
+                        raise RuntimeError("All browser windows were closed")
+                    
+                    # Đợi document ready
+                    WebDriverWait(driver, 20).until(
+                        lambda d: d.execute_script("return document.readyState") == "complete"
+                    )
+                    debug_print("   ✓ Document ready")
+                    
+                    # Đợi thêm một chút để JavaScript load xong
+                    time.sleep(2)
+                    
+                    debug_print("✅ [Selenium] Đã mở trang login thành công")
+                    # Refresh lock sau khi mở trang thành công
+                    self._refresh_selenium_lock()
+                except Exception as window_check_error:
+                    error_type = type(window_check_error).__name__
+                    if "NoSuchWindowException" in error_type or "no such window" in str(window_check_error).lower():
+                        debug_print(f"   ❌ Window đã bị đóng: {error_type}")
+                        # Thử tìm lại window hoặc tạo mới
+                        if len(driver.window_handles) == 0:
+                            raise RuntimeError("Browser window was closed and no windows available")
+                        else:
+                            driver.switch_to.window(driver.window_handles[0])
+                            current_url = driver.current_url
+                            debug_print(f"   ✓ Đã chuyển sang window khả dụng: {current_url}")
+                    else:
+                        raise
             except Exception as e:
                 debug_print(f"❌ [Selenium] LỖI khi mở trang login: {type(e).__name__}: {str(e)}")
                 raise
@@ -798,27 +857,70 @@ class SapoClient:
             # Wait for form elements - chỉ đợi để verify elements có sẵn
             debug_print("\n⏳ [Selenium] Bước 4: Đợi form elements xuất hiện...")
             try:
+                # Kiểm tra window còn tồn tại trước khi tìm elements
+                if len(driver.window_handles) == 0:
+                    raise RuntimeError("Browser window was closed")
+                
+                # Đảm bảo đang ở đúng window
+                current_window = driver.current_window_handle
+                if current_window not in driver.window_handles:
+                    debug_print("   - Current window không còn tồn tại, chuyển sang window mới...")
+                    driver.switch_to.window(driver.window_handles[0])
+                
+                debug_print(f"   - Current URL: {driver.current_url}")
                 debug_print("   - Đang đợi username field...")
-                WebDriverWait(driver, 50).until(
-                    EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
-                )
-                debug_print("   ✓ Username field đã sẵn sàng")
+                
+                # Đợi username field với retry cho window closed
+                max_wait_attempts = 5
+                for attempt in range(max_wait_attempts):
+                    try:
+                        WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
+                        )
+                        debug_print("   ✓ Username field đã sẵn sàng")
+                        break
+                    except Exception as e:
+                        if attempt < max_wait_attempts - 1:
+                            error_msg = str(e).lower()
+                            if "nosuchwindow" in error_msg or "window" in error_msg:
+                                debug_print(f"   - ⚠️  Window issue, retrying... ({attempt+1}/{max_wait_attempts})")
+                                if len(driver.window_handles) > 0:
+                                    driver.switch_to.window(driver.window_handles[0])
+                                time.sleep(1)
+                                continue
+                        raise
                 
                 debug_print("   - Đang đợi password field...")
-                WebDriverWait(driver, 50).until(
+                WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
                 )
                 debug_print("   ✓ Password field đã sẵn sàng")
                 
-                debug_print("   - Đang đợi login button...")
-                WebDriverWait(driver, 50).until(
-                    EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
-                )
-                debug_print("   ✓ Login button đã sẵn sàng")
-                debug_print("✅ [Selenium] Tất cả form elements đã ready")
+                # KHÔNG đợi login button ở đây - button sẽ bị disabled cho đến khi điền username/password
+                # Button sẽ được đợi SAU KHI điền username và password
+                
+                debug_print("✅ [Selenium] Form fields đã ready (button sẽ được enable sau khi điền thông tin)")
             except Exception as e:
-                debug_print(f"❌ [Selenium] LỖI khi đợi form elements: {type(e).__name__}: {str(e)}")
-                debug_print(f"   - Current URL: {driver.current_url}")
+                error_type = type(e).__name__
+                error_msg = str(e)
+                debug_print(f"❌ [Selenium] LỖI khi đợi form elements: {error_type}: {error_msg}")
+                
+                # Debug thông tin
+                try:
+                    if len(driver.window_handles) > 0:
+                        debug_print(f"   - Current URL: {driver.current_url}")
+                        debug_print(f"   - Windows available: {len(driver.window_handles)}")
+                        # Lưu page source để debug
+                        try:
+                            page_source = driver.page_source[:500]
+                            debug_print(f"   - Page source preview: {page_source}")
+                        except:
+                            pass
+                    else:
+                        debug_print("   - ⚠️  Không còn window nào!")
+                except:
+                    pass
+                
                 raise
             
             # Submit credentials - Tìm lại elements ngay trước khi dùng để tránh stale element
@@ -826,26 +928,54 @@ class SapoClient:
             logger.debug("[SapoClient] Submitting login...")
             
             # Helper function để tìm lại element nếu bị stale
-            def find_and_interact_element(xpath, action_func, element_name, max_retries=3):
-                """Tìm lại element và thực hiện action với retry cho stale element"""
+            def find_and_interact_element(xpath_or_selectors, action_func, element_name, max_retries=3, is_button=False):
+                """
+                Tìm lại element và thực hiện action với retry cho stale element
+                
+                Args:
+                    xpath_or_selectors: XPATH string hoặc list of selectors (cho button)
+                    action_func: Function để thực hiện trên element
+                    element_name: Tên element để log
+                    max_retries: Số lần retry
+                    is_button: Nếu True, sẽ thử nhiều selector cho button
+                """
+                # Nếu là button và có nhiều selectors, thử từng cái
+                selectors = xpath_or_selectors if isinstance(xpath_or_selectors, list) else [xpath_or_selectors]
+                
                 for attempt in range(max_retries):
-                    try:
-                        debug_print(f"   - [{attempt+1}/{max_retries}] Tìm {element_name}...")
-                        element = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((By.XPATH, xpath))
-                        )
-                        action_func(element)
-                        return True
-                    except StaleElementReferenceException:
-                        debug_print(f"   - ⚠️  Stale element detected, retrying... ({attempt+1}/{max_retries})")
-                        time.sleep(0.5)  # Đợi một chút để DOM ổn định
-                        if attempt == max_retries - 1:
-                            raise
-                    except Exception as e:
-                        if attempt == max_retries - 1:
-                            raise
-                        debug_print(f"   - ⚠️  Lỗi: {e}, retrying... ({attempt+1}/{max_retries})")
-                        time.sleep(0.5)
+                    for selector_idx, xpath in enumerate(selectors):
+                        try:
+                            if attempt == 0 and selector_idx > 0:
+                                debug_print(f"   - [{attempt+1}/{max_retries}] Thử selector {selector_idx + 1} cho {element_name}...")
+                            elif attempt > 0:
+                                debug_print(f"   - [{attempt+1}/{max_retries}] Retry tìm {element_name}...")
+                            
+                            element = WebDriverWait(driver, 5 if selector_idx > 0 else 10).until(
+                                EC.element_to_be_clickable((By.XPATH, xpath))
+                            )
+                            action_func(element)
+                            return True
+                        except StaleElementReferenceException:
+                            if selector_idx == len(selectors) - 1:  # Chỉ retry nếu đã thử hết selectors
+                                debug_print(f"   - ⚠️  Stale element detected, retrying... ({attempt+1}/{max_retries})")
+                                time.sleep(0.5)  # Đợi một chút để DOM ổn định
+                                if attempt == max_retries - 1:
+                                    raise
+                                break  # Break khỏi selector loop, retry với attempt mới
+                            else:
+                                # Thử selector tiếp theo
+                                continue
+                        except Exception as e:
+                            if selector_idx < len(selectors) - 1:
+                                # Thử selector tiếp theo
+                                continue
+                            # Đã thử hết selectors, retry với attempt mới
+                            if attempt < max_retries - 1:
+                                debug_print(f"   - ⚠️  Lỗi: {e}, retrying... ({attempt+1}/{max_retries})")
+                                time.sleep(0.5)
+                                break  # Break khỏi selector loop, retry với attempt mới
+                            else:
+                                raise
                 return False
             
             try:
@@ -868,17 +998,53 @@ class SapoClient:
                     "password field"
                 )
                 
-                # Đợi một chút trước khi submit
-                debug_print("   - Đợi 1 giây trước khi submit...")
+                # Đợi một chút để form xử lý và button được enable
+                debug_print("   - Đợi 1 giây để form xử lý và button được enable...")
                 time.sleep(1)
                 
-                # Click login button - tìm lại element ngay trước khi click
+                # Đợi login button trở nên enabled/clickable (sau khi đã điền username/password)
+                debug_print("   - Đợi login button trở nên enabled (clickable)...")
+                button_selectors = [
+                    SAPO_BASIC.LOGIN_BUTTON,  # Selector mặc định
+                    # Thử các selector khác nếu mặc định không tìm được
+                    "//form//button[contains(text(), 'Đăng nhập')]",  # Button trong form
+                    f"{SAPO_BASIC.LOGIN_PASSWORD_FIELD}/ancestor::form//button[contains(text(), 'Đăng nhập')]",  # Button trong cùng form với password
+                    f"{SAPO_BASIC.LOGIN_PASSWORD_FIELD}/following::button[contains(text(), 'Đăng nhập')][1]",  # Button sau password field
+                    "//button[@type='submit' and contains(text(), 'Đăng nhập')]",  # Submit button
+                    "//button[normalize-space(text())='Đăng nhập' and not(contains(@class, 'Facebook')) and not(contains(@class, 'Google'))]",  # Exclude social buttons
+                ]
+                
+                login_button = None
+                for selector_idx, button_selector in enumerate(button_selectors):
+                    try:
+                        debug_print(f"      - Thử selector {selector_idx + 1}/{len(button_selectors)} cho button...")
+                        # element_to_be_clickable sẽ tự động đợi button enabled (không disabled)
+                        login_button = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, button_selector))
+                        )
+                        debug_print(f"   ✓ Login button đã enabled và sẵn sàng click")
+                        break
+                    except Exception as e:
+                        if selector_idx == len(button_selectors) - 1:
+                            debug_print(f"      ❌ Tất cả selectors đều thất bại: {str(e)}")
+                            raise
+                        debug_print(f"      ⚠️  Selector {selector_idx + 1} không tìm được button, thử tiếp...")
+                        continue
+                
+                if login_button is None:
+                    raise RuntimeError("Không thể tìm được login button với bất kỳ selector nào")
+                
+                # Click button
                 debug_print("   - Click nút đăng nhập...")
-                find_and_interact_element(
-                    SAPO_BASIC.LOGIN_BUTTON,
-                    lambda el: el.click(),
-                    "login button"
-                )
+                try:
+                    login_button.click()
+                except StaleElementReferenceException:
+                    # Button bị stale, tìm lại
+                    debug_print("   - ⚠️  Button bị stale, tìm lại...")
+                    login_button = WebDriverWait(driver, 5).until(
+                        EC.element_to_be_clickable((By.XPATH, button_selectors[0]))
+                    )
+                    login_button.click()
                 
                 debug_print("✅ [Selenium] Đã submit form đăng nhập")
                 # Refresh lock sau khi submit form thành công
@@ -894,15 +1060,12 @@ class SapoClient:
                     try:
                         time.sleep(1)  # Đợi DOM ổn định
                         
-                        # Tìm lại tất cả elements
+                        # Tìm lại username và password fields (KHÔNG tìm button vì nó sẽ bị disabled)
                         login_field = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_USERNAME_FIELD))
                         )
                         password_field = WebDriverWait(driver, 10).until(
                             EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_PASSWORD_FIELD))
-                        )
-                        login_button = WebDriverWait(driver, 10).until(
-                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
                         )
                         
                         # Clear và điền lại
@@ -912,7 +1075,13 @@ class SapoClient:
                         
                         password_field.clear()
                         password_field.send_keys(SAPO_BASIC.PASSWORD)
-                        time.sleep(0.5)
+                        time.sleep(1)  # Đợi form xử lý và button được enable
+                        
+                        # Đợi button trở nên enabled sau khi điền username/password
+                        debug_print("   - Đợi button được enable sau khi điền lại...")
+                        login_button = WebDriverWait(driver, 10).until(
+                            EC.element_to_be_clickable((By.XPATH, SAPO_BASIC.LOGIN_BUTTON))
+                        )
                         
                         # Sử dụng ActionChains để click nếu button bị stale
                         actions = ActionChains(driver)
