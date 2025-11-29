@@ -206,16 +206,51 @@ sudo chown -R giadungplus:giadungplus /var/www/giadungplus
 
 **Cách 2: Upload bằng SCP (từ máy Windows)**
 
+**Cách A: Sử dụng Script Tự Động (Khuyến nghị)**
+
+Có 2 script sẵn có:
+- `upload_to_server.bat` - Chạy trong Command Prompt
+- `upload_to_server.ps1` - Chạy trong PowerShell
+
+**PowerShell (Khuyến nghị):**
+```powershell
+# Chạy script
+.\upload_to_server.ps1
+```
+
+**Command Prompt:**
+```cmd
+upload_to_server.bat
+```
+
+Script sẽ tự động:
+- ✅ Upload tất cả code files
+- ✅ Bỏ qua các thư mục không cần thiết (__pycache__, venv, .git, etc.)
+- ✅ Cấp quyền đúng cho files
+- ✅ Hiển thị hướng dẫn tiếp theo
+
+**Cách B: Upload thủ công bằng SCP**
+
 Trên PowerShell của Windows:
 ```powershell
-# Tạo file zip của project (trừ __pycache__, .git, db.sqlite3, etc.)
-# Sau đó upload
+# Upload tất cả files
 scp -r D:\giadungplus\giadungplus-1\* root@103.110.85.223:/var/www/giadungplus/
+
+# Hoặc upload từng phần (để tránh lỗi)
+scp -r D:\giadungplus\giadungplus-1\GIADUNGPLUS root@103.110.85.223:/var/www/giadungplus/
+scp -r D:\giadungplus\giadungplus-1\core root@103.110.85.223:/var/www/giadungplus/
+scp -r D:\giadungplus\giadungplus-1\kho root@103.110.85.223:/var/www/giadungplus/
+# ... tiếp tục với các thư mục khác
+```
+
+**Git Bash (Nếu dùng Git Bash):**
+```bash
+scp -r /d/giadungplus/giadungplus-1/* root@103.110.85.223:/var/www/giadungplus/
 ```
 
 Sau khi upload, cấp quyền:
 ```bash
-sudo chown -R giadungplus:giadungplus /var/www/giadungplus
+ssh root@103.110.85.223 "cd /var/www/giadungplus && sudo chown -R giadungplus:giadungplus . && sudo chmod +x deploy.sh"
 ```
 
 ### 4.2. Tạo Virtual Environment
