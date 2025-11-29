@@ -5,7 +5,7 @@ Views for Gift/Promotion management (Read-only from Sapo)
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
-from django.contrib.auth.decorators import user_passes_test
+from kho.utils import admin_only
 from core.sapo_client import get_sapo_client
 from orders.services.promotion_service import PromotionService
 import logging
@@ -13,11 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def is_admin(user):
-    return user.is_active and user.is_superuser
-
-
-@user_passes_test(is_admin)
+@admin_only
 def gift_list(request):
     """
     Danh sách promotions từ Sapo (read-only).
@@ -72,7 +68,7 @@ def gift_list(request):
     return render(request, 'settings/gift_list.html', context)
 
 
-@user_passes_test(is_admin)
+@admin_only
 def gift_detail(request, promotion_id):
     """
     Xem chi tiết promotion từ Sapo (read-only).
@@ -101,7 +97,7 @@ def gift_detail(request, promotion_id):
         return redirect('gift_list')
 
 
-@user_passes_test(is_admin)
+@admin_only
 @require_http_methods(["POST"])
 def gift_sync(request):
     """

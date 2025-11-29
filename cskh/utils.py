@@ -1,75 +1,81 @@
+# cskh/utils.py
 """
-Utils cho CSKH - log system cho ticket actions
+Utilities cho app CSKH, bao gồm decorators phân quyền và logging.
 """
-import os
+
 import json
-from datetime import datetime
-from pathlib import Path
-from django.conf import settings
+import logging
+from django.shortcuts import redirect
+from functools import wraps
+from django.utils import timezone
 
-# Thư mục log cho ticket actions
-TICKET_LOG_DIR = Path(settings.BASE_DIR) / "settings" / "logs" / "ticket_actions"
+logger = logging.getLogger(__name__)
 
-
-def log_ticket_action(ticket_number: str, user: str, action: str, details: dict = None):
+def is_admin_or_group(user, *group_names):
     """
-    Log ticket action vào file
+    Kiểm tra user có phải là Admin (superuser hoặc group Admin) hoặc thuộc một trong các groups.
+    """
+    if not user.is_authenticated:
+        return False
+    # Admin = superuser hoặc có group "Admin"
+    if user.is_superuser or user.groups.filter(name="Admin").exists():
+        return True
+    # Kiểm tra các groups khác
+    if group_names:
+        return user.groups.filter(name__in=group_names).exists()
+    return False
+
+def group_required(*group_names):
+    """
+    Decorator yêu cầu user phải là Admin hoặc thuộc một trong các groups được chỉ định.
+    Nếu không có quyền, redirect về trang thông báo.
+    
+    Lưu ý: WarehouseManager luôn có quyền với ticket vì kho cũng phải làm việc với ticket.
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped_view(request, *args, **kwargs):
+            # WarehouseManager luôn có quyền với ticket
+            allowed_groups = list(group_names) + ["WarehouseManager"]
+            if is_admin_or_group(request.user, *allowed_groups):
+                return view_func(request, *args, **kwargs)
+            else:
+                # Redirect về trang thông báo không có quyền
+                return redirect('permission_denied')
+        return wrapped_view
+    return decorator
+
+def log_ticket_action(ticket_number, username, action, data=None):
+    """
+    Ghi log một hành động liên quan đến ticket.
     
     Args:
-        ticket_number: Mã ticket (vd: TK0001)
-        user: Username hoặc tên người dùng
-        action: Hành động (vd: "created", "updated_status", "added_cost", "updated_reason")
-        details: Dict chứa thông tin chi tiết
+        ticket_number: Mã ticket
+        username: Tên người dùng thực hiện hành động
+        action: Loại hành động (created, updated, etc.)
+        data: Dữ liệu bổ sung (dict)
     """
-    # Đảm bảo thư mục tồn tại
-    TICKET_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    
-    # File log cho ticket này
-    log_file = TICKET_LOG_DIR / f"{ticket_number}.log"
-    
-    # Format log entry
     log_entry = {
-        'timestamp': datetime.now().isoformat(),
-        'user': user,
+        'ticket_number': ticket_number,
+        'username': username,
         'action': action,
-        'details': details or {},
+        'data': data or {},
+        'timestamp': timezone.now().isoformat(),
     }
-    
-    # Append vào file
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+    logger.info(f"Ticket Action: {json.dumps(log_entry, ensure_ascii=False)}")
 
-
-def get_ticket_logs(ticket_number: str) -> list:
+def get_ticket_logs(ticket_number):
     """
-    Đọc log của ticket
+    Lấy danh sách logs của ticket.
+    Hiện tại trả về danh sách rỗng vì logs được lưu trong TicketEvent model.
+    Có thể mở rộng sau để đọc từ file log hoặc database.
     
+    Args:
+        ticket_number: Mã ticket
+        
     Returns:
-        List các log entries (sắp xếp theo thời gian mới nhất trước)
+        List các log entries
     """
-    log_file = TICKET_LOG_DIR / f"{ticket_number}.log"
-    
-    if not log_file.exists():
-        return []
-    
-    logs = []
-    with open(log_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try:
-                    log_entry = json.loads(line)
-                    # Parse timestamp để sort
-                    try:
-                        log_entry['timestamp_dt'] = datetime.fromisoformat(log_entry['timestamp'])
-                    except:
-                        pass
-                    logs.append(log_entry)
-                except:
-                    pass
-    
-    # Sort theo thời gian mới nhất trước
-    logs.sort(key=lambda x: x.get('timestamp_dt', datetime.min), reverse=True)
-    
-    return logs
-
+    # Hiện tại trả về danh sách rỗng
+    # Có thể mở rộng sau để đọc từ TicketEvent hoặc file log
+    return []

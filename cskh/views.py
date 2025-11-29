@@ -2,7 +2,7 @@
 import json
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from cskh.utils import group_required
 from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.models import User
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # DASHBOARD
 # =======================
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def dashboard(request):
     """Dashboard tổng quan CSKH"""
     
@@ -64,7 +64,7 @@ def dashboard(request):
 # TICKET VIEWS
 # =======================
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def ticket_overview(request):
     """Tổng quan ticket"""
     
@@ -99,7 +99,7 @@ def ticket_overview(request):
     return render(request, 'cskh/tickets/overview.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def ticket_list(request):
     """Danh sách tickets"""
     
@@ -166,7 +166,7 @@ def ticket_list(request):
     return render(request, 'cskh/tickets/list.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def ticket_detail(request, ticket_id):
     """Chi tiết ticket"""
     from datetime import datetime
@@ -335,7 +335,7 @@ def ticket_detail(request, ticket_id):
     return render(request, 'cskh/tickets/detail.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def ticket_create(request):
     """Tạo ticket mới"""
     import os
@@ -469,7 +469,7 @@ def ticket_create(request):
 # WARRANTY VIEWS
 # =======================
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def warranty_overview(request):
     """Tổng quan bảo hành"""
     context = {
@@ -488,7 +488,7 @@ def warranty_overview(request):
     return render(request, 'cskh/warranty/overview.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def warranty_list(request):
     """Danh sách bảo hành"""
     # Mock data
@@ -524,7 +524,7 @@ def warranty_list(request):
     return render(request, 'cskh/warranty/list.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def warranty_detail(request, warranty_id):
     """Chi tiết bảo hành"""
     warranty = {
@@ -551,7 +551,7 @@ def warranty_detail(request, warranty_id):
 # REVIEW VIEWS
 # =======================
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def review_overview(request):
     """Tổng quan đánh giá"""
     context = {
@@ -573,7 +573,7 @@ def review_overview(request):
     return render(request, 'cskh/reviews/overview.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def review_list(request):
     """Danh sách đánh giá"""
     # Mock data
@@ -627,7 +627,7 @@ def review_list(request):
 # ORDERS & PRODUCTS LOOKUP
 # =======================
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def orders_view(request):
     """Tra cứu đơn hàng"""
     context = {
@@ -636,7 +636,7 @@ def orders_view(request):
     return render(request, 'cskh/lookup/orders.html', context)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 def products_view(request):
     """Tra cứu sản phẩm"""
     context = {

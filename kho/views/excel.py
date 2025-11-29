@@ -3,7 +3,7 @@
 Excel export/import views cho kho/products.
 """
 
-from django.contrib.auth.decorators import login_required
+from kho.utils import group_required
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_POST
 import logging
@@ -23,7 +23,7 @@ from products.services.dto import VariantMetadataDTO, BoxInfoDTO, PackedInfoDTO,
 logger = logging.getLogger(__name__)
 
 
-@login_required
+@group_required("WarehouseManager")
 def export_products_excel(request: HttpRequest):
     """
     Export danh sách variants ra file Excel.
@@ -226,7 +226,7 @@ def export_products_excel(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@group_required("WarehouseManager")
 @require_POST
 def import_products_excel(request: HttpRequest):
     """

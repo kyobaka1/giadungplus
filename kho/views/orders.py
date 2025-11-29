@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import traceback
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from kho.utils import group_required
 from core.sapo_client import BaseFilter
 from orders.services.sapo_service import (
     SapoMarketplaceService,
@@ -42,6 +43,7 @@ def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:
         print("[DEBUG]", *args, **kwargs)
 
+@group_required("WarehouseManager")
 def prepare_and_print(request):
     """
     Màn hình:
@@ -56,7 +58,7 @@ def prepare_and_print(request):
     }
     return render(request, "kho/orders/prepare_print.html", context)
 
-@login_required
+@group_required("WarehouseManager")
 def express_orders(request):
     """
     Đơn hoả tốc:
@@ -166,7 +168,7 @@ def express_orders(request):
     return render(request, "kho/orders/order_express.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def shopee_orders(request):
     """
     Đơn Shopee, Tiktok:
@@ -476,7 +478,7 @@ def shopee_orders(request):
 
 # ==================== NEW VIEWS (skeleton implementations) ====================
 
-@login_required
+@group_required("WarehouseManager")
 def sapo_orders(request):
     """
     Đơn Sapo:
@@ -757,7 +759,7 @@ def sapo_orders(request):
 
 
 
-@login_required
+@group_required("WarehousePacker")
 def packing_orders(request):
     """
     Đóng gói hàng:
@@ -774,7 +776,7 @@ def packing_orders(request):
     return render(request, "kho/orders/packing_orders.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def connect_shipping(request):
     """
     Liên kết đơn gửi bù:
@@ -791,7 +793,7 @@ def connect_shipping(request):
     return render(request, "kho/orders/connect_shipping.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def sos_shopee(request):
     """
     SOS Shopee:
@@ -1213,7 +1215,7 @@ def sos_shopee(request):
     return render(request, "kho/orders/sos_shopee.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def packing_cancel(request):
     """
     Đơn đã gói nhưng bị huỷ:
@@ -1406,7 +1408,7 @@ def packing_cancel(request):
     return render(request, "kho/orders/packing_cancel.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def mark_received_cancel(request):
     """
     API endpoint để đánh dấu đã nhận lại hàng cho đơn bị huỷ.
@@ -1503,7 +1505,7 @@ def mark_received_cancel(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-@login_required
+@group_required("WarehouseManager")
 def return_orders(request):
     """
     Quản lý đơn hoàn:
@@ -1520,7 +1522,7 @@ def return_orders(request):
     return render(request, "kho/orders/return_orders.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def pickup_orders(request):
     """
     Đơn pickup:
@@ -1535,6 +1537,7 @@ def pickup_orders(request):
 
 
 @require_GET
+@group_required("WarehouseManager")
 def print_now(request: HttpRequest):
     """
     /kho/orders/print_now/?ids=<list marketplace_id>&print=yes/no&debug=0/1
@@ -2202,6 +2205,7 @@ def print_now(request: HttpRequest):
     return response
 
 
+@group_required("WarehousePacker")
 def packing_board(request):
     """
     Màn hình packing:

@@ -10,9 +10,9 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from kho.utils import group_required
 
 from core.sapo_client import SapoClient
 from orders.services.sapo_service import SapoCoreOrderService, mo_rong_gon
@@ -27,7 +27,7 @@ def debug_print(*args, **kwargs):
         print("[DEBUG]", *args, **kwargs)
 
 
-@login_required
+@group_required("WarehousePacker")
 @require_http_methods(["GET"])
 def get_order(request):
     """
@@ -199,7 +199,7 @@ def get_order(request):
         })
 
 
-@login_required
+@group_required("WarehousePacker")
 @require_http_methods(["POST"])
 def complete(request):
     """

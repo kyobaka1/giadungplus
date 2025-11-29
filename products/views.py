@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
+from kho.utils import admin_only
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
@@ -34,7 +34,7 @@ except ImportError:
     loginss = None
 
 
-@login_required
+@admin_only
 def product_list(request: HttpRequest):
     """
     Danh sách sản phẩm:
@@ -129,7 +129,7 @@ def product_list(request: HttpRequest):
     return render(request, "products/product_list.html", context)
 
 
-@login_required
+@admin_only
 def product_detail(request: HttpRequest, product_id: int):
     """
     Chi tiết sản phẩm:
@@ -209,7 +209,7 @@ def _parse_sku_for_sorting(sku: str) -> tuple:
     return (prefix, number, suffix_num, suffix_letters)
 
 
-@login_required
+@admin_only
 def variant_list(request: HttpRequest):
     """
     Danh sách phân loại (variants):
@@ -433,7 +433,7 @@ def variant_list(request: HttpRequest):
     return render(request, "products/variant_list.html", context)
 
 
-@login_required
+@admin_only
 def variant_detail(request: HttpRequest, variant_id: int):
     """
     Chi tiết phân loại:
@@ -480,7 +480,7 @@ def variant_detail(request: HttpRequest, variant_id: int):
     return render(request, "products/variant_detail.html", context)
 
 
-@login_required
+@admin_only
 @require_POST
 def init_all_products_metadata(request: HttpRequest):
     """
@@ -604,7 +604,7 @@ def init_all_products_metadata(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 def brand_settings(request: HttpRequest):
     """
     Quản lý cài đặt nhãn hiệu (bật/tắt).
@@ -663,7 +663,7 @@ def brand_settings(request: HttpRequest):
     return render(request, "products/brand_settings.html", context)
 
 
-@login_required
+@admin_only
 @require_POST
 def toggle_brand(request: HttpRequest):
     """
@@ -712,7 +712,7 @@ def toggle_brand(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 def init_variants_from_old_notes(request: HttpRequest):
     """
@@ -766,7 +766,7 @@ def init_variants_from_old_notes(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 def update_variant_metadata(request: HttpRequest, variant_id: int):
     """
@@ -971,7 +971,7 @@ def _get_xnk_service():
         return XNKModelService(sapo_client.core_session)
 
 
-@login_required
+@admin_only
 def xnk_model_list(request: HttpRequest):
     """
     Danh sách Model Xuất Nhập Khẩu:
@@ -1002,7 +1002,7 @@ def xnk_model_list(request: HttpRequest):
     return render(request, "products/xnk_model_list.html", context)
 
 
-@login_required
+@admin_only
 @require_http_methods(["GET"])
 def api_xnk_search(request: HttpRequest):
     """
@@ -1034,7 +1034,7 @@ def api_xnk_search(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 @csrf_exempt
 def api_xnk_edit(request: HttpRequest):
@@ -1099,7 +1099,7 @@ def api_xnk_edit(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 @csrf_exempt
 def api_xnk_create(request: HttpRequest):
@@ -1156,7 +1156,7 @@ def api_xnk_create(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 @csrf_exempt
 def api_xnk_delete(request: HttpRequest):
