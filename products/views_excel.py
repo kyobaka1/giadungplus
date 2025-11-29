@@ -4,7 +4,7 @@ Excel export/import views cho variants.
 Tách riêng để dễ quản lý.
 """
 
-from django.contrib.auth.decorators import login_required
+from kho.utils import admin_only
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_POST
 import logging
@@ -24,7 +24,7 @@ from products.services.dto import VariantMetadataDTO, BoxInfoDTO
 logger = logging.getLogger(__name__)
 
 
-@login_required
+@admin_only
 def export_variants_excel(request: HttpRequest):
     """
     Export danh sách variants ra file Excel.
@@ -169,7 +169,7 @@ def export_variants_excel(request: HttpRequest):
         }, status=500)
 
 
-@login_required
+@admin_only
 @require_POST
 def import_variants_excel(request: HttpRequest):
     """

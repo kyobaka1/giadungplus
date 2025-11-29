@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/static/favicon.png">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Averta -->
+    <style>
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+    }
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+    }
+
+    * {
+        font-family: 'Averta', sans-serif;
+    }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<!-- Thanh top -->
+<header class="w-full border-b border-slate-100 bg-white">
+    <div class="max-w-6xl mx-auto flex items-center justify-between py-3 px-4">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
+                <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
+            </div>
+            <div>
+                <div class="text-sm font-semibold">Gia Dụng Plus</div>
+                <div class="text-[11px] text-gray-500 -mt-1">Phần mềm hỗ trợ vận hành</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            {% if user.is_authenticated %}
+            <span class="text-sm text-slate-600">{{ user.get_full_name|default:user.username }}</span>
+            <a href="{% url 'logout' %}" class="text-sm text-orange-500 hover:underline">Đăng xuất</a>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+<!-- Nội dung chính -->
+<main class="min-h-[calc(100vh-120px)] flex items-center justify-center px-4">
+    <div class="max-w-2xl w-full text-center">
+        
+        <!-- Icon cảnh báo -->
+        <div class="mb-6 flex justify-center">
+            <div class="w-24 h-24 rounded-full bg-red-100 flex items-center justify-center">
+                <svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Tiêu đề -->
+        <h1 class="text-3xl font-semibold text-slate-800 mb-4">
+            Không có quyền truy cập
+        </h1>
+        
+        <p class="text-lg text-slate-600 mb-8">
+            Bạn không có quyền truy cập tính năng này.
+        </p>
+
+        <!-- Thông báo -->
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-8">
+            <p class="text-sm text-amber-800">
+                <strong>Nếu bạn cần quyền truy cập tính năng này, vui lòng liên hệ:</strong>
+            </p>
+            <div class="mt-3 space-y-1 text-sm text-amber-700">
+                <p>📧 <strong>Admin</strong> / <strong>Quản trị viên</strong></p>
+                <p>Để được cấp quyền phù hợp với vai trò của bạn.</p>
+            </div>
+        </div>
+
+        <!-- Nút quay lại -->
+        <div class="flex gap-4 justify-center">
+            <a href="{% url 'dashboard_home' %}" class="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition">
+                Về trang chủ
+            </a>
+            {% if user.is_superuser or user.groups.all|length > 0 %}
+            <a href="/admin/" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium rounded-lg transition">
+                Quản trị hệ thống
+            </a>
+            {% endif %}
+        </div>
+
+    </div>
+</main>
+
+<!-- Footer -->
+<footer class="border-t border-slate-100 py-4 bg-white">
+    <div class="max-w-6xl mx-auto text-center text-xs text-slate-400 px-4">
+        © 2025 GIADUNGPLUS TOOLs. Tất cả các quyền được bảo lưu.
+    </div>
+</footer>
+
+</body>
+</html>
+

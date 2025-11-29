@@ -2,7 +2,7 @@
 API endpoints cho Ticket operations
 """
 from django.shortcuts import get_object_or_404
-from django.contrib.auth.decorators import login_required
+from cskh.utils import group_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -19,7 +19,7 @@ from .services.ticket_service import TicketService
 
 
 @csrf_exempt
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["POST"])
 def api_add_cost(request, ticket_id):
     """API: Thêm chi phí cho ticket"""
@@ -165,7 +165,7 @@ def api_add_cost(request, ticket_id):
 
 
 @csrf_exempt
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["POST"])
 def api_update_reason(request, ticket_id):
     """API: Cập nhật reason cho ticket"""
@@ -204,7 +204,7 @@ def api_update_reason(request, ticket_id):
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_upload_ticket_files(request, ticket_id):
@@ -258,7 +258,7 @@ def api_upload_ticket_files(request, ticket_id):
     return JsonResponse({'success': True, 'files': saved_paths})
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_upload_cost_files(request, ticket_id, cost_id):
@@ -313,7 +313,7 @@ def api_upload_cost_files(request, ticket_id, cost_id):
     return JsonResponse({'success': True, 'files': saved_paths})
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_add_event(request, ticket_id):
@@ -389,7 +389,7 @@ def api_add_event(request, ticket_id):
 
 
 @csrf_exempt
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["POST"])
 def api_update_status(request, ticket_id):
     """API: Cập nhật status cho ticket"""
@@ -435,7 +435,7 @@ def api_update_status(request, ticket_id):
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["GET"])
 def api_get_reason_types(request):
     """API: Lấy danh sách reason types theo source"""
@@ -449,7 +449,7 @@ def api_get_reason_types(request):
 
 
 @csrf_exempt
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["POST"])
 def api_update_process_order(request, ticket_id):
     """
@@ -537,7 +537,7 @@ def api_update_process_order(request, ticket_id):
 
 
 @csrf_exempt
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["POST"])
 def api_update_responsible(request, ticket_id):
     """
@@ -599,7 +599,7 @@ def api_update_responsible(request, ticket_id):
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @require_http_methods(["GET"])
 def api_search_order(request):
     """API: Tìm order theo search key"""
@@ -687,7 +687,7 @@ def api_search_order(request):
     })
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_update_note(request, ticket_id):
@@ -695,7 +695,7 @@ def api_update_note(request, ticket_id):
     return JsonResponse({'success': False, 'error': 'deprecated'}, status=400)
 
 
-@login_required
+@group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_save_ticket(request, ticket_id):

@@ -1,11 +1,11 @@
 # kho/views/management.py
 from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
+from kho.utils import group_required
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
-@login_required
+@group_required("WarehouseManager")
 def stats(request):
     """
     Thống kê kho:

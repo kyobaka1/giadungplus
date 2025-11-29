@@ -1,11 +1,11 @@
 # kho/views/tickets.py
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
+from kho.utils import group_required
 from kho.models import Ticket, TicketComment
 
 
-@login_required
+@group_required("WarehouseManager")
 def ticket_list(request):
     """
     Danh sách ticket:
@@ -22,7 +22,7 @@ def ticket_list(request):
     return render(request, "kho/tickets/ticket_list.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def ticket_detail(request, ticket_id: int):
     """
     Chi tiết 1 ticket:
@@ -43,7 +43,7 @@ def ticket_detail(request, ticket_id: int):
     return render(request, "kho/tickets/ticket_detail.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def ticket_confirm_error(request, ticket_id: int):
     """
     Xác nhận lỗi:

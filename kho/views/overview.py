@@ -5,7 +5,7 @@ from core.sapo_client import get_sapo_client
 
 connection_ids = get_connection_ids()
 
-@group_required("CEO", "COO", "WarehouseManager")
+@group_required("WarehouseManager")
 def dashboard(request):
     """
     Màn hình tổng quan kho:

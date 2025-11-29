@@ -1,20 +1,17 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
-from django.contrib.auth.decorators import user_passes_test
+from kho.utils import admin_only
 from ..services.config_service import SapoConfigService, ShopeeConfigService
 
-def is_admin(user):
-    return user.is_active and user.is_superuser
-
-@user_passes_test(is_admin)
+@admin_only
 def settings_dashboard(request):
     """
     Trang tổng quan Settings
     """
     return render(request, 'settings/dashboard.html')
 
-@user_passes_test(is_admin)
+@admin_only
 @require_http_methods(["GET", "POST"])
 def sapo_config_view(request):
     """
@@ -41,7 +38,7 @@ def sapo_config_view(request):
     config = SapoConfigService.get_config()
     return render(request, 'settings/sapo_config.html', {'config': config})
 
-@user_passes_test(is_admin)
+@admin_only
 def shopee_dashboard_view(request):
     """
     Danh sách các shop Shopee và trạng thái cookie
@@ -55,7 +52,7 @@ def shopee_dashboard_view(request):
         
     return render(request, 'settings/shopee_shops.html', {'shops': shops})
 
-@user_passes_test(is_admin)
+@admin_only
 @require_http_methods(["GET", "POST"])
 def shopee_cookie_view(request, shop_name):
     """

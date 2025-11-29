@@ -4,13 +4,61 @@ Core app views.
 """
 
 import logging
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.core.cache import cache
+from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import LoginView
 
 from core.sapo_client.client import SELENIUM_LOCK_KEY
 
 logger = logging.getLogger(__name__)
+
+
+def custom_logout_view(request):
+    """
+    Custom logout view để xử lý cả GET và POST requests.
+    """
+    logout(request)
+    return redirect('/login/')
+
+
+class CustomLoginView(LoginView):
+    """
+    Custom login view để redirect về dashboard nếu user đã authenticated.
+    """
+    template_name = "auth/login.html"
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Nếu user đã đăng nhập, redirect về dashboard
+        if request.user.is_authenticated:
+            return redirect('/')
+        # Gọi super để handle GET/POST requests bình thường
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_success_url(self):
+        # Sau khi login thành công, redirect về dashboard hoặc next parameter
+        next_url = self.request.GET.get('next') or self.request.POST.get('next')
+        if next_url:
+            return next_url
+        return '/'
+
+
+@login_required
+def dashboard_home(request):
+    """
+    Trang dashboard điều hướng sau khi login.
+    Hiển thị grid các menu chính: Kho Hàng, CSKH, Quản trị, Cấu hình
+    """
+    if request.method != 'GET':
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(['GET'])
+    
+    context = {
+        'title': 'Dashboard - Gia Dụng Plus',
+    }
+    return render(request, 'core/dashboard.html', context)
 
 
 def selenium_loading_view(request):
@@ -30,6 +78,16 @@ def selenium_loading_view(request):
     }
     
     return render(request, 'core/selenium_loading.html', context)
+
+
+def permission_denied(request):
+    """
+    Trang thông báo không có quyền truy cập.
+    """
+    context = {
+        'title': 'Không có quyền truy cập - Gia Dụng Plus',
+    }
+    return render(request, 'core/permission_denied.html', context)
 
 
 def selenium_login_status_api(request):

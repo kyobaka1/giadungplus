@@ -1,7 +1,7 @@
 # kho/views/printing.py
 from django.shortcuts import render
 from django.http import HttpResponse, HttpRequest
-from django.contrib.auth.decorators import login_required
+from kho.utils import group_required
 from typing import Dict, Any
 import logging
 import re
@@ -17,7 +17,7 @@ from products.brand_settings import (
 logger = logging.getLogger(__name__)
 
 
-@login_required
+@group_required("WarehouseManager")
 def sorry_letter(request):
     """
     Thư xin lỗi:
@@ -41,7 +41,7 @@ def sorry_letter(request):
     return render(request, "kho/printing/sorry_letter.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def sorry_letter_print(request):
     """
     Trang in thư xin lỗi - chỉ có nội dung in, không có base template
@@ -60,7 +60,7 @@ def sorry_letter_print(request):
     return render(request, "kho/printing/sorry_letter_print.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def product_barcode(request):
     """
     In barcode sản phẩm:
@@ -135,7 +135,7 @@ def _parse_sku_for_sorting(sku: str) -> tuple:
     return (prefix, number, suffix_num, suffix_letters)
 
 
-@login_required
+@group_required("WarehouseManager")
 def product(request: HttpRequest):
     """
     Danh sách sản phẩm (variants):
@@ -365,7 +365,7 @@ def product(request: HttpRequest):
     return render(request, "kho/products/product_list.html", context)
 
 
-@login_required
+@group_required("WarehouseManager")
 def print_product_label(request: HttpRequest):
     """
     In nhãn phụ sản phẩm - kích thước A7 (74mm x 105mm)
@@ -454,7 +454,7 @@ def print_product_label(request: HttpRequest):
         return HttpResponse(f"Lỗi: {str(e)}", status=500)
 
 
-@login_required
+@group_required("WarehouseManager")
 def print_product_barcode(request: HttpRequest):
     """
     In barcode sản phẩm - kích thước 5x7cm (50mm x 70mm)
@@ -562,7 +562,7 @@ def get_trans_type_label(trans_type):
     return TRANS_TYPE_LABELS.get(trans_type_str, f'Loại {trans_type}')
 
 
-@login_required
+@group_required("WarehouseManager")
 def get_variant_inventory_history(request: HttpRequest):
     """
     API endpoint để lấy lịch sử xuất nhập kho của variant từ Sapo.
