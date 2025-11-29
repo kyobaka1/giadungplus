@@ -7,32 +7,46 @@ import os
 from pathlib import Path
 
 # Build paths
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
+# BASE_DIR từ settings.py đã đúng (/var/www/giadungplus)
+# Chỉ override nếu cần, nhưng thường không cần vì cả 2 đều trỏ về cùng thư mục project
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # Lưu SECRET_KEY trong biến môi trường hoặc file .env
 SECRET_KEY = os.environ.get('SECRET_KEY', 'CHANGE-THIS-TO-A-SECURE-RANDOM-KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['giadungplus.io.vn', '103.110.85.223', 'localhost', '127.0.0.1']
 CSRF_TRUSTED_ORIGINS = ['https://giadungplus.io.vn', 'https://103.110.85.223']
 
 # Database - PostgreSQL cho production
+# Lưu ý: Ưu tiên sử dụng giá trị cứng, chỉ dùng biến môi trường nếu thực sự cần
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'giadungplus_db'),
-        'USER': os.environ.get('DB_USER', 'giadungplus_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'CHANGE-THIS-PASSWORD'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': 'giadungplus_db',
+        'USER': 'giadungplus',  # Đã tạo trong setup_server.sh
+        'PASSWORD': '123122aC@',
+        'HOST': 'localhost',
+        'PORT': '5432',
         'OPTIONS': {
             'connect_timeout': 10,
         },
     }
 }
+# Override với biến môi trường nếu có (cho phép linh hoạt)
+if os.environ.get('DB_NAME'):
+    DATABASES['default']['NAME'] = os.environ.get('DB_NAME')
+if os.environ.get('DB_USER'):
+    DATABASES['default']['USER'] = os.environ.get('DB_USER')
+if os.environ.get('DB_PASSWORD'):
+    DATABASES['default']['PASSWORD'] = os.environ.get('DB_PASSWORD')
+if os.environ.get('DB_HOST'):
+    DATABASES['default']['HOST'] = os.environ.get('DB_HOST')
+if os.environ.get('DB_PORT'):
+    DATABASES['default']['PORT'] = os.environ.get('DB_PORT')
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
@@ -40,6 +54,16 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'assets'),
 ]
+
+# Tạo thư mục assets nếu chưa có (để tránh warning)
+ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
+if not os.path.exists(ASSETS_DIR):
+    os.makedirs(ASSETS_DIR)
+
+# Tạo thư mục staticfiles nếu chưa có
+STATICFILES_DIR = os.path.join(BASE_DIR, 'staticfiles')
+if not os.path.exists(STATICFILES_DIR):
+    os.makedirs(STATICFILES_DIR)
 
 # Media files (uploads)
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
