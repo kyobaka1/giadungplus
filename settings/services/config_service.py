@@ -87,12 +87,35 @@ class ShopeeConfigService:
         """
         Save cookie content for a specific shop.
         """
-        COOKIE_DIR.mkdir(parents=True, exist_ok=True)
-        cookie_file = COOKIE_DIR / f"{shop_name}.txt"
-        
-        # Normalize content (remove extra newlines, ensure format?)
-        # For now, save as is, but maybe strip empty lines at start/end
-        content = content.strip()
-        
-        with open(cookie_file, "w", encoding="utf-8") as f:
-            f.write(content)
+        try:
+            # Tạo thư mục nếu chưa tồn tại
+            COOKIE_DIR.mkdir(parents=True, exist_ok=True)
+            
+            # Cấp quyền ghi cho thư mục (nếu có thể)
+            try:
+                os.chmod(COOKIE_DIR, 0o775)  # rwxrwxr-x
+            except (OSError, PermissionError):
+                # Không thể chmod, bỏ qua (có thể cần sudo)
+                pass
+            
+            cookie_file = COOKIE_DIR / f"{shop_name}.txt"
+            
+            # Normalize content (remove extra newlines, ensure format?)
+            # For now, save as is, but maybe strip empty lines at start/end
+            content = content.strip()
+            
+            with open(cookie_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            
+            # Cấp quyền ghi cho file (nếu có thể)
+            try:
+                os.chmod(cookie_file, 0o664)  # rw-rw-r--
+            except (OSError, PermissionError):
+                # Không thể chmod, bỏ qua
+                pass
+                
+        except PermissionError as e:
+            raise PermissionError(
+                f"Không có quyền ghi vào {COOKIE_DIR}. "
+                f"Vui lòng chạy lệnh: sudo chmod -R 775 {COOKIE_DIR} && sudo chown -R www-data:www-data {COOKIE_DIR}"
+            ) from e
