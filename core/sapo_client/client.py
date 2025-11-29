@@ -18,8 +18,15 @@ from seleniumwire import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.chrome.service import Service as ChromeService
-from selenium import __version__ as selenium_version
+
+# Import Service cho Selenium 4.6+
+try:
+    from selenium.webdriver.chrome.service import Service as ChromeService
+    SELENIUM_NEW_VERSION = True
+except ImportError:
+    # Fallback cho Selenium cũ
+    ChromeService = None
+    SELENIUM_NEW_VERSION = False
 
 from core.models import SapoToken
 from core.system_settings import SAPO_BASIC, SAPO_TMDT
@@ -538,25 +545,82 @@ class SapoClient:
             debug_print("   - Chrome options đã cấu hình xong")
             
             # Xác định chromedriver path dựa trên hệ điều hành
+            import os
+            from pathlib import Path
+            
             system = platform.system()
+            BASE_DIR = Path(__file__).resolve().parent.parent.parent
+            
             if system == "Windows":
-                chromedriver_path = "chromedriver.exe"
+                chromedriver_path = str(BASE_DIR / "chromedriver.exe")
                 debug_print(f"   - Hệ điều hành: Windows, sử dụng {chromedriver_path}")
             else:
-                # Linux/Ubuntu
-                chromedriver_path = "chromedriver-linux"
-                debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path}")
+                # Linux/Ubuntu - thử nhiều vị trí
+                possible_paths = [
+                    str(BASE_DIR / "chromedriver-linux"),
+                    str(BASE_DIR / "chromedriver"),
+                    "/usr/bin/chromedriver",
+                    "/usr/local/bin/chromedriver",
+                    "chromedriver-linux",
+                    "chromedriver"
+                ]
+                chromedriver_path = None
+                for path in possible_paths:
+                    if os.path.exists(path) or (not os.path.isabs(path) and os.path.exists(str(BASE_DIR / path))):
+                        chromedriver_path = path if os.path.isabs(path) else str(BASE_DIR / path)
+                        break
+                
+                if not chromedriver_path:
+                    chromedriver_path = str(BASE_DIR / "chromedriver-linux")
+                    debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path} (file có thể chưa tồn tại)")
+                else:
+                    debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path}")
             
-            # Selenium 4.6+ không còn dùng executable_path, phải dùng Service
-            # Kiểm tra version để tương thích ngược
-            try:
-                # Thử dùng Service (Selenium 4.6+)
-                service = ChromeService(executable_path=chromedriver_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-            except TypeError:
-                # Fallback cho Selenium cũ hơn (< 4.6) - không nên xảy ra nhưng để an toàn
-                debug_print("   ⚠️  Sử dụng cách cũ cho Selenium < 4.6")
-                driver = webdriver.Chrome(executable_path=chromedriver_path, options=chrome_options)
+            # Selenium 4.6+ không còn dùng executable_path trong webdriver.Chrome()
+            # Nhưng Selenium Wire có thể vẫn hỗ trợ executable_path
+            # Thử theo thứ tự: Service -> executable_path -> auto-detect
+            
+            driver = None
+            last_error = None
+            
+            # Cách 1: Thử dùng Service (cho Selenium 4.6+ thông thường)
+            if SELENIUM_NEW_VERSION and ChromeService and os.path.exists(chromedriver_path):
+                try:
+                    service = ChromeService(executable_path=chromedriver_path)
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                    debug_print("   ✅ Khởi tạo thành công với Service")
+                except (TypeError, ValueError) as e:
+                    last_error = e
+                    debug_print(f"   ⚠️  Service không hoạt động: {e}")
+            
+            # Cách 2: Thử dùng executable_path trực tiếp (Selenium Wire có thể hỗ trợ)
+            if driver is None:
+                try:
+                    if os.path.exists(chromedriver_path):
+                        # Selenium Wire có thể vẫn hỗ trợ executable_path
+                        driver = webdriver.Chrome(executable_path=chromedriver_path, options=chrome_options)
+                        debug_print("   ✅ Khởi tạo thành công với executable_path")
+                    else:
+                        raise FileNotFoundError(f"ChromeDriver not found at: {chromedriver_path}")
+                except (TypeError, ValueError) as e:
+                    last_error = e
+                    debug_print(f"   ⚠️  executable_path không hoạt động: {e}")
+            
+            # Cách 3: Auto-detect (chromedriver phải có trong PATH)
+            if driver is None:
+                try:
+                    debug_print("   ⚠️  Thử auto-detect chromedriver từ PATH...")
+                    driver = webdriver.Chrome(options=chrome_options)
+                    debug_print("   ✅ Khởi tạo thành công với auto-detect")
+                except Exception as e:
+                    last_error = e
+                    debug_print(f"   ❌ Auto-detect cũng thất bại: {e}")
+            
+            # Nếu tất cả đều thất bại
+            if driver is None:
+                error_msg = f"Không thể khởi tạo Chrome WebDriver. Lỗi cuối: {last_error}"
+                debug_print(f"   ❌ {error_msg}")
+                raise RuntimeError(error_msg)
             
             debug_print("✅ [Selenium] Chrome browser đã khởi động thành công")
             captured_core_headers: Dict[str, str] = {}
