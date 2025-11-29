@@ -94,8 +94,41 @@
         white-space: nowrap;
         line-height: 1.2;
     }
+
+    /* Style cho filter button active */
+    .filter-express-btn.active {
+        background-color: rgb(239 246 255);
+        border-color: rgb(96 165 250);
+        color: rgb(29 78 216);
+        font-weight: 600;
+    }
 </style>
 <div class="min-h-screen bg-slate-100">
+    <!-- BỘ LỌC ĐƠN HỎA TỐC -->
+    <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
+        <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="text-[11px] text-slate-600 font-medium mr-1">Loại đơn:</span>
+            <button id="filter-express-all" 
+                    class="filter-btn filter-express-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                    data-filter-type="express"
+                    data-filter-value="all">
+                Tất cả (<span id="filter-express-all-count">0</span>)
+            </button>
+            <button id="filter-express-don-gap" 
+                    class="filter-btn filter-express-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                    data-filter-type="express"
+                    data-filter-value="don-gap">
+                Đơn gấp (<span id="filter-express-don-gap-count">0</span>)
+            </button>
+            <button id="filter-express-don-trong-ngay" 
+                    class="filter-btn filter-express-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                    data-filter-type="express"
+                    data-filter-value="don-trong-ngay">
+                Đơn trong ngày (<span id="filter-express-don-trong-ngay-count">0</span>)
+            </button>
+        </div>
+    </div>
+
     <!-- Tiêu đề + filter -->
     <div class="mb-4 flex items-center justify-between">
         <div class="flex items-center gap-3 text-sm">
@@ -136,8 +169,10 @@
         {% for order in orders %}
         {# Lấy sản phẩm đầu tiên cho phần thumbnail #}
         {% with first_product=order.products.0 %}
+        {% with carrier_name=order.shipping_carrier_name|default:""|lower %}
         <div class="flex border-t border-slate-100 hover:bg-slate-50/60 js-order-row{% if order.packing_status == 3 %} order-finding-shipper{% elif order.packing_status >= 4 %} order-packed{% endif %}"
-            data-order-id="{{ order.id }}">
+            data-order-id="{{ order.id }}"
+            data-express-type="{% if 'trong ngày' in carrier_name or 'giao trong ngày' in carrier_name %}don-trong-ngay{% else %}don-gap{% endif %}">
             <!-- Checkbox -->
             <div class="w-10 flex items-start justify-center pt-4">
                 <input type="checkbox" class="mt-1 rounded border-slate-300 js-order-checkbox"
@@ -432,6 +467,7 @@
             </div>
         </div>
         {% endwith %}
+        {% endwith %}
         {% endfor %}
         {% else %}
         <div class="py-10 text-center text-sm text-slate-500">
@@ -547,28 +583,133 @@
 </script>
 
 <script>
+    // Bộ lọc đơn hỏa tốc
+    let activeExpressFilter = null; // null = tất cả, 'don-gap' = đơn gấp, 'don-trong-ngay' = đơn trong ngày
+
     /**
-     * Lọc tất cả đơn hàng theo nội dung nhập ở ô search.
-     * So khớp trên toàn bộ text của từng dòng đơn (innerText hoặc textContent).
+     * Thu thập số lượng đơn theo express type
      */
-    function filterOrders() {
-        const input = document.getElementById('order-search-input');
-        if (!input) return;
+    window.collectExpressData = function() {
+        const allRows = document.querySelectorAll('.js-order-row');
+        let totalCount = 0;
+        let donGapCount = 0;
+        let donTrongNgayCount = 0;
 
-        const q = (input.value || '').trim().toLowerCase();
+        allRows.forEach((row) => {
+            const expressType = row.getAttribute('data-express-type') || '';
+            totalCount++;
+            
+            if (expressType === 'don-gap') {
+                donGapCount++;
+            } else if (expressType === 'don-trong-ngay') {
+                donTrongNgayCount++;
+            }
+        });
+
+        return {
+            total: totalCount,
+            donGap: donGapCount,
+            donTrongNgay: donTrongNgayCount
+        };
+    };
+
+    /**
+     * Cập nhật số đếm trên các button filter
+     */
+    window.updateExpressFilterCounts = function() {
+        const data = window.collectExpressData();
+        
+        const allCount = document.getElementById('filter-express-all-count');
+        const donGapCount = document.getElementById('filter-express-don-gap-count');
+        const donTrongNgayCount = document.getElementById('filter-express-don-trong-ngay-count');
+        
+        if (allCount) allCount.textContent = data.total;
+        if (donGapCount) donGapCount.textContent = data.donGap;
+        if (donTrongNgayCount) donTrongNgayCount.textContent = data.donTrongNgay;
+    };
+
+    /**
+     * Toggle filter khi click button
+     */
+    window.toggleExpressFilter = function(filterValue) {
+        // Remove active class từ tất cả buttons
+        document.querySelectorAll('.filter-express-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        // Set active class cho button được chọn
+        const btn = document.querySelector(`.filter-express-btn[data-filter-value="${filterValue}"]`);
+        if (btn) {
+            btn.classList.add('active');
+        }
+
+        // Cập nhật filter active
+        activeExpressFilter = filterValue === 'all' ? null : filterValue;
+
+        // Áp dụng filter
+        window.applyFilters();
+    };
+
+    /**
+     * Áp dụng filter cho tất cả đơn hàng
+     */
+    window.applyFilters = function() {
         const rows = document.querySelectorAll('.js-order-row');
+        const searchInput = document.getElementById('order-search-input');
+        const searchQuery = searchInput ? (searchInput.value || '').trim().toLowerCase() : '';
 
-        if (!rows.length) return;
+        rows.forEach((row) => {
+            // Check express type filter
+            const expressType = row.getAttribute('data-express-type') || '';
+            let matchesExpress = true;
+            
+            if (activeExpressFilter) {
+                matchesExpress = expressType === activeExpressFilter;
+            }
 
-        rows.forEach(row => {
-            // Sử dụng innerText hoặc textContent để lấy toàn bộ text content (không bao gồm HTML tags)
-            const text = (row.innerText || row.textContent || '').toLowerCase();
-            if (!q || text.includes(q)) {
+            // Check search query
+            const rowText = (row.innerText || row.textContent || '').toLowerCase();
+            const matchesSearch = !searchQuery || rowText.includes(searchQuery);
+
+            // Show/hide row
+            if (matchesExpress && matchesSearch) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
             }
         });
+    };
+
+    /**
+     * Khởi tạo filter buttons với event listeners
+     */
+    window.initExpressFilters = function() {
+        // Set click handlers cho các button
+        document.querySelectorAll('.filter-express-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const filterValue = this.getAttribute('data-filter-value');
+                window.toggleExpressFilter(filterValue);
+            });
+        });
+
+        // Cập nhật số đếm
+        window.updateExpressFilterCounts();
+    };
+
+    // Khởi tạo khi DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+            window.initExpressFilters();
+        }, 100);
+    });
+
+    /**
+     * Lọc tất cả đơn hàng theo nội dung nhập ở ô search.
+     * So khớp trên toàn bộ text của từng dòng đơn (innerText hoặc textContent).
+     */
+    function filterOrders() {
+        // Sử dụng hàm applyFilters để áp dụng cả search và express filter
+        window.applyFilters();
     }
 
     // Nếu có sẵn ?q= trên URL thì load xong auto filter luôn
