@@ -25,16 +25,56 @@ echo -e "${GREEN}📁 Creating directories if not exist...${NC}"
 mkdir -p "$SETTINGS_LOGS_DIR"
 mkdir -p "$COOKIE_DIR"
 
-# Xác định user chạy Django (thường là www-data hoặc user hiện tại)
-# Kiểm tra xem có process gunicorn đang chạy không
-DJANGO_USER=$(ps aux | grep -E '[g]unicorn|python.*manage.py' | head -1 | awk '{print $1}')
+# Xác định user chạy Django
+# Cách 1: Kiểm tra từ supervisor config (nếu có)
+if [ -f "/etc/supervisor/conf.d/giadungplus.conf" ]; then
+    DJANGO_USER=$(grep -E "^user=" /etc/supervisor/conf.d/giadungplus.conf | cut -d'=' -f2 | tr -d ' ')
+    if [ -n "$DJANGO_USER" ] && id "$DJANGO_USER" &>/dev/null; then
+        echo -e "${GREEN}✓ Tìm thấy user từ supervisor config: $DJANGO_USER${NC}"
+    else
+        DJANGO_USER=""
+    fi
+fi
 
+# Cách 2: Kiểm tra từ process gunicorn (nếu chưa tìm thấy)
 if [ -z "$DJANGO_USER" ]; then
-    # Nếu không tìm thấy, dùng www-data (mặc định cho web server)
-    DJANGO_USER="www-data"
-    echo -e "${YELLOW}⚠️  Không tìm thấy user Django, sử dụng: $DJANGO_USER${NC}"
-else
-    echo -e "${GREEN}✓ Tìm thấy user Django: $DJANGO_USER${NC}"
+    GUNICORN_USER=$(ps aux | grep -E '[g]unicorn.*giadungplus' | head -1 | awk '{print $1}')
+    # Loại bỏ các ký tự đặc biệt không hợp lệ (chỉ giữ chữ cái, số, gạch dưới, gạch ngang)
+    GUNICORN_USER=$(echo "$GUNICORN_USER" | sed 's/[^a-zA-Z0-9_-]//g')
+    
+    if [ -n "$GUNICORN_USER" ] && id "$GUNICORN_USER" &>/dev/null; then
+        DJANGO_USER="$GUNICORN_USER"
+        echo -e "${GREEN}✓ Tìm thấy user từ gunicorn process: $DJANGO_USER${NC}"
+    fi
+fi
+
+# Cách 3: Fallback - thử các user phổ biến
+if [ -z "$DJANGO_USER" ]; then
+    for user in "www-data" "nginx" "giadungplus" "ubuntu"; do
+        if id "$user" &>/dev/null; then
+            DJANGO_USER="$user"
+            echo -e "${YELLOW}⚠️  Sử dụng user mặc định: $DJANGO_USER${NC}"
+            break
+        fi
+    done
+fi
+
+# Cách 4: Cuối cùng dùng user hiện tại (trừ root)
+if [ -z "$DJANGO_USER" ] || [ "$DJANGO_USER" = "root" ]; then
+    CURRENT_USER=$(whoami)
+    if [ "$CURRENT_USER" != "root" ] && id "$CURRENT_USER" &>/dev/null; then
+        DJANGO_USER="$CURRENT_USER"
+        echo -e "${YELLOW}⚠️  Sử dụng user hiện tại: $DJANGO_USER${NC}"
+    else
+        echo -e "${RED}❌ Không thể xác định user Django. Vui lòng chỉ định thủ công.${NC}"
+        exit 1
+    fi
+fi
+
+# Validate user cuối cùng
+if ! id "$DJANGO_USER" &>/dev/null; then
+    echo -e "${RED}❌ User '$DJANGO_USER' không tồn tại!${NC}"
+    exit 1
 fi
 
 # Cấp quyền cho thư mục settings/logs
