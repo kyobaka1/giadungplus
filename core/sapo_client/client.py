@@ -536,19 +536,43 @@ class SapoClient:
         
         debug_print("🌐 [Selenium] Bước 2: Khởi tạo Chrome browser với Selenium Wire...")
         try:
+            # Khai báo system ngay đầu để dùng trong except block
+            system = platform.system()
+            chromedriver_path = None  # Khai báo trước để dùng trong except block
+            
             chrome_options = webdriver.ChromeOptions()
-            # chrome_options.add_argument("--headless")  # Disabled for testing - browser will be visible
-            chrome_options.add_argument("--disable-gpu")
+            
+            # Tự động bật headless trên Linux server (không có display)
+            if system == "Linux":
+                chrome_options.add_argument("--headless=new")  # Sử dụng headless mode mới
+                debug_print("   - Headless mode: ENABLED (Linux server)")
+            else:
+                # Windows/Mac - có thể bật/tắt tùy chỉnh
+                # chrome_options.add_argument("--headless=new")  # Uncomment nếu cần headless trên Windows
+                debug_print("   - Headless mode: DISABLED (có display)")
+            
+            # Options cần thiết cho server Linux
+            chrome_options.add_argument("--no-sandbox")  # Bắt buộc khi chạy với root
+            chrome_options.add_argument("--disable-dev-shm-usage")  # Tránh lỗi /dev/shm full
+            chrome_options.add_argument("--disable-gpu")  # Không cần GPU trên server
+            chrome_options.add_argument("--disable-software-rasterizer")
+            chrome_options.add_argument("--disable-extensions")
+            chrome_options.add_argument("--disable-logging")
+            chrome_options.add_argument("--disable-background-timer-throttling")
+            chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+            chrome_options.add_argument("--disable-renderer-backgrounding")
             chrome_options.add_argument("--window-size=1920,1080")
-            chrome_options.add_argument("--no-sandbox")
-            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--remote-debugging-port=9222")  # Hữu ích cho debugging
+            
+            # User agent để tránh bị phát hiện là bot
+            chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            
             debug_print("   - Chrome options đã cấu hình xong")
             
             # Xác định chromedriver path dựa trên hệ điều hành
             import os
             from pathlib import Path
             
-            system = platform.system()
             BASE_DIR = Path(__file__).resolve().parent.parent.parent
             
             if system == "Windows":
@@ -564,7 +588,6 @@ class SapoClient:
                     "chromedriver-linux",
                     "chromedriver"
                 ]
-                chromedriver_path = None
                 for path in possible_paths:
                     if os.path.exists(path) or (not os.path.isabs(path) and os.path.exists(str(BASE_DIR / path))):
                         chromedriver_path = path if os.path.isabs(path) else str(BASE_DIR / path)
@@ -620,14 +643,65 @@ class SapoClient:
             if driver is None:
                 error_msg = f"Không thể khởi tạo Chrome WebDriver. Lỗi cuối: {last_error}"
                 debug_print(f"   ❌ {error_msg}")
+                
+                # Thêm hướng dẫn khắc phục cho Linux
+                if system == "Linux":
+                    debug_print("\n   💡 HƯỚNG DẪN KHẮC PHỤC:")
+                    debug_print("   1. Cài đặt Chrome/Chromium:")
+                    debug_print("      sudo apt-get update")
+                    debug_print("      sudo apt-get install -y google-chrome-stable")
+                    debug_print("      # hoặc")
+                    debug_print("      sudo apt-get install -y chromium-browser")
+                    debug_print("   2. Kiểm tra ChromeDriver version khớp với Chrome:")
+                    debug_print("      google-chrome --version")
+                    debug_print("      chromedriver --version")
+                    debug_print("   3. Đảm bảo ChromeDriver có quyền thực thi:")
+                    debug_print("      chmod +x chromedriver-linux")
+                    debug_print("      # hoặc cài vào PATH:")
+                    debug_print("      sudo cp chromedriver-linux /usr/local/bin/chromedriver")
+                    debug_print("      sudo chmod +x /usr/local/bin/chromedriver")
+                
                 raise RuntimeError(error_msg)
             
             debug_print("✅ [Selenium] Chrome browser đã khởi động thành công")
             captured_core_headers: Dict[str, str] = {}
         except Exception as e:
-            debug_print(f"❌ [Selenium] LỖI khi khởi động Chrome: {type(e).__name__}: {str(e)}")
+            error_type = type(e).__name__
+            error_msg = str(e)
+            debug_print(f"❌ [Selenium] LỖI khi khởi động Chrome: {error_type}: {error_msg}")
+            
+            # Xử lý lỗi SessionNotCreatedException đặc biệt
+            if "SessionNotCreatedException" in error_type or "session not created" in error_msg.lower():
+                debug_print("\n   🔍 PHÂN TÍCH LỖI:")
+                debug_print("   - Chrome instance exited: Chrome không thể khởi động")
+                if system == "Linux":
+                    debug_print("\n   💡 GIẢI PHÁP CHO LINUX SERVER:")
+                    debug_print("   1. Đảm bảo Chrome/Chromium đã được cài đặt:")
+                    debug_print("      which google-chrome || which chromium-browser")
+                    debug_print("   2. Nếu chưa cài, chạy:")
+                    debug_print("      sudo apt-get update")
+                    debug_print("      sudo apt-get install -y google-chrome-stable")
+                    debug_print("   3. Kiểm tra ChromeDriver và Chrome version:")
+                    debug_print("      google-chrome --version")
+                    debug_print(f"      {chromedriver_path} --version")
+                    debug_print("   4. Test Chrome có chạy được không:")
+                    debug_print("      google-chrome --headless --disable-gpu --no-sandbox --version")
+                else:
+                    debug_print("   - Kiểm tra Chrome/ChromeDriver đã được cài đặt đúng chưa")
+                    debug_print("   - Kiểm tra version Chrome và ChromeDriver có khớp không")
+            
             self._release_selenium_lock()
-            raise
+            
+            # Tạo error message chi tiết hơn
+            detailed_error = f"{error_type}: {error_msg}"
+            if "SessionNotCreatedException" in error_type:
+                detailed_error += "\n\nChrome không thể khởi động. Vui lòng kiểm tra:\n"
+                detailed_error += "- Chrome/Chromium đã được cài đặt chưa?\n"
+                detailed_error += "- ChromeDriver version có khớp với Chrome không?\n"
+                if system == "Linux":
+                    detailed_error += "- Đã cài đặt các dependencies cần thiết chưa? (libnss3, libatk-bridge2.0-0, etc.)\n"
+            
+            raise RuntimeError(detailed_error) from e
         
         try:
             # === LOGIN ===
