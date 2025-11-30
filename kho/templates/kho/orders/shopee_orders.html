@@ -1379,64 +1379,37 @@
         const orderIdsToRemove = Array.from(selectedOrderIds);
 
         // ========== BƯỚC 1: XÓA ROWS NGAY LẬP TỨC ==========
-                    orderIdsToRemove.forEach(orderId => {
-                        const row = document.querySelector(`.js-order-row[data-order-id="${orderId}"]`);
-                        if (row) {
-                            row.style.transition = 'opacity 0.3s ease-out';
-                            row.style.opacity = '0';
-                            setTimeout(() => row.remove(), 300);
-                        }
-                    });
+        orderIdsToRemove.forEach(orderId => {
+            const row = document.querySelector(`.js-order-row[data-order-id="${orderId}"]`);
+            if (row) {
+                row.style.transition = 'opacity 0.3s ease-out';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 300);
+            }
+        });
 
         // ========== BƯỚC 2: RESET UI NGAY LẬP TỨC ==========
-                    selectedOrderIds.clear();
+        selectedOrderIds.clear();
 
         // Bỏ check tất cả các checkbox
-                    document.querySelectorAll('.order-checkbox').forEach(cb => {
-                        cb.checked = false;
-                    });
-                    const selectAllCb = document.getElementById('select-all-checkbox');
-                    if (selectAllCb) {
-                        selectAllCb.checked = false;
-                        selectAllCb.indeterminate = false;
-                    }
+        document.querySelectorAll('.order-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        const selectAllCb = document.getElementById('select-all-checkbox');
+        if (selectAllCb) {
+            selectAllCb.checked = false;
+            selectAllCb.indeterminate = false;
+        }
 
         // Reset button state
-                    updateBulkPanel();
+        updateBulkPanel();
 
-        // ========== BƯỚC 3: FETCH PDF VÀ MỞ TAB MỚI ==========
-        // Hiển thị toast "Đang xử lý..."
-        showToast('Đang tạo phiếu in...', 'info');
-
-        fetch(url, { method: "GET" })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.blob();
-            })
-            .then(blob => {
-                // Tạo URL từ blob
-                const pdfUrl = URL.createObjectURL(blob);
-
-                // Mở PDF trong tab mới
-                const newWindow = window.open(pdfUrl, '_blank');
-
-                if (newWindow) {
-                    // Sau khi mở, revoke URL để giải phóng memory
-                    setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-
-                    // Hiển thị toast thành công
-                    showToast('Đã tạo phiếu in thành công!', 'success');
-                } else {
-                    // Popup bị chặn
-                    showToast('Vui lòng cho phép popup để xem phiếu in', 'error');
-                }
-            })
-            .catch(err => {
-                console.error('Print error:', err);
-                showToast('Lỗi khi tạo phiếu in: ' + (err.message || 'Không xác định'), 'error');
-            });
+        // ========== BƯỚC 3: MỞ TAB MỚI VỚI URL print_now ==========
+        const newWindow = window.open(url, '_blank');
+        
+        if (!newWindow) {
+            showToast('Vui lòng cho phép popup để xem phiếu in', 'error');
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {

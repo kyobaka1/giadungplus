@@ -18,6 +18,8 @@ from orders.services.order_builder import build_order_from_sapo
 import os
 from io import BytesIO
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 from PyPDF2 import PdfReader, PdfWriter  # pip install PyPDF2
 from orders.services.sapo_service import SapoMarketplaceService
@@ -28,6 +30,7 @@ from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_GET
 import json
 import logging
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +115,30 @@ def express_orders(request):
                 days = int(seconds // 86400)
                 o["issued_ago"] = f"{days} ngày trước"
 
-        # 2) Lấy Sapo core order (DTO) theo sapo_order_id
+        # 2) Kiểm tra nếu là đơn vị "Nhanh" (shippingCarrierIds=59778) -> sync đơn trước
+        mp_order_id = o.get("id")
+        shipping_carrier_id = o.get("shipping_carrier_id") or o.get("shippingCarrierId")
+        shipping_carrier_name = o.get("shipping_carrier_name", "") or ""
+        
+        is_nhanh_carrier = (
+            shipping_carrier_id == 59778 
+            or "nhanh" in shipping_carrier_name.lower()
+        )
+        
+        if is_nhanh_carrier and mp_order_id:
+            try:
+                # Gửi PUT request sync đơn
+                from core.sapo_client import get_sapo_client
+                sapo = get_sapo_client()
+                sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
+                sapo.tmdt_session.put(sync_url)
+                # Đợi 0.5 giây
+                time.sleep(0.5)
+            except Exception as sync_err:
+                # Không block nếu sync lỗi, chỉ log
+                pass
+        
+        # 3) Lấy Sapo core order (DTO) theo sapo_order_id
         sapo_order_id = o.get("sapo_order_id")
         if not sapo_order_id:
             # Không map được về đơn core → bỏ qua
@@ -343,7 +369,30 @@ def shopee_orders(request):
                 days = int(seconds // 86400)
                 o["issued_ago"] = f"{days} ngày trước"
 
-        # 2) Lấy Sapo core order (DTO) theo sapo_order_id
+        # 2) Kiểm tra nếu là đơn vị "Nhanh" (shippingCarrierIds=59778) -> sync đơn trước
+        mp_order_id = o.get("id")
+        shipping_carrier_id = o.get("shipping_carrier_id") or o.get("shippingCarrierId")
+        shipping_carrier_name = o.get("shipping_carrier_name", "") or ""
+        
+        is_nhanh_carrier = (
+            shipping_carrier_id == 59778 
+            or "nhanh" in shipping_carrier_name.lower()
+        )
+        
+        if is_nhanh_carrier and mp_order_id:
+            try:
+                # Gửi PUT request sync đơn
+                from core.sapo_client import get_sapo_client
+                sapo = get_sapo_client()
+                sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
+                sapo.tmdt_session.put(sync_url)
+                # Đợi 0.5 giây
+                time.sleep(0.5)
+            except Exception as sync_err:
+                # Không block nếu sync lỗi, chỉ log
+                pass
+        
+        # 3) Lấy Sapo core order (DTO) theo sapo_order_id
         sapo_order_id = o.get("sapo_order_id")
         if not sapo_order_id:
             # Không map được về đơn core → bỏ qua
@@ -862,6 +911,75 @@ def sos_shopee(request):
     
     debug_print(f"sos_shopee Fetched {len(mp_orders)} Marketplace orders")
     
+    # ========== OPTIMIZATION: Pre-fetch orders từ Sapo Core API để cache ==========
+    step_start = time.time()
+    debug_print("sos_shopee Pre-fetching recent orders from Sapo Core API to cache...")
+    logger.info(f"[PERF] sos_shopee: Pre-fetching recent orders to cache...")
+    
+    # Collect tất cả sapo_order_ids cần fetch từ mp_orders
+    sapo_order_ids = set()
+    for o in mp_orders:
+        sapo_order_id = o.get("sapo_order_id")
+        if sapo_order_id:
+            sapo_order_ids.add(sapo_order_id)
+    
+    debug_print(f"sos_shopee Need to fetch {len(sapo_order_ids)} unique orders")
+    
+    # Fetch list orders từ Sapo Core API (1000 orders gần nhất = 4 pages)
+    orders_cache: Dict[int, Dict[str, Any]] = {}  # {order_id: raw_order_data}
+    cache_fetch_start = time.time()
+    page = 1
+    limit = 250
+    max_pages = 4  # 4 pages = 1000 orders
+    
+    cache_api_calls = 0
+    while page <= max_pages:
+        try:
+            filters = {
+                "status": "draft,finalized",  # Lấy cả draft và finalized
+                "limit": limit,
+                "page": page,
+            }
+            
+            # Thêm location_id filter nếu có
+            if allowed_location_id:
+                filters["location_id"] = allowed_location_id
+            
+            page_start = time.time()
+            raw_response = core_service._core_api.list_orders_raw(**filters)
+            cache_api_calls += 1
+            page_time = time.time() - page_start
+            logger.info(f"[PERF] sos_shopee: Cache fetch page {page} took {page_time:.2f}s")
+            
+            orders_data = raw_response.get("orders", [])
+            
+            if not orders_data:
+                break
+            
+            # Cache orders vào dict
+            for order_data in orders_data:
+                order_id = order_data.get("id")
+                if order_id and order_id in sapo_order_ids:
+                    orders_cache[order_id] = order_data
+            
+            debug_print(f"sos_shopee Cache page {page}: {len(orders_data)} orders, matched {len([o for o in orders_data if o.get('id') in sapo_order_ids])} needed orders")
+            
+            # Check nếu đã cache đủ orders cần thiết
+            if len(orders_cache) >= len(sapo_order_ids):
+                debug_print(f"sos_shopee Cache complete: {len(orders_cache)}/{len(sapo_order_ids)} orders found")
+                break
+            
+            page += 1
+        except Exception as e:
+            logger.error(f"sos_shopee Error fetching cache page {page}: {e}", exc_info=True)
+            break
+    
+    cache_fetch_time = time.time() - cache_fetch_start
+    cache_hits = len(orders_cache)
+    cache_misses = len(sapo_order_ids) - cache_hits
+    debug_print(f"sos_shopee Cache fetch complete: {cache_hits} hits, {cache_misses} misses in {cache_fetch_time:.2f}s ({cache_api_calls} API calls)")
+    logger.info(f"[PERF] sos_shopee: Cache fetch complete: {cache_hits} hits, {cache_misses} misses in {cache_fetch_time:.2f}s")
+    
     # ========== 2. LẤY ĐƠN TỪ SAPO CORE (SAPO ORDERS) ==========
     debug_print("sos_shopee Fetching Sapo Core orders...")
     from core.sapo_client import get_sapo_client
@@ -923,8 +1041,18 @@ def sos_shopee(request):
             continue
         
         try:
-            order_dto: OrderDTO = core_service.get_order_dto(o["sapo_order_id"])
-            api_call_count["get_order"] += 1
+            # Check cache trước
+            sapo_order_id = o["sapo_order_id"]
+            if sapo_order_id in orders_cache:
+                # Dùng data từ cache
+                cached_data = orders_cache[sapo_order_id]
+                debug_print(f"sos_shopee Using cached data for order {sapo_order_id}")
+                order_dto: OrderDTO = build_order_from_sapo(cached_data, sapo_client=core_service._sapo)
+            else:
+                # Không có trong cache, gọi API riêng lẻ
+                debug_print(f"sos_shopee Cache miss, calling API: GET /orders/{sapo_order_id}.json")
+                order_dto: OrderDTO = core_service.get_order_dto(sapo_order_id)
+                api_call_count["get_order"] += 1
         except Exception as e:
             debug_print(f"sos_shopee Skip order {o.get('id')} - Error getting DTO: {e}")
             continue
@@ -1541,28 +1669,356 @@ def pickup_orders(request):
     return render(request, "kho/orders/pickup.html", context)
 
 
+def _process_single_order(
+    mp_order_id: int,
+    meta: Dict[str, Any],
+    core_service: SapoCoreOrderService,
+    debug_mode: bool,
+    BILL_DIR: str,
+) -> Dict[str, Any]:
+    """
+    Xử lý một đơn hàng đơn lẻ.
+    Thu thập log vào một string, chỉ in ra khi có lỗi.
+    """
+    """
+    Xử lý một đơn hàng riêng lẻ - tạo PDF, lưu file, update packing status.
+    
+    Returns:
+        Dict với keys:
+            - "success": bool
+            - "pdf_bytes": bytes | None
+            - "channel_order_number": str
+            - "error": Dict | None
+            - "bill_path": str
+    """
+    result = {
+        "success": False,
+        "pdf_bytes": None,
+        "channel_order_number": "",
+        "error": None,
+        "bill_path": "",
+    }
+    
+    # Thu thập log vào một string
+    log_messages = []
+    
+    def add_log(msg: str):
+        """Thêm log message vào list"""
+        if debug_mode:
+            log_messages.append(msg)
+    
+    # Tắt các log từ các service khác khi xử lý đơn hàng
+    # Chỉ bật lại khi có lỗi
+    from orders.services import promotion_service, shopee_print_service
+    from orders.services import sapo_service
+    
+    # Lưu trạng thái DEBUG ban đầu
+    original_promo_debug = hasattr(promotion_service, 'debug_print')
+    original_shopee_debug = shopee_print_service.DEBUG if hasattr(shopee_print_service, 'DEBUG') else True
+    original_sapo_debug = sapo_service.DEBUG_PRINT if hasattr(sapo_service, 'DEBUG_PRINT') else True
+    
+    # Tắt log tạm thời
+    def disable_logs():
+        if hasattr(promotion_service, 'debug_print'):
+            promotion_service.debug_print = lambda *args, **kwargs: None
+        if hasattr(shopee_print_service, 'DEBUG'):
+            shopee_print_service.DEBUG = False
+        if hasattr(sapo_service, 'DEBUG_PRINT'):
+            sapo_service.DEBUG_PRINT = False
+    
+    def restore_logs():
+        if hasattr(promotion_service, 'debug_print') and original_promo_debug:
+            promotion_service.debug_print = print
+        if hasattr(shopee_print_service, 'DEBUG'):
+            shopee_print_service.DEBUG = original_shopee_debug
+        if hasattr(sapo_service, 'DEBUG_PRINT'):
+            sapo_service.DEBUG_PRINT = original_sapo_debug
+    
+    # Tắt log khi bắt đầu xử lý
+    disable_logs()
+    
+    try:
+        channel_order_number = meta["channel_order_number"]
+        connection_id = meta["connection_id"]
+        result["channel_order_number"] = channel_order_number
+        
+        # Kiểm tra nếu là đơn vị "Nhanh" (shippingCarrierIds=59778) -> sync đơn trước
+        shipping_carrier_name = meta.get("shipping_carrier", "") or ""
+        shipping_carrier_id = meta.get("shipping_carrier_id")
+        
+        # Check nếu là đơn vị "Nhanh" (ID=59778 hoặc tên chứa "Nhanh")
+        is_nhanh_carrier = (
+            shipping_carrier_id == 59778 
+            or "nhanh" in shipping_carrier_name.lower()
+        )
+        
+        if is_nhanh_carrier:
+            try:
+                # Gửi PUT request sync đơn
+                from core.sapo_client import get_sapo_client
+                sapo = get_sapo_client()
+                sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
+                sapo.tmdt_session.put(sync_url)
+                add_log(f"🔄 Synced order {channel_order_number} (Nhanh carrier)")
+                # Đợi 0.5 giây
+                time.sleep(0.5)
+            except Exception as sync_err:
+                add_log(f"⚠️ Sync order {channel_order_number} failed: {sync_err}")
+        
+        # Lấy DTO và apply gifts
+        dto = None
+        try:
+            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            
+            # Apply gifts từ promotions
+            if dto:
+                try:
+                    from core.sapo_client import get_sapo_client
+                    from orders.services.promotion_service import PromotionService
+                    
+                    sapo_for_promo = get_sapo_client()
+                    promo_service = PromotionService(sapo_for_promo)
+                    dto = promo_service.apply_gifts_to_order(dto)
+                    
+                    if dto.gifts:
+                        add_log(f"✓ Applied {len(dto.gifts)} gift(s) to order {channel_order_number}")
+                except Exception as gift_err:
+                    logger.warning(f"Failed to apply gifts for order {channel_order_number}: {gift_err}")
+        except Exception as dto_err:
+            add_log(f"⚠️ Could not get DTO for order {channel_order_number}: {dto_err}")
+        
+        # Check PROCESSED và thử đọc file cũ
+        is_processed = False
+        init_fail_reason = meta.get("init_fail_reason", "")
+        if "PROCESSED" in init_fail_reason:
+            is_processed = True
+        
+        pdf_bytes = None
+        bill_path = os.path.join(BILL_DIR, f"{channel_order_number}.pdf")
+        result["bill_path"] = bill_path
+        
+        # Nếu đã processed, thử đọc file cũ
+        if is_processed and os.path.exists(bill_path):
+            try:
+                with open(bill_path, "rb") as f:
+                    pdf_bytes = f.read()
+            except Exception:
+                pass
+        
+        # Nếu chưa có, generate PDF mới
+        if not pdf_bytes:
+            try:
+                shipping_carrier = meta.get("shipping_carrier") or ""
+                pdf_bytes = generate_label_pdf_for_channel_order(
+                    connection_id=connection_id,
+                    channel_order_number=channel_order_number,
+                    shipping_carrier=shipping_carrier,
+                    order_dto=dto,
+                )
+            except Exception as e:
+                # Import requests để check timeout
+                import requests
+                
+                # Nếu là timeout, bỏ qua ngay không cần thử đọc file cũ
+                is_timeout = (
+                    isinstance(e, requests.Timeout) or 
+                    isinstance(e, requests.exceptions.Timeout) or
+                    "timeout" in str(e).lower() or 
+                    "timed out" in str(e).lower()
+                )
+                
+                if is_timeout:
+                    error_reason = "generate_label_pdf_timeout"
+                    result["error"] = {
+                        "mp_order_id": mp_order_id,
+                        "channel_order_number": channel_order_number,
+                        "connection_id": connection_id,
+                        "reason": error_reason,
+                        "exception": str(e),
+                    }
+                    add_log(f"⏭️ Skipping order {channel_order_number} - timeout (skipping retry to speed up)")
+                    # Bật lại log khi có lỗi
+                    restore_logs()
+                    # In log khi có lỗi
+                    if log_messages:
+                        debug_print(f"[Order {channel_order_number}] " + " | ".join(log_messages))
+                    return result
+                
+                # Fallback cho các lỗi khác: thử đọc file cũ
+                if os.path.exists(bill_path):
+                    try:
+                        with open(bill_path, "rb") as f:
+                            pdf_bytes = f.read()
+                    except Exception:
+                        pass
+                
+                if not pdf_bytes:
+                    error_reason = "generate_label_pdf_failed"
+                    result["error"] = {
+                        "mp_order_id": mp_order_id,
+                        "channel_order_number": channel_order_number,
+                        "connection_id": connection_id,
+                        "reason": error_reason,
+                        "exception": str(e),
+                        "traceback": traceback.format_exc() if debug_mode else "",
+                    }
+                    add_log(f"⚠️ Skipping order {channel_order_number} - {error_reason}: {str(e)}")
+                    # Bật lại log khi có lỗi
+                    restore_logs()
+                    # In log khi có lỗi
+                    if log_messages:
+                        debug_print(f"[Order {channel_order_number}] " + " | ".join(log_messages))
+                    return result
+        
+        # Kiểm tra PDF bytes hợp lệ
+        if not pdf_bytes or len(pdf_bytes) == 0:
+            result["error"] = {
+                "mp_order_id": mp_order_id,
+                "channel_order_number": channel_order_number,
+                "reason": "pdf_bytes_empty_or_none",
+                "exception": "PDF bytes is empty or None after generation",
+            }
+            add_log(f"❌ PDF bytes is empty for order {channel_order_number}")
+            # Bật lại log khi có lỗi
+            restore_logs()
+            # In log khi có lỗi
+            if log_messages:
+                debug_print(f"[Order {channel_order_number}] " + " | ".join(log_messages))
+            return result
+        
+        # Lưu file
+        try:
+            with open(bill_path, "wb") as f:
+                f.write(pdf_bytes)
+        except Exception as e:
+            result["error"] = {
+                "mp_order_id": mp_order_id,
+                "channel_order_number": channel_order_number,
+                "reason": "cannot_write_file",
+                "exception": str(e),
+                "traceback": traceback.format_exc() if debug_mode else "",
+            }
+            add_log(f"❌ Cannot write file for order {channel_order_number}: {str(e)}")
+            # Bật lại log khi có lỗi
+            restore_logs()
+            # In log khi có lỗi
+            if log_messages:
+                debug_print(f"[Order {channel_order_number}] " + " | ".join(log_messages))
+            return result
+        
+        # Đánh dấu thành công khi PDF đã được tạo và ghi file thành công
+        result["success"] = True
+        result["pdf_bytes"] = pdf_bytes
+        
+        # KHÔNG gửi packing_status ở đây nữa
+        # packing_status sẽ được gửi SAU KHI PDF đã được merge thành công vào file cuối cùng
+        # Điều này đảm bảo không có đơn nào được đánh dấu thành công trên Sapo nếu PDF không được merge
+        
+        # Nếu thành công, KHÔNG in log nhưng vẫn restore logs để không ảnh hưởng đơn hàng tiếp theo
+        restore_logs()
+        
+        return result
+        
+    except Exception as e:
+        result["error"] = {
+            "mp_order_id": mp_order_id,
+            "channel_order_number": result.get("channel_order_number", ""),
+            "reason": "unexpected_error",
+            "exception": str(e),
+            "traceback": traceback.format_exc() if debug_mode else "",
+        }
+        add_log(f"❌ Unexpected error for order {result.get('channel_order_number', mp_order_id)}: {str(e)}")
+        # Bật lại log khi có lỗi
+        restore_logs()
+        # In log khi có lỗi
+        if log_messages:
+            debug_print(f"[Order {result.get('channel_order_number', mp_order_id)}] " + " | ".join(log_messages))
+        return result
+
+
+def _process_order_batch(
+    batch_order_ids: List[int],
+    order_meta: Dict[int, Dict[str, Any]],
+    core_service: SapoCoreOrderService,
+    debug_mode: bool,
+    BILL_DIR: str,
+    batch_num: int,
+) -> Dict[str, Any]:
+    """
+    Xử lý một batch các đơn hàng (5 đơn).
+    
+    Returns:
+        Dict với keys:
+            - "batch_num": int
+            - "results": List[Dict] - kết quả từ _process_single_order
+            - "errors": List[Dict] - các lỗi
+    """
+    batch_result = {
+        "batch_num": batch_num,
+        "results": [],
+        "errors": [],
+    }
+    
+    for mp_order_id in batch_order_ids:
+        meta = order_meta.get(mp_order_id)
+        if not meta:
+            batch_result["errors"].append({
+                "mp_order_id": mp_order_id,
+                "reason": "order_meta_not_found",
+            })
+            continue
+        
+        result = _process_single_order(
+            mp_order_id=mp_order_id,
+            meta=meta,
+            core_service=core_service,
+            debug_mode=debug_mode,
+            BILL_DIR=BILL_DIR,
+        )
+        # Thêm mp_order_id và meta vào result để track sau khi merge
+        result["mp_order_id"] = mp_order_id
+        result["meta"] = meta
+        
+        if result["success"]:
+            batch_result["results"].append(result)
+        else:
+            batch_result["errors"].append(result.get("error", {}))
+    
+    return batch_result
+
+
 @require_GET
 @group_required("WarehouseManager")
 def print_now(request: HttpRequest):
     """
-    /kho/orders/print_now/?ids=<list marketplace_id>&print=yes/no&debug=0/1
+    /kho/orders/print_now/?ids=<list marketplace_id>&print=yes/no&debug=0/1&format=json
 
-    Ý tưởng mới:
-    - Luôn gọi init_confirm trước để "tìm ship / chuẩn bị hàng".
-    - Nếu có trong init_success -> confirm_orders như cũ.
-    - Dù init_success hay init_fail, vẫn cố gắng in:
-        + Lấy channel_order_number + connection_id từ init_confirm (nếu có).
-        + Nếu không có (không nằm trong init_success/init_fail) -> fallback sang get_order_detail.
-    - print=no  -> chỉ chạy init_confirm + confirm_orders, trả JSON.
-    - print=yes -> init_confirm + confirm_orders, SAU ĐÓ luôn cố gắng generate PDF và trả về browser.
+    - Nếu có format=json: xử lý và trả JSON với kết quả
+    - Nếu không có format=json: render template với progress bar
+    - JavaScript trong template sẽ gọi lại endpoint với format=json để lấy kết quả
     """
 
     ids_raw = request.GET.get("ids", "")
     do_print = request.GET.get("print", "no") == "yes"
-    debug_mode = request.GET.get("debug", "0") in ("1", "true", "yes")
+    debug_mode = request.GET.get("debug", "1") in ("1", "true", "yes")  # Debug enabled by default
+    format_json = request.GET.get("format") == "json"
 
     if not ids_raw:
-        return JsonResponse({"error": "missing ids"}, status=400)
+        if format_json:
+            return JsonResponse({"error": "missing ids"}, status=400)
+        # Render template với lỗi
+        context = {
+            "title": "Đang xử lý phiếu in",
+            "error": "Không có đơn hàng được chọn"
+        }
+        return render(request, "kho/orders/print_now.html", context)
+
+    # Nếu không phải format=json, render template
+    if not format_json:
+        context = {
+            "title": "Đang xử lý phiếu in",
+        }
+        return render(request, "kho/orders/print_now.html", context)
 
     try:
         order_ids: List[int] = [int(i.strip()) for i in ids_raw.split(",") if i.strip()]
@@ -1640,6 +2096,7 @@ def print_now(request: HttpRequest):
                             item.get("shipping_by")
                             or item.get("shipping_carrier_name", "")
                     )
+                    shipping_carrier_id = item.get("shipping_carrier_id") or item.get("shippingCarrierId")
 
                     pickup_time_id = None
                     models = item.get("pick_up_shopee_models") or []
@@ -1689,6 +2146,7 @@ def print_now(request: HttpRequest):
                         "connection_id": connection_id,
                         "channel_order_number": channel_order_number,
                         "shipping_carrier": shipping_carrier,
+                        "shipping_carrier_id": shipping_carrier_id,
                         "address_id": address_id,
                         "source": "init_success",
                     }
@@ -1710,6 +2168,7 @@ def print_now(request: HttpRequest):
                             item.get("shipping_by")
                             or item.get("shipping_carrier_name", "")
                     )
+                    shipping_carrier_id = item.get("shipping_carrier_id") or item.get("shippingCarrierId")
                     reason = item.get("reason")
 
                     # Không thêm vào confirm_items vì can_confirm = False
@@ -1719,6 +2178,7 @@ def print_now(request: HttpRequest):
                             "connection_id": connection_id,
                             "channel_order_number": channel_order_number,
                             "shipping_carrier": shipping_carrier,
+                            "shipping_carrier_id": shipping_carrier_id,
                             "address_id": address_id,
                             "source": "init_fail",
                             "init_fail_reason": reason,
@@ -1792,6 +2252,28 @@ def print_now(request: HttpRequest):
     overall_status = "ok" if not errors else "error"
 
     # ------------------------------------------------------------------
+    # Nếu format=json -> trả JSON với kết quả
+    # ------------------------------------------------------------------
+    if format_json:
+        # Đếm số đơn thành công và thất bại
+        total_orders = len(order_ids)
+        success_count = total_orders - len(errors)
+        failed_count = len(errors)
+        
+        return JsonResponse(
+            {
+                "status": overall_status,
+                "total": total_orders,
+                "success": success_count,
+                "failed": failed_count,
+                "requested_ids": order_ids,
+                "errors": errors,
+                "confirm_response": confirm_resp,
+                "debug": debug_info if debug_mode else None,
+            }
+        )
+    
+    # ------------------------------------------------------------------
     # Nếu chỉ "tìm ship" -> trả JSON, KHÔNG in
     # ------------------------------------------------------------------
     if not do_print:
@@ -1815,370 +2297,199 @@ def print_now(request: HttpRequest):
     debug_info["step"] = "start_generate_pdf"
     debug_info["generated_files"] = []
     debug_info["pdf_errors"] = []
-
-    for mp_order_id in order_ids:
-        # Lấy meta nếu đã có từ init_confirm
-        meta = order_meta.get(mp_order_id)
-
-        # Nếu chưa có (không nằm trong init_success / init_data bị lỗi) -> fallback get_order_detail
-        meta = order_meta.get(mp_order_id)
-        if not meta:
-            debug_info["pdf_errors"].append(
-                {
-                    "mp_order_id": mp_order_id,
-                    "reason": "order_meta_not_found_in_init_success_or_fail",
-                }
+    
+    # =====================================================================
+    # XỬ LÝ ĐA LUỒNG - Chia đơn hàng thành các batch, mỗi batch 5 đơn
+    # =====================================================================
+    ORDERS_PER_BATCH = 5
+    batches = []
+    for i in range(0, len(order_ids), ORDERS_PER_BATCH):
+        batch = order_ids[i:i + ORDERS_PER_BATCH]
+        batches.append((i // ORDERS_PER_BATCH + 1, batch))
+    
+    total_batches = len(batches)
+    debug_info["total_orders"] = len(order_ids)
+    debug_info["total_batches"] = total_batches
+    debug_info["orders_per_batch"] = ORDERS_PER_BATCH
+    
+    if debug_mode:
+        debug_print(f"🚀 Starting multi-threaded processing: {len(order_ids)} orders in {total_batches} batches")
+    
+    # Thread-safe collections
+    all_pdf_results = []  # List of successful PDF results
+    all_errors = []  # List of errors
+    lock = threading.Lock()
+    
+    # Xử lý song song các batch
+    with ThreadPoolExecutor(max_workers=total_batches) as executor:
+        futures = {}
+        for batch_num, batch_order_ids in batches:
+            future = executor.submit(
+                _process_order_batch,
+                batch_order_ids,
+                order_meta,
+                core_service,
+                debug_mode,
+                BILL_DIR,
+                batch_num,
             )
-            # debug thì trả luôn cho dễ soi
-            if debug_mode:
-                return JsonResponse(
-                    {
-                        "status": "error",
-                        "message": "Không tìm thấy channel_order_number / connection_id cho đơn này trong init_success/init_fail",
-                        "mp_order_id": mp_order_id,
-                        "debug": debug_info,
-                    },
-                    status=500,
-                )
-            continue
-
-        channel_order_number = meta["channel_order_number"]
-        connection_id = meta["connection_id"]
-
-        # --- BƯỚC 1: Lấy DTO và apply gifts TRƯỚC KHI generate PDF ---
-        dto = None
-        try:
-            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-            
-            # --- APPLY GIFTS FROM PROMOTIONS ---
-            if dto:
-                try:
-                    from core.sapo_client import get_sapo_client
-                    from orders.services.promotion_service import PromotionService
-                    
-                    sapo_for_promo = get_sapo_client()
-                    promo_service = PromotionService(sapo_for_promo)
-                    dto = promo_service.apply_gifts_to_order(dto)
-                    
-                    if dto.gifts:
-                        debug_print(f"✓ Applied {len(dto.gifts)} gift(s) to order {channel_order_number}")
-                except Exception as gift_err:
-                    logger.warning(f"Failed to apply gifts for order {channel_order_number}: {gift_err}")
-                    debug_print(f"⚠️ Gift application error: {gift_err}")
-        except Exception as dto_err:
-            debug_print(f"⚠️ Could not get DTO for order {channel_order_number}: {dto_err}")
-            # Vẫn tiếp tục, hàm generate_label_pdf_for_channel_order có thể tự fetch nếu cần
-
-        # --- Logic mới: Check PROCESSED hoặc fallback ---
-        # 1. Check nếu đơn bị PROCESSED (init_fail) -> ưu tiên lấy từ file cũ
-        is_processed = False
-        init_fail_reason = meta.get("init_fail_reason", "")
-        if "PROCESSED" in init_fail_reason:
-            is_processed = True
+            futures[future] = batch_num
         
-        pdf_bytes = None
-        bill_path = os.path.join(BILL_DIR, f"{channel_order_number}.pdf")
-
-        # Nếu đã processed, thử đọc file cũ trước
-        if is_processed and os.path.exists(bill_path):
+        for future in as_completed(futures):
+            batch_num = futures[future]
             try:
-                with open(bill_path, "rb") as f:
-                    pdf_bytes = f.read()
-                debug_info.setdefault("logs", []).append(f"Loaded from local log: {bill_path}")
-            except Exception:
-                pass
-
-        # Nếu chưa có pdf_bytes (do không phải processed hoặc file không tồn tại), gọi API
-        if not pdf_bytes:
-            try:
-                shipping_carrier = meta.get("shipping_carrier") or ""
-                pdf_bytes = generate_label_pdf_for_channel_order(
-                    connection_id=connection_id,
-                    channel_order_number=channel_order_number,
-                    shipping_carrier=shipping_carrier,
-                    order_dto=dto,  # Pass DTO với gifts đã apply (có thể None nếu lỗi)
-                )
-            except Exception as e:
-                # Fallback cuối cùng: thử đọc file log lần nữa (có thể do lỗi mạng nhưng file cũ vẫn còn)
-                if os.path.exists(bill_path):
-                    try:
-                        with open(bill_path, "rb") as f:
-                            pdf_bytes = f.read()
-                        debug_info.setdefault("logs", []).append(f"Fallback to local log after error: {bill_path}")
-                    except Exception:
-                        pass
+                batch_result = future.result()
                 
-                if not pdf_bytes:
-                    debug_info["pdf_errors"].append(
-                        {
-                            "mp_order_id": mp_order_id,
-                            "channel_order_number": channel_order_number,
-                            "connection_id": connection_id,
-                            "reason": "generate_label_pdf_failed",
-                            "exception": str(e),
-                            "traceback": traceback.format_exc() if debug_mode else "",
-                        }
-                    )
-                    if debug_mode:
-                        return JsonResponse(
-                            {
-                                "status": "error",
-                                "message": "Lỗi khi generate_label_pdf_for_channel_order",
-                                "mp_order_id": mp_order_id,
-                                "channel_order_number": channel_order_number,
-                                "connection_id": connection_id,
-                                "exception": str(e),
-                                "traceback": traceback.format_exc(),
-                                "debug": debug_info,
-                            },
-                            status=500,
-                        )
-                    continue
-
-        # --- Lưu file đơn lẻ (nếu mới generate) ---
-        # Nếu lấy từ file cũ thì không cần ghi đè, nhưng ghi đè cũng không sao để update timestamp
-        try:
-            with open(bill_path, "wb") as f:
-                f.write(pdf_bytes)
-            debug_info["generated_files"].append(bill_path)
-        except Exception as e:
-            debug_info["pdf_errors"].append(
-                {
-                    "mp_order_id": mp_order_id,
-                    "channel_order_number": channel_order_number,
-                    "reason": "cannot_write_file",
-                    "exception": str(e),
-                    "traceback": traceback.format_exc() if debug_mode else "",
-                }
-            )
-            if debug_mode:
-                return JsonResponse(
-                    {
-                        "status": "error",
-                        "message": "Lỗi khi lưu file PDF",
-                        "mp_order_id": mp_order_id,
-                        "channel_order_number": channel_order_number,
+                with lock:
+                    # Collect successful PDFs
+                    all_pdf_results.extend(batch_result["results"])
+                    # Collect errors
+                    all_errors.extend(batch_result["errors"])
+                
+                if debug_mode:
+                    success_count = len(batch_result["results"])
+                    error_count = len(batch_result["errors"])
+                    debug_print(f"✅ Batch {batch_num}/{total_batches} completed: {success_count} success, {error_count} errors")
+            except Exception as e:
+                with lock:
+                    all_errors.append({
+                        "reason": "batch_processing_failed",
+                        "batch_num": batch_num,
                         "exception": str(e),
-                        "traceback": traceback.format_exc(),
-                        "debug": debug_info,
-                    },
-                    status=500,
-                )
-            continue
-
-        # --- UPDATE FULFILLMENT PACKING STATUS ---
-        # Handle case where Sapo MP and Sapo Core are not yet synced
-        # DTO đã được lấy ở trên, nếu chưa có thì thử lấy lại
-        if not dto:
-            try:
-                dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-            except Exception as dto_err:
-                debug_print(f"⚠️ Could not get DTO for packing status update: {dto_err}")
-                dto = None
-
-        if dto:
-            try:
-                # Check if dto exists and has tracking code (from MP) but no fulfillments yet
-                if not dto.fulfillments:
-                    # Sync order from MP to ensure fulfillments are created
-                    debug_print(f"⚠️ No fulfillments for order {channel_order_number}, syncing...")
-                    try:
-                        from core.sapo_client import get_sapo_client
-                        sapo = get_sapo_client()
-                        
-                        # Ensure marketplace session is initialized
-                        _ = sapo.marketplace  # This will trigger _ensure_tmdt_headers()
-                        
-                        # Sync the order using tmdt_session
-                        sync_url = f"https://market-place.sapoapps.vn/v2/orders/sync?ids={mp_order_id}&accountId=319911"
-                        sync_response = sapo.tmdt_session.put(sync_url)
-                        
-                        if sync_response.status_code == 200:
-                            debug_print(f"✅ Synced order {mp_order_id} successfully")
-                        else:
-                            debug_print(f"⚠️ Sync returned status {sync_response.status_code}")
-
-                        
-                        # Wait and retry to check if fulfillments are created
-                        import time
-                        max_retries = 5
-                        retry_delay = 2.0
-                        
-                        for retry in range(max_retries):
-                            time.sleep(retry_delay)
-                            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
-                            
-                            if dto and dto.fulfillments:
-                                debug_print(f"✅ Fulfillments created after sync (retry {retry + 1})")
-                                break
-                            else:
-                                debug_print(f"⏳ Waiting for fulfillments... (retry {retry + 1}/{max_retries})")
-                        
-                    except Exception as sync_error:
-                        debug_print(f"❌ Sync error: {sync_error}")
-                        debug_info.setdefault("logs", []).append(f"Sync error: {sync_error}")
-                
-                
-                # Get package count (split) and resolve shipping carrier from Shopee
-                split_count = None
-                resolved_carrier = None
-                
-                try:
-                    from orders.services.shopee_print_service import ShopeeClient, _load_shipping_channels
-                    from core.system_settings import get_shop_by_connection_id
-                    
-                    shop_cfg = get_shop_by_connection_id(connection_id)
-                    if shop_cfg:
-                        shop_name = shop_cfg["name"]
-                        client = ShopeeClient(shop_name)
-                        
-                        # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
-                        shopee_order_info = client.get_shopee_order_id(channel_order_number)
-                        shopee_order_id = shopee_order_info["order_id"]
-                        
-                        # Add shop_name and connection_id for email API call
-                        shopee_order_info["shop_name"] = shop_name
-                        shopee_order_info["connection_id"] = connection_id
-                        
-                        logger.debug(f"✅ Got Shopee order ID: {shopee_order_id}")
-                        
-                        # Auto-update customer info from Shopee data (non-blocking)
-                        if pdf_bytes and dto and dto.customer_id:
-                            try:
-                                from orders.services.customer_update_helper import update_customer_from_shopee_data
-                                update_customer_from_shopee_data(
-                                    customer_id=dto.customer_id,
-                                    shopee_order_info=shopee_order_info,
-                                    pdf_bytes=pdf_bytes
-                                )
-                            except Exception as e:
-                                logger.warning(f"Customer auto-update failed (non-blocking): {e}")
-                        
-                        package_info = client.get_package_info(shopee_order_id)
-                        package_list = package_info.get("package_list", [])
-                        split_count = len(package_list) if package_list else 1
-                        debug_print(f"📦 Package count (split): {split_count}")
-                        
-                        # Resolve shipping carrier name from channels mapping file
-                        if package_list:
-                            first_pack = package_list[0]
-
-                            channel_id = first_pack.get("fulfillment_channel_id") or first_pack.get("checkout_channel_id")
-                            
-                            # Load shipping channels map from JSON
-                            channels_map = _load_shipping_channels()
-                            base_carrier = meta.get("shipping_carrier") or ""
-                            resolved_carrier = base_carrier  # Start with base value
-                            
-                            if not resolved_carrier and channels_map and channel_id:
-                                # Try to get from JSON mapping
-                                ch = channels_map.get(int(channel_id))
-                                if ch:
-                                    resolved_carrier = ch.get("display_name") or ch.get("name")
-                                    debug_print(f"🚚 Resolved DVVC from channels file: {resolved_carrier}")
-                            
-                            if not resolved_carrier:
-                                # Fallback to package data
-                                resolved_carrier = (
-                                    first_pack.get("fulfillment_carrier_name")
-                                    or first_pack.get("checkout_carrier_name")
-                                    or ""
-                                )
-                                debug_print(f"🚚 Fallback DVVC from package: {resolved_carrier}")
-                            
-                            debug_print(f"🚚 Final shipping carrier: {resolved_carrier}")
-                            
-                except Exception as split_error:
-                    debug_print(f"⚠️ Could not get split count or resolve carrier: {split_error}")
-                    split_count = None
-                    resolved_carrier = meta.get("shipping_carrier") or ""
-                    
-                    # Fallback: Update customer from PDF only (cho express orders không phải Shopee)
-                    if pdf_bytes and dto and dto.customer_id:
-                        try:
-                            from orders.services.customer_update_helper import update_customer_from_pdf_only
-                            logger.debug(f"Express order - updating customer from PDF only (order: {channel_order_number})")
-                            update_customer_from_pdf_only(
-                                customer_id=dto.customer_id,
-                                pdf_bytes=pdf_bytes
-                            )
-                        except Exception as e:
-                            logger.warning(f"Customer auto-update from PDF failed (non-blocking): {e}")
-                
-                # Now update packing status if fulfillments exist
-                if dto and dto.fulfillments and len(dto.fulfillments) > 0:
-                    last_ff = dto.fulfillments[-1]
-                    if last_ff.id and dto.id:
-                        # Kiểm tra packing_status hiện tại
-                        current_packing_status = dto.packing_status or 0
-                        
-                        # Chỉ update nếu packing_status < 3 (giữ nguyên nếu >= 3)
-                        if current_packing_status < 3:
-                            # Use resolved carrier name (already resolved above)
-                            shipping_carrier_name = resolved_carrier or meta.get("shipping_carrier") or ""
-                            
-                            success = core_service.update_fulfillment_packing_status(
-                                order_id=dto.id,
-                                fulfillment_id=last_ff.id,
-                                packing_status=3,  # Đã in
-                                shopee_id=channel_order_number,  # Shopee order number
-                                split=split_count,  # Package count
-                                dvvc=shipping_carrier_name  # Shipping carrier name (resolved)
-                            )
-                            if success:
-                                debug_print(f"✅ Updated fulfillment {last_ff.id} with packing_status=3, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}")
-                                debug_info.setdefault("logs", []).append(
-                                    f"Updated fulfillment {last_ff.id}: packing_status=3, shopee_id={channel_order_number}, split={split_count}, dvvc={shipping_carrier_name}"
-                                )
-                        else:
-                            # Giữ nguyên packing_status hiện tại (>= 3)
-                            debug_print(f"⏭️ Skipped updating packing_status for fulfillment {last_ff.id}: current status={current_packing_status} (>= 3, keeping unchanged)")
-                            debug_info.setdefault("logs", []).append(
-                                f"Skipped updating packing_status for {channel_order_number}: current status={current_packing_status} (>= 3, keeping unchanged)"
-                            )
-                else:
-                    debug_print(f"⚠️ Cannot update packing_status: fulfillments still not available after sync")
-                    debug_info.setdefault("logs", []).append(
-                        f"Cannot update packing_status for {channel_order_number}: fulfillments not available"
-                    )
-                    
-            except Exception as e:
-                debug_print(f"❌ Update packing_status error: {e}")
-                debug_info.setdefault("logs", []).append(f"Update packing_status error: {e}")
-
-
-
-        # --- Gộp vào writer chung để trả về browser ---
+                        "traceback": traceback.format_exc() if debug_mode else "",
+                    })
+                if debug_mode:
+                    debug_print(f"❌ Batch {batch_num}/{total_batches} failed: {e}")
+    
+    # Cập nhật debug_info
+    debug_info["pdf_errors"] = all_errors
+    debug_info["successful_orders"] = len(all_pdf_results)
+    debug_info["failed_orders"] = len(all_errors)
+    
+    if debug_mode:
+        debug_print(f"📊 Processing complete: {len(all_pdf_results)} success, {len(all_errors)} errors")
+    
+    # =====================================================================
+    # MERGE TẤT CẢ PDF ĐÃ TẠO THÀNH CÔNG
+    # =====================================================================
+    successfully_merged_orders = []  # Track các đơn đã merge thành công để gửi packing_status
+    
+    for result in all_pdf_results:
+        pdf_bytes = result["pdf_bytes"]
+        channel_order_number = result["channel_order_number"]
+        bill_path = result["bill_path"]
+        mp_order_id = result.get("mp_order_id")
+        meta = result.get("meta", {})
+        
+        # Thêm bill_path vào generated_files
+        debug_info["generated_files"].append(bill_path)
+        
+        # Merge PDF vào writer
+        reader = None
+        merge_success = False
         try:
             reader = PdfReader(BytesIO(pdf_bytes))
             for page in reader.pages:
                 writer.add_page(page)
-        except Exception as e:
-            debug_info["pdf_errors"].append(
-                {
-                    "mp_order_id": mp_order_id,
-                    "channel_order_number": channel_order_number,
-                    "reason": "cannot_read_or_merge_pdf",
-                    "exception": str(e),
-                    "traceback": traceback.format_exc() if debug_mode else "",
-                }
-            )
+            
+            merge_success = True  # Đánh dấu merge thành công
+            
             if debug_mode:
-                return JsonResponse(
-                    {
-                        "status": "error",
-                        "message": "Lỗi khi đọc/gộp PDF",
-                        "mp_order_id": mp_order_id,
-                        "channel_order_number": channel_order_number,
-                        "exception": str(e),
-                        "traceback": traceback.format_exc(),
-                        "debug": debug_info,
-                    },
-                    status=500,
-                )
-            continue
+                file_size_kb = len(pdf_bytes) / 1024
+                page_count = len(reader.pages)
+                debug_print(f"📄 Merged PDF: {channel_order_number} - {page_count} pages, {file_size_kb:.1f} KB")
+        except Exception as e:
+            error_info = {
+                "channel_order_number": channel_order_number,
+                "reason": "cannot_read_or_merge_pdf",
+                "exception": str(e),
+                "traceback": traceback.format_exc() if debug_mode else "",
+            }
+            debug_info["pdf_errors"].append(error_info)
+            if debug_mode:
+                debug_print(f"⚠️ Failed to merge PDF for {channel_order_number}: {str(e)}")
+        finally:
+            if reader is not None:
+                del reader
+        
+        # CHỈ track các đơn đã merge thành công để gửi packing_status sau
+        if merge_success and mp_order_id and meta:
+            successfully_merged_orders.append({
+                "mp_order_id": mp_order_id,
+                "channel_order_number": channel_order_number,
+                "meta": meta,
+            })
 
     # ------------------------------------------------------------------
+    # GỬI packing_status LÊN SAPO CHO CÁC ĐƠN ĐÃ MERGE THÀNH CÔNG
+    # ------------------------------------------------------------------
+    for merged_order in successfully_merged_orders:
+        mp_order_id = merged_order["mp_order_id"]
+        channel_order_number = merged_order["channel_order_number"]
+        meta = merged_order["meta"]
+        
+        try:
+            # Lấy DTO để update packing_status
+            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            if dto and dto.fulfillments and len(dto.fulfillments) > 0:
+                last_ff = dto.fulfillments[-1]
+                if last_ff.id and dto.id:
+                    current_packing_status = dto.packing_status or 0
+                    if current_packing_status < 3:
+                        shipping_carrier_name = meta.get("shipping_carrier") or ""
+                        try:
+                            # Format time_print: "HH:MM DD-MM-YYYY"
+                            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+                            now_vn = datetime.now(tz_vn)
+                            time_print = now_vn.strftime("%H:%M %d-%m-%Y")
+                            
+                            core_service.update_fulfillment_packing_status(
+                                order_id=dto.id,
+                                fulfillment_id=last_ff.id,
+                                packing_status=3,
+                                dvvc=shipping_carrier_name,
+                                time_packing=time_print
+                            )
+                            if debug_mode:
+                                debug_print(f"✅ Updated packing_status=3 for order {channel_order_number}")
+                        except Exception as e:
+                            if debug_mode:
+                                debug_print(f"⚠️ Failed to update packing_status for {channel_order_number}: {e}")
+        except Exception as e:
+            if debug_mode:
+                debug_print(f"⚠️ Error updating packing_status for {channel_order_number}: {e}")
+    
+    # ------------------------------------------------------------------
+    # Nếu format=json -> trả JSON với kết quả (KHÔNG tạo PDF, chỉ thống kê)
+    # ------------------------------------------------------------------
+    if format_json:
+        # Tính tổng số đơn thành công và thất bại (bao gồm cả PDF errors)
+        total_orders = len(order_ids)
+        pdf_success_count = len(all_pdf_results)
+        pdf_failed_count = len(all_errors)
+        
+        # Kết hợp errors từ confirm và PDF generation
+        all_errors_combined = errors.copy()
+        for pdf_err in all_errors:
+            if isinstance(pdf_err, dict):
+                all_errors_combined.append(pdf_err)
+        
+        # KHÔNG tạo PDF khi format=json, chỉ trả về thống kê
+        # PDF sẽ được lấy từ endpoint riêng /kho/orders/print_now/pdf/
+        
+        return JsonResponse(
+            {
+                "status": "ok" if pdf_success_count > 0 else "error",
+                "total": total_orders,
+                "success": pdf_success_count,
+                "failed": pdf_failed_count,
+                "requested_ids": order_ids,
+                "errors": all_errors_combined,
+                "confirm_response": confirm_resp,
+                "debug": debug_info if debug_mode else None,
+            }
+        )
+
     # ------------------------------------------------------------------
     # Kết thúc: nếu không có page nào -> báo lỗi rõ ràng
     # ------------------------------------------------------------------
@@ -2197,15 +2508,415 @@ def print_now(request: HttpRequest):
             {"status": "error", "message": "Không tạo được PDF để in"}, status=500
         )
 
+    # Tối ưu: Tránh tạo copy không cần thiết với getvalue()
+    # Sử dụng streaming response để giảm memory usage
     output_buffer = BytesIO()
     writer.write(output_buffer)
     output_buffer.seek(0)
+    
+    # Lấy size để set Content-Length (tùy chọn, giúp browser biết trước)
+    pdf_data = output_buffer.read()
+    output_buffer.close()  # Giải phóng buffer sớm
+    
+    # Log kích thước để debug (nếu debug mode)
+    if debug_mode:
+        file_size_mb = len(pdf_data) / (1024 * 1024)
+        debug_print(f"📦 Merged PDF size: {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
+        debug_info["merged_pdf_size_bytes"] = len(pdf_data)
+        debug_info["merged_pdf_size_mb"] = round(file_size_mb, 2)
 
     response = HttpResponse(
-        output_buffer.getvalue(),
+        pdf_data,
         content_type="application/pdf",
     )
     response["Content-Disposition"] = 'inline; filename="shipping_labels.pdf"'
+    response["Content-Length"] = str(len(pdf_data))  # Giúp browser biết trước kích thước
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@group_required("WarehouseManager")
+def print_now_pdf(request: HttpRequest):
+    """
+    Endpoint riêng để lấy PDF sau khi đã xử lý xong.
+    /kho/orders/print_now/pdf/?ids=<list marketplace_id>&print=yes&format=json
+    
+    - Nếu format=json: trả JSON với thông tin chính xác về số đơn thành công/thất bại
+    - Nếu không có format=json: trả PDF trực tiếp
+    """
+    ids_raw = request.GET.get("ids", "")
+    do_print = request.GET.get("print", "no") == "yes"
+    debug_mode = request.GET.get("debug", "1") in ("1", "true", "yes")
+    format_json = request.GET.get("format") == "json"
+
+    if not ids_raw:
+        return JsonResponse({"error": "missing ids"}, status=400)
+
+    try:
+        order_ids: List[int] = [int(i.strip()) for i in ids_raw.split(",") if i.strip()]
+    except ValueError:
+        return JsonResponse({"error": "invalid ids"}, status=400)
+
+    mp_service = SapoMarketplaceService()
+    core_service = SapoCoreOrderService()
+
+    debug_info: Dict[str, Any] = {
+        "order_ids": order_ids,
+        "do_print": do_print,
+        "step": "init_confirm_start",
+    }
+
+    # ------------------------------------------------------------------
+    # B1: INIT_CONFIRM (chuẩn bị hàng) – luôn chạy
+    # ------------------------------------------------------------------
+    init_data: Dict[str, Any] | None = None
+    order_meta: Dict[int, Dict[str, Any]] = {}  # {mp_order_id: {...}}
+
+    try:
+        init_data = mp_service.init_confirm(order_ids)
+        debug_info["step"] = "init_confirm_done"
+        if debug_mode:
+            debug_info["init_raw"] = init_data
+    except Exception as e:
+        if debug_mode:
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "message": "Lỗi khi init_confirm",
+                    "exception": str(e),
+                    "traceback": traceback.format_exc(),
+                    "debug": debug_info,
+                },
+                status=500,
+            )
+        init_data = None
+
+    confirm_items: List[MarketplaceConfirmOrderDTO] = []
+
+    # ------------------------------------------------------------------
+    # PHÂN TÍCH init_data -> tạo confirm_items + order_meta (nếu có init_data)
+    # ------------------------------------------------------------------
+    if init_data:
+        try:
+            data_root = init_data.get("data", {}) if isinstance(init_data, dict) else {}
+            init_success_shopee = data_root.get("init_success", {}).get("shopee") or []
+            init_fail_shopee = data_root.get("init_fail", {}).get("shopee") or []
+
+            if debug_mode:
+                debug_info["init_success_shopee_count"] = len(init_success_shopee)
+                debug_info["init_fail_shopee_count"] = len(init_fail_shopee)
+
+            # ---- 1) Lấy meta từ init_success (đơn confirm được) ----
+            for shop_block in init_success_shopee:
+                connection_id = shop_block["connection_id"]
+                logistic = shop_block.get("logistic") or {}
+                address_list = logistic.get("address_list") or []
+                address_id = 0
+                if address_list:
+                    addr_obj = address_list[0]
+                    address_id = int(addr_obj.get("address_id", 0) or 0)
+
+                for item in shop_block.get("init_confirms", []):
+                    mp_order_id = item["order_id"]
+                    channel_order_number = item.get("channel_order_number")
+                    shipping_carrier = (
+                            item.get("shipping_by")
+                            or item.get("shipping_carrier_name", "")
+                    )
+                    shipping_carrier_id = item.get("shipping_carrier_id") or item.get("shippingCarrierId")
+
+                    pickup_time_id = None
+                    models = item.get("pick_up_shopee_models") or []
+                    if models and models[0].get("time_slot_list"):
+                        pickup_time_id = models[0]["time_slot_list"][0]["pickup_time_id"]
+
+                    shipping_carrier_lower = (shipping_carrier or "").lower()
+                    is_express = (
+                        "trong ngày" in shipping_carrier_lower
+                        or "giao trong ngày" in shipping_carrier_lower
+                        or "hoả tốc" in shipping_carrier_lower
+                        or "hoa toc" in shipping_carrier_lower
+                        or "grab" in shipping_carrier_lower
+                        or "bedelivery" in shipping_carrier_lower
+                        or "be delivery" in shipping_carrier_lower
+                        or "ahamove" in shipping_carrier_lower
+                        or "instant" in shipping_carrier_lower
+                    )
+                    
+                    pick_up_type = 1
+                    if (
+                            not is_express
+                            and "SPX Express" in shipping_carrier
+                            and address_id
+                            and is_geleximco_address(address_id)
+                    ):
+                        pick_up_type = 2
+
+                    confirm_items.append(
+                        MarketplaceConfirmOrderDTO(
+                            connection_id=connection_id,
+                            order_id=mp_order_id,
+                            pickup_time_id=pickup_time_id,
+                            pick_up_type=pick_up_type,
+                            address_id=address_id or 0,
+                        )
+                    )
+
+                    order_meta[mp_order_id] = {
+                        "connection_id": connection_id,
+                        "channel_order_number": channel_order_number,
+                        "shipping_carrier": shipping_carrier,
+                        "shipping_carrier_id": shipping_carrier_id,
+                        "address_id": address_id,
+                        "source": "init_success",
+                    }
+
+            # ---- 2) Lấy meta từ init_fail (đơn PROCESSED, không confirm được nhưng vẫn in) ----
+            for shop_block in init_fail_shopee:
+                connection_id = shop_block["connection_id"]
+                logistic = shop_block.get("logistic") or {}
+                address_list = logistic.get("address_list") or []
+                address_id = 0
+                if address_list:
+                    addr_obj = address_list[0]
+                    address_id = int(addr_obj.get("address_id", 0) or 0)
+
+                for item in shop_block.get("init_confirms", []):
+                    mp_order_id = item["order_id"]
+                    channel_order_number = item.get("channel_order_number")
+                    shipping_carrier = (
+                            item.get("shipping_by")
+                            or item.get("shipping_carrier_name", "")
+                    )
+                    shipping_carrier_id = item.get("shipping_carrier_id") or item.get("shippingCarrierId")
+                    reason = item.get("reason")
+
+                    if mp_order_id not in order_meta:
+                        order_meta[mp_order_id] = {
+                            "connection_id": connection_id,
+                            "channel_order_number": channel_order_number,
+                            "shipping_carrier": shipping_carrier,
+                            "shipping_carrier_id": shipping_carrier_id,
+                            "address_id": address_id,
+                            "source": "init_fail",
+                            "init_fail_reason": reason,
+                        }
+
+            debug_info["order_meta_from_init"] = order_meta
+            debug_info["step"] = "build_confirm_items_done"
+
+        except Exception as e:
+            if debug_mode:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": "Lỗi khi phân tích init_data",
+                        "exception": str(e),
+                        "traceback": traceback.format_exc(),
+                        "debug": debug_info,
+                    },
+                    status=500,
+                )
+            confirm_items = []
+
+    # ------------------------------------------------------------------
+    # B2: CONFIRM_ORDERS (chuẩn bị hàng) – chỉ chạy nếu có confirm_items
+    # ------------------------------------------------------------------
+    if confirm_items:
+        try:
+            mp_service.confirm_orders(confirm_items)
+            debug_info["step"] = "confirm_orders_done"
+        except Exception as e:
+            if debug_mode:
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": "Lỗi khi confirm_orders",
+                        "exception": str(e),
+                        "traceback": traceback.format_exc(),
+                        "debug": debug_info,
+                    },
+                    status=500,
+                )
+
+    # ------------------------------------------------------------------
+    # B3: TẠO PDF
+    # ------------------------------------------------------------------
+    os.makedirs(BILL_DIR, exist_ok=True)
+    writer = PdfWriter()
+    debug_info["step"] = "start_generate_pdf"
+    debug_info["generated_files"] = []
+    debug_info["pdf_errors"] = []
+    
+    ORDERS_PER_BATCH = 5
+    batches = []
+    for i in range(0, len(order_ids), ORDERS_PER_BATCH):
+        batch = order_ids[i:i + ORDERS_PER_BATCH]
+        batches.append((i // ORDERS_PER_BATCH + 1, batch))
+    
+    total_batches = len(batches)
+    debug_info["total_orders"] = len(order_ids)
+    debug_info["total_batches"] = total_batches
+    debug_info["orders_per_batch"] = ORDERS_PER_BATCH
+    
+    all_pdf_results = []
+    all_errors = []
+    lock = threading.Lock()
+    
+    with ThreadPoolExecutor(max_workers=total_batches) as executor:
+        futures = {}
+        for batch_num, batch_order_ids in batches:
+            future = executor.submit(
+                _process_order_batch,
+                batch_order_ids,
+                order_meta,
+                core_service,
+                debug_mode,
+                BILL_DIR,
+                batch_num,
+            )
+            futures[future] = batch_num
+        
+        for future in as_completed(futures):
+            batch_num = futures[future]
+            try:
+                batch_result = future.result()
+                with lock:
+                    all_pdf_results.extend(batch_result["results"])
+                    all_errors.extend(batch_result["errors"])
+            except Exception as e:
+                with lock:
+                    all_errors.append({
+                        "reason": "batch_processing_failed",
+                        "batch_num": batch_num,
+                        "exception": str(e),
+                        "traceback": traceback.format_exc() if debug_mode else "",
+                    })
+    
+    debug_info["pdf_errors"] = all_errors
+    total_orders = len(order_ids)
+    
+    # Merge PDF và tính lại số đơn thành công/thất bại chính xác
+    pdf_success_count = 0
+    pdf_failed_count = len(all_errors)  # Bắt đầu với số lỗi đã có
+    successfully_merged_orders = []  # Track các đơn đã merge thành công để gửi packing_status
+    
+    for result in all_pdf_results:
+        pdf_bytes = result["pdf_bytes"]
+        channel_order_number = result["channel_order_number"]
+        bill_path = result["bill_path"]
+        mp_order_id = result.get("mp_order_id")
+        meta = result.get("meta", {})
+        debug_info["generated_files"].append(bill_path)
+        
+        reader = None
+        merge_success = False
+        try:
+            reader = PdfReader(BytesIO(pdf_bytes))
+            for page in reader.pages:
+                writer.add_page(page)
+            # Nếu merge thành công, tăng số đơn thành công
+            pdf_success_count += 1
+            merge_success = True
+        except Exception as e:
+            # Nếu merge thất bại, tăng số đơn thất bại
+            pdf_failed_count += 1
+            error_info = {
+                "channel_order_number": channel_order_number,
+                "reason": "cannot_read_or_merge_pdf",
+                "exception": str(e),
+                "traceback": traceback.format_exc() if debug_mode else "",
+            }
+            debug_info["pdf_errors"].append(error_info)
+            all_errors.append(error_info)
+        finally:
+            if reader is not None:
+                del reader
+        
+        # CHỈ track các đơn đã merge thành công để gửi packing_status sau
+        if merge_success and mp_order_id and meta:
+            successfully_merged_orders.append({
+                "mp_order_id": mp_order_id,
+                "channel_order_number": channel_order_number,
+                "meta": meta,
+            })
+    
+    # ------------------------------------------------------------------
+    # GỬI packing_status LÊN SAPO CHO CÁC ĐƠN ĐÃ MERGE THÀNH CÔNG
+    # ------------------------------------------------------------------
+    for merged_order in successfully_merged_orders:
+        mp_order_id = merged_order["mp_order_id"]
+        channel_order_number = merged_order["channel_order_number"]
+        meta = merged_order["meta"]
+        
+        try:
+            # Lấy DTO để update packing_status
+            dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            if dto and dto.fulfillments and len(dto.fulfillments) > 0:
+                last_ff = dto.fulfillments[-1]
+                if last_ff.id and dto.id:
+                    current_packing_status = dto.packing_status or 0
+                    if current_packing_status < 3:
+                        shipping_carrier_name = meta.get("shipping_carrier") or ""
+                        try:
+                            # Format time_print: "HH:MM DD-MM-YYYY"
+                            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+                            now_vn = datetime.now(tz_vn)
+                            time_print = now_vn.strftime("%H:%M %d-%m-%Y")
+                            
+                            core_service.update_fulfillment_packing_status(
+                                order_id=dto.id,
+                                fulfillment_id=last_ff.id,
+                                packing_status=3,
+                                dvvc=shipping_carrier_name,
+                                time_packing=time_print
+                            )
+                            if debug_mode:
+                                debug_print(f"✅ Updated packing_status=3 for order {channel_order_number}")
+                        except Exception as e:
+                            if debug_mode:
+                                debug_print(f"⚠️ Failed to update packing_status for {channel_order_number}: {e}")
+        except Exception as e:
+            if debug_mode:
+                debug_print(f"⚠️ Error updating packing_status for {channel_order_number}: {e}")
+    
+    # Cập nhật debug_info với số liệu chính xác
+    debug_info["successful_orders"] = pdf_success_count
+    debug_info["failed_orders"] = pdf_failed_count
+
+    if not writer.pages:
+        if debug_mode:
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "message": "Không tạo được PDF để in",
+                    "reason": "no_pages_in_writer",
+                    "debug": debug_info,
+                },
+                status=500,
+            )
+        return JsonResponse(
+            {"status": "error", "message": "Không tạo được PDF để in"}, status=500
+        )
+
+    output_buffer = BytesIO()
+    writer.write(output_buffer)
+    output_buffer.seek(0)
+    pdf_data = output_buffer.read()
+    output_buffer.close()
+    
+    if debug_mode:
+        file_size_mb = len(pdf_data) / (1024 * 1024)
+        debug_print(f"📦 Merged PDF size: {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
+        debug_info["merged_pdf_size_bytes"] = len(pdf_data)
+        debug_info["merged_pdf_size_mb"] = round(file_size_mb, 2)
+
+    response = HttpResponse(
+        pdf_data,
+        content_type="application/pdf",
+    )
+    response["Content-Disposition"] = 'inline; filename="shipping_labels.pdf"'
+    response["Content-Length"] = str(len(pdf_data))
     response["Cache-Control"] = "no-store"
     return response
 

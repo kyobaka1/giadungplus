@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đang xử lý phiếu in</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        @font-face {
+            font-family: 'Averta';
+            src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+                url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+            font-weight: 700;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        * {
+            font-family: 'Averta', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+    <div class="min-h-screen">
+        <!-- Header với nút In phiếu -->
+        <div class="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+                <div>
+                    <h1 class="text-lg font-semibold text-slate-800">Xem trước bản in</h1>
+                    <p id="header-status-text" class="text-xs text-slate-500 mt-0.5"></p>
+                </div>
+                <button id="btn-print-pdf" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg transition hidden">
+                    In phiếu
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <!-- Processing Status (shown while processing) -->
+            <div id="processing-container" class="bg-white rounded-lg shadow-sm border border-slate-200 p-8 mb-6">
+                <!-- Header -->
+                <div class="text-center mb-8">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">Đang xử lý phiếu in</h2>
+                    <p class="text-sm text-slate-500" id="status-text">Đang chuẩn bị...</p>
+                </div>
+
+                <!-- Progress Bar Container -->
+                <div id="progress-container" class="mb-8">
+                    <div class="w-full bg-slate-200 rounded-full h-4 overflow-hidden">
+                        <div id="progress-bar" class="bg-orange-500 h-full rounded-full transition-all duration-300 ease-out" style="width: 0%">
+                            <div class="h-full bg-gradient-to-r from-orange-400 to-orange-600 animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-center">
+                        <span id="progress-text" class="text-sm font-semibold text-slate-700">0%</span>
+                    </div>
+                </div>
+
+                <!-- Processing Steps -->
+                <div id="steps-container" class="space-y-3 mb-8">
+                    <div class="flex items-center gap-3 text-sm">
+                        <div id="step-init" class="step-icon w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                            <span class="text-xs">1</span>
+                        </div>
+                        <span class="text-slate-600">Đang khởi tạo xác nhận đơn hàng...</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <div id="step-confirm" class="step-icon w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                            <span class="text-xs">2</span>
+                        </div>
+                        <span class="text-slate-600">Đang xác nhận đơn hàng...</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <div id="step-generate" class="step-icon w-6 h-6 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                            <span class="text-xs">3</span>
+                        </div>
+                        <span class="text-slate-600">Đang tạo phiếu in...</span>
+                    </div>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading-container" class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-orange-500 border-t-transparent"></div>
+                </div>
+            </div>
+
+            <!-- Results Container (hidden initially) -->
+            <div id="results-container" class="hidden">
+                <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 mb-6" style="max-height: 100px;">
+                    <div class="flex items-center justify-between gap-4 text-xs">
+                        <div class="flex items-center gap-4 flex-1">
+                            <div>
+                                <span class="text-slate-600">Tổng số đơn:</span>
+                                <span id="total-orders" class="ml-1 font-semibold text-slate-800">0</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-600">Đơn tạo phiếu in thành công:</span>
+                                <span id="success-count" class="ml-1 font-semibold text-emerald-600">0</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-600">Đơn tạo phiếu in thất bại:</span>
+                                <span id="failed-count" class="ml-1 font-semibold text-red-600">0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Error Toggle Button (if any errors) -->
+                        <button id="error-toggle-btn" class="hidden text-xs text-red-600 hover:text-red-700 font-medium px-3 py-1 border border-red-300 rounded hover:bg-red-50 transition">
+                            <span id="error-toggle-text">Xem chi tiết lỗi</span>
+                            <span id="error-toggle-icon" class="ml-1">▼</span>
+                        </button>
+                    </div>
+
+                    <!-- Error List (collapsible, hidden initially) -->
+                    <div id="error-list-container" class="hidden mt-3 pt-3 border-t border-slate-200">
+                        <div id="error-list" class="space-y-1.5 max-h-48 overflow-y-auto text-xs">
+                            <!-- Errors will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF Preview Container (hidden initially) -->
+            <div id="pdf-preview-container" class="hidden bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <!-- Loading state for PDF -->
+                <div id="pdf-loading" class="flex flex-col items-center justify-center py-20">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent mb-4"></div>
+                    <p class="text-sm text-slate-600">Đang xây dựng bản in...</p>
+                </div>
+                <!-- PDF iframe (hidden initially) -->
+                <iframe id="pdf-iframe" src="" class="w-full border border-slate-200 rounded hidden" style="min-height: 800px;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get order IDs from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const orderIds = urlParams.get('ids') || '';
+        const printParam = urlParams.get('print') || 'yes';
+
+        let processingInterval = null;
+        let currentProgress = 0;
+        let pdfBlobUrl = null; // Store PDF blob URL for printing
+
+        // Update progress bar
+        function updateProgress(percent) {
+            currentProgress = Math.min(100, Math.max(0, percent));
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            if (progressBar) {
+                progressBar.style.width = currentProgress + '%';
+            }
+            if (progressText) {
+                progressText.textContent = Math.round(currentProgress) + '%';
+            }
+        }
+
+        // Update step icons
+        function updateStep(stepName, status) {
+            const stepIcon = document.getElementById('step-' + stepName);
+            if (!stepIcon) return;
+
+            stepIcon.classList.remove('border-slate-300', 'bg-emerald-500', 'bg-red-500', 'bg-orange-500');
+            
+            if (status === 'active') {
+                stepIcon.classList.add('border-orange-500', 'bg-orange-500');
+                stepIcon.innerHTML = '<div class="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>';
+            } else if (status === 'completed') {
+                stepIcon.classList.add('bg-emerald-500', 'border-emerald-500');
+                stepIcon.innerHTML = '<span class="text-white text-xs">✓</span>';
+            } else if (status === 'error') {
+                stepIcon.classList.add('bg-red-500', 'border-red-500');
+                stepIcon.innerHTML = '<span class="text-white text-xs">✕</span>';
+            } else {
+                stepIcon.classList.add('border-slate-300');
+                stepIcon.innerHTML = '<span class="text-xs">' + stepIcon.textContent.match(/\d+/)[0] + '</span>';
+            }
+        }
+
+        // Update status text
+        function updateStatusText(text) {
+            const statusText = document.getElementById('status-text');
+            if (statusText) {
+                statusText.textContent = text;
+            }
+        }
+
+        // Simulate progress
+        function simulateProgress() {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90; // Don't go to 100% until done
+                
+                updateProgress(progress);
+                
+                // Update steps based on progress
+                if (progress < 30) {
+                    updateStep('init', 'active');
+                    updateStatusText('Đang khởi tạo xác nhận đơn hàng...');
+                } else if (progress < 60) {
+                    updateStep('init', 'completed');
+                    updateStep('confirm', 'active');
+                    updateStatusText('Đang xác nhận đơn hàng...');
+                } else {
+                    updateStep('init', 'completed');
+                    updateStep('confirm', 'completed');
+                    updateStep('generate', 'active');
+                    updateStatusText('Đang tạo phiếu in...');
+                }
+            }, 500);
+            
+            return interval;
+        }
+
+        // Start processing
+        function startProcessing() {
+            // Start progress simulation
+            processingInterval = simulateProgress();
+            
+            // Call API to process orders and get PDF
+            const processUrl = `/kho/orders/print_now/?ids=${encodeURIComponent(orderIds)}&print=${printParam}&format=json`;
+            
+            fetch(processUrl, { method: 'GET' })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Stop simulation
+                    if (processingInterval) {
+                        clearInterval(processingInterval);
+                    }
+                    
+                    // Update to 100%
+                    updateProgress(100);
+                    updateStep('init', 'completed');
+                    updateStep('confirm', 'completed');
+                    updateStep('generate', 'completed');
+                    
+                    // Process results
+                    processResults(data);
+                })
+                .catch(error => {
+                    console.error('Processing error:', error);
+                    
+                    // Stop simulation
+                    if (processingInterval) {
+                        clearInterval(processingInterval);
+                    }
+                    
+                    // Show error
+                    updateProgress(100);
+                    updateStep('generate', 'error');
+                    updateStatusText('Đã xảy ra lỗi: ' + error.message);
+                    
+                    // Show results with error
+                    showResults({
+                        total: orderIds.split(',').length,
+                        success: 0,
+                        failed: orderIds.split(',').length,
+                        errors: [{ error: error.message }]
+                    });
+                });
+        }
+
+        // Process API response
+        function processResults(data) {
+            // Parse response based on structure
+            const total = data.total || orderIds.split(',').length;
+            const success = data.success || 0;
+            const failed = data.failed || 0;
+            const errors = data.errors || [];
+            
+            // Fetch PDF from separate endpoint
+            if (success > 0) {
+                // Show PDF preview container with loading state
+                const pdfPreviewContainer = document.getElementById('pdf-preview-container');
+                const pdfLoading = document.getElementById('pdf-loading');
+                const pdfIframe = document.getElementById('pdf-iframe');
+                
+                if (pdfPreviewContainer) {
+                    pdfPreviewContainer.classList.remove('hidden');
+                }
+                if (pdfLoading) {
+                    pdfLoading.classList.remove('hidden');
+                }
+                if (pdfIframe) {
+                    pdfIframe.classList.add('hidden');
+                }
+                
+                console.log('Fetching PDF from separate endpoint...');
+                const pdfUrl = `/kho/orders/print_now/pdf/?ids=${encodeURIComponent(orderIds)}&print=${printParam}`;
+                
+                fetch(pdfUrl, { method: 'GET' })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Không thể tải PDF');
+                        }
+                        
+                        // Lấy thông tin chính xác từ response headers
+                        const actualSuccess = parseInt(response.headers.get('X-PDF-Success-Count') || success);
+                        const actualFailed = parseInt(response.headers.get('X-PDF-Failed-Count') || failed);
+                        const actualTotal = parseInt(response.headers.get('X-PDF-Total-Count') || total);
+                        
+                        // Cập nhật số liệu hiển thị với thông tin chính xác
+                        document.getElementById('total-orders').textContent = actualTotal;
+                        document.getElementById('success-count').textContent = actualSuccess;
+                        document.getElementById('failed-count').textContent = actualFailed;
+                        
+                        // Cập nhật header status với số liệu chính xác
+                        const headerStatusText = document.getElementById('header-status-text');
+                        if (headerStatusText) {
+                            headerStatusText.textContent = `Phiếu đã được tạo thành công. ${actualSuccess}/${actualTotal} đơn hàng đã in thành công, ${actualFailed} in thất bại.`;
+                        }
+                        
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        console.log('PDF blob received, size:', blob.size);
+                        
+                        // Create blob URL
+                        pdfBlobUrl = URL.createObjectURL(blob);
+                        console.log('PDF blob URL created:', pdfBlobUrl);
+                        
+                        // Hide loading, show iframe
+                        if (pdfLoading) {
+                            pdfLoading.classList.add('hidden');
+                        }
+                        
+                        // Display PDF in iframe
+                        if (pdfIframe) {
+                            pdfIframe.src = pdfBlobUrl;
+                            pdfIframe.classList.remove('hidden');
+                            console.log('PDF iframe src set');
+                        }
+                        
+                        // Show print button
+                        const printBtn = document.getElementById('btn-print-pdf');
+                        if (printBtn) {
+                            printBtn.classList.remove('hidden');
+                            console.log('Print button shown');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error fetching PDF:', err);
+                        
+                        // Hide loading on error
+                        if (pdfLoading) {
+                            pdfLoading.classList.add('hidden');
+                        }
+                        
+                        // Show error message
+                        if (pdfPreviewContainer) {
+                            pdfPreviewContainer.innerHTML = `
+                                <div class="flex flex-col items-center justify-center py-20">
+                                    <p class="text-sm text-red-600 mb-2">Lỗi khi tải PDF</p>
+                                    <p class="text-xs text-slate-500">${err.message || 'Không xác định'}</p>
+                                </div>
+                            `;
+                        }
+                    });
+            }
+            
+            showResults({
+                total: total,
+                success: success,
+                failed: failed,
+                errors: errors
+            });
+        }
+
+        // Show results
+        function showResults(results) {
+            // Hide processing container
+            const processingContainer = document.getElementById('processing-container');
+            if (processingContainer) {
+                processingContainer.classList.add('hidden');
+            }
+            
+            // Show results
+            const resultsContainer = document.getElementById('results-container');
+            if (resultsContainer) {
+                resultsContainer.classList.remove('hidden');
+            }
+            
+            // Update counts
+            document.getElementById('total-orders').textContent = results.total;
+            document.getElementById('success-count').textContent = results.success;
+            document.getElementById('failed-count').textContent = results.failed;
+            
+            // Show error toggle button if any errors
+            const errorToggleBtn = document.getElementById('error-toggle-btn');
+            const errorListContainer = document.getElementById('error-list-container');
+            const errorList = document.getElementById('error-list');
+            const errorToggleIcon = document.getElementById('error-toggle-icon');
+            const errorToggleText = document.getElementById('error-toggle-text');
+            
+            if (results.errors && results.errors.length > 0) {
+                if (errorToggleBtn) {
+                    errorToggleBtn.classList.remove('hidden');
+                    errorToggleText.textContent = `Xem chi tiết lỗi (${results.errors.length})`;
+                }
+                if (errorList) {
+                    errorList.innerHTML = results.errors.map(err => {
+                        const orderNum = err.channel_order_number || err.sapo_order_number || 'N/A';
+                        const errorMsg = err.error || 'Không xác định';
+                        return `
+                            <div class="bg-red-50 border border-red-200 rounded p-1.5">
+                                <span class="font-semibold text-red-700">${orderNum}:</span>
+                                <span class="text-red-600">${errorMsg}</span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                
+                // Toggle error list
+                if (errorToggleBtn) {
+                    errorToggleBtn.onclick = () => {
+                        if (errorListContainer) {
+                            const isHidden = errorListContainer.classList.toggle('hidden');
+                            if (errorToggleIcon) {
+                                errorToggleIcon.textContent = isHidden ? '▼' : '▲';
+                            }
+                        }
+                    };
+                }
+            } else {
+                if (errorToggleBtn) {
+                    errorToggleBtn.classList.add('hidden');
+                }
+                if (errorListContainer) {
+                    errorListContainer.classList.add('hidden');
+                }
+            }
+            
+            // Update status text (in processing container, will be hidden anyway)
+            if (results.success > 0) {
+                updateStatusText(`Phiếu đã được tạo thành công. ${results.success}/${results.total} đơn hàng đã in thành công, ${results.failed} in thất bại.`);
+            } else {
+                updateStatusText(`Không thể tạo phiếu in. ${results.failed}/${results.total} đơn hàng in thất bại.`);
+            }
+            
+            // Update header status if no PDF
+            if (results.success === 0) {
+                const headerStatusText = document.getElementById('header-status-text');
+                if (headerStatusText) {
+                    headerStatusText.textContent = `Không thể tạo phiếu in. ${results.failed}/${results.total} đơn hàng in thất bại.`;
+                }
+            }
+        }
+
+        // Setup print button
+        function setupPrintButton() {
+            const printBtn = document.getElementById('btn-print-pdf');
+            if (printBtn) {
+                printBtn.onclick = () => {
+                    if (pdfBlobUrl) {
+                        // Open PDF in new window and print
+                        const printWindow = window.open(pdfBlobUrl, '_blank');
+                        if (printWindow) {
+                            printWindow.onload = () => {
+                                printWindow.print();
+                            };
+                        }
+                    }
+                };
+            }
+        }
+
+        // Start processing when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setupPrintButton();
+            
+            if (orderIds) {
+                startProcessing();
+            } else {
+                updateStatusText('Không có đơn hàng để xử lý');
+                showResults({
+                    total: 0,
+                    success: 0,
+                    failed: 0,
+                    errors: [{ error: 'Không có đơn hàng được chọn' }]
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -141,6 +141,22 @@
             </div>
         </div>
         
+        <!-- Bộ lọc Shop -->
+        <div class="mb-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[11px] text-slate-600 font-medium mr-1">Shop:</span>
+                <button id="filter-shop-all" 
+                        class="filter-btn filter-shop-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                        data-filter-type="shop"
+                        data-filter-value="all">
+                    Tất cả (<span id="filter-shop-all-count">0</span>)
+                </button>
+                <div id="filter-shop-container" class="flex flex-wrap gap-1.5">
+                    <!-- Sẽ được populate bằng JavaScript -->
+                </div>
+            </div>
+        </div>
+        
         <!-- Bộ lọc Đơn vị vận chuyển -->
         <div class="mb-2">
             <div class="flex items-center gap-1.5 flex-wrap">
@@ -481,6 +497,27 @@
 document.addEventListener('DOMContentLoaded', function() {
     const orders = document.querySelectorAll('.js-order-row');
     
+    // Collect shops from all orders
+    const shops = new Map();
+    orders.forEach(order => {
+        const shopName = (order.dataset.shopName || order.getAttribute('data-shop-name') || '').trim();
+        if (shopName) {
+            shops.set(shopName, (shops.get(shopName) || 0) + 1);
+        }
+    });
+    
+    // Render shop filter buttons
+    const shopContainer = document.getElementById('filter-shop-container');
+    const sortedShops = Array.from(shops.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    sortedShops.forEach(([shopName, count]) => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn filter-shop-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition';
+        btn.dataset.filterType = 'shop';
+        btn.dataset.filterValue = shopName;
+        btn.innerHTML = `${shopName} (<span class="shop-count">${count}</span>)`;
+        shopContainer.appendChild(btn);
+    });
+    
     // Collect carriers from all orders
     const carriers = new Map();
     orders.forEach(order => {
@@ -504,6 +541,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateCounts() {
         const statusCounts = {all: 0, '0': 0, '1': 0, '2': 0};
         const channelCounts = {all: 0, marketplace: 0, sapo: 0};
+        const shopCounts = {all: 0};
         const carrierCounts = {all: 0};
         
         orders.forEach(order => {
@@ -520,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             const channel = order.dataset.channel;
+            const shopName = (order.dataset.shopName || order.getAttribute('data-shop-name') || '').trim();
             const carrier = (order.dataset.shippingCarrier || order.getAttribute('data-shipping-carrier') || '').trim();
             
             statusCounts.all++;
@@ -527,6 +566,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             channelCounts.all++;
             if (channelCounts[channel] !== undefined) channelCounts[channel]++;
+            
+            shopCounts.all++;
+            if (shopName) {
+                shopCounts[shopName] = (shopCounts[shopName] || 0) + 1;
+            }
             
             carrierCounts.all++;
             if (carrier) {
@@ -545,6 +589,16 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('filter-channel-shopee-count').textContent = channelCounts.marketplace;
         document.getElementById('filter-channel-sapo-count').textContent = channelCounts.sapo;
         
+        // Update shop counts
+        document.getElementById('filter-shop-all-count').textContent = shopCounts.all;
+        document.querySelectorAll('.shop-count').forEach((span) => {
+            const btn = span.closest('button');
+            if (btn) {
+                const shopName = btn.dataset.filterValue;
+                span.textContent = shopCounts[shopName] || 0;
+            }
+        });
+        
         // Update carrier counts
         document.getElementById('filter-carrier-all-count').textContent = carrierCounts.all;
         document.querySelectorAll('.carrier-count').forEach((span, index) => {
@@ -559,6 +613,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function filterOrders() {
         const activeStatusFilter = document.querySelector('.filter-status-btn.active')?.dataset.filterValue || 'all';
         const activeChannelFilter = document.querySelector('.filter-channel-btn.active')?.dataset.filterValue || 'all';
+        const activeShopFilter = document.querySelector('.filter-shop-btn.active')?.dataset.filterValue || 'all';
         const activeCarrierFilter = document.querySelector('.filter-carrier-btn.active')?.dataset.filterValue || 'all';
         const searchText = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
         
@@ -576,10 +631,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             const orderChannel = order.dataset.channel;
+            const orderShopName = (order.dataset.shopName || order.getAttribute('data-shop-name') || '').trim();
             const orderCarrier = (order.dataset.shippingCarrier || order.getAttribute('data-shipping-carrier') || '').trim();
             
             const statusMatch = activeStatusFilter === 'all' || statusKey === String(activeStatusFilter);
             const channelMatch = activeChannelFilter === 'all' || orderChannel === activeChannelFilter;
+            const shopMatch = activeShopFilter === 'all' || orderShopName === activeShopFilter;
             const carrierMatch = activeCarrierFilter === 'all' || orderCarrier === activeCarrierFilter;
             
             // Kiểm tra search text trong innerHTML
@@ -589,7 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 searchMatch = orderText.includes(searchText);
             }
             
-            if (statusMatch && channelMatch && carrierMatch && searchMatch) {
+            if (statusMatch && channelMatch && shopMatch && carrierMatch && searchMatch) {
                 order.style.display = '';
             } else {
                 order.style.display = 'none';
@@ -630,12 +687,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Setup filter buttons
-    document.querySelectorAll('.filter-status-btn, .filter-channel-btn, .filter-carrier-btn').forEach(btn => {
+    document.querySelectorAll('.filter-status-btn, .filter-channel-btn, .filter-shop-btn, .filter-carrier-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const filterType = this.dataset.filterType;
             document.querySelectorAll(`.filter-${filterType}-btn`).forEach(b => b.classList.remove('active'));
             this.classList.add('active');
             filterOrders();
+            updateCounts();
         });
     });
     
