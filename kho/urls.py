@@ -19,6 +19,7 @@ urlpatterns = [
     path("orders/packing_cancel/mark_received/", orders.mark_received_cancel, name="mark_received_cancel"),
     path("orders/return_orders/", orders.return_orders, name="return_orders"),
     path("orders/print_now/", orders.print_now, name="print_now"),
+    path("orders/print_now/pdf/", orders.print_now_pdf, name="print_now_pdf"),
     path("orders/packing/", orders.packing_board, name="orders_packing"),  # Legacy - có thể xóa sau
     
     # Packing Orders API

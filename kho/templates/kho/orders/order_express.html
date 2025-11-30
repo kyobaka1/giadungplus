@@ -530,10 +530,12 @@
     function timShip(mp_order_id) {
         if (!mp_order_id) return;
 
-        const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=no`;
+        // Sử dụng format=json endpoint theo logic mới của print_now
+        const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=no&format=json`;
 
         // Disable button to prevent double click
         const btn = event.target;
+        const originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = 'Đang xử lý...';
 
@@ -541,30 +543,40 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === "ok") {
-                    showToast('✅ Tìm ship thành công!', 'success');
-                    // Enable lại button sau khi thành công
+                    const successCount = data.success || 0;
+                    const failedCount = data.failed || 0;
+                    const total = data.total || 1;
+                    
+                    if (successCount > 0 && failedCount === 0) {
+                        showToast('✅ Tìm ship thành công!', 'success');
+                    } else if (successCount > 0 && failedCount > 0) {
+                        showToast(`⚠️ Tìm ship: ${successCount}/${total} thành công, ${failedCount} thất bại`, 'error');
+                    } else {
+                        showToast('❌ Tìm ship thất bại', 'error');
+                    }
+                    
+                    // Enable lại button sau khi xử lý
                     btn.disabled = false;
-                    btn.textContent = 'Tìm ship';
-                    // Không xóa row - chỉ hiển thị toast
+                    btn.textContent = originalText;
                 } else {
                     let msg = "Không rõ lỗi";
 
                     if (Array.isArray(data.errors) && data.errors.length > 0) {
                         const firstErr = data.errors[0];
-                        msg = firstErr.error || `Đơn ${firstErr.channel_order_number || ""} lỗi`;
+                        msg = firstErr.reason || firstErr.error || `Đơn ${firstErr.channel_order_number || ""} lỗi`;
                     } else if (data.message) {
                         msg = data.message;
                     }
                     showToast('❌ ' + msg, 'error');
                     btn.disabled = false;
-                    btn.textContent = 'Tìm ship';
+                    btn.textContent = originalText;
                 }
             })
             .catch(err => {
-                showToast('❌ Lỗi hệ thống', 'error');
-                console.error(err);
+                showToast('❌ Lỗi hệ thống: ' + err.message, 'error');
+                console.error('Error in timShip:', err);
                 btn.disabled = false;
-                btn.textContent = 'Tìm ship';
+                btn.textContent = originalText;
             });
     }
 </script>
@@ -572,13 +584,16 @@
     function inDon(mp_order_id) {
         if (!mp_order_id) return;
 
-        const url = `/kho/orders/print_now/?ids=${mp_order_id}&print=yes`;
-
-        // Mở cửa sổ in
-        window.open(url);
-
-        // Chỉ hiển thị toast - không xóa row
-        showToast('✅ Đã gửi yêu cầu in đơn!', 'success');
+        // Mở tab mới với URL print_now theo logic mới (giống shopee_orders)
+        const url = `/kho/orders/print_now/?ids=${encodeURIComponent(mp_order_id)}&print=yes`;
+        const newWindow = window.open(url, '_blank');
+        
+        if (newWindow) {
+            // Hiển thị toast thông báo
+            showToast('✅ Đã mở trang in đơn!', 'success');
+        } else {
+            showToast('Vui lòng cho phép popup để mở trang in', 'error');
+        }
     }
 </script>
 

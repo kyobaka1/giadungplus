@@ -83,10 +83,7 @@ class SapoCoreOrderService:
         order_id: int, 
         fulfillment_id: int, 
         packing_status: int,
-        shopee_id: Optional[int] = None,
-        split: Optional[int] = None,
         dvvc: Optional[str] = None,
-        nguoi_goi: Optional[str] = None,
         time_packing: Optional[str] = None,
         max_retries: int = 3, 
         retry_delay: float = 2.0
@@ -146,37 +143,35 @@ class SapoCoreOrderService:
                     note_data = mo_rong_gon(shipment["note"])
                     debug_print(f"📖 Existing note: {note_data}")
                 
+                # XÓA shopee_id (spid) khỏi note_data - không gửi trường này nữa
+                if "shopee_id" in note_data:
+                    del note_data["shopee_id"]
+                    debug_print(f"🗑️ Removed shopee_id from note_data")
+                
                 # Update packing_status (always)
                 note_data["packing_status"] = packing_status
+                debug_print(f"✏️ Set packing_status = {packing_status}")
                 
-                # Update optional fields if provided
-                if shopee_id is not None:
-                    note_data["shopee_id"] = shopee_id
-                    debug_print(f"✏️ Set shopee_id = {shopee_id}")
-                
-                if split is not None:
-                    note_data["split"] = split
-                    debug_print(f"✏️ Set split = {split}")
-                
-                # Update dvvc: use provided value, or get from shipment.service_name if not already set
-                if not note_data.get("dvvc"):
-                    if dvvc is not None:
-                        note_data["dvvc"] = dvvc
-                        debug_print(f"✏️ Set dvvc = {dvvc}")
-                    elif shipment.get("service_name"):
-                        # Auto-fill from shipment if not provided and not in note
-                        note_data["dvvc"] = shipment.get("service_name")
-                        debug_print(f"✏️ Auto-set dvvc from shipment.service_name = {note_data['dvvc']}")
+                # Update dvvc: ưu tiên giá trị được truyền vào, nếu không có thì lấy từ shipment.service_name
+                # Luôn đảm bảo có dvvc nếu có thể
+                if dvvc and dvvc.strip():  # Nếu có giá trị và không rỗng
+                    note_data["dvvc"] = dvvc.strip()
+                    debug_print(f"✏️ Set dvvc = {note_data['dvvc']}")
+                elif shipment.get("service_name") and shipment.get("service_name").strip():
+                    # Auto-fill from shipment nếu không có giá trị được truyền vào
+                    note_data["dvvc"] = shipment.get("service_name").strip()
+                    debug_print(f"✏️ Auto-set dvvc from shipment.service_name = {note_data['dvvc']}")
+                elif note_data.get("dvvc") and note_data.get("dvvc").strip():
+                    # Giữ nguyên dvvc từ note cũ nếu có
+                    debug_print(f"📝 Keeping existing dvvc = {note_data['dvvc']}")
                 else:
-                    debug_print(f"📝 dvvc already set to '{note_data.get('dvvc')}', skipping update")
+                    # Nếu vẫn chưa có dvvc, để rỗng nhưng log warning
+                    debug_print(f"⚠️ No dvvc available for order {order_id}, vc will be empty")
                 
-                if nguoi_goi is not None:
-                    note_data["nguoi_goi"] = nguoi_goi
-                    debug_print(f"✏️ Set nguoi_goi = {nguoi_goi}")
-                
+                # Update time_print
                 if time_packing is not None:
-                    note_data["time_packing"] = time_packing
-                    debug_print(f"✏️ Set time_packing = {time_packing}")
+                    note_data["time_print"] = time_packing
+                    debug_print(f"✏️ Set time_print = {time_packing}")
                 
                 # Compress and create JSON
                 compressed = gopnhan_gon(note_data)
