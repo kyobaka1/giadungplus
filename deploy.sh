@@ -95,7 +95,7 @@ if [ -f "requirements.txt" ]; then
 else
     echo -e "${YELLOW}📦 Installing dependencies from default list...${NC}"
     pip install --upgrade pip --quiet
-    pip install django xlrd==1.2.0 requests lxml py3dbp==1.1.2 selenium selenium-wire pypdf2 htmlparser pillow python-barcode qrcode xlsxwriter pdfplumber fpdf reportlab BeautifulSoup4 django-sslserver setuptools pygame openpyxl gspread djangorestframework oauth2client blinker==1.7.0 whitenoise openai pandas "pydantic>=2.0.0" python-dateutil psycopg2-binary gunicorn --upgrade --quiet
+    pip install django xlrd==1.2.0 requests lxml py3dbp==1.1.2 selenium selenium-wire pypdf2 htmlparser pillow python-barcode qrcode xlsxwriter pdfplumber fpdf reportlab BeautifulSoup4 django-sslserver setuptools pygame openpyxl gspread djangorestframework oauth2client blinker==1.6.3 whitenoise openai pandas "pydantic>=2.0.0" python-dateutil psycopg2-binary gunicorn --upgrade --quiet
 fi
 
 # Chạy migrations (trừ khi skip)
