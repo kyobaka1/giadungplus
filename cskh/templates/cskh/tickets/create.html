@@ -122,6 +122,14 @@
                     </div>
                     
                     <div class="space-y-3">
+                        <!-- Ngày tạo ticket - ở đầu -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Ngày tạo ticket</label>
+                            <input type="datetime-local" name="created_at" id="created_at"
+                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                                value="">
+                            <span class="text-xs text-gray-500">(Để trống = hiện tại)</span>
+                        </div>
                         <!-- Loại vấn đề - label và select cùng hàng -->
                         <div class="flex items-center gap-3">
                             <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề *</label>
@@ -196,6 +204,19 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Set default datetime-local value cho ngày tạo ticket (hiện tại)
+    const createdAtInput = document.getElementById('created_at');
+    if (createdAtInput) {
+        const now = new Date();
+        // Format: YYYY-MM-DDTHH:mm
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        createdAtInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
     const searchInput = document.getElementById('search_order');
     const orderInfo = document.getElementById('orderInfo');
     const orderPlaceholder = document.getElementById('orderPlaceholder');

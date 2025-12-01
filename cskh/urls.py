@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/tickets/<int:ticket_id>/upload-files/', views_api.api_upload_ticket_files, name='api_upload_ticket_files'),
     path('api/tickets/<int:ticket_id>/add-event/', views_api.api_add_event, name='api_add_event'),
     path('api/tickets/<int:ticket_id>/update-sugget-process/', views_api.api_update_sugget_process, name='api_update_sugget_process'),
+    path('api/tickets/<int:ticket_id>/delete/', views_api.api_delete_ticket, name='api_delete_ticket'),
     path('api/reason-types/', views_api.api_get_reason_types, name='api_get_reason_types'),
     path('api/search-order/', views_api.api_search_order, name='api_search_order'),
     

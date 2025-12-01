@@ -422,12 +422,9 @@
                                     {% endif %}
                                     <span>
                                         thanh toán
-                                        {% if cost.payment_date %}
-                                            {{ cost.payment_date|date:"d/m/Y" }}
-                                        {% else %}
-                                            {{ cost.created_at|date:"d/m/Y" }}
-                                        {% endif %}
-                                        {{ cost.created_at|date:"H:i" }}
+                                        {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                                        {{ ticket.created_at|date:"d/m/Y" }}
+                                        {{ ticket.created_at|date:"H:i" }}
                                     </span>
                                 </div>
                                 {% if cost.variant_id %}
@@ -522,7 +519,8 @@
                             <div class="flex items-center gap-2">
                                 <span class="font-medium text-sm">{{ log.user }}</span>
                                 <span class="text-xs text-gray-500">
-                                    {{ log.formatted_time|default:log.timestamp }}
+                                    {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                                    {{ ticket.created_at|date:"d/m/Y H:i" }}
                                 </span>
                             </div>
                             <div class="text-sm text-gray-700 mt-1">
@@ -655,11 +653,10 @@
                     {% else %}
                         <div id="suggetSummary"
                              class="mb-2 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
-                            {% if sugget_process.formatted_time %}
-                                <div class="text-[11px] text-gray-500 mb-0.5">
-                                    {{ sugget_process.formatted_time }}
-                                </div>
-                            {% endif %}
+                            {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                            <div class="text-[11px] text-gray-500 mb-0.5">
+                                {{ ticket.created_at|date:"d/m/Y H:%M" }}
+                            </div>
                             <div class="flex flex-wrap items-center gap-1 text-gray-800">
                                 <span class="font-semibold">
                                     {{ sugget_process.user_name|default:"(Không rõ người tạo)" }}
@@ -872,7 +869,8 @@
                                 <div class="mt-1 whitespace-pre-line">{{ ev.content }}</div>
                                 {% endif %}
                                 <div class="mt-1 text-[10px] opacity-80">
-                                    {{ ev.created_at|date:"d/m H:i" }}
+                                    {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                                    {{ ticket.created_at|date:"d/m H:i" }}
                                     {% if ev.created_by %}
                                         - {{ ev.created_by.first_name|default:ev.created_by.username }}
                                     {% endif %}
@@ -895,7 +893,8 @@
                                         <div class="text-gray-800 whitespace-pre-line text-sm">{{ ev.content }}</div>
                                     </div>
                                     <div class="text-[10px] text-gray-500 mt-1 mr-1">
-                                        {{ ev.created_at|date:"d/m H:i" }}
+                                        {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                                        {{ ticket.created_at|date:"d/m H:i" }}
                                     </div>
                                 </div>
                             </div>
@@ -964,7 +963,8 @@
                                         <div class="text-gray-800 whitespace-pre-line text-sm">{{ ev.content }}</div>
                                     </div>
                                     <div class="text-[10px] text-gray-500 mt-1 ml-1">
-                                        {{ ev.created_at|date:"d/m H:i" }}
+                                        {% comment %}DEBUG MODE: Dùng thời gian tạo ticket{% endcomment %}
+                                        {{ ticket.created_at|date:"d/m H:i" }}
                                     </div>
                                 </div>
                             </div>
