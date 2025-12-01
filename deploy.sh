@@ -114,6 +114,11 @@ else
     echo -e "${YELLOW}⏭️  Skipping migrations (--skip-migrations flag)${NC}"
 fi
 
+# Tạo thư mục staticfiles trước khi collectstatic
+echo -e "${YELLOW}📁 Creating staticfiles directory...${NC}"
+mkdir -p ${PROJECT_DIR}/staticfiles
+chmod 755 ${PROJECT_DIR}/staticfiles 2>/dev/null || true
+
 # Collect static files
 echo -e "${YELLOW}📁 Collecting static files...${NC}"
 python manage.py collectstatic --noinput --settings=GIADUNGPLUS.settings_production

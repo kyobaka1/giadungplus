@@ -58,12 +58,17 @@ STATICFILES_DIRS = [
 # Tạo thư mục assets nếu chưa có (để tránh warning)
 ASSETS_DIR = os.path.join(BASE_DIR, 'assets')
 if not os.path.exists(ASSETS_DIR):
-    os.makedirs(ASSETS_DIR)
+    os.makedirs(ASSETS_DIR, mode=0o755)
 
-# Tạo thư mục staticfiles nếu chưa có
+# Tạo thư mục staticfiles nếu chưa có (QUAN TRỌNG: phải tạo trước khi collectstatic)
 STATICFILES_DIR = os.path.join(BASE_DIR, 'staticfiles')
 if not os.path.exists(STATICFILES_DIR):
-    os.makedirs(STATICFILES_DIR)
+    os.makedirs(STATICFILES_DIR, mode=0o755)
+
+# Đảm bảo STATIC_ROOT là absolute path và tồn tại
+STATIC_ROOT = os.path.abspath(STATIC_ROOT)
+if not os.path.exists(STATIC_ROOT):
+    os.makedirs(STATIC_ROOT, mode=0o755)
 
 # Media files (uploads)
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
