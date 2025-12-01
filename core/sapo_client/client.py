@@ -677,6 +677,7 @@ class SapoClient:
             
             # Xác định chromedriver path dựa trên hệ điều hành
             import os
+            import stat
             from pathlib import Path
             
             BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -686,6 +687,7 @@ class SapoClient:
                 debug_print(f"   - Hệ điều hành: Windows, sử dụng {chromedriver_path}")
             else:
                 # Linux/Ubuntu - thử nhiều vị trí
+                chromedriver_path = None
                 possible_paths = [
                     str(BASE_DIR / "chromedriver-linux"),
                     str(BASE_DIR / "chromedriver"),
@@ -695,8 +697,9 @@ class SapoClient:
                     "chromedriver"
                 ]
                 for path in possible_paths:
-                    if os.path.exists(path) or (not os.path.isabs(path) and os.path.exists(str(BASE_DIR / path))):
-                        chromedriver_path = path if os.path.isabs(path) else str(BASE_DIR / path)
+                    full_path = path if os.path.isabs(path) else str(BASE_DIR / path)
+                    if os.path.exists(full_path):
+                        chromedriver_path = full_path
                         break
                 
                 if not chromedriver_path:
@@ -704,6 +707,24 @@ class SapoClient:
                     debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path} (file có thể chưa tồn tại)")
                 else:
                     debug_print(f"   - Hệ điều hành: {system}, sử dụng {chromedriver_path}")
+                
+                # Tự động set quyền execute cho chromedriver trên Linux
+                if chromedriver_path and os.path.exists(chromedriver_path):
+                    try:
+                        # Kiểm tra xem file đã có quyền execute chưa
+                        current_mode = os.stat(chromedriver_path).st_mode
+                        is_executable = bool(current_mode & stat.S_IEXEC)
+                        
+                        if not is_executable:
+                            debug_print(f"   - File {chromedriver_path} chưa có quyền execute, đang set quyền...")
+                            # Set quyền execute (chmod +x)
+                            os.chmod(chromedriver_path, current_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+                            debug_print(f"   ✅ Đã set quyền execute cho {chromedriver_path}")
+                        else:
+                            debug_print(f"   ✅ File {chromedriver_path} đã có quyền execute")
+                    except Exception as e:
+                        debug_print(f"   ⚠️  Không thể set quyền execute cho {chromedriver_path}: {e}")
+                        debug_print(f"   💡 Vui lòng chạy thủ công: chmod +x {chromedriver_path}")
             
             # Selenium 4.6+ không còn dùng executable_path trong webdriver.Chrome()
             # Nhưng Selenium Wire có thể vẫn hỗ trợ executable_path

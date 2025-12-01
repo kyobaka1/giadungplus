@@ -881,8 +881,8 @@ def api_sync_feedbacks(request):
         
         connection_ids = data.get("connection_ids")
         rating = data.get("rating", "1,2,3,4,5")
-        max_feedbacks = data.get("max_feedbacks")  # Giới hạn số lượng để test (vd: 2000)
-        num_threads = data.get("num_threads", 5)  # Số thread (default: 5)
+        max_feedbacks = data.get("max_feedbacks", 3000)  # Giới hạn số lượng (default: 3000)
+        num_threads = data.get("num_threads", 25)  # Số thread (default: 25)
         
         # Initialize service
         sapo_client = get_sapo_client()
