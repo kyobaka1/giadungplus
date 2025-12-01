@@ -8,6 +8,7 @@ import logging
 from django.shortcuts import redirect
 from functools import wraps
 from django.utils import timezone
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +68,7 @@ def log_ticket_action(ticket_number, username, action, data=None):
 def get_ticket_logs(ticket_number):
     """
     Lấy danh sách logs của ticket.
-    Hiện tại trả về danh sách rỗng vì logs được lưu trong TicketEvent model.
-    Có thể mở rộng sau để đọc từ file log hoặc database.
+    Đọc từ file log JSON line-based trong thư mục settings/logs/ticket_actions.
     
     Args:
         ticket_number: Mã ticket
@@ -76,6 +76,74 @@ def get_ticket_logs(ticket_number):
     Returns:
         List các log entries
     """
-    # Hiện tại trả về danh sách rỗng
-    # Có thể mở rộng sau để đọc từ TicketEvent hoặc file log
-    return []
+    logs_dir = Path('settings/logs/ticket_actions')
+    log_file = logs_dir / f"{ticket_number}.log"
+
+    if not log_file.exists():
+        return []
+
+    entries = []
+
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = json.loads(line)
+                except Exception:
+                    continue
+
+                # Chuẩn hoá các field cơ bản
+                timestamp = raw.get('timestamp') or raw.get('time') or ''
+                user = raw.get('user') or raw.get('username') or 'System'
+                action = raw.get('action') or ''
+
+                # Chi tiết có thể nằm trong "details" hoặc "data"
+                raw_details = raw.get('details')
+                if raw_details is None:
+                    raw_details = raw.get('data', {})
+
+                details_str = ''
+                if isinstance(raw_details, dict):
+                    # Trường hợp đặc biệt: chỉ có old/new -> hiển thị tóm tắt thay đổi
+                    if set(raw_details.keys()) == {'old', 'new'}:
+                        old_val = raw_details.get('old')
+                        new_val = raw_details.get('new')
+                        details_str = f"{old_val} → {new_val}"
+                    else:
+                        # Lấy các cặp key=value đơn giản (bỏ qua dict/list lồng nhau)
+                        parts = []
+                        for k, v in raw_details.items():
+                            if isinstance(v, (dict, list)):
+                                continue
+                            parts.append(f"{k}: {v}")
+                        details_str = ', '.join(parts)
+                elif raw_details is not None:
+                    details_str = str(raw_details)
+
+                # Format time để hiển thị đẹp trong template
+                formatted_time = ''
+                if timestamp:
+                    try:
+                        ts_str = timestamp
+                        if ts_str.endswith('Z'):
+                            ts_str = ts_str.replace('Z', '+00:00')
+                        from datetime import datetime
+                        dt = datetime.fromisoformat(ts_str)
+                        formatted_time = dt.strftime('%d/%m/%Y %H:%M')
+                    except Exception:
+                        formatted_time = timestamp
+
+                entries.append({
+                    'user': user,
+                    'timestamp': timestamp,
+                    'formatted_time': formatted_time,
+                    'action': action,
+                    'details': details_str,
+                })
+    except Exception as e:
+        logger.warning(f"Could not read ticket logs for {ticket_number}: {e}")
+
+    return entries

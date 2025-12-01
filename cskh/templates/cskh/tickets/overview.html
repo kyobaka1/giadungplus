@@ -1,66 +1,711 @@
 {% extends "cskh/base_cskh.html" %}
+{% load humanize %}
 
-{% block title %}Tổng quan Tickets – CSKH{% endblock %}
+{% block title %}Ticket Overview – CSKH{% endblock %}
 
 {% block overview %}
 <section>
-    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket - Tổng quan</h1>
-    <p class="text-sm md:text-xs text-gray-500 mt-1">Thống kê và phân tích tickets CSKH</p>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket Overview – Dashboard</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">
+        Dashboard phân tích ticket CSKH theo filter phía trên. Mọi số liệu bên dưới đều phụ thuộc bộ lọc.
+    </p>
 </section>
 {% endblock %}
 
 {% block main_content %}
 <div class="flex-1 min-w-0 space-y-6">
 
-    <!-- Metrics -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-sm text-gray-600 mb-1">Chưa xử lý</div>
-            <div class="text-3xl font-bold text-red-600">{{ metrics.unprocessed }}</div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-sm text-gray-600 mb-1">Quá hạn SLA</div>
-            <div class="text-3xl font-bold text-orange-600">{{ metrics.overdue_sla }}</div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-sm text-gray-600 mb-1">Đang xử lý</div>
-            <div class="text-3xl font-bold text-blue-600">{{ metrics.processing }}</div>
-        </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-sm text-gray-600 mb-1">Hoàn thành hôm nay</div>
-            <div class="text-3xl font-bold text-green-600">{{ metrics.completed_today }}</div>
-        </div>
-    </div>
-
-    <!-- Category Breakdown -->
-    <div class="bg-white border rounded-xl p-6 shadow-sm">
-        <h3 class="text-base font-semibold text-gray-800 mb-4">Phân loại Tickets</h3>
-        <div class="space-y-3">
-            {% for category in category_breakdown %}
-            <div>
-                <div class="flex items-center justify-between mb-1">
-                    <span class="text-sm font-medium text-gray-700">{{ category.name }}</span>
-                    <span class="text-sm text-gray-600">{{ category.count }} ({{ category.percentage }}%)</span>
+    <!-- 1. FILTER PANEL -->
+    <section class="bg-white border rounded-xl shadow-sm p-4 md:p-5">
+        <form method="get" class="space-y-4 text-xs md:text-sm">
+            <!-- Hàng 1: Thời gian -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Trường thời gian</label>
+                    <select name="date_field"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="created_at" {% if filter.date_field == 'created_at' %}selected{% endif %}>Theo ngày tạo (created_at)</option>
+                        <option value="closed_at" {% if filter.date_field == 'closed_at' %}selected{% endif %}>Theo ngày đóng (closed_at)</option>
+                    </select>
                 </div>
-                <div class="w-full bg-gray-200 rounded-full h-2">
-                    <div class="bg-brand h-2 rounded-full" style="width: {{ category.percentage }}%"></div>
+                <div class="">
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Từ ngày</label>
+                    <input type="date" name="date_from" value="{{ filter.date_from }}"
+                           class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                <div class="">
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Đến ngày</label>
+                    <input type="date" name="date_to" value="{{ filter.date_to }}"
+                           class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                <div class="">
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Khoảng nhanh</label>
+                    <select name="quick_range"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="today" {% if filter.quick_range == 'today' %}selected{% endif %}>Hôm nay</option>
+                        <option value="last_7d" {% if filter.quick_range == 'last_7d' %}selected{% endif %}>7 ngày</option>
+                        <option value="last_30d" {% if filter.quick_range == 'last_30d' %}selected{% endif %}>30 ngày</option>
+                        <option value="this_month" {% if filter.quick_range == 'this_month' %}selected{% endif %}>Tháng này</option>
+                        <option value="this_quarter" {% if filter.quick_range == 'this_quarter' %}selected{% endif %}>Quý này</option>
+                    </select>
                 </div>
             </div>
-            {% endfor %}
-        </div>
-    </div>
 
-    <!-- Quick Actions -->
-    <div class="flex gap-4">
+            <!-- Hàng 2: Kênh / loại / lý do -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Nguồn ticket</label>
+                    <select name="source_ticket"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for value,label in source_ticket_choices %}
+                        <option value="{{ value }}" {% if filter.source_ticket == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Loại ticket</label>
+                    <select name="ticket_type"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for value,label in ticket_type_choices %}
+                        <option value="{{ value }}" {% if filter.ticket_type == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Nguồn lỗi (source_reason)</label>
+                    <select name="source_reason"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for sr in source_reason_options %}
+                        <option value="{{ sr }}" {% if filter.source_reason == sr %}selected{% endif %}>{{ sr }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Loại lỗi (reason_type)</label>
+                    <select name="reason_type"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for rt in reason_type_options %}
+                        <option value="{{ rt }}" {% if filter.reason_type == rt %}selected{% endif %}>{{ rt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hàng 3: Trạng thái / Phòng ban / Nhân sự -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Trạng thái ticket</label>
+                    <select name="ticket_status"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for value,label in ticket_status_choices %}
+                        <option value="{{ value }}" {% if filter.ticket_status == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Phòng ban xử lý (depart)</label>
+                    <select name="depart"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for value,label in depart_choices %}
+                        <option value="{{ value }}" {% if filter.depart == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-semibold text-gray-700 mb-1">Bộ phận chịu trách nhiệm</label>
+                    <select name="responsible_department"
+                            class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                        <option value="">Tất cả</option>
+                        {% for dept in responsible_department_options %}
+                        <option value="{{ dept }}" {% if filter.responsible_department == dept %}selected{% endif %}>{{ dept }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-700 mb-1">Người tạo</label>
+                        <select name="created_by"
+                                class="w-full px-2 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-[11px]">
+                            <option value="">Tất cả</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}" {% if filter.created_by == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-700 mb-1">Người phụ trách</label>
+                        <select name="assigned_to"
+                                class="w-full px-2 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-[11px]">
+                            <option value="">Tất cả</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}" {% if filter.assigned_to == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-700 mb-1">Người chịu trách nhiệm</label>
+                        <select name="responsible_user"
+                                class="w-full px-2 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-[11px]">
+                            <option value="">Tất cả</option>
+                            {% for u in users %}
+                            <option value="{{ u.id }}" {% if filter.responsible_user == u.id %}selected{% endif %}>{{ u.first_name|default:u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="submit"
+                        class="px-4 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-semibold">
+                    Áp dụng filter
+                </button>
+                <a href="{% url 'cskh:ticket_overview' %}"
+                   class="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs font-semibold">
+                    Xoá filter
+                </a>
+            </div>
+        </form>
+    </section>
+
+    <!-- 2. TOP KPI CARDS -->
+    <section>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Số ticket mới trong kỳ</div>
+                <div class="text-2xl font-semibold text-slate-900">{{ kpi.new_tickets|default:0 }}</div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Tỷ lệ xử lý ticket</div>
+                <div class="text-2xl font-semibold text-emerald-700">
+                    {{ kpi.closed_ticket_rate|floatformat:1 }}%
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    {{ kpi.closed_tickets|default:0 }} / {{ kpi.total_tickets|default:0 }} ticket
+                </p>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Ticket đang mở</div>
+                <div class="text-2xl font-semibold text-orange-600">
+                    {{ kpi.open_tickets|default:0 }}
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    / {{ kpi.total_tickets|default:0 }} ticket ({{ kpi.open_ticket_rate|floatformat:1 }}%)
+                </p>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Thời gian xử lý trung bình</div>
+                {% if kpi.avg_resolution_hours %}
+                    <div class="text-2xl font-semibold text-sky-700">
+                        ~ {{ kpi.avg_resolution_hours|floatformat:1 }} giờ
+                    </div>
+                {% else %}
+                    <div class="text-2xl font-semibold text-gray-400">-</div>
+                {% endif %}
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Tổng chi phí CSKH</div>
+                <div class="text-2xl font-semibold text-red-600">
+                    {{ kpi.total_cost|default:0|floatformat:0|intcomma }} đ
+                </div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Chi phí TB / ticket có cost</div>
+                <div class="text-2xl font-semibold text-red-500">
+                    {{ kpi.avg_cost_per_ticket|default:0|floatformat:0|intcomma }} đ
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. TICKET & PROCESS (Timeline + Resolution + SLA + Transfers + Interaction) -->
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <!-- 3.1 Timeline mở / đóng -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-slate-800">Timeline ticket mở / đóng theo ngày</h2>
+                <span class="text-[11px] text-gray-500">Trong khoảng filter</span>
+            </div>
+            <div class="space-y-1 max-h-64 overflow-y-auto text-[11px]">
+                {% if timeline_rows %}
+                    <div class="grid grid-cols-4 gap-2 font-semibold text-gray-600 mb-1">
+                        <div>Ngày</div>
+                        <div class="text-right">Ticket mở</div>
+                        <div class="text-right">Ticket đóng</div>
+                        <div class="text-right">Chênh lệch</div>
+                    </div>
+                    {% for row in timeline_rows %}
+                    <div class="grid grid-cols-4 gap-2 items-center border-t py-1">
+                        <div class="text-[11px] text-gray-700">
+                            {{ row.day }}
+                        </div>
+                        <div class="text-right text-[11px] text-sky-700">{{ row.open }}</div>
+                        <div class="text-right text-[11px] text-emerald-700">{{ row.closed }}</div>
+                        <div class="text-right text-[11px] {% if row.delta > 0 %}text-orange-600{% else %}text-gray-500{% endif %}">
+                            {{ row.delta }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu trong khoảng này.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 3.2 Resolution time + SLA + transfers + interaction -->
+        <div class="space-y-4">
+            <!-- Resolution buckets -->
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-slate-800">Phân bố thời gian xử lý</h2>
+                    <span class="text-[11px] text-gray-500">Theo closed_at - created_at</span>
+                </div>
+                <div class="space-y-1 text-[11px]">
+                    {% for b in resolution_bucket_list %}
+                    <div class="flex items-center justify-between">
+                        <span>{{ b.label }}</span>
+                        <span class="font-semibold">{{ b.count }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- SLA -->
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold text-slate-800">SLA xử lý trong 24h</h2>
+                    <span class="text-[11px] text-gray-500">Tạm tính: closed_at - created_at ≤ 24h</span>
+                </div>
+                <div class="flex items-center gap-4 text-[11px]">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-gray-600">Đạt SLA</span>
+                            <span class="font-semibold text-emerald-700">
+                                {{ sla.ok_count }} ticket ({{ sla.ok_rate|floatformat:1 }}%)
+                            </span>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-emerald-100 overflow-hidden">
+                            <div class="h-2 bg-emerald-500" style="width: {{ sla.ok_rate }}%"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-gray-600">Vi phạm SLA</span>
+                            <span class="font-semibold text-red-600">
+                                {{ sla.violate_count }} ticket ({{ sla.violate_rate|floatformat:1 }}%)
+                            </span>
+                        </div>
+                        <div class="w-full h-2 rounded-full bg-red-100 overflow-hidden">
+                            <div class="h-2 bg-red-500" style="width: {{ sla.violate_rate }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transfers & interaction -->
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <h2 class="text-sm font-semibold text-slate-800 mb-3">Chuyển phòng ban & số lần chạm</h2>
+                <div class="grid grid-cols-2 gap-4 text-[11px]">
+                    <div class="space-y-2">
+                        <div class="text-xs font-semibold text-gray-700">Số lần chuyển phòng ban / ticket</div>
+                        <p class="text-2xl font-semibold text-slate-900">
+                            {{ transfer_stats.avg_transfers_per_ticket|floatformat:2 }}
+                        </p>
+                        <p class="text-[11px] text-gray-500">
+                            % ticket có &gt; 2 lần chuyển:
+                            <span class="font-semibold text-orange-600">
+                                {{ transfer_stats.percent_gt2_transfer|floatformat:1 }}%
+                            </span>
+                        </p>
+                        <div class="space-y-1 mt-1">
+                            <div class="flex justify-between">
+                                <span>0 lần</span>
+                                <span class="font-semibold">{{ transfer_stats.buckets.0 }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>1 lần</span>
+                                <span class="font-semibold">{{ transfer_stats.buckets.1 }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>2 lần</span>
+                                <span class="font-semibold">{{ transfer_stats.buckets.2 }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>3+ lần</span>
+                                <span class="font-semibold">{{ transfer_stats.buckets.3_plus }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="text-xs font-semibold text-gray-700">Số touch / ticket</div>
+                        <p class="text-2xl font-semibold text-slate-900">
+                            {{ interaction_stats.avg_interaction_per_ticket|floatformat:1 }}
+                        </p>
+                        <p class="text-[11px] text-gray-500 mb-1">
+                            Top ticket bị sờ nhiều nhất
+                        </p>
+                        <ul class="space-y-1 max-h-24 overflow-y-auto">
+                            {% for t in interaction_stats.top_tickets %}
+                            <li class="flex justify-between text-[11px]">
+                                <span class="truncate">{{ t.ticket_number }}</span>
+                                <span class="font-semibold text-sky-700">{{ t.count }} touch</span>
+                            </li>
+                            {% empty %}
+                            <li class="text-gray-400 text-[11px]">Chưa có dữ liệu.</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. ROOT CAUSE & COST -->
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <!-- 4.1 Theo ticket_type (stacked open / closed) -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Loại ticket (open vs closed)</h2>
+            <div class="space-y-2 text-[11px] max-h-64 overflow-y-auto">
+                {% for item in ticket_type_list %}
+                <div>
+                    <div class="flex justify-between mb-0.5">
+                        <span class="font-semibold text-gray-700">
+                            {{ item.label }}
+                        </span>
+                        <span class="text-gray-500">
+                            {{ item.total }} ticket
+                        </span>
+                    </div>
+                    <div class="flex gap-1 h-2 rounded-full overflow-hidden bg-slate-100">
+                        <div class="bg-orange-400" style="width: {% if item.total %}{{ item.open|floatformat:0 }}{% else %}0{% endif %}%"></div>
+                        <div class="bg-emerald-500" style="width: {% if item.total %}{{ item.closed|floatformat:0 }}{% else %}0{% endif %}%"></div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-gray-500 mt-0.5">
+                        <span>Mở: {{ item.open }}</span>
+                        <span>Đóng: {{ item.closed }}</span>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 4.2 Pareto source_reason -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Pareto – Nguồn lỗi (source_reason)</h2>
+            <div class="space-y-2 text-[11px] max-h-64 overflow-y-auto">
+                {% for row in reason_stats %}
+                <div>
+                    <div class="flex justify-between mb-0.5">
+                        <span class="font-semibold text-gray-700">{{ row.source_reason|default:"(Chưa gán)" }}</span>
+                        <span class="text-gray-500">
+                            {{ row.count }} ticket ({{ row.percentage|floatformat:1 }}%)
+                        </span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-2 bg-brand" style="width: {{ row.cumulative_percentage }}%"></div>
+                    </div>
+                    <div class="text-[10px] text-gray-500 mt-0.5">
+                        Tích luỹ: {{ row.cumulative_percentage|floatformat:1 }}%
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 5.1 Chi phí theo loại chi phí -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Chi phí theo loại chi phí</h2>
+            <div class="space-y-2 text-[11px] max-h-64 overflow-y-auto">
+                {% for row in cost_summary.by_type %}
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex-1">
+                        <div class="flex justify-between mb-0.5">
+                            <span class="font-semibold text-gray-700">{{ row.cost_type }}</span>
+                            <span class="text-gray-500">{{ row.count }} khoản</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div class="h-2 bg-red-500"></div>
+                        </div>
+                    </div>
+                    <div class="text-right text-red-600 font-semibold whitespace-nowrap">
+                        {{ row.total_amount|floatformat:0|intcomma }} đ
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <!-- 5.2 Heatmap chi phí theo bộ phận x loại chi phí + 5.3 Top SKU -->
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <!-- Heatmap (simplified: tổng theo bộ phận) -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Chi phí theo bộ phận chịu trách nhiệm</h2>
+            <div class="max-h-64 overflow-y-auto text-[11px]">
+                {% if department_stats %}
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Bộ phận</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Số ticket</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Tổng thiệt hại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in department_stats %}
+                        <tr class="border-t">
+                            <td class="px-2 py-1 text-gray-700">{{ row.responsible_department|default:"(Chưa gán)" }}</td>
+                            <td class="px-2 py-1 text-right">{{ row.total_tickets }}</td>
+                            <td class="px-2 py-1 text-right text-red-600 font-semibold">
+                                {{ row.total_cost|default:0|floatformat:0|intcomma }} đ
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu chi phí cho các ticket trong filter.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Top SKU -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Top SKU gây thiệt hại</h2>
+            <div class="overflow-x-auto max-h-64 text-[11px]">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">SKU</th>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Sản phẩm</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Số ticket</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Tổng thiệt hại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in cost_summary.sku_stats %}
+                        <tr class="border-t">
+                            <td class="px-2 py-1 whitespace-nowrap font-mono text-[11px]">{{ row.sku }}</td>
+                            <td class="px-2 py-1 text-gray-700">{{ row.product_name }}</td>
+                            <td class="px-2 py-1 text-right text-gray-700">{{ row.ticket_count }}</td>
+                            <td class="px-2 py-1 text-right text-red-600 font-semibold">
+                                {{ row.total_amount|floatformat:0|intcomma }} đ
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                Chưa có dữ liệu SKU.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 6. PEOPLE & TEAM PERFORMANCE -->
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <!-- 6.1 Theo nhân sự -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Hiệu suất theo nhân sự CSKH (assigned_to)</h2>
+            <div class="overflow-x-auto max-h-64 text-[11px]">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Nhân viên</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Số ticket phụ trách</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Số ticket đóng</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in people_stats %}
+                        <tr class="border-t">
+                            <td class="px-2 py-1 text-gray-700">{{ row.name }}</td>
+                            <td class="px-2 py-1 text-right">{{ row.total_tickets }}</td>
+                            <td class="px-2 py-1 text-right text-emerald-700 font-semibold">
+                                {{ row.closed_tickets }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                Chưa có dữ liệu.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 6.2 Theo phòng ban chịu trách nhiệm + 6.3 Views -->
+        <div class="space-y-4">
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <h2 class="text-sm font-semibold text-slate-800 mb-3">Mức độ xem ticket (engagement của user)</h2>
+                <div class="max-h-32 overflow-y-auto text-[11px]">
+                    <table class="min-w-full">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-2 py-1 text-left font-semibold text-gray-600">User</th>
+                                <th class="px-2 py-1 text-right font-semibold text-gray-600">Số lần xem</th>
+                                <th class="px-2 py-1 text-right font-semibold text-gray-600">Số ticket</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in views_by_user %}
+                            <tr class="border-t">
+                                <td class="px-2 py-1 text-gray-700">{{ row.name }}</td>
+                                <td class="px-2 py-1 text-right">{{ row.view_count }}</td>
+                                <td class="px-2 py-1 text-right">{{ row.ticket_count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                    Chưa có dữ liệu.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 7. BẢNG CHI TIẾT TICKET -->
+    <section class="bg-white border rounded-xl p-4 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-800">Danh sách ticket chi tiết</h2>
+            <p class="text-[11px] text-gray-500">
+                Đang hiển thị tối đa 200 ticket theo filter.
+            </p>
+        </div>
+        <div class="overflow-x-auto text-[11px]">
+            <table class="min-w-full">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Ticket</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Đơn hàng</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Loại / Lý do</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Trạng thái</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Phòng ban</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Người tạo / phụ trách</th>
+                        <th class="px-2 py-1 text-left font-semibold text-gray-600">Thời gian</th>
+                        <th class="px-2 py-1 text-right font-semibold text-gray-600">Tổng cost</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tickets_list %}
+                    <tr class="border-t hover:bg-slate-50">
+                        <td class="px-2 py-1 whitespace-nowrap">
+                            <a href="{% url 'cskh:ticket_detail' t.id %}"
+                               class="text-sky-700 hover:text-sky-900 font-semibold">
+                                {{ t.ticket_number }}
+                            </a>
+                            <div class="text-[10px] text-gray-500">
+                                {{ t.ticket_type|default:"-" }}
+                            </div>
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                            <div class="text-[11px] text-gray-800">
+                                {{ t.order_code|default:t.reference_number|default:"-" }}
+                            </div>
+                            <div class="text-[10px] text-gray-500">
+                                {{ t.customer_name|default:"" }}
+                            </div>
+                        </td>
+                        <td class="px-2 py-1">
+                            <div class="text-[11px] text-gray-800">
+                                {{ t.source_reason|default:"-" }}
+                            </div>
+                            <div class="text-[10px] text-gray-500">
+                                {{ t.reason_type|default:"" }}
+                            </div>
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold
+                                {% if t.ticket_status == 'new' %}
+                                    bg-red-50 border-red-300 text-red-700
+                                {% elif t.ticket_status == 'processing' %}
+                                    bg-sky-50 border-sky-300 text-sky-700
+                                {% elif t.ticket_status == 'waiting_customer' or t.ticket_status == 'waiting_warehouse' %}
+                                    bg-amber-50 border-amber-300 text-amber-800
+                                {% elif t.ticket_status == 'resolved' %}
+                                    bg-emerald-50 border-emerald-300 text-emerald-800
+                                {% elif t.ticket_status == 'closed' %}
+                                    bg-slate-100 border-slate-400 text-slate-900
+                                {% endif %}">
+                                {{ t.get_ticket_status_display }}
+                            </span>
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap text-[11px] text-gray-800">
+                            {{ t.depart|upper }}
+                            {% if t.responsible_department %}
+                            <div class="text-[10px] text-gray-500">
+                                Lỗi: {{ t.responsible_department }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap text-[11px] text-gray-800">
+                            <div>
+                                Tạo: {{ t.created_by.first_name|default:t.created_by.username }}
+                            </div>
+                            {% if t.assigned_to %}
+                            <div class="text-[10px] text-gray-500">
+                                Phụ trách: {{ t.assigned_to.first_name|default:t.assigned_to.username }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-2 py-1 whitespace-nowrap text-[10px] text-gray-700">
+                            <div>
+                                Tạo: {{ t.created_at|date:"d/m/Y H:i" }}
+                            </div>
+                            {% if t.closed_at %}
+                            <div>
+                                Đóng: {{ t.closed_at|date:"d/m/Y H:i" }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-2 py-1 text-right whitespace-nowrap text-[11px] text-red-600 font-semibold">
+                            {{ t.total_cost|default:0|floatformat:0|intcomma }} đ
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-2 py-4 text-center text-gray-400 text-[11px]">
+                            Chưa có ticket nào trong filter hiện tại.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- 8. QUICK ACTIONS -->
+    <section class="flex flex-col md:flex-row gap-3">
         <a href="{% url 'cskh:ticket_list' %}"
-            class="flex-1 px-6 py-3 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center font-semibold">
-            Xem tất cả Tickets
+           class="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center text-sm font-semibold">
+            Xem danh sách ticket (áp dụng filter riêng tại trang list)
         </a>
         <a href="{% url 'cskh:ticket_create' %}"
-            class="flex-1 px-6 py-3 bg-white border-2 border-brand text-brand rounded-lg hover:bg-brandlight transition text-center font-semibold">
-            Tạo Ticket mới
+           class="flex-1 px-4 py-2 bg-white border-2 border-brand text-brand rounded-lg hover:bg-brandlight transition text-center text-sm font-semibold">
+            Tạo ticket mới
         </a>
-    </div>
-
+    </section>
 </div>
 {% endblock %}

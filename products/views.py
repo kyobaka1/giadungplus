@@ -386,6 +386,22 @@ def variant_list(request: HttpRequest):
             total_inventory = sum(inv.get("on_hand", 0) for inv in inventories)
             total_available = sum(inv.get("available", 0) for inv in inventories)
             
+            # Lấy opt1, opt2, opt3 - kiểm tra cả opt1 và option1
+            opt1_raw = variant_raw.get("opt1")
+            if opt1_raw is None:
+                opt1_raw = variant_raw.get("option1")
+            opt1 = opt1_raw or ""
+            
+            opt2_raw = variant_raw.get("opt2")
+            if opt2_raw is None:
+                opt2_raw = variant_raw.get("option2")
+            opt2 = opt2_raw or ""
+            
+            opt3_raw = variant_raw.get("opt3")
+            if opt3_raw is None:
+                opt3_raw = variant_raw.get("option3")
+            opt3 = opt3_raw or ""
+            
             variants_data.append({
                 "id": variant_id,
                 "product_id": product_id,
@@ -394,9 +410,9 @@ def variant_list(request: HttpRequest):
                 "sku": variant_raw.get("sku", ""),
                 "barcode": variant_raw.get("barcode") or "",
                 "name": variant_raw.get("name", ""),
-                "opt1": variant_raw.get("option1") or "",
-                "opt2": variant_raw.get("option2") or "",
-                "opt3": variant_raw.get("option3") or "",
+                "opt1": opt1,
+                "opt2": opt2,
+                "opt3": opt3,
                 "status": variant_status,
                 "variant_retail_price": variant_raw.get("retail_price", 0) or 0,
                 "variant_whole_price": variant_raw.get("wholesale_price", 0) or 0,

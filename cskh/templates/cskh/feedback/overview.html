@@ -1,0 +1,307 @@
+{% extends "cskh/base_cskh.html" %}
+{% load humanize %}
+
+{% block title %}Feedback Overview – CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">Feedback Overview – Dashboard</h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1">
+        Dashboard phân tích reviews và đánh giá khách hàng. Tổng quan về tình hình feedback từ các shop.
+    </p>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 space-y-6">
+
+    <!-- 0. FILTERS -->
+    <section class="bg-white border rounded-xl shadow-sm p-4">
+        <form method="get" class="space-y-4 text-xs md:text-sm">
+            <!-- Shop Filter -->
+            <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <label class="text-xs font-semibold text-gray-700 whitespace-nowrap">Shop:</label>
+                    <div class="flex flex-wrap gap-2">
+                        {% for shop_option in shop_filter_options %}
+                        <button type="submit" name="shop" value="{{ shop_option.connection_id }}"
+                                class="px-3 py-1.5 text-xs border rounded-lg transition whitespace-nowrap {% if shop_option.selected %}bg-brand text-white border-brand{% else %}bg-white text-gray-700 border-gray-300 hover:bg-gray-50{% endif %}">
+                            {{ shop_option.name }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Time Filter -->
+            <div class="flex items-center gap-4 flex-wrap">
+                <div class="flex items-center gap-2">
+                    <label class="text-xs font-semibold text-gray-700 whitespace-nowrap">Thời gian đánh giá:</label>
+                    <input type="date" name="date_from" value="{{ date_from }}"
+                           class="px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-xs">
+                    <span class="text-gray-500">đến</span>
+                    <input type="date" name="date_to" value="{{ date_to }}"
+                           class="px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-xs">
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-gray-700 whitespace-nowrap">Hoặc chọn nhanh:</span>
+                    <button type="submit" name="quick_range" value="today"
+                            class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 {% if quick_range == 'today' %}bg-brand text-white border-brand{% endif %}">
+                        Hôm nay
+                    </button>
+                    <button type="submit" name="quick_range" value="yesterday"
+                            class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 {% if quick_range == 'yesterday' %}bg-brand text-white border-brand{% endif %}">
+                        Hôm qua
+                    </button>
+                    <button type="submit" name="quick_range" value="last_7d"
+                            class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 {% if quick_range == 'last_7d' %}bg-brand text-white border-brand{% endif %}">
+                        7 ngày trước
+                    </button>
+                    <button type="submit" name="quick_range" value="last_30d"
+                            class="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50 {% if quick_range == 'last_30d' %}bg-brand text-white border-brand{% endif %}">
+                        30 ngày trước
+                    </button>
+                    {% if date_from or date_to or quick_range or current_shop %}
+                    <a href="{% url 'cskh:feedback_overview' %}"
+                       class="px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700">
+                        Xóa bộ lọc
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- 1. TOP KPI CARDS -->
+    <section>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Tổng số reviews</div>
+                <div class="text-2xl font-semibold text-slate-900">{{ metrics.total_reviews|default:0|intcomma }}</div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Đánh giá trung bình</div>
+                <div class="text-2xl font-semibold text-sky-700">
+                    {{ metrics.average_rating|default:0|floatformat:1 }} ⭐
+                </div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Đánh giá tốt (5 sao)</div>
+                <div class="text-2xl font-semibold text-emerald-700">
+                    {{ metrics.positive_count|default:0|intcomma }}
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    {{ metrics.positive_count|intcomma }} / {{ metrics.total_reviews|intcomma }} 
+                    ({{ metrics.positive_percentage }}%)
+                </p>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Đánh giá xấu (1-4 sao)</div>
+                <div class="text-2xl font-semibold text-red-600">
+                    {{ metrics.negative_count|default:0|intcomma }}
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    {{ metrics.negative_count|intcomma }} / {{ metrics.total_reviews|intcomma }} 
+                    ({{ metrics.negative_percentage }}%)
+                </p>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Đã phản hồi</div>
+                <div class="text-2xl font-semibold text-emerald-700">
+                    {{ metrics.replied|default:0|intcomma }}
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    {{ metrics.replied|intcomma }} / {{ metrics.total_reviews|intcomma }} 
+                    ({{ metrics.replied_percentage }}%)
+                </p>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Chưa phản hồi</div>
+                <div class="text-2xl font-semibold text-orange-600">
+                    {{ metrics.pending_response|default:0|intcomma }}
+                </div>
+                <p class="text-[11px] text-gray-500 mt-1">
+                    {{ metrics.pending_response|intcomma }} / {{ metrics.total_reviews|intcomma }} 
+                    ({{ metrics.pending_percentage }}%)
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 2 & 3. PHÂN TÍCH RATING VÀ PHÂN TÍCH THEO SHOP (2 cột 50%-50%) -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- 2. PHÂN TÍCH RATING (Breakdown theo số sao) -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Phân tích Rating – Breakdown theo số sao</h2>
+            <div class="space-y-2 text-[11px]">
+                {% for item in rating_breakdown %}
+                <div>
+                    <div class="flex justify-between mb-0.5">
+                        <span class="font-semibold text-gray-700">
+                            {{ item.stars }} sao
+                        </span>
+                        <span class="text-gray-500">
+                            {{ item.count|intcomma }} reviews ({{ item.percentage }}%)
+                        </span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-2 {% if item.stars == 5 %}bg-emerald-500{% elif item.stars >= 4 %}bg-sky-500{% elif item.stars >= 3 %}bg-yellow-500{% else %}bg-red-500{% endif %}" 
+                             style="width: {{ item.percentage }}%"></div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-[11px] text-gray-400">Chưa có dữ liệu rating.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 3. PHÂN TÍCH THEO SHOP -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Phân tích theo Shop</h2>
+            <div class="overflow-x-auto max-h-96 text-[11px]">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Shop</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Tổng reviews</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Đánh giá trung bình</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">5 sao</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">1-4 sao</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for shop in shop_stats %}
+                        <tr class="border-t hover:bg-slate-50">
+                            <td class="px-2 py-1 text-gray-700 font-semibold">{{ shop.name }}</td>
+                            <td class="px-2 py-1 text-right">{{ shop.total|intcomma }}</td>
+                            <td class="px-2 py-1 text-right">
+                                <span class="font-semibold {% if shop.avg_rating >= 4.5 %}text-emerald-700{% elif shop.avg_rating >= 4.0 %}text-sky-700{% elif shop.avg_rating >= 3.0 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                    {{ shop.avg_rating|floatformat:2 }} ⭐
+                                </span>
+                            </td>
+                            <td class="px-2 py-1 text-right text-emerald-700">{{ shop.good|intcomma }}</td>
+                            <td class="px-2 py-1 text-right text-red-600">{{ shop.bad|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                Chưa có dữ liệu shop.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 4. PHÂN TÍCH SẢN PHẨM -->
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <!-- 4.1 Top 10 sản phẩm bị đánh giá xấu nhiều nhất (theo Sapo variants) -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Top 10 sản phẩm bị đánh giá xấu nhiều nhất</h2>
+            <div class="overflow-x-auto max-h-96 text-[11px]">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Sản phẩm (SKU)</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Số đánh giá xấu</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Đánh giá TB</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in top_bad_products %}
+                        <tr class="border-t hover:bg-slate-50">
+                            <td class="px-2 py-1 text-gray-700">
+                                <div class="max-w-xs truncate">{{ product.product_name }}</div>
+                                <div class="text-[10px] text-gray-500 font-mono">
+                                    {% if product.sku %}{{ product.sku }}{% else %}Variant ID: {{ product.variant_id }}{% endif %}
+                                </div>
+                            </td>
+                            <td class="px-2 py-1 text-right text-red-600 font-semibold">{{ product.count|intcomma }}</td>
+                            <td class="px-2 py-1 text-right">
+                                <span class="font-semibold text-gray-700">{{ product.avg_rating|floatformat:2 }} ⭐</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                Chưa có sản phẩm nào bị đánh giá xấu.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 4.2 Top sản phẩm có nhiều reviews nhất (theo Sapo variants) -->
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Top 20 sản phẩm có nhiều reviews nhất</h2>
+            <div class="overflow-x-auto max-h-96 text-[11px]">
+                <table class="min-w-full">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-2 py-1 text-left font-semibold text-gray-600">Sản phẩm (SKU)</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Tổng reviews</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">Đánh giá TB</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">5 sao</th>
+                            <th class="px-2 py-1 text-right font-semibold text-gray-600">1-4 sao</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in product_stats %}
+                        <tr class="border-t hover:bg-slate-50">
+                            <td class="px-2 py-1 text-gray-700">
+                                <div class="max-w-xs truncate">{{ product.product_name }}</div>
+                                <div class="text-[10px] text-gray-500 font-mono">
+                                    {% if product.sku %}{{ product.sku }}{% else %}Variant ID: {{ product.variant_id }}{% endif %}
+                                </div>
+                            </td>
+                            <td class="px-2 py-1 text-right">{{ product.total_reviews|intcomma }}</td>
+                            <td class="px-2 py-1 text-right">
+                                <span class="font-semibold {% if product.avg_rating >= 4.5 %}text-emerald-700{% elif product.avg_rating >= 4.0 %}text-sky-700{% elif product.avg_rating >= 3.0 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                                    {{ product.avg_rating|floatformat:2 }} ⭐
+                                </span>
+                            </td>
+                            <td class="px-2 py-1 text-right text-emerald-700">{{ product.good_reviews|intcomma }}</td>
+                            <td class="px-2 py-1 text-right text-red-600">{{ product.bad_reviews|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-2 py-3 text-center text-gray-400 text-[11px]">
+                                Chưa có dữ liệu sản phẩm.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. QUICK ACTIONS -->
+    <section class="flex flex-col md:flex-row gap-3">
+        <a href="{% url 'cskh:feedback_list' %}"
+           class="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-center text-sm font-semibold">
+            Xem danh sách reviews
+        </a>
+        <button onclick="syncFeedbacks()" 
+                class="flex-1 px-4 py-2 bg-white border-2 border-brand text-brand rounded-lg hover:bg-brandlight transition text-center text-sm font-semibold">
+            🔄 Sync từ Sapo MP
+        </button>
+    </section>
+</div>
+
+<script>
+function syncFeedbacks() {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP?')) {
+        return;
+    }
+    
+    // Redirect to sync page or call API
+    window.location.href = "{% url 'cskh:api_sync_feedbacks' %}";
+}
+</script>
+{% endblock %}
+

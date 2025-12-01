@@ -93,6 +93,9 @@ class VariantMetadataDTO(BaseDTO):
     sku_model_xnk: Optional[str] = None          # SKU-MODEL-XNK (nhập khẩu)
     web_variant_id: List[str] = Field(default_factory=list)  # Danh sách ID variant trên website
     
+    # Shopee Marketplace fields
+    shopee_connections: List[Dict[str, Any]] = Field(default_factory=list)  # List các connection info: [{"connection_id": 134366, "variation_id": "297209457630", "item_id": "55152258387"}]
+    
     # Legacy fields (giữ để tương thích)
     import_info: Optional[ImportInfoDTO] = None
     packaging_info: Optional[PackagingInfoDTO] = None

@@ -1,8 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
 from kho.utils import admin_only
 from ..services.config_service import SapoConfigService, ShopeeConfigService
+from core.sapo_client import SapoClient
+from products.services.shopee_init_service import ShopeeInitService
 
 @admin_only
 def settings_dashboard(request):
@@ -90,3 +95,74 @@ def test_view(request):
     Trang test header template
     """
     return render(request, 'settings/test.html')
+
+@admin_only
+def init_data_view(request):
+    """
+    Trang Init data - Quản lý việc khởi tạo dữ liệu từ các nguồn
+    """
+    return render(request, 'settings/init_data.html')
+
+@admin_only
+@csrf_exempt
+@require_http_methods(["POST"])
+def init_shopee_products_api(request):
+    """
+    API endpoint để init Shopee products từ Sapo MP.
+    
+    POST /settings/init-data/init-shopee-products/
+    
+    Body (JSON):
+    {
+        "tenant_id": 1262,
+        "connection_ids": "10925,134366,..." (optional, nếu không có sẽ lấy tất cả)
+    }
+    
+    Returns:
+    {
+        "success": true/false,
+        "total_products": 355,
+        "processed": 100,
+        "updated": 50,
+        "errors": [...]
+    }
+    """
+    try:
+        data = json.loads(request.body)
+        tenant_id = data.get("tenant_id")
+        
+        if not tenant_id:
+            return JsonResponse({
+                "success": False,
+                "error": "tenant_id is required"
+            }, status=400)
+        
+        connection_ids = data.get("connection_ids")
+        
+        # Initialize Sapo client
+        sapo_client = SapoClient()
+        
+        # Initialize service
+        init_service = ShopeeInitService(sapo_client)
+        
+        # Run init
+        result = init_service.init_shopee_products(
+            tenant_id=tenant_id,
+            connection_ids=connection_ids
+        )
+        
+        return JsonResponse(result)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "error": "Invalid JSON in request body"
+        }, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in init_shopee_products_api: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)

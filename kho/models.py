@@ -88,3 +88,96 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return self.display_name or self.user.username
+
+
+class WarehousePackingSetting(models.Model):
+    """
+    Cài đặt bật/tắt tính năng đóng gói hàng (packing_orders) cho từng kho.
+    - KHO_HCM: Kho HCM (Geleximco / toky)
+    - KHO_HN: Kho Hà Nội (Geleximco)
+    """
+    WAREHOUSE_CHOICES = [
+        ('KHO_HCM', 'Kho HCM (Geleximco & Toky)'),
+        ('KHO_HN', 'Kho Hà Nội (Geleximco)'),
+    ]
+    
+    warehouse_code = models.CharField(
+        max_length=20, 
+        choices=WAREHOUSE_CHOICES, 
+        unique=True,
+        help_text="Mã kho: KHO_HCM hoặc KHO_HN"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Bật/tắt tính năng đóng gói hàng cho nhân viên thông thường (WarehousePacker)"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='packing_settings_updated'
+    )
+    
+    class Meta:
+        verbose_name = "Cài đặt đóng gói hàng kho"
+        verbose_name_plural = "Cài đặt đóng gói hàng kho"
+        ordering = ['warehouse_code']
+    
+    def __str__(self):
+        status = "Hoạt động" if self.is_active else "Tạm dừng"
+        return f"{self.get_warehouse_code_display()} - {status}"
+    
+    @classmethod
+    def get_setting_for_warehouse(cls, warehouse_code):
+        """
+        Lấy cài đặt cho kho. Nếu chưa có thì tạo mới với is_active=True (mặc định bật).
+        warehouse_code: 'KHO_HCM' hoặc 'KHO_HN'
+        """
+        setting, created = cls.objects.get_or_create(
+            warehouse_code=warehouse_code,
+            defaults={'is_active': True}
+        )
+        return setting
+    
+    @classmethod
+    def is_packing_enabled_for_user(cls, user):
+        """
+        Kiểm tra xem user có được phép sử dụng tính năng packing_orders không.
+        - WarehouseManager: luôn được phép
+        - WarehousePacker: phụ thuộc vào cài đặt của kho
+        - Các user khác: không được phép
+        
+        Returns: (is_allowed, reason)
+        """
+        from django.contrib.auth.models import Group
+        
+        # WarehouseManager luôn được phép
+        if user.is_superuser or user.groups.filter(name="Admin").exists():
+            return True, "Quản lý"
+        
+        if user.groups.filter(name="WarehouseManager").exists():
+            return True, "Quản lý kho"
+        
+        # WarehousePacker cần kiểm tra cài đặt
+        if user.groups.filter(name="WarehousePacker").exists():
+            # Xác định kho từ user.last_name
+            last_name = (user.last_name or "").strip().upper()
+            
+            warehouse_code = None
+            if last_name == "KHO_HCM":
+                warehouse_code = "KHO_HCM"
+            elif last_name == "KHO_HN":
+                warehouse_code = "KHO_HN"
+            
+            if not warehouse_code:
+                return False, "Không xác định được kho từ thông tin tài khoản"
+            
+            # Lấy cài đặt cho kho
+            setting = cls.get_setting_for_warehouse(warehouse_code)
+            if setting.is_active:
+                return True, f"Kho {warehouse_code}"
+            else:
+                return False, f"Tính năng đóng gói hàng đã bị tắt cho {warehouse_code}"
+        
+        return False, "Không có quyền truy cập"

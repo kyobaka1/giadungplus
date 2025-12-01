@@ -75,5 +75,206 @@
                 <p>Dữ liệu sẽ được cập nhật sau khi có logic lấy đơn từ Sapo.</p>
             </div>
         </div>
+
+        <!-- Quản trị nhân viên gói hàng -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-4">Quản trị nhân viên gói hàng</h2>
+            <p class="text-xs text-gray-500 mb-4">Bật/tắt tính năng đóng gói hàng cho nhân viên thông thường (WarehousePacker) theo từng kho</p>
+            
+            <div class="space-y-4">
+                <!-- Kho HCM -->
+                <div class="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold text-slate-800">Kho HCM (Geleximco & Toky)</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            <span id="status-hcm" class="inline-block px-2 py-1 rounded text-xs font-medium {% if packing_settings.KHO_HCM.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-700{% endif %}">
+                                {% if packing_settings.KHO_HCM.is_active %}Hoạt động{% else %}Tạm dừng{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            class="sr-only peer" 
+                            id="toggle-hcm"
+                            data-warehouse="KHO_HCM"
+                            {% if packing_settings.KHO_HCM.is_active %}checked{% endif %}
+                        >
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+
+                <!-- Kho HN -->
+                <div class="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold text-slate-800">Kho Hà Nội (Geleximco)</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            <span id="status-hn" class="inline-block px-2 py-1 rounded text-xs font-medium {% if packing_settings.KHO_HN.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-700{% endif %}">
+                                {% if packing_settings.KHO_HN.is_active %}Hoạt động{% else %}Tạm dừng{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            class="sr-only peer" 
+                            id="toggle-hn"
+                            data-warehouse="KHO_HN"
+                            {% if packing_settings.KHO_HN.is_active %}checked{% endif %}
+                        >
+                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+            </div>
+        </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Get CSRF token function - try multiple methods
+function getCSRFToken() {
+    // Method 1: Try from cookie
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
+    // Try cookie first
+    let token = getCookie('csrftoken');
+    if (token) {
+        console.log('[CSRF] Token from cookie');
+        return token;
+    }
+    
+    // Method 2: Try from hidden input (if csrf_token tag was used)
+    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfInput) {
+        token = csrfInput.value;
+        console.log('[CSRF] Token from input');
+        return token;
+    }
+    
+    console.error('[CSRF] Token not found!');
+    return null;
+}
+
+// Toggle packing setting function
+async function togglePackingSetting(warehouseCode, isActive) {
+    console.log(`[PackingSettings] Toggle ${warehouseCode} to ${isActive}`);
+    
+    // Map warehouse code to element ID suffix (hcm or hn)
+    const idSuffix = warehouseCode === 'KHO_HCM' ? 'hcm' : 'hn';
+    
+    const statusElement = document.getElementById(`status-${idSuffix}`);
+    const toggleElement = document.getElementById(`toggle-${idSuffix}`);
+    
+    console.log(`[PackingSettings] Looking for elements: status-${idSuffix}, toggle-${idSuffix}`);
+    console.log(`[PackingSettings] Found statusElement:`, statusElement);
+    console.log(`[PackingSettings] Found toggleElement:`, toggleElement);
+    
+    if (!statusElement || !toggleElement) {
+        console.error(`[PackingSettings] Cannot find elements for ${warehouseCode}`);
+        return;
+    }
+    
+    // Disable toggle while processing
+    toggleElement.disabled = true;
+    
+    // Get CSRF token
+    const csrftoken = getCSRFToken();
+    console.log(`[PackingSettings] CSRF token: ${csrftoken ? 'Found' : 'Not found'}`);
+    
+    if (!csrftoken) {
+        alert('Lỗi: Không tìm thấy CSRF token. Vui lòng tải lại trang.');
+        toggleElement.checked = !isActive;
+        toggleElement.disabled = false;
+        return;
+    }
+    
+    try {
+        console.log(`[PackingSettings] Sending request to /kho/management/packing_settings/toggle/`);
+        
+        const response = await fetch('/kho/management/packing_settings/toggle/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                warehouse_code: warehouseCode,
+                is_active: isActive
+            })
+        });
+        
+        console.log(`[PackingSettings] Response status: ${response.status}`);
+        
+        const data = await response.json();
+        console.log(`[PackingSettings] Response data:`, data);
+        
+        if (data.success) {
+            // Update status badge
+            if (isActive) {
+                statusElement.textContent = 'Hoạt động';
+                statusElement.className = 'inline-block px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700';
+            } else {
+                statusElement.textContent = 'Tạm dừng';
+                statusElement.className = 'inline-block px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700';
+            }
+            
+            console.log(`[PackingSettings] Success: ${data.message}`);
+        } else {
+            // Revert toggle on error
+            toggleElement.checked = !isActive;
+            alert('Lỗi: ' + (data.error || 'Không thể cập nhật cài đặt'));
+            console.error(`[PackingSettings] Error:`, data.error);
+        }
+    } catch (error) {
+        // Revert toggle on error
+        toggleElement.checked = !isActive;
+        alert('Lỗi: Không thể kết nối đến server');
+        console.error('[PackingSettings] Exception:', error);
+    } finally {
+        // Re-enable toggle
+        toggleElement.disabled = false;
+    }
+}
+
+// Initialize event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[PackingSettings] Initializing toggle listeners...');
+    
+    // Setup toggle for KHO_HCM
+    const toggleHcm = document.getElementById('toggle-hcm');
+    if (toggleHcm) {
+        toggleHcm.addEventListener('change', function() {
+            togglePackingSetting('KHO_HCM', this.checked);
+        });
+        console.log('[PackingSettings] HCM toggle listener attached');
+    } else {
+        console.error('[PackingSettings] Cannot find toggle-hcm element');
+    }
+    
+    // Setup toggle for KHO_HN
+    const toggleHn = document.getElementById('toggle-hn');
+    if (toggleHn) {
+        toggleHn.addEventListener('change', function() {
+            togglePackingSetting('KHO_HN', this.checked);
+        });
+        console.log('[PackingSettings] HN toggle listener attached');
+    } else {
+        console.error('[PackingSettings] Cannot find toggle-hn element');
+    }
+});
+</script>
 {% endblock %}

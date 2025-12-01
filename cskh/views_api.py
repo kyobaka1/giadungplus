@@ -11,11 +11,12 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-from .models import Ticket, TicketCost, TicketEvent
+from .models import Ticket, TicketCost, TicketEvent, Feedback, FeedbackLog
 from .settings import get_reason_types_by_source, get_cost_types
 from .utils import log_ticket_action
 from core.sapo_client import get_sapo_client
 from .services.ticket_service import TicketService
+from django.utils import timezone
 
 
 @csrf_exempt
@@ -380,10 +381,76 @@ def api_add_event(request, ticket_id):
                 'id': event.id,
                 'content': event.content,
                 'tags': event.tags,
-                'created_by': event.created_by.get_full_name() or event.created_by.username if event.created_by else '',
+                'created_by': (event.created_by.first_name or event.created_by.username) if event.created_by else '',
                 'created_at': event.created_at.isoformat(),
             }
         })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_update_sugget_process(request, ticket_id):
+    """
+    API: Cập nhật / thêm hướng xử lý (sugget_process) cho ticket.
+    Body JSON:
+        {
+            "sugget_main": str,           # Hướng xử lý chính
+            "description": str (optional) # Giải thích ngắn gọn
+        }
+    Hệ thống tự ghi nhận:
+        - user_id, user_name từ request.user
+        - time: thời điểm cập nhật (ISO)
+    """
+    ticket = get_object_or_404(Ticket, id=ticket_id)
+
+    try:
+        data = json.loads(request.body)
+        sugget_main = (data.get('sugget_main') or '').strip()
+        description = (data.get('description') or '').strip()
+
+        if not sugget_main:
+            return JsonResponse({'success': False, 'error': 'Vui lòng chọn hướng xử lý chính'}, status=400)
+
+        user = request.user
+        now = timezone.now()
+
+        old_sugget = ticket.sugget_process or {}
+
+        # Lấy chức vụ/bộ phận từ last_name (ví dụ: QUẢN TRỊ VIÊN, CSKH, KHO_HN, ...)
+        department = (getattr(user, "last_name", "") or "").strip()
+
+        new_sugget = {
+            'user_id': user.id,
+            'user_name': user.first_name or user.username,
+            'department': department,
+            'sugget_main': sugget_main,
+            'description': description,
+            'time': now.isoformat(),
+        }
+
+        ticket.sugget_process = new_sugget
+        ticket.save(update_fields=['sugget_process', 'updated_at'])
+
+        # Nếu ticket đang ở trạng thái 'new' thì chuyển sang 'processing'
+        if ticket.ticket_status == 'new':
+            ticket.ticket_status = 'processing'
+            ticket.save(update_fields=['ticket_status'])
+
+        # Log action
+        log_ticket_action(
+            ticket.ticket_number,
+            user.username,
+            'updated_sugget_process',
+            {
+                'old': old_sugget,
+                'new': new_sugget,
+            }
+        )
+
+        return JsonResponse({'success': True, 'sugget_process': new_sugget})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
@@ -589,7 +656,7 @@ def api_update_responsible(request, ticket_id):
             'success': True,
             'responsible_user': {
                 'id': ticket.responsible_user.id if ticket.responsible_user else None,
-                'name': ticket.responsible_user.get_full_name() if ticket.responsible_user else None,
+                'name': (ticket.responsible_user.first_name or ticket.responsible_user.username) if ticket.responsible_user else None,
             } if ticket.responsible_user else None,
             'responsible_department': ticket.responsible_department,
             'responsible_note': ticket.responsible_note,
@@ -779,4 +846,242 @@ def api_save_ticket(request, ticket_id):
         return JsonResponse({"success": True})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=400)
+
+
+# ========================
+# FEEDBACK API ENDPOINTS
+# ========================
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_sync_feedbacks(request):
+    """
+    API: Sync feedbacks từ Sapo MP vào database.
+    
+    POST /cskh/api/feedback/sync/
+    Body: {
+        "tenant_id": 1262,
+        "connection_ids": "10925,134366,..." (optional),
+        "rating": "1,2,3,4,5" (optional)
+    }
+    """
+    try:
+        from .services.feedback_service import FeedbackService
+        from core.sapo_client import get_sapo_client
+        
+        data = json.loads(request.body)
+        tenant_id = data.get("tenant_id")
+        
+        if not tenant_id:
+            return JsonResponse({
+                "success": False,
+                "error": "tenant_id is required"
+            }, status=400)
+        
+        connection_ids = data.get("connection_ids")
+        rating = data.get("rating", "1,2,3,4,5")
+        max_feedbacks = data.get("max_feedbacks")  # Giới hạn số lượng để test (vd: 2000)
+        num_threads = data.get("num_threads", 5)  # Số thread (default: 5)
+        
+        # Initialize service
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        # Sync feedbacks với multi-threading
+        result = feedback_service.sync_feedbacks(
+            tenant_id=tenant_id,
+            connection_ids=connection_ids,
+            rating=rating,
+            max_feedbacks=max_feedbacks,
+            num_threads=num_threads
+        )
+        
+        return JsonResponse(result)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "error": "Invalid JSON in request body"
+        }, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in api_sync_feedbacks: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_reply_feedback(request, feedback_id):
+    """
+    API: Gửi phản hồi cho feedback.
+    
+    POST /cskh/api/feedback/<feedback_id>/reply/
+    Body: {
+        "reply_content": "...",
+        "tenant_id": 1262
+    }
+    """
+    try:
+        from .services.feedback_service import FeedbackService
+        from core.sapo_client import get_sapo_client
+        
+        feedback = get_object_or_404(Feedback, id=feedback_id)
+        
+        data = json.loads(request.body)
+        reply_content = data.get("reply_content", "").strip()
+        tenant_id = data.get("tenant_id")
+        
+        if not reply_content:
+            return JsonResponse({
+                "success": False,
+                "error": "reply_content is required"
+            }, status=400)
+        
+        if not tenant_id:
+            return JsonResponse({
+                "success": False,
+                "error": "tenant_id is required"
+            }, status=400)
+        
+        # Initialize service
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        # Reply feedback
+        result = feedback_service.reply_feedback(
+            feedback_id=feedback_id,
+            reply_content=reply_content,
+            tenant_id=tenant_id,
+            user=request.user
+        )
+        
+        return JsonResponse(result)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "error": "Invalid JSON in request body"
+        }, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in api_reply_feedback: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_create_ticket_from_feedback(request, feedback_id):
+    """
+    API: Tạo ticket từ bad review.
+    
+    POST /cskh/api/feedback/<feedback_id>/create-ticket/
+    """
+    try:
+        from .services.feedback_service import FeedbackService
+        from core.sapo_client import get_sapo_client
+        
+        feedback = get_object_or_404(Feedback, id=feedback_id)
+        
+        if feedback.ticket:
+            return JsonResponse({
+                "success": False,
+                "error": "Feedback đã có ticket rồi",
+                "ticket_id": feedback.ticket.id,
+                "ticket_number": feedback.ticket.ticket_number
+            }, status=400)
+        
+        # Initialize service
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        # Create ticket
+        result = feedback_service.create_ticket_from_bad_review(
+            feedback_id=feedback_id,
+            user=request.user
+        )
+        
+        return JsonResponse(result)
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in api_create_ticket_from_feedback: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_ai_suggest_reply(request, feedback_id):
+    """
+    API: AI suggest reply cho feedback (placeholder - sẽ implement sau).
+    
+    POST /cskh/api/feedback/<feedback_id>/ai-suggest/
+    Body: {
+        "step": "name" | "reply"  # Bước xử lý: name (tên, giới tính) hoặc reply (gợi ý phản hồi)
+    }
+    """
+    try:
+        feedback = get_object_or_404(Feedback, id=feedback_id)
+        
+        data = json.loads(request.body)
+        step = data.get("step", "reply")
+        
+        # TODO: Implement AI processing
+        # Bước 1: Xử lý tên, giới tính
+        # Bước 2: Gợi ý phản hồi
+        
+        if step == "name":
+            # Placeholder: AI xử lý tên và giới tính
+            return JsonResponse({
+                "success": True,
+                "suggested_name": feedback.buyer_user_name,
+                "suggested_gender": "unknown",  # male, female, unknown
+                "message": "AI processing name and gender (placeholder)"
+            })
+        elif step == "reply":
+            # Placeholder: AI gợi ý phản hồi
+            if feedback.rating == 5:
+                suggested_reply = f"Cảm ơn bạn {feedback.buyer_user_name} đã đánh giá tốt về sản phẩm! Chúng tôi rất vui khi được phục vụ bạn."
+            else:
+                suggested_reply = f"Xin chào {feedback.buyer_user_name}, chúng tôi rất tiếc về trải nghiệm của bạn. Vui lòng liên hệ CSKH để được hỗ trợ tốt hơn."
+            
+            return JsonResponse({
+                "success": True,
+                "suggested_reply": suggested_reply,
+                "message": "AI suggested reply (placeholder)"
+            })
+        else:
+            return JsonResponse({
+                "success": False,
+                "error": "Invalid step. Use 'name' or 'reply'"
+            }, status=400)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "error": "Invalid JSON in request body"
+        }, status=400)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in api_ai_suggest_reply: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
 

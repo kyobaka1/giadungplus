@@ -1,0 +1,641 @@
+{% extends "cskh/base_cskh.html" %}
+{% load humanize %}
+
+{% block title %}Feedback Center – Danh sách Reviews{% endblock %}
+
+{% block overview %}
+<section class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Feedback Center – Danh sách Reviews</h1>
+        <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} reviews</p>
+    </div>
+    <button onclick="syncFeedbacks()" 
+        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+        🔄 Sync từ Sapo MP
+    </button>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 overflow-x-hidden">
+
+    <!-- Filters -->
+    <div class="bg-white border rounded-xl p-4 shadow-sm mb-4">
+        <form method="GET" id="filterForm" class="space-y-4">
+            <!-- Status Filters (Trạng thái) -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-2">Trạng thái:</label>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="setStatusFilter('all')" 
+                        class="px-3 py-1.5 text-xs rounded-lg border {% if current_status == 'all' or not current_status %}bg-brand text-white border-brand{% else %}bg-white text-gray-700 border-gray-300 hover:bg-gray-50{% endif %} transition">
+                        Tất cả <span class="ml-1 font-semibold">({{ filter_counts.all|intcomma }})</span>
+                    </button>
+                    <button type="button" onclick="setStatusFilter('pending')" 
+                        class="px-3 py-1.5 text-xs rounded-lg border {% if current_status == 'pending' %}bg-brand text-white border-brand{% else %}bg-white text-gray-700 border-gray-300 hover:bg-gray-50{% endif %} transition">
+                        Cần phản hồi <span class="ml-1 font-semibold">({{ filter_counts.pending|intcomma }})</span>
+                    </button>
+                    <button type="button" onclick="setStatusFilter('replied')" 
+                        class="px-3 py-1.5 text-xs rounded-lg border {% if current_status == 'replied' %}bg-brand text-white border-brand{% else %}bg-white text-gray-700 border-gray-300 hover:bg-gray-50{% endif %} transition">
+                        Đã trả lời <span class="ml-1 font-semibold">({{ filter_counts.replied|intcomma }})</span>
+                    </button>
+                    <input type="hidden" name="status" id="statusInput" value="{{ current_status }}">
+                </div>
+            </div>
+
+            <!-- Star Rating Filters (Số sao đánh giá) -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-2">Số sao đánh giá:</label>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="rating" value="all" 
+                            onchange="toggleRatingFilter('all', this)"
+                            {% if 'all' in current_ratings or not current_ratings %}checked{% endif %}
+                            class="w-4 h-4 text-brand border-gray-300 rounded focus:ring-brand">
+                        <span class="text-xs text-gray-700">Tất cả</span>
+                    </label>
+                    {% for rating_num in "54321" %}
+                        {% with rating=rating_num|add:0 %}
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="rating" value="{{ rating }}" 
+                                onchange="toggleRatingFilter('{{ rating }}', this)"
+                                {% if rating|stringformat:"s" in current_ratings %}checked{% endif %}
+                                class="w-4 h-4 text-brand border-gray-300 rounded focus:ring-brand">
+                            <span class="text-xs text-gray-700">{{ rating }} Sao</span>
+                            <span class="text-xs text-gray-500">
+                                ({% if rating == 5 %}{{ filter_counts.ratings.5|intcomma }}{% elif rating == 4 %}{{ filter_counts.ratings.4|intcomma }}{% elif rating == 3 %}{{ filter_counts.ratings.3|intcomma }}{% elif rating == 2 %}{{ filter_counts.ratings.2|intcomma }}{% elif rating == 1 %}{{ filter_counts.ratings.1|intcomma }}{% endif %})
+                            </span>
+                        </label>
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Search Input -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-2">Tìm kiếm:</label>
+                <input type="text" name="search" value="{{ current_search }}" 
+                    placeholder="Tên Sản Phẩm, Mã Đơn Hàng, Tên đăng nhập người mua"
+                    class="w-full px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+            </div>
+
+            <!-- Review Time Filter (Thời gian đánh giá) -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-2">Thời gian đánh giá:</label>
+                <div class="flex flex-wrap gap-2 items-center">
+                    <input type="date" name="date_from" value="{{ current_date_from }}" 
+                        class="px-3 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                        placeholder="Từ ngày">
+                    <span class="text-xs text-gray-500">đến</span>
+                    <input type="date" name="date_to" value="{{ current_date_to }}" 
+                        class="px-3 py-1.5 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                        placeholder="Đến ngày">
+                    <div class="flex gap-2 ml-2">
+                        <button type="button" onclick="setQuickDate('today')" 
+                            class="px-2 py-1 text-xs border rounded hover:bg-gray-50">Hôm nay</button>
+                        <button type="button" onclick="setQuickDate('yesterday')" 
+                            class="px-2 py-1 text-xs border rounded hover:bg-gray-50">Hôm qua</button>
+                        <button type="button" onclick="setQuickDate('last7d')" 
+                            class="px-2 py-1 text-xs border rounded hover:bg-gray-50">7 ngày</button>
+                        <button type="button" onclick="setQuickDate('last30d')" 
+                            class="px-2 py-1 text-xs border rounded hover:bg-gray-50">30 ngày</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-2 pt-2">
+                <button type="submit" 
+                    class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                    Tìm kiếm
+                </button>
+                <a href="{% url 'cskh:feedback_list' %}" 
+                    class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-semibold">
+                    Đặt lại
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Feedback List -->
+    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm table-fixed" style="table-layout: fixed;">
+                <thead class="bg-slate-50 border-b sticky top-0 z-10">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Ngày đánh giá</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Đơn hàng</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Khách hàng</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 100px;">Sản phẩm</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 80px;">Đánh giá</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 250px;">Nội dung (Hình ảnh)</th>
+                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 150px;">Phản hồi</th>
+                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 100px;">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for feedback in feedbacks %}
+                    <tr class="hover:bg-slate-50 {% if feedback.is_bad_review %}bg-red-50{% elif feedback.is_good_review %}bg-green-50{% endif %}">
+                        <!-- Ngày đánh giá -->
+                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
+                            <script>
+                                document.write(new Date({{ feedback.create_time }} * 1000).toLocaleString('vi-VN', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}));
+                            </script>
+                        </td>
+
+                        <!-- Đơn hàng -->
+                        <td class="px-3 py-2">
+                            {% if feedback.channel_order_number %}
+                            <div class="font-mono text-xs text-sky-700">{{ feedback.channel_order_number }}</div>
+                            {% if feedback.sapo_order_id %}
+                            <a href="https://sisapsan.mysapogo.com/admin/orders/{{ feedback.sapo_order_id }}" 
+                               target="_blank" 
+                               class="text-xs text-sky-600 hover:underline">Xem đơn</a>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Khách hàng -->
+                        <td class="px-3 py-2">
+                            <div class="font-medium text-gray-900 text-xs">{{ feedback.buyer_user_name|default:"-" }}</div>
+                            <div class="text-xs text-gray-500">{{ feedback.shop_name }}</div>
+                        </td>
+
+                        <!-- Sản phẩm (chỉ hiển thị SKU) -->
+                        <td class="px-3 py-2">
+                            {% if feedback.variant_sku %}
+                            <div class="font-mono text-xs text-gray-900">{{ feedback.variant_sku }}</div>
+                            {% else %}
+                            <span class="text-gray-400 text-xs">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Đánh giá -->
+                        <td class="px-3 py-2">
+                            <div class="flex items-center gap-1">
+                                {% if feedback.rating == 5 %}
+                                <span class="text-yellow-500 text-base">⭐⭐⭐⭐⭐</span>
+                                {% elif feedback.rating == 4 %}
+                                <span class="text-yellow-500 text-base">⭐⭐⭐⭐</span>
+                                {% elif feedback.rating == 3 %}
+                                <span class="text-yellow-500 text-base">⭐⭐⭐</span>
+                                {% elif feedback.rating == 2 %}
+                                <span class="text-yellow-500 text-base">⭐⭐</span>
+                                {% elif feedback.rating == 1 %}
+                                <span class="text-yellow-500 text-base">⭐</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Nội dung (Hình ảnh) -->
+                        <td class="px-3 py-2 max-w-xs">
+                            <div class="text-xs text-gray-700 line-clamp-2 mb-1">{{ feedback.comment|default:"(Không có bình luận)"|truncatewords:15 }}</div>
+                            {% if feedback.images %}
+                            <div class="flex gap-1 flex-wrap mt-1">
+                                {% for img_url in feedback.images|slice:":2" %}
+                                <img src="{{ img_url }}" alt="Review image" 
+                                     class="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-75"
+                                     onclick="openImageModal('{{ img_url }}')">
+                                {% endfor %}
+                                {% with img_count=feedback.images|length %}
+                                    {% if img_count > 2 %}
+                                    <div class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-600 cursor-pointer"
+                                         onclick="openImageModal('{{ feedback.images.0 }}')"
+                                         title="Xem thêm {{ img_count|add:'-2' }} ảnh">
+                                        +{{ img_count|add:"-2" }}
+                                    </div>
+                                    {% endif %}
+                                {% endwith %}
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Phản hồi -->
+                        <td class="px-3 py-2">
+                            {% if feedback.reply and feedback.status_reply %}
+                            <div class="text-xs">
+                                <div class="text-green-700 font-medium">✓ Đã phản hồi</div>
+                                <div class="text-gray-600 mt-1 line-clamp-2">{{ feedback.reply|truncatewords:8 }}</div>
+                                {% if feedback.user_reply %}
+                                <div class="text-gray-500 text-[10px] mt-1">Bởi: {{ feedback.user_reply }}</div>
+                                {% endif %}
+                                {% if feedback.reply_time %}
+                                <div class="text-gray-400 text-[10px] mt-0.5">
+                                    {{ feedback.reply_time|date:"d/m/Y H:i" }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-orange-600 text-xs">⏳ Chưa phản hồi</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Thao tác -->
+                        <td class="px-3 py-2 whitespace-nowrap text-right">
+                            <div class="flex items-center gap-1 justify-end">
+                                {% if feedback.is_good_review %}
+                                <button onclick="replyFeedback({{ feedback.id }})" 
+                                    class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition">
+                                    💬
+                                </button>
+                                {% elif feedback.is_bad_review %}
+                                <button onclick="createTicketFromFeedback({{ feedback.id }})" 
+                                    class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition">
+                                    🎫
+                                </button>
+                                <button onclick="replyFeedback({{ feedback.id }})" 
+                                    class="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition">
+                                    💬
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            Không có feedback nào.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if feedbacks.has_other_pages %}
+        <div class="px-4 py-3 border-t bg-slate-50 flex items-center justify-between">
+            <div class="text-xs text-gray-600">
+                Trang {{ feedbacks.number }} / {{ feedbacks.paginator.num_pages }}
+            </div>
+            <div class="flex gap-2">
+                {% if feedbacks.has_previous %}
+                <a href="?page={{ feedbacks.previous_page_number }}{% if current_shop %}&shop={{ current_shop }}{% endif %}{% if current_rating %}&rating={{ current_rating }}{% endif %}{% if current_replied %}&replied={{ current_replied }}{% endif %}" 
+                   class="px-3 py-1 text-xs border rounded hover:bg-white transition">← Trước</a>
+                {% endif %}
+                {% if feedbacks.has_next %}
+                <a href="?page={{ feedbacks.next_page_number }}{% if current_shop %}&shop={{ current_shop }}{% endif %}{% if current_rating %}&rating={{ current_rating }}{% endif %}{% if current_replied %}&replied={{ current_replied }}{% endif %}" 
+                   class="px-3 py-1 text-xs border rounded hover:bg-white transition">Sau →</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Reply Modal -->
+<div id="replyModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <h3 class="text-lg font-semibold mb-4">Phản hồi đánh giá</h3>
+        <textarea id="replyContent" rows="5" 
+            class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm"
+            placeholder="Nhập nội dung phản hồi..."></textarea>
+        <div class="mt-4 flex gap-2 justify-end">
+            <button onclick="closeReplyModal()" 
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                Hủy
+            </button>
+            <button onclick="submitReply()" 
+                class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
+                Gửi phản hồi
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center" onclick="closeImageModal()">
+    <div class="relative max-w-full max-h-full p-4">
+        <button onclick="closeImageModal()" class="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75">
+            ✕
+        </button>
+        <img id="modalImage" src="" alt="Review image" class="max-w-full max-h-full object-contain rounded-lg">
+    </div>
+</div>
+
+<!-- Video Modal -->
+<div id="videoModal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center" onclick="closeVideoModal()">
+    <div class="relative max-w-full max-h-full p-4">
+        <button onclick="closeVideoModal()" class="absolute top-2 right-2 text-white bg-black bg-opacity-50 rounded-full p-2 hover:bg-opacity-75">
+            ✕
+        </button>
+        <video id="modalVideo" src="" controls class="max-w-full max-h-full object-contain rounded-lg" onclick="event.stopPropagation()">
+            Trình duyệt của bạn không hỗ trợ video.
+        </video>
+    </div>
+</div>
+
+<!-- Sync Progress Modal -->
+<div id="syncProgressModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 max-w-3xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <h3 class="text-lg font-semibold mb-4">Tiến trình Sync Feedbacks</h3>
+        <div id="progressLogs" class="flex-1 overflow-y-auto border rounded-lg p-4 bg-gray-50 space-y-1 max-h-[60vh]">
+            <!-- Logs will be displayed here -->
+        </div>
+        <div class="mt-4 flex justify-end">
+            <button onclick="document.getElementById('syncProgressModal').classList.add('hidden')" 
+                class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                Đóng
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentFeedbackId = null;
+
+async function syncFeedbacks() {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP? Quá trình này có thể mất vài phút.\n\nTest mode: Giới hạn 200 đánh giá với 5 threads.')) {
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '🔄 Đang sync...';
+    
+    // Show progress modal
+    const progressModal = document.getElementById('syncProgressModal');
+    const progressLogs = document.getElementById('progressLogs');
+    progressModal.classList.remove('hidden');
+    progressLogs.innerHTML = '<div class="text-sm text-gray-600">Đang khởi động sync...</div>';
+    
+    try {
+        const response = await fetch('/cskh/api/feedback/sync/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                tenant_id: 1262,  // TODO: Lấy từ config hoặc input
+                connection_ids: null,  // Lấy tất cả
+                rating: "1,2,3,4,5",
+                max_feedbacks: 200,  // Test với 200 đánh giá
+                num_threads: 5  // 5 threads
+            })
+        });
+        
+        const data = await response.json();
+        
+        console.log('Sync response:', data);  // Debug
+        
+        // Display logs
+        if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
+            progressLogs.innerHTML = data.logs.map(log => 
+                `<div class="text-sm text-gray-700 py-1 border-b">${escapeHtml(log)}</div>`
+            ).join('');
+            progressLogs.scrollTop = progressLogs.scrollHeight;
+        } else {
+            // Nếu không có logs, hiển thị thông tin từ response
+            progressLogs.innerHTML = `<div class="text-sm text-yellow-700 py-2">Không có logs chi tiết. Kết quả: ${JSON.stringify(data)}</div>`;
+        }
+        
+        if (data.success) {
+            const message = `Sync thành công!\n` +
+                `- Tổng số: ${data.total_feedbacks}\n` +
+                `- Đã xử lý: ${data.synced}\n` +
+                `- Đã cập nhật: ${data.updated}` +
+                (data.errors && data.errors.length > 0 ? `\n- Lỗi: ${data.errors.length}` : '');
+            
+            // Add final message to logs
+            progressLogs.innerHTML += `<div class="text-sm text-green-700 font-semibold py-2 mt-2">${message.replace(/\n/g, '<br>')}</div>`;
+            
+            setTimeout(() => {
+                progressModal.classList.add('hidden');
+                alert(message);
+                // Reload page để hiển thị data mới
+                window.location.reload();
+            }, 2000);
+        } else {
+            const errorMsg = data.error || 'Lỗi không xác định';
+            progressLogs.innerHTML += `<div class="text-sm text-red-700 font-semibold py-2 mt-2">Lỗi: ${errorMsg}</div>`;
+            if (data.errors && data.errors.length > 0) {
+                progressLogs.innerHTML += data.errors.slice(0, 10).map(err => 
+                    `<div class="text-xs text-red-600 py-1">- ${err}</div>`
+                ).join('');
+            }
+            
+            setTimeout(() => {
+                progressModal.classList.add('hidden');
+                alert(`Lỗi: ${errorMsg}`);
+            }, 3000);
+        }
+    } catch (error) {
+        progressLogs.innerHTML += `<div class="text-sm text-red-700 font-semibold py-2 mt-2">Lỗi khi sync: ${error.message}</div>`;
+        setTimeout(() => {
+            progressModal.classList.add('hidden');
+            alert('Lỗi khi sync: ' + error.message);
+        }, 2000);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function replyFeedback(feedbackId) {
+    currentFeedbackId = feedbackId;
+    document.getElementById('replyModal').classList.remove('hidden');
+    document.getElementById('replyContent').value = '';
+}
+
+function closeReplyModal() {
+    document.getElementById('replyModal').classList.add('hidden');
+    currentFeedbackId = null;
+}
+
+async function submitReply() {
+    const content = document.getElementById('replyContent').value.trim();
+    if (!content) {
+        alert('Vui lòng nhập nội dung phản hồi');
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Đang gửi...';
+    
+    try {
+        const response = await fetch(`/cskh/api/feedback/${currentFeedbackId}/reply/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                reply_content: content,
+                tenant_id: 1262  // TODO: Lấy từ config
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Đã gửi phản hồi thành công!');
+            closeReplyModal();
+            // Reload page để hiển thị reply mới
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + (data.message || data.error || 'Không xác định'));
+        }
+    } catch (error) {
+        alert('Lỗi khi gửi phản hồi: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+async function createTicketFromFeedback(feedbackId) {
+    if (!confirm('Bạn có chắc muốn tạo ticket từ đánh giá xấu này?')) {
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Đang tạo...';
+    
+    try {
+        const response = await fetch(`/cskh/api/feedback/${feedbackId}/create-ticket/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Đã tạo ticket thành công!\nTicket: ${data.ticket_number}`);
+            // Reload page để hiển thị ticket link
+            window.location.reload();
+        } else {
+            if (data.ticket_id) {
+                alert(`Ticket đã tồn tại: ${data.ticket_number}`);
+            } else {
+                alert('Lỗi: ' + (data.message || data.error || 'Không xác định'));
+            }
+        }
+    } catch (error) {
+        alert('Lỗi khi tạo ticket: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+
+function openImageModal(imgUrl) {
+    document.getElementById('modalImage').src = imgUrl;
+    document.getElementById('imageModal').classList.remove('hidden');
+}
+
+function closeImageModal() {
+    document.getElementById('imageModal').classList.add('hidden');
+    document.getElementById('modalImage').src = '';
+}
+
+function openVideoModal(videoUrl) {
+    document.getElementById('modalVideo').src = videoUrl;
+    document.getElementById('videoModal').classList.remove('hidden');
+}
+
+function closeVideoModal() {
+    document.getElementById('videoModal').classList.add('hidden');
+    const video = document.getElementById('modalVideo');
+    video.pause();
+    video.src = '';
+}
+
+// Filter functions
+function setStatusFilter(status) {
+    document.getElementById('statusInput').value = status;
+    document.getElementById('filterForm').submit();
+}
+
+function toggleRatingFilter(rating, checkbox) {
+    const form = document.getElementById('filterForm');
+    const allCheckbox = form.querySelector('input[name="rating"][value="all"]');
+    
+    if (rating === 'all') {
+        // If "Tất cả" is checked, uncheck all others
+        if (checkbox.checked) {
+            form.querySelectorAll('input[name="rating"]:not([value="all"])').forEach(cb => {
+                cb.checked = false;
+            });
+        }
+    } else {
+        // If a specific rating is checked, uncheck "Tất cả"
+        if (checkbox.checked && allCheckbox) {
+            allCheckbox.checked = false;
+        }
+        // If all specific ratings are unchecked, check "Tất cả"
+        const specificChecked = Array.from(form.querySelectorAll('input[name="rating"]:not([value="all"])')).some(cb => cb.checked);
+        if (!specificChecked && allCheckbox) {
+            allCheckbox.checked = true;
+        }
+    }
+}
+
+function setQuickDate(option) {
+    const today = new Date();
+    const dateFrom = document.querySelector('input[name="date_from"]');
+    const dateTo = document.querySelector('input[name="date_to"]');
+    
+    let fromDate, toDate;
+    
+    switch(option) {
+        case 'today':
+            fromDate = today;
+            toDate = today;
+            break;
+        case 'yesterday':
+            fromDate = new Date(today);
+            fromDate.setDate(today.getDate() - 1);
+            toDate = fromDate;
+            break;
+        case 'last7d':
+            fromDate = new Date(today);
+            fromDate.setDate(today.getDate() - 7);
+            toDate = today;
+            break;
+        case 'last30d':
+            fromDate = new Date(today);
+            fromDate.setDate(today.getDate() - 30);
+            toDate = today;
+            break;
+    }
+    
+    if (fromDate && toDate) {
+        dateFrom.value = fromDate.toISOString().split('T')[0];
+        dateTo.value = toDate.toISOString().split('T')[0];
+    }
+}
+</script>
+{% endblock %}
+

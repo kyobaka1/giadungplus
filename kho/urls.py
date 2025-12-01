@@ -28,6 +28,8 @@ urlpatterns = [
 
     # ----- QUẢN TRỊ -----
     path("management/stats/", management.stats, name="management_stats"),
+    path("management/packing_settings/", management.get_packing_settings, name="packing_settings_get"),
+    path("management/packing_settings/toggle/", management.toggle_packing_setting, name="packing_settings_toggle"),
 
     # ----- TICKET -----
     path("tickets/", tickets.ticket_list, name="ticket_list"),

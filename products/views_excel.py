@@ -28,100 +28,150 @@ logger = logging.getLogger(__name__)
 def export_variants_excel(request: HttpRequest):
     """
     Export danh sách variants ra file Excel.
-    Chỉ export những variants đang được filter (theo brand, status, search).
+    Chỉ export những variants trong brand_id đang lọc (theo query param brand_id).
     """
     try:
-        sapo_client = get_sapo_client()
-        product_service = SapoProductService(sapo_client)
+        # Brand ID mặc định
+        DEFAULT_BRAND_ID = 833608
         
-        # Lấy filter từ query parameters
-        filter_brand = request.GET.get('brand', '').strip()
-        filter_status = request.GET.get('status', '').strip()
-        filter_search = request.GET.get('search', '').strip().lower()
+        # Lấy brand_id từ query param
+        brand_id = request.GET.get('brand_id', str(DEFAULT_BRAND_ID))
+        try:
+            brand_id = int(brand_id)
+        except (ValueError, TypeError):
+            brand_id = DEFAULT_BRAND_ID
+        
+        sapo_client = get_sapo_client()
+        core_repo = sapo_client.core
+        product_service = SapoProductService(sapo_client)
         
         # Reload settings
         reload_settings()
         
-        # Lấy tất cả products
-        all_products = []
+        # Lấy variants theo brand_id từ Sapo API (giống variant_list)
+        all_variants = []
         page = 1
         limit = 250
+        expected_total = None
+        
+        logger.info(f"[export_variants_excel] Starting to fetch variants for brand_id={brand_id}")
         
         while True:
-            filters = {"page": page, "limit": limit}
-            products = product_service.list_products(**filters)
-            if not products:
+            variants_response = core_repo.list_variants_raw(
+                page=page,
+                limit=limit,
+                brand_ids=brand_id,
+                composite=False,
+                packsize=False
+            )
+            
+            variants_data = variants_response.get("variants", [])
+            
+            metadata = variants_response.get("metadata", {})
+            if page == 1:
+                expected_total = metadata.get("total", 0)
+                logger.info(f"[export_variants_excel] Total variants expected: {expected_total}")
+            
+            if not variants_data:
                 break
-            all_products.extend(products)
-            if len(products) < limit:
+            
+            all_variants.extend(variants_data)
+            
+            if expected_total and expected_total > 0:
+                if len(all_variants) >= expected_total:
+                    break
+            else:
+                total_pages = metadata.get("total_pages")
+                if total_pages:
+                    if page >= total_pages:
+                        break
+                else:
+                    if expected_total and expected_total > 0:
+                        calculated_pages = (expected_total + limit - 1) // limit
+                        if page >= calculated_pages:
+                            break
+            
+            if len(variants_data) < limit:
                 break
+            
             page += 1
-            if page > 1000:
+            
+            if page > 100:
                 break
         
-        # Flatten variants và filter theo các điều kiện
+        # Lấy product metadata cho từng variant
+        product_map = {}
+        product_ids = set(v.get("product_id") for v in all_variants if v.get("product_id"))
+        
+        product_ids_list = list(product_ids)
+        batch_size = 50
+        for i in range(0, len(product_ids_list), batch_size):
+            batch_ids = product_ids_list[i:i+batch_size]
+            for product_id in batch_ids:
+                try:
+                    product = product_service.get_product(product_id)
+                    if product:
+                        product_map[product_id] = product
+                except Exception as e:
+                    logger.warning(f"Failed to get product {product_id}: {e}")
+                    continue
+        
+        # Parse variants và lấy metadata
         variants_data = []
         
-        for product in all_products:
-            brand = product.brand or ""
+        for variant_raw in all_variants:
+            variant_id = variant_raw.get("id")
+            product_id = variant_raw.get("product_id")
             
-            # Filter 1: Chỉ lấy variants nếu nhãn hiệu được bật
+            product = product_map.get(product_id)
+            if not product:
+                brand = variant_raw.get("brand") or ""
+            else:
+                brand = product.brand or ""
+            
+            # Chỉ thêm variants nếu nhãn hiệu được bật
             if brand and not is_brand_enabled(brand):
                 continue
             
-            # Filter 2: Filter theo brand nếu có
-            if filter_brand and brand != filter_brand:
-                continue
+            # Lấy metadata từ product nếu có
+            variant_meta = None
+            if product:
+                for v in product.variants:
+                    if v.id == variant_id:
+                        variant_meta = v.gdp_metadata
+                        break
             
-            for variant in product.variants:
-                variant_status = variant.status or ""
-                
-                # Filter 3: Filter theo status nếu có
-                if filter_status and variant_status != filter_status:
-                    continue
-                
-                # Filter 4: Filter theo search query nếu có
-                if filter_search:
-                    # Tìm trong SKU, barcode, name, opt1, opt2, opt3
-                    searchable_text = ' '.join([
-                        variant.sku or '',
-                        variant.barcode or '',
-                        variant.name or '',
-                        variant.opt1 or '',
-                        variant.opt2 or '',
-                        variant.opt3 or '',
-                        product.name or ''
-                    ]).lower()
-                    
-                    if filter_search not in searchable_text:
-                        continue
-                
-                variant_meta = variant.gdp_metadata if variant.gdp_metadata else None
-                
-                # Chuẩn bị dữ liệu cho Excel
-                row_data = {
-                    "sku": variant.sku,
-                    "vari_id": variant.id,
-                    "price_tq": variant_meta.price_tq if variant_meta and variant_meta.price_tq else "",
-                    "sku_tq": variant_meta.sku_tq if variant_meta and variant_meta.sku_tq else "",
-                    "name_tq": variant_meta.name_tq if variant_meta and variant_meta.name_tq else "",
-                    "full_box": variant_meta.box_info.full_box if variant_meta and variant_meta.box_info and variant_meta.box_info.full_box else "",
-                    "box_length_cm": variant_meta.box_info.length_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.length_cm else "",
-                    "box_width_cm": variant_meta.box_info.width_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.width_cm else "",
-                    "box_height_cm": variant_meta.box_info.height_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.height_cm else "",
-                    "sku_model_xnk": variant_meta.sku_model_xnk if variant_meta and variant_meta.sku_model_xnk else "",
-                    "update": ""  # Cột update để user đánh dấu
-                }
-                variants_data.append(row_data)
+            # Lấy opt1 (tên phân loại) - kiểm tra cả opt1 và option1
+            opt1_raw = variant_raw.get("opt1")
+            if opt1_raw is None:
+                opt1_raw = variant_raw.get("option1")
+            opt1 = opt1_raw or ""
+            
+            # Chuẩn bị dữ liệu cho Excel
+            row_data = {
+                "sku": variant_raw.get("sku", ""),
+                "opt1": opt1,  # Tên phân loại - thêm sau SKU
+                "vari_id": variant_id,
+                "price_tq": variant_meta.price_tq if variant_meta and variant_meta.price_tq else "",
+                "sku_tq": variant_meta.sku_tq if variant_meta and variant_meta.sku_tq else "",
+                "name_tq": variant_meta.name_tq if variant_meta and variant_meta.name_tq else "",
+                "full_box": variant_meta.box_info.full_box if variant_meta and variant_meta.box_info and variant_meta.box_info.full_box else "",
+                "box_length_cm": variant_meta.box_info.length_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.length_cm else "",
+                "box_width_cm": variant_meta.box_info.width_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.width_cm else "",
+                "box_height_cm": variant_meta.box_info.height_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.height_cm else "",
+                "sku_model_xnk": variant_meta.sku_model_xnk if variant_meta and variant_meta.sku_model_xnk else "",
+                "update": ""  # Cột update để user đánh dấu
+            }
+            variants_data.append(row_data)
         
         # Tạo Excel file
         wb = Workbook()
         ws = wb.active
         ws.title = "Variants"
         
-        # Headers
+        # Headers - opt1 (tên phân loại) sau SKU
         headers = [
-            "sku", "vari_id", "price_tq", "sku_tq", "name_tq",
+            "sku", "opt1", "vari_id", "price_tq", "sku_tq", "name_tq",
             "full_box", "box_length_cm", "box_width_cm", "box_height_cm",
             "sku_model_xnk", "update"
         ]

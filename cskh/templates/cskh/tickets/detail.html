@@ -389,17 +389,46 @@
                 
                 <div id="costsList" class="space-y-2">
                     {% for cost in costs %}
-                    <div class="p-3 bg-gray-50 rounded-lg space-y-2 border border-gray-100"
+                    <div class="p-3 bg-gray-50 rounded-lg space-y-1 border border-gray-100 text-xs md:text-sm"
                          data-cost-id="{{ cost.id }}">
                         <div class="flex items-start justify-between gap-3">
                             <div class="space-y-1">
-                                <div class="flex items-center gap-2">
-                                    <div class="font-medium">{{ cost.cost_type }}</div>
-                                    {% if cost.payment_date %}
-                                    <span class="px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700">
-                                        Thanh toán: {{ cost.payment_date|date:"d/m/Y" }}
-                                    </span>
+                                <div class="flex flex-wrap items-center gap-1">
+                                    <span class="font-semibold text-gray-800">{{ cost.cost_type }}</span>
+                                </div>
+                                <div class="flex flex-wrap items-center gap-1 text-gray-600">
+                                    {% if cost.person %}
+                                        <span>- {{ cost.person.first_name|default:cost.person.username }}</span>
+                                        {% if cost.person.last_name %}
+                                            {% with dept=cost.person.last_name %}
+                                            <span class="px-1.5 py-0.5 rounded-full border text-[9px] font-semibold leading-none align-middle
+                                                         {% if dept == 'KHO_HN' %}
+                                                             bg-orange-50 border-orange-300 text-orange-700
+                                                         {% elif dept == 'KHO_HCM' %}
+                                                             bg-emerald-50 border-emerald-300 text-emerald-700
+                                                         {% elif dept == 'CSKH' %}
+                                                             bg-sky-50 border-sky-300 text-sky-700
+                                                         {% elif dept == 'MARKETING' %}
+                                                             bg-purple-50 border-purple-300 text-purple-700
+                                                         {% elif dept == 'QUẢN TRỊ VIÊN' %}
+                                                             bg-rose-50 border-rose-300 text-rose-700
+                                                         {% else %}
+                                                             bg-slate-50 border-slate-300 text-slate-700
+                                                         {% endif %}">
+                                                {{ dept }}
+                                            </span>
+                                            {% endwith %}
+                                        {% endif %}
                                     {% endif %}
+                                    <span>
+                                        thanh toán
+                                        {% if cost.payment_date %}
+                                            {{ cost.payment_date|date:"d/m/Y" }}
+                                        {% else %}
+                                            {{ cost.created_at|date:"d/m/Y" }}
+                                        {% endif %}
+                                        {{ cost.created_at|date:"H:i" }}
+                                    </span>
                                 </div>
                                 {% if cost.variant_id %}
                                 <div class="text-xs text-gray-600">
@@ -409,23 +438,21 @@
                                 </div>
                                 <div class="text-xs text-gray-600">
                                     {% if cost.quantity and cost.unit_price %}
-                                        {{ cost.quantity }} x {{ cost.unit_price|floatformat:0|intcomma }} đ
+                                        {{ cost.quantity }} x {{ cost.unit_price|floatformat:0|intcomma }}đ
                                     {% elif cost.quantity %}
                                         Số lượng: {{ cost.quantity }}
                                     {% endif %}
                                 </div>
                                 {% endif %}
-                                <div class="text-sm text-gray-600">
-                                    {{ cost.note|default:"-" }}
+                                {% if cost.note %}
+                                <div class="text-gray-700">
+                                    {{ cost.note }}
                                 </div>
-                                <div class="text-xs text-gray-500">
-                                    {{ cost.created_at|date:"d/m/Y H:i" }}
-                                    {% if cost.person %} - {{ cost.person.get_full_name|default:cost.person.username }}{% endif %}
-                                </div>
+                                {% endif %}
                             </div>
                             <div class="text-right flex-shrink-0">
-                                <div class="text-lg font-semibold text-red-600">
-                                    {{ cost.amount|intcomma }} đ
+                                <div class="text-base font-semibold text-red-600">
+                                    {{ cost.amount|floatformat:0|intcomma }}đ
                                 </div>
                                 <button type="button"
                                         class="mt-2 px-2 py-1 text-[11px] border rounded bg-white text-gray-700 hover:bg-gray-100 transition cost-upload-trigger"
@@ -469,7 +496,7 @@
                 <div class="mt-4 pt-4 border-t">
                     <div class="flex justify-between items-center">
                         <span class="font-semibold">Tổng thiệt hại:</span>
-                        <span class="text-xl font-bold text-red-600">{{ total_cost|intcomma }} đ</span>
+                        <span class="text-xl font-bold text-red-600">{{ total_cost|floatformat:0|intcomma }}đ</span>
                     </div>
                 </div>
                 {% endif %}
@@ -603,6 +630,116 @@
                     </div>
                 </div>
                 
+                <!-- Hướng xử lý (Sugget process) -->
+                <div class="mt-4 pt-3 border-t border-dashed border-slate-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-medium text-gray-700">Hướng xử lý</span>
+                            <span class="text-[10px] text-gray-400">(Sugget process)</span>
+                        </div>
+                        <button type="button"
+                                id="btnToggleSuggetForm"
+                                class="text-xs text-sky-700 hover:text-sky-900">
+                            {% if sugget_process %}
+                                Sửa hướng xử lý
+                            {% else %}
+                                + Thêm hướng xử lý
+                            {% endif %}
+                        </button>
+                    </div>
+
+                    {% if not sugget_process %}
+                        <p class="text-xs text-gray-500 italic mb-2">
+                            Chưa có hướng xử lý cho ticket.
+                        </p>
+                    {% else %}
+                        <div id="suggetSummary"
+                             class="mb-2 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
+                            {% if sugget_process.formatted_time %}
+                                <div class="text-[11px] text-gray-500 mb-0.5">
+                                    {{ sugget_process.formatted_time }}
+                                </div>
+                            {% endif %}
+                            <div class="flex flex-wrap items-center gap-1 text-gray-800">
+                                <span class="font-semibold">
+                                    {{ sugget_process.user_name|default:"(Không rõ người tạo)" }}
+                                </span>
+                                {% if sugget_process.department %}
+                                <span class="px-1.5 py-0.5 rounded-full border text-[9px] font-semibold leading-none align-middle
+                                             {% if sugget_process.department == 'KHO_HN' %}
+                                                 bg-orange-50 border-orange-300 text-orange-700
+                                             {% elif sugget_process.department == 'KHO_HCM' %}
+                                                 bg-emerald-50 border-emerald-300 text-emerald-700
+                                             {% elif sugget_process.department == 'CSKH' %}
+                                                 bg-sky-50 border-sky-300 text-sky-700
+                                             {% elif sugget_process.department == 'MARKETING' %}
+                                                 bg-purple-50 border-purple-300 text-purple-700
+                                             {% elif sugget_process.department == 'QUẢN TRỊ VIÊN' %}
+                                                 bg-rose-50 border-rose-300 text-rose-700
+                                             {% else %}
+                                                 bg-slate-50 border-slate-300 text-slate-700
+                                             {% endif %}">
+                                    {{ sugget_process.department }}
+                                </span>
+                                {% endif %}
+                                <span class="text-gray-700">
+                                    đưa ra hướng xử lý:
+                                </span>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[13px] font-semibold
+                                             bg-amber-50 border-amber-300 text-amber-800">
+                                    {{ sugget_process.sugget_main }}
+                                </span>
+                            </div>
+                            {% if sugget_process.description %}
+                            <div class="mt-1">
+                                <div class="inline-block w-full px-3 py-2 rounded-lg border text-[13px] text-gray-800 whitespace-pre-line
+                                            bg-amber-50 border-amber-300">
+                                    {{ sugget_process.description }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <!-- Form nhỏ để thêm/sửa hướng xử lý -->
+                    <div id="suggetFormContainer" class="mt-1 {% if sugget_process %}hidden{% endif %}">
+                        <div class="grid grid-cols-1 gap-2 text-xs">
+                            <div class="flex items-center gap-2">
+                                <label for="sugget_main"
+                                       class="w-28 flex-shrink-0 text-[11px] font-medium text-gray-700">
+                                    Hướng xử lý
+                                </label>
+                                <select id="sugget_main"
+                                        class="flex-1 px-2.5 py-1.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brand text-xs">
+                                    <option value="">-- Chọn hướng xử lý --</option>
+                                    {% for hx in huong_xu_ly_list %}
+                                    <option value="{{ hx }}"
+                                            {% if sugget_process.sugget_main == hx %}selected{% endif %}>
+                                        {{ hx }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="flex items-start gap-2">
+                                <label for="sugget_description"
+                                       class="w-28 flex-shrink-0 text-[11px] font-medium text-gray-700 mt-1">
+                                    Mô tả ngắn
+                                </label>
+                                <textarea id="sugget_description" rows="2"
+                                          class="flex-1 px-2.5 py-1.5 border rounded-lg focus:outline-none focus:ring-1 focus:ring-brand text-xs"
+                                          placeholder="Lý do chọn hướng xử lý này, ghi ngắn gọn...">{% if sugget_process.description %}{{ sugget_process.description }}{% endif %}</textarea>
+                            </div>
+                            <div class="flex justify-end mt-1">
+                                <button type="button"
+                                        id="btnSaveSuggetProcess"
+                                        class="px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-[11px] font-medium">
+                                    Lưu hướng xử lý
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Nút hành động đã gom thành nút Lưu ticket ở header -->
             </div>
             
@@ -737,7 +874,7 @@
                                 <div class="mt-1 text-[10px] opacity-80">
                                     {{ ev.created_at|date:"d/m H:i" }}
                                     {% if ev.created_by %}
-                                        - {{ ev.created_by.get_full_name|default:ev.created_by.username }}
+                                        - {{ ev.created_by.first_name|default:ev.created_by.username }}
                                     {% endif %}
                                 </div>
                             </div>
@@ -974,6 +1111,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnToggleLogs = document.getElementById('btnToggleLogs');
     const btnToggleLogsText = document.getElementById('btnToggleLogsText');
     const btnToggleLogsIcon = document.getElementById('btnToggleLogsIcon');
+    const btnToggleSuggetForm = document.getElementById('btnToggleSuggetForm');
+    const suggetFormContainer = document.getElementById('suggetFormContainer');
+    const btnSaveSuggetProcess = document.getElementById('btnSaveSuggetProcess');
+    const suggetMainSelect = document.getElementById('sugget_main');
+    const suggetDescriptionInput = document.getElementById('sugget_description');
     
     // Lọc nhân viên theo bộ phận
     if (responsibleDepartmentSelect && responsibleUserSelect) {
@@ -1649,6 +1791,53 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => {
                 alert('Lỗi thêm event: ' + err);
             });
+        });
+    }
+
+    // Thêm / sửa hướng xử lý (sugget_process)
+    if (btnToggleSuggetForm && suggetFormContainer) {
+        btnToggleSuggetForm.addEventListener('click', function () {
+            const isHidden = suggetFormContainer.classList.contains('hidden');
+            if (isHidden) {
+                suggetFormContainer.classList.remove('hidden');
+            } else {
+                suggetFormContainer.classList.add('hidden');
+            }
+        });
+    }
+
+    if (btnSaveSuggetProcess && suggetMainSelect && suggetDescriptionInput) {
+        btnSaveSuggetProcess.addEventListener('click', function () {
+            const mainValue = (suggetMainSelect.value || '').trim();
+            const descValue = (suggetDescriptionInput.value || '').trim();
+
+            if (!mainValue) {
+                alert('Vui lòng chọn hướng xử lý chính');
+                return;
+            }
+
+            fetch(`{% url 'cskh:api_update_sugget_process' ticket.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sugget_main: mainValue,
+                    description: descValue,
+                }),
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Đã lưu hướng xử lý cho ticket');
+                        location.reload();
+                    } else {
+                        alert('Lỗi lưu hướng xử lý: ' + (data.error || ''));
+                    }
+                })
+                .catch(err => {
+                    alert('Lỗi lưu hướng xử lý: ' + err);
+                });
         });
     }
 

@@ -808,7 +808,7 @@ def sapo_orders(request):
 
 
 
-@group_required("WarehousePacker")
+@group_required("WarehousePacker", "WarehouseManager")
 def packing_orders(request):
     """
     Đóng gói hàng:
@@ -817,6 +817,21 @@ def packing_orders(request):
     - Đảm bảo tính chính xác của đơn hàng
     - Lưu thông tin: người gói, time gói (phục vụ KPI và rà soát camera)
     """
+    from kho.models import WarehousePackingSetting
+    from django.shortcuts import render
+    
+    # Kiểm tra quyền truy cập tính năng packing
+    is_allowed, reason = WarehousePackingSetting.is_packing_enabled_for_user(request.user)
+    
+    if not is_allowed:
+        # Render trang thông báo không có quyền
+        context = {
+            "title": "Không có quyền truy cập",
+            "message": f"Bạn không thể sử dụng tính năng này. {reason}",
+            "current_kho": request.session.get("current_kho", "geleximco"),
+        }
+        return render(request, "core/permission_denied.html", context, status=403)
+    
     # Lấy first_name của user, nếu không có thì dùng username
     packer_name = request.user.first_name or request.user.username
     packer_username = request.user.username  # Dùng cho ảnh avatar

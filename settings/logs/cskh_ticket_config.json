@@ -1,0 +1,58 @@
+{
+  "nguon_loi": [
+    "Lỗi kho",
+    "Lỗi sản phẩm",
+    "Lỗi vận chuyển",
+    "Lỗi CSKH",
+    "Đánh giá xấu",
+    "Khách yêu cầu"
+  ],
+  "loai_van_de": [
+    "Đánh giá xấu",
+    "Đổi trả",
+    "Bảo hành",
+    "Hỏng vỡ",
+    "Khách yêu cầu",
+    "Giao sai, thiếu",
+    "Lên đơn sai"
+  ],
+  "loai_loi": [
+    "Gói thiếu",
+    "Gói sai",
+    "Đóng gói kém",
+    "Vỡ/nứt",
+    "Thiếu chi tiết",
+    "Lỗi QC",
+    "Móp méo",
+    "Thất lạc",
+    "Hướng dẫn sai",
+    "Thao tác sai",
+    "Complain chất lượng",
+    "Complain giao hàng",
+    "Muốn đổi mẫu/màu"
+  ],
+  "trang_thai": [
+    "Mới",
+    "Đang xử lý",
+    "Chờ khách",
+    "Chờ kho",
+    "Đã xử lý",
+    "Đóng"
+  ],
+  "huong_xu_ly": [
+    "Hoàn tiền 1 phần",
+    "Hoàn tiền toàn phần",
+    "Gửi bù hàng",
+    "Đổi hàng",
+    "Trả hàng hoàn tiền",
+    "Khác"
+  ],
+  "loai_chi_phi": [
+    "Hàng hỏng vỡ",
+    "Chi phí gửi mới",
+    "Chi phí đổi trả",
+    "Chi phí hoàn tiền",
+    "Voucher giảm giá",
+    "Chi phí khác"
+  ]
+}

@@ -27,7 +27,7 @@ def debug_print(*args, **kwargs):
         print("[DEBUG]", *args, **kwargs)
 
 
-@group_required("WarehousePacker")
+@group_required("WarehousePacker", "WarehouseManager")
 @require_http_methods(["GET"])
 def get_order(request):
     """
@@ -36,6 +36,17 @@ def get_order(request):
     Lấy thông tin đơn hàng từ tracking code (QR).
     Returns OrderDTO with real_items, gifts, images, và dvvc.
     """
+    from kho.models import WarehousePackingSetting
+    
+    # Kiểm tra quyền truy cập tính năng packing
+    is_allowed, reason = WarehousePackingSetting.is_packing_enabled_for_user(request.user)
+    
+    if not is_allowed:
+        return JsonResponse({
+            'success': False,
+            'error': f'Bạn không thể sử dụng tính năng này. {reason}'
+        }, status=403)
+    
     tracking_code = request.GET.get('tracking_code', '').strip()
     
     if not tracking_code:
@@ -296,7 +307,7 @@ def get_order(request):
         })
 
 
-@group_required("WarehousePacker")
+@group_required("WarehousePacker", "WarehouseManager")
 @require_http_methods(["POST"])
 def complete(request):
     """
@@ -305,6 +316,17 @@ def complete(request):
     
     Hoàn tất đóng gói - cập nhật packing_status=4, lưu người gói, thời gian, dvvc.
     """
+    from kho.models import WarehousePackingSetting
+    
+    # Kiểm tra quyền truy cập tính năng packing
+    is_allowed, reason = WarehousePackingSetting.is_packing_enabled_for_user(request.user)
+    
+    if not is_allowed:
+        return JsonResponse({
+            'success': False,
+            'message': f'Bạn không thể sử dụng tính năng này. {reason}'
+        }, status=403)
+    
     try:
         data = json.loads(request.body)
         order_id = data.get('order_id')

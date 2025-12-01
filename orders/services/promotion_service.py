@@ -12,7 +12,7 @@ import json
 import os
 import logging
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from core.sapo_client import SapoClient
@@ -172,7 +172,7 @@ class PromotionService:
     def _save_to_cache(self, promotions: List[PromotionProgramDTO]) -> None:
         """Save promotions to JSON cache."""
         cache_data = {
-            'cached_at': datetime.now().isoformat(),
+            'cached_at': datetime.now(timezone.utc).isoformat(),
             'promotions': [p.to_dict() for p in promotions]
         }
         
@@ -270,7 +270,8 @@ class PromotionService:
             return False
         
         # Check date range
-        now = datetime.now()
+        # Sử dụng UTC timezone để so sánh với datetime từ ISO format
+        now = datetime.now(timezone.utc)
         
         if promotion.start_date:
             try:
