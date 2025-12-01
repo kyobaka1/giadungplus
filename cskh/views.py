@@ -1053,6 +1053,30 @@ def ticket_create(request):
                 uploaded_files.append(f"cskh/{file_name}")
         
         note_text = request.POST.get('note', '').strip()
+        
+        # Xử lý ngày tạo ticket (nếu có)
+        created_at = None
+        created_at_str = request.POST.get('created_at', '').strip()
+        if created_at_str:
+            try:
+                # Parse datetime-local format (YYYY-MM-DDTHH:mm)
+                from datetime import datetime
+                # Parse naive datetime từ form
+                naive_dt = datetime.strptime(created_at_str, '%Y-%m-%dT%H:%M')
+                # Chuyển sang timezone-aware (dùng timezone mặc định của Django)
+                created_at = timezone.make_aware(naive_dt)
+            except ValueError:
+                # Thử format khác nếu cần
+                try:
+                    from django.utils.dateparse import parse_datetime
+                    created_at = parse_datetime(created_at_str)
+                    if created_at and timezone.is_naive(created_at):
+                        created_at = timezone.make_aware(created_at)
+                except Exception:
+                    created_at = None
+            except Exception as e:
+                logger.warning(f"Error parsing created_at: {e}, using current time")
+                created_at = None
 
         # Tạo ticket
         ticket = Ticket.objects.create(
@@ -1073,6 +1097,7 @@ def ticket_create(request):
             note=note_text,
             images=uploaded_files,
             created_by=request.user,
+            created_at=created_at if created_at else timezone.now(),
         )
 
         # Tạo Trouble & Event đầu tiên từ ghi chú khi tạo ticket
