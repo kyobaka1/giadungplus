@@ -9,6 +9,8 @@ from datetime import datetime
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+import os
+import json
 
 from django.utils import timezone
 from core.sapo_client import SapoClient
@@ -18,6 +20,9 @@ from orders.services.dto import OrderDTO
 from products.services.sapo_product_service import SapoProductService
 
 logger = logging.getLogger(__name__)
+
+# Path to log file for saving/loading page number
+FEEDBACK_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'settings', 'log_feedback.log')
 
 
 class FeedbackService:
@@ -36,6 +41,42 @@ class FeedbackService:
         self.mp_repo = sapo_client.marketplace
         self.product_service = SapoProductService(sapo_client)
     
+    def _load_last_page(self) -> int:
+        """
+        Đọc page cuối cùng đã request từ log file.
+        
+        Returns:
+            Page number (default: 1 nếu không có log)
+        """
+        try:
+            if os.path.exists(FEEDBACK_LOG_PATH):
+                with open(FEEDBACK_LOG_PATH, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return data.get('last_page', 1)
+        except Exception as e:
+            logger.warning(f"Error loading last page from log: {e}")
+        return 1
+    
+    def _save_page(self, page: int):
+        """
+        Lưu page hiện tại vào log file.
+        
+        Args:
+            page: Page number hiện tại
+        """
+        try:
+            # Tạo thư mục nếu chưa có
+            os.makedirs(os.path.dirname(FEEDBACK_LOG_PATH), exist_ok=True)
+            
+            data = {
+                'last_page': page,
+                'updated_at': datetime.now().isoformat()
+            }
+            with open(FEEDBACK_LOG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            logger.warning(f"Error saving page to log: {e}")
+    
     def sync_feedbacks(
         self,
         tenant_id: int,
@@ -43,7 +84,7 @@ class FeedbackService:
         rating: str = "1,2,3,4,5",
         limit_per_page: int = 250,
         max_feedbacks: Optional[int] = None,
-        num_threads: int = 5
+        num_threads: int = 25
     ) -> Dict[str, Any]:
         """
         Sync feedbacks từ Sapo MP API vào database với multi-threading.
@@ -53,8 +94,8 @@ class FeedbackService:
             connection_ids: Comma-separated connection IDs. Nếu None, lấy tất cả từ config
             rating: Comma-separated ratings to filter (default: "1,2,3,4,5")
             limit_per_page: Số items mỗi page (default: 250)
-            max_feedbacks: Giới hạn số lượng feedbacks để sync (vd: 2000 cho test)
-            num_threads: Số thread để xử lý song song (default: 5)
+            max_feedbacks: Giới hạn số lượng feedbacks để sync (default: 3000)
+            num_threads: Số thread để xử lý song song (default: 25)
             
         Returns:
             {
@@ -68,6 +109,10 @@ class FeedbackService:
         """
         if not connection_ids:
             connection_ids = get_connection_ids()
+        
+        # Set default max_feedbacks to 3000 if not provided
+        if max_feedbacks is None:
+            max_feedbacks = 3000
         
         logger.info(f"[FeedbackService] Starting sync with tenant_id={tenant_id}, connection_ids={connection_ids}, max_feedbacks={max_feedbacks}, threads={num_threads}")
         
@@ -98,13 +143,21 @@ class FeedbackService:
                 # Print để debug
                 print(f"[FeedbackService] {log_message}")
         
-        # Fetch all feedbacks từ Sapo MP (paginate)
-        page = 1
+        # Đọc page cuối cùng từ log file
+        last_saved_page = self._load_last_page()
+        # Bắt đầu từ page đã lưu (tiếp tục từ đó)
+        start_page = last_saved_page if last_saved_page > 0 else 1
+        page = start_page
         all_feedbacks = []
+        feedbacks_fetched_this_run = 0
         
         try:
             log_progress("🚀 Bắt đầu fetch feedbacks từ Sapo MP...")
             log_progress(f"📋 Cấu hình: tenant_id={tenant_id}, max_feedbacks={max_feedbacks}, threads={num_threads}")
+            if last_saved_page > 0:
+                log_progress(f"📄 Tiếp tục từ page {start_page} (đã lưu trong log_feedback.log)")
+            else:
+                log_progress(f"📄 Không có log trước đó, bắt đầu từ page 1")
             
             while True:
                 log_progress(f"📄 Đang fetch page {page} với limit={limit_per_page}...")
@@ -122,6 +175,7 @@ class FeedbackService:
                     break
                 
                 all_feedbacks.extend(feedbacks)
+                feedbacks_fetched_this_run += len(feedbacks)
                 
                 metadata = response.get("metadata", {})
                 total = metadata.get("total", 0)
@@ -130,29 +184,40 @@ class FeedbackService:
                 
                 log_progress(f"📊 Metadata: total={total}, page={current_page}, limit={limit}, fetched={len(feedbacks)}")
                 
+                # Lưu page hiện tại vào log file sau mỗi lần fetch thành công
+                self._save_page(current_page)
+                
                 # Calculate total_pages if not provided
                 if total > 0 and limit > 0:
                     total_pages = (total + limit - 1) // limit
                 else:
                     total_pages = current_page
                 
-                log_progress(f"📄 Page {current_page}/{total_pages}: Đã fetch {len(feedbacks)} feedbacks (Tổng đã lấy: {len(all_feedbacks)})")
+                log_progress(f"📄 Page {current_page}/{total_pages}: Đã fetch {len(feedbacks)} feedbacks (Tổng đã lấy trong lần chạy này: {feedbacks_fetched_this_run}/{max_feedbacks})")
                 
                 # Update result total from metadata
                 if result["total_feedbacks"] == 0 or total > result["total_feedbacks"]:
                     result["total_feedbacks"] = total
                 
-                # Check max_feedbacks limit
-                if max_feedbacks and len(all_feedbacks) >= max_feedbacks:
-                    all_feedbacks = all_feedbacks[:max_feedbacks]
-                    log_progress(f"⏹️ Đã đạt giới hạn {max_feedbacks} feedbacks, dừng fetch")
+                # Check max_feedbacks limit - dừng khi đã fetch đủ 3000 feedbacks trong lần chạy này
+                if feedbacks_fetched_this_run >= max_feedbacks:
+                    # Chỉ lấy đủ số lượng cần thiết
+                    excess = feedbacks_fetched_this_run - max_feedbacks
+                    if excess > 0:
+                        all_feedbacks = all_feedbacks[:-excess]
+                    log_progress(f"⏹️ Đã đạt giới hạn {max_feedbacks} feedbacks trong lần chạy này, dừng fetch. Page cuối: {current_page}")
                     break
                 
                 # Check if there are more pages
                 # Chỉ dừng nếu:
-                # 1. Đã đạt total (nếu có total)
-                # 2. Hoặc current_page >= total_pages
-                # 3. Hoặc không còn feedbacks (đã check ở trên)
+                # 1. Đã đạt giới hạn max_feedbacks (đã check ở trên)
+                # 2. Đã đạt total (nếu có total) - nhưng chỉ dừng nếu chưa đạt max_feedbacks
+                # 3. Hoặc current_page >= total_pages
+                # 4. Hoặc không còn feedbacks (đã check ở trên)
+                
+                # Nếu đã đạt max_feedbacks thì không cần check các điều kiện khác
+                if feedbacks_fetched_this_run >= max_feedbacks:
+                    break
                 
                 if total > 0 and len(all_feedbacks) >= total:
                     log_progress(f"✅ Đã lấy đủ {total} feedbacks từ metadata")
@@ -163,10 +228,12 @@ class FeedbackService:
                     break
                 
                 # Nếu page này có ít feedbacks hơn limit, có thể là page cuối
-                # Nhưng vẫn tiếp tục nếu chưa đạt total
+                # Nhưng vẫn tiếp tục nếu chưa đạt total và chưa đạt max_feedbacks
                 if len(feedbacks) < limit:
                     if total > 0 and len(all_feedbacks) >= total:
                         log_progress(f"✅ Page cuối, đã đủ {total} feedbacks")
+                        break
+                    elif feedbacks_fetched_this_run >= max_feedbacks:
                         break
                     else:
                         log_progress(f"⚠️ Page {current_page} có ít feedbacks ({len(feedbacks)} < {limit}), nhưng chưa đạt total. Tiếp tục...")
