@@ -303,6 +303,51 @@
 </div>
 
 <script>
+// Hàm xóa ticket - phải định nghĩa ở global scope để có thể gọi từ onclick
+async function deleteTicket(ticketId, ticketNumber) {
+    if (!confirm(`Bạn có chắc muốn xóa ticket ${ticketNumber}?\n\nHành động này không thể hoàn tác!`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/cskh/api/tickets/${ticketId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Đã xóa ticket thành công!');
+            // Reload trang để cập nhật danh sách
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + (data.error || 'Không thể xóa ticket'));
+        }
+    } catch (error) {
+        alert('Lỗi khi xóa ticket: ' + error.message);
+    }
+}
+
+// Hàm getCookie - phải định nghĩa ở global scope
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const refreshIndicator = document.getElementById('refreshIndicator');
     let countdown = 30;
@@ -429,50 +474,6 @@ document.addEventListener('DOMContentLoaded', function() {
             startCountdown();
         }
     });
-    
-    // Hàm xóa ticket
-    async function deleteTicket(ticketId, ticketNumber) {
-        if (!confirm(`Bạn có chắc muốn xóa ticket ${ticketNumber}?\n\nHành động này không thể hoàn tác!`)) {
-            return;
-        }
-        
-        try {
-            const response = await fetch(`/cskh/api/tickets/${ticketId}/delete/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                alert('Đã xóa ticket thành công!');
-                // Reload trang để cập nhật danh sách
-                window.location.reload();
-            } else {
-                alert('Lỗi: ' + (data.error || 'Không thể xóa ticket'));
-            }
-        } catch (error) {
-            alert('Lỗi khi xóa ticket: ' + error.message);
-        }
-    }
-    
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
 });
 </script>
 {% endblock %}
