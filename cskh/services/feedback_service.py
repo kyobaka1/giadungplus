@@ -77,6 +77,63 @@ class FeedbackService:
         except Exception as e:
             logger.warning(f"Error saving page to log: {e}")
     
+    def _fetch_feedbacks_with_retry(
+        self,
+        tenant_id: int,
+        connection_ids: str,
+        page: int,
+        limit_per_page: int,
+        rating: str,
+        max_retries: int = 5,
+        retry_delay: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Fetch feedbacks từ API với retry logic.
+        
+        Args:
+            tenant_id: Sapo tenant ID
+            connection_ids: Comma-separated connection IDs
+            page: Page number
+            limit_per_page: Items per page
+            rating: Comma-separated ratings
+            max_retries: Số lần retry tối đa (default: 5)
+            retry_delay: Thời gian nghỉ giữa các lần retry (giây, default: 3)
+            
+        Returns:
+            Response dict từ API
+            
+        Raises:
+            Exception: Nếu tất cả các lần retry đều thất bại
+        """
+        last_exception = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.mp_repo.list_feedbacks_raw(
+                    tenant_id=tenant_id,
+                    connection_ids=connection_ids,
+                    page=page,
+                    limit=limit_per_page,
+                    rating=rating
+                )
+                # Nếu thành công, trả về response
+                if attempt > 1:
+                    logger.info(f"[FeedbackService] Fetch page {page} thành công sau {attempt} lần thử")
+                return response
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"[FeedbackService] Lỗi khi fetch page {page} (lần thử {attempt}/{max_retries}): {e}")
+                
+                # Nếu chưa phải lần thử cuối, đợi rồi thử lại
+                if attempt < max_retries:
+                    logger.info(f"[FeedbackService] Đợi {retry_delay} giây trước khi thử lại...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"[FeedbackService] Đã thử {max_retries} lần nhưng vẫn thất bại khi fetch page {page}")
+        
+        # Nếu tất cả các lần thử đều thất bại, raise exception
+        raise Exception(f"Không thể fetch page {page} sau {max_retries} lần thử: {str(last_exception)}")
+    
     def sync_feedbacks(
         self,
         tenant_id: int,
@@ -94,7 +151,7 @@ class FeedbackService:
             connection_ids: Comma-separated connection IDs. Nếu None, lấy tất cả từ config
             rating: Comma-separated ratings to filter (default: "1,2,3,4,5")
             limit_per_page: Số items mỗi page (default: 250)
-            max_feedbacks: Giới hạn số lượng feedbacks để sync (default: 3000)
+            max_feedbacks: Giới hạn số lượng feedbacks để sync (default: 5000)
             num_threads: Số thread để xử lý song song (default: 25)
             
         Returns:
@@ -110,9 +167,9 @@ class FeedbackService:
         if not connection_ids:
             connection_ids = get_connection_ids()
         
-        # Set default max_feedbacks to 3000 if not provided
+        # Set default max_feedbacks to 5000 if not provided
         if max_feedbacks is None:
-            max_feedbacks = 3000
+            max_feedbacks = 5000
         
         logger.info(f"[FeedbackService] Starting sync with tenant_id={tenant_id}, connection_ids={connection_ids}, max_feedbacks={max_feedbacks}, threads={num_threads}")
         
@@ -161,13 +218,25 @@ class FeedbackService:
             
             while True:
                 log_progress(f"📄 Đang fetch page {page} với limit={limit_per_page}...")
-                response = self.mp_repo.list_feedbacks_raw(
-                    tenant_id=tenant_id,
-                    connection_ids=connection_ids,
-                    page=page,
-                    limit=limit_per_page,
-                    rating=rating
-                )
+                try:
+                    response = self._fetch_feedbacks_with_retry(
+                        tenant_id=tenant_id,
+                        connection_ids=connection_ids,
+                        page=page,
+                        limit_per_page=limit_per_page,
+                        rating=rating,
+                        max_retries=5,
+                        retry_delay=3
+                    )
+                except Exception as e:
+                    error_msg = f"Lỗi khi fetch page {page} sau 5 lần thử: {str(e)}"
+                    log_progress(f"❌ {error_msg}")
+                    logger.error(error_msg, exc_info=True)
+                    with lock:
+                        errors_list.append(error_msg)
+                    # Tiếp tục với page tiếp theo thay vì dừng hoàn toàn
+                    page += 1
+                    continue
                 
                 feedbacks = response.get("feedbacks", [])
                 if not feedbacks:
@@ -199,7 +268,7 @@ class FeedbackService:
                 if result["total_feedbacks"] == 0 or total > result["total_feedbacks"]:
                     result["total_feedbacks"] = total
                 
-                # Check max_feedbacks limit - dừng khi đã fetch đủ 3000 feedbacks trong lần chạy này
+                # Check max_feedbacks limit - dừng khi đã fetch đủ 5000 feedbacks trong lần chạy này
                 if feedbacks_fetched_this_run >= max_feedbacks:
                     # Chỉ lấy đủ số lượng cần thiết
                     excess = feedbacks_fetched_this_run - max_feedbacks

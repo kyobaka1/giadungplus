@@ -347,7 +347,7 @@
 let currentFeedbackId = null;
 
 async function syncFeedbacks() {
-    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP? Quá trình này có thể mất vài phút.\n\nMỗi lần chạy: 3000 đánh giá với 25 threads.\n\nHệ thống sẽ tiếp tục từ page đã lưu trong log_feedback.log.')) {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP? Quá trình này có thể mất vài phút.\n\nMỗi lần chạy: 5000 đánh giá với 25 threads.\n\nHệ thống sẽ tiếp tục từ page đã lưu trong log_feedback.log.')) {
         return;
     }
     
@@ -373,7 +373,7 @@ async function syncFeedbacks() {
                 tenant_id: 1262,  // TODO: Lấy từ config hoặc input
                 connection_ids: null,  // Lấy tất cả
                 rating: "1,2,3,4,5",
-                max_feedbacks: 3000,  // Mỗi lần chạy 3000 đánh giá
+                max_feedbacks: 5000,  // Mỗi lần chạy 5000 đánh giá
                 num_threads: 25  // 25 threads để đồng bộ nhanh hơn
             })
         });

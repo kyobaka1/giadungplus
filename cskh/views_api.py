@@ -762,6 +762,46 @@ def api_update_note(request, ticket_id):
     return JsonResponse({'success': False, 'error': 'deprecated'}, status=400)
 
 
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_delete_ticket(request, ticket_id):
+    """
+    API: Xóa ticket.
+    
+    POST /cskh/api/tickets/<ticket_id>/delete/
+    """
+    try:
+        ticket = get_object_or_404(Ticket, id=ticket_id)
+        
+        # Lưu thông tin ticket trước khi xóa để log
+        ticket_number = ticket.ticket_number
+        order_code = ticket.order_code
+        
+        # Xóa ticket (cascade sẽ xóa các related objects như costs, events)
+        ticket.delete()
+        
+        # Log action
+        log_ticket_action(
+            ticket_number,
+            request.user.username,
+            'deleted',
+            {'order_code': order_code}
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Ticket {ticket_number} đã được xóa thành công'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deleting ticket {ticket_id}: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
 @group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -881,7 +921,7 @@ def api_sync_feedbacks(request):
         
         connection_ids = data.get("connection_ids")
         rating = data.get("rating", "1,2,3,4,5")
-        max_feedbacks = data.get("max_feedbacks", 3000)  # Giới hạn số lượng (default: 3000)
+        max_feedbacks = data.get("max_feedbacks", 5000)  # Giới hạn số lượng (default: 5000)
         num_threads = data.get("num_threads", 25)  # Số thread (default: 25)
         
         # Initialize service
