@@ -1,0 +1,65 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Ticket free – Tổng hợp chi phí{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+        Ticket free – Tổng hợp chi phí
+    </h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+        Tổng quan chi phí phát sinh từ các ticket CSKH.
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-xs text-gray-500 mb-1">Tổng số khoản chi phí</div>
+            <div class="text-2xl font-semibold">{{ cost_summary.total_items|default:0 }}</div>
+        </div>
+        <div class="bg-white border rounded-xl p-4 shadow-sm">
+            <div class="text-xs text-gray-500 mb-1">Tổng số tiền</div>
+            <div class="text-2xl font-semibold">
+                {{ cost_summary.total_amount|default:0|floatformat:0|intcomma }} đ
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white border rounded-xl p-4 shadow-sm">
+        <h2 class="text-sm font-semibold mb-3">Chi phí theo loại</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-xs md:text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Loại chi phí</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">Số khoản</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">Tổng tiền</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in cost_by_type %}
+                    <tr class="border-t">
+                        <td class="px-3 py-2">{{ row.cost_type }}</td>
+                        <td class="px-3 py-2 text-right">{{ row.count }}</td>
+                        <td class="px-3 py-2 text-right">
+                            {{ row.total_amount|default:0|floatformat:0|intcomma }} đ
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="px-3 py-4 text-center text-gray-400">
+                            Chưa có dữ liệu chi phí.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+
