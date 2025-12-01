@@ -7,6 +7,10 @@ urlpatterns = [
     path('shopee/', settings_views.shopee_dashboard_view, name='shopee_settings'),
     path('shopee/<str:shop_name>/', settings_views.shopee_cookie_view, name='shopee_cookie_edit'),
     
+    # Init data routes
+    path('init-data/', settings_views.init_data_view, name='init_data'),
+    path('init-data/init-shopee-products/', settings_views.init_shopee_products_api, name='init_shopee_products_api'),
+    
     # Gift/Promotion routes (read-only from Sapo)
     path('gifts/', gift_views.gift_list, name='gift_list'),
     path('gifts/sync/', gift_views.gift_sync, name='gift_sync'),

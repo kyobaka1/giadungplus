@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from kho.utils import group_required
+from kho.models import WarehousePackingSetting
 from core.system_settings import get_connection_ids, SAPO_TMDT
 from core.sapo_client import get_sapo_client
 
@@ -49,6 +50,17 @@ def dashboard(request):
         sortBy="ISSUED_AT",
         orderBy="desc"
     )
+    
+    # Lấy cài đặt packing cho cả 2 kho
+    packing_settings = {}
+    for warehouse_code in ['KHO_HCM', 'KHO_HN']:
+        setting = WarehousePackingSetting.get_setting_for_warehouse(warehouse_code)
+        packing_settings[warehouse_code] = {
+            'is_active': setting.is_active,
+            'warehouse_display': setting.get_warehouse_code_display(),
+        }
+    
+    context['packing_settings'] = packing_settings
 
     return render(request, "kho/overview.html", context)
 

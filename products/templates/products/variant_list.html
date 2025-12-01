@@ -120,6 +120,7 @@
                     <thead class="bg-slate-50">
                         <tr>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Giá bán</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
@@ -139,11 +140,8 @@
                                 <!-- SKU -->
                                 <td class="px-2 py-2">
                                     <div class="font-mono text-[11px] text-slate-800 font-medium">{{ variant.sku }}</div>
-                                    {% if variant.opt1 or variant.opt2 or variant.opt3 %}
+                                    {% if variant.opt2 or variant.opt3 %}
                                     <div class="flex gap-0.5 mt-0.5 flex-wrap">
-                                        {% if variant.opt1 %}
-                                        <span class="text-[9px] px-1 py-0.5 bg-blue-50 text-blue-700 rounded">{{ variant.opt1 }}</span>
-                                        {% endif %}
                                         {% if variant.opt2 %}
                                         <span class="text-[9px] px-1 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
                                         {% endif %}
@@ -151,6 +149,15 @@
                                         <span class="text-[9px] px-1 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
                                         {% endif %}
                                     </div>
+                                    {% endif %}
+                                </td>
+                                
+                                <!-- Tên phân loại (opt1) -->
+                                <td class="px-2 py-2">
+                                    {% if variant.opt1 %}
+                                    <div class="text-[11px] text-slate-700 font-medium">{{ variant.opt1 }}</div>
+                                    {% else %}
+                                    <span class="text-slate-400 text-[10px]">-</span>
                                     {% endif %}
                                 </td>
                                 
@@ -821,29 +828,22 @@
             });
         }
         
-        // Export Excel - thêm filter parameters vào URL
+        // Export Excel - thêm brand_id vào URL
         const exportBtn = document.getElementById('export-excel-btn');
         if (exportBtn) {
             exportBtn.addEventListener('click', function(e) {
                 e.preventDefault(); // Prevent default navigation
                 
-                // Lấy filter hiện tại
-                const brandFilter = activeFilters.brand || '';
-                const statusFilter = activeFilters.status || '';
-                const searchQuery = searchInputCache ? (searchInputCache.value || '').trim() : '';
+                // Lấy brand_id từ URL hiện tại (query param)
+                const urlParams = new URLSearchParams(window.location.search);
+                const brandId = urlParams.get('brand_id') || '';
                 
-                // Build URL với query parameters
+                // Build URL với brand_id
                 let exportUrl = exportBtn.getAttribute('href');
                 const params = new URLSearchParams();
                 
-                if (brandFilter) {
-                    params.append('brand', brandFilter);
-                }
-                if (statusFilter) {
-                    params.append('status', statusFilter);
-                }
-                if (searchQuery) {
-                    params.append('search', searchQuery);
+                if (brandId) {
+                    params.append('brand_id', brandId);
                 }
                 
                 if (params.toString()) {

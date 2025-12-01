@@ -64,6 +64,9 @@ class Ticket(models.Model):
     # Variants issue - danh sách variant_id có vấn đề (JSON list)
     variants_issue = models.JSONField(default=list, blank=True)
     
+    # Rating - đánh giá từ khách hàng (1-5 sao) - dùng cho ticket từ bad review
+    rating = models.IntegerField(null=True, blank=True, db_index=True)  # 1-5 sao
+    
     # Ticket metadata
     ticket_type = models.CharField(max_length=50, choices=TICKET_TYPE_CHOICES, blank=True)
     ticket_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='new')
@@ -94,6 +97,16 @@ class Ticket(models.Model):
     
     # Images/Videos - lưu danh sách file paths
     images = models.JSONField(default=list, blank=True)  # List of file paths
+    
+    # Sugget process - hướng xử lý đề xuất cho ticket (JSON)
+    # {
+    #   "user_id": int,
+    #   "user_name": str,
+    #   "sugget_main": str,
+    #   "description": str,
+    #   "time": ISO datetime string
+    # }
+    sugget_process = models.JSONField(default=dict, blank=True)
     
     class Meta:
         ordering = ['-created_at']
@@ -255,3 +268,130 @@ class TicketView(models.Model):
     
     def __str__(self):
         return f"TicketView({self.ticket.ticket_number} by {self.user.username})"
+
+
+class Feedback(models.Model):
+    """
+    Lưu reviews/feedbacks từ Sapo Marketplace API.
+    Sync từ Sapo MP và lưu local để xử lý.
+    """
+    
+    # IDs từ Sapo MP
+    feedback_id = models.BigIntegerField(unique=True, db_index=True)  # id từ Sapo MP
+    tenant_id = models.IntegerField(db_index=True)
+    connection_id = models.IntegerField(db_index=True)  # Shop connection ID
+    cmt_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Comment ID trên Shopee
+    item_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product item_id trên Shopee
+    
+    # Product info
+    product_name = models.CharField(max_length=500, blank=True)
+    product_image = models.URLField(max_length=500, blank=True)
+    
+    # Order info
+    channel_order_number = models.CharField(max_length=100, blank=True, db_index=True)  # Mã đơn hàng trên sàn
+    
+    # Customer info
+    buyer_user_name = models.CharField(max_length=200, blank=True, db_index=True)
+    
+    # Rating & Comment
+    rating = models.IntegerField(db_index=True)  # 1-5 sao
+    comment = models.TextField(blank=True)  # Nội dung đánh giá
+    images = models.JSONField(default=list, blank=True)  # List URLs hình ảnh/video từ khách
+    
+    # Reply info
+    status_reply = models.CharField(max_length=50, null=True, blank=True)  # Trạng thái phản hồi
+    reply = models.TextField(null=True, blank=True)  # Nội dung phản hồi
+    reply_time = models.BigIntegerField(null=True, blank=True)  # Timestamp phản hồi
+    user_reply = models.CharField(max_length=200, null=True, blank=True)  # User đã phản hồi
+    reply_type = models.CharField(max_length=50, null=True, blank=True)
+    
+    # Timestamps
+    create_time = models.BigIntegerField(db_index=True)  # Timestamp từ Sapo MP
+    created_at = models.DateTimeField(auto_now_add=True)  # Khi sync vào DB
+    updated_at = models.DateTimeField(auto_now=True)  # Khi update từ Sapo MP
+    
+    # Linked data (sau khi xử lý)
+    sapo_customer_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Customer ID từ Sapo
+    sapo_order_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Order ID từ Sapo
+    sapo_product_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product ID từ Sapo
+    sapo_variant_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Variant ID từ Sapo
+    
+    # Ticket link (nếu tạo ticket từ bad review)
+    ticket = models.ForeignKey(Ticket, on_delete=models.SET_NULL, null=True, blank=True, related_name='cskh_feedbacks')
+    
+    # AI processing flags
+    ai_processed_name = models.BooleanField(default=False)  # Đã xử lý tên bằng AI
+    ai_processed_gender = models.BooleanField(default=False)  # Đã xử lý giới tính bằng AI
+    ai_suggested_reply = models.TextField(blank=True)  # Gợi ý phản hồi từ AI
+    ai_processed_at = models.DateTimeField(null=True, blank=True)  # Khi nào AI xử lý
+    
+    class Meta:
+        ordering = ['-create_time']
+        indexes = [
+            models.Index(fields=['rating', '-create_time']),
+            models.Index(fields=['connection_id', '-create_time']),
+            models.Index(fields=['status_reply', '-create_time']),
+            models.Index(fields=['buyer_user_name']),
+            models.Index(fields=['channel_order_number']),
+        ]
+    
+    def __str__(self):
+        return f"Feedback {self.feedback_id} - {self.buyer_user_name} - {self.rating}*"
+    
+    @property
+    def is_replied(self) -> bool:
+        """Kiểm tra đã phản hồi chưa"""
+        return bool(self.reply and self.status_reply)
+    
+    @property
+    def is_good_review(self) -> bool:
+        """Đánh giá tốt (5 sao)"""
+        return self.rating == 5
+    
+    @property
+    def is_bad_review(self) -> bool:
+        """Đánh giá xấu (1-4 sao)"""
+        return 1 <= self.rating <= 4
+    
+    @property
+    def shop_name(self) -> str:
+        """Lấy tên shop từ connection_id"""
+        from core.system_settings import get_shop_by_connection_id
+        shop = get_shop_by_connection_id(self.connection_id)
+        return shop.get('name', f'Shop {self.connection_id}') if shop else f'Shop {self.connection_id}'
+
+
+class FeedbackLog(models.Model):
+    """
+    Lưu logs về việc xử lý feedbacks: ai đã phản hồi, khi nào, nội dung gì.
+    Dùng để track KPI và lịch sử xử lý.
+    """
+    
+    feedback = models.ForeignKey(Feedback, on_delete=models.CASCADE, related_name='logs')
+    action_type = models.CharField(max_length=50, db_index=True)  # 'reply', 'create_ticket', 'ai_process', 'update_customer'
+    action_data = models.JSONField(default=dict, blank=True)  # Dữ liệu chi tiết của action
+    
+    # User tracking
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    user_name = models.CharField(max_length=200, blank=True)  # Lưu tên user để backup
+    
+    # Rating tracking (để track KPI khi khách thay đổi đánh giá)
+    rating_before = models.IntegerField(null=True, blank=True)  # Rating trước khi xử lý
+    rating_after = models.IntegerField(null=True, blank=True)  # Rating sau khi xử lý (nếu có)
+    
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    
+    # Notes
+    note = models.TextField(blank=True)  # Ghi chú thêm
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['feedback', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['action_type', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"FeedbackLog {self.action_type} for Feedback {self.feedback.feedback_id} by {self.user_name or 'System'}"

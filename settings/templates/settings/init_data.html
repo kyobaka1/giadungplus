@@ -1,0 +1,194 @@
+{% extends "settings/base_settings.html" %}
+
+{% block title %}Settings - Init Data{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">
+        Init Data
+    </h1>
+    <p class="text-xs text-gray-500 mt-1">
+        Khởi tạo dữ liệu từ các nguồn (Sapo MP, Shopee, etc.)
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Init Shopee Products Card -->
+    <div class="bg-white border rounded-xl shadow-sm p-6">
+        <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">Init Shopee Products</h3>
+            <p class="text-xs text-gray-600">
+                Lấy toàn bộ sản phẩm từ Sapo Marketplace API (tất cả các shop với connection IDs) 
+                và lưu thông tin vào product metadata:
+            </p>
+            <ul class="text-xs text-gray-600 mt-2 ml-4 list-disc space-y-1">
+                <li>Lưu item_id - shop_id mapping vào product level</li>
+                <li>Lưu connectionIds, variation_id, item_id vào variant metadata</li>
+            </ul>
+        </div>
+
+        <form id="init-shopee-form" class="space-y-4">
+            {% csrf_token %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Tenant ID <span class="text-red-500">*</span>
+                    </label>
+                    <input 
+                        type="number" 
+                        name="tenant_id" 
+                        id="tenant-id-input"
+                        value="1262"
+                        required
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring focus:ring-brand focus:ring-opacity-20 text-sm">
+                    <p class="text-xs text-gray-500 mt-1">Sapo tenant ID (vd: 1262)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Connection IDs (Optional)
+                    </label>
+                    <input 
+                        type="text" 
+                        name="connection_ids" 
+                        id="connection-ids-input"
+                        placeholder="10925,134366,155174,..."
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-brand focus:ring focus:ring-brand focus:ring-opacity-20 text-sm">
+                    <p class="text-xs text-gray-500 mt-1">Nếu để trống, sẽ lấy tất cả từ config</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <button 
+                    type="submit" 
+                    id="init-shopee-btn"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    Init Shopee Products
+                </button>
+                <div id="init-shopee-status" class="text-sm"></div>
+            </div>
+        </form>
+
+        <!-- Progress/Result Display -->
+        <div id="init-shopee-result" class="mt-4 hidden">
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <h4 class="text-sm font-semibold text-gray-800 mb-3">Kết quả:</h4>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Tổng số products:</span>
+                        <span class="font-medium" id="result-total">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Đã xử lý:</span>
+                        <span class="font-medium" id="result-processed">-</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Đã cập nhật:</span>
+                        <span class="font-medium text-green-600" id="result-updated">-</span>
+                    </div>
+                    <div id="result-errors" class="mt-3 hidden">
+                        <div class="text-red-600 font-medium mb-1">Lỗi:</div>
+                        <ul class="list-disc list-inside text-xs text-red-600 space-y-1 max-h-40 overflow-y-auto">
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('init-shopee-form');
+    const btn = document.getElementById('init-shopee-btn');
+    const statusDiv = document.getElementById('init-shopee-status');
+    const resultDiv = document.getElementById('init-shopee-result');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const tenantId = document.getElementById('tenant-id-input').value;
+        const connectionIds = document.getElementById('connection-ids-input').value;
+        
+        if (!tenantId) {
+            alert('Vui lòng nhập Tenant ID');
+            return;
+        }
+        
+        // Disable button and show loading
+        btn.disabled = true;
+        btn.textContent = 'Đang xử lý...';
+        statusDiv.textContent = 'Đang khởi tạo dữ liệu, vui lòng đợi...';
+        statusDiv.className = 'text-sm text-blue-600';
+        resultDiv.classList.add('hidden');
+        
+        try {
+            const response = await fetch('{% url "init_shopee_products_api" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    tenant_id: parseInt(tenantId),
+                    connection_ids: connectionIds || null
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                statusDiv.textContent = '✓ Hoàn thành!';
+                statusDiv.className = 'text-sm text-green-600';
+                
+                // Show results
+                document.getElementById('result-total').textContent = data.total_products || 0;
+                document.getElementById('result-processed').textContent = data.processed || 0;
+                document.getElementById('result-updated').textContent = data.updated || 0;
+                
+                // Show errors if any
+                const errorsDiv = document.getElementById('result-errors');
+                const errorsList = errorsDiv.querySelector('ul');
+                if (data.errors && data.errors.length > 0) {
+                    errorsList.innerHTML = '';
+                    data.errors.forEach(error => {
+                        const li = document.createElement('li');
+                        li.textContent = error;
+                        errorsList.appendChild(li);
+                    });
+                    errorsDiv.classList.remove('hidden');
+                } else {
+                    errorsDiv.classList.add('hidden');
+                }
+                
+                resultDiv.classList.remove('hidden');
+            } else {
+                statusDiv.textContent = '✗ Lỗi: ' + (data.error || 'Unknown error');
+                statusDiv.className = 'text-sm text-red-600';
+                
+                // Show error in result div
+                document.getElementById('result-total').textContent = '-';
+                document.getElementById('result-processed').textContent = '-';
+                document.getElementById('result-updated').textContent = '-';
+                const errorsDiv = document.getElementById('result-errors');
+                const errorsList = errorsDiv.querySelector('ul');
+                errorsList.innerHTML = '';
+                const li = document.createElement('li');
+                li.textContent = data.error || 'Unknown error';
+                errorsList.appendChild(li);
+                errorsDiv.classList.remove('hidden');
+                resultDiv.classList.remove('hidden');
+            }
+        } catch (error) {
+            statusDiv.textContent = '✗ Lỗi: ' + error.message;
+            statusDiv.className = 'text-sm text-red-600';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Init Shopee Products';
+        }
+    });
+});
+</script>
+{% endblock %}
+

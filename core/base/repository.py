@@ -82,7 +82,14 @@ class BaseRepository(ABC):
         for attempt in range(retry):
             try:
                 request_start = time.time()
-                logger.debug(f"[{method}] {url} (attempt {attempt + 1}/{retry})")
+                # Log full URL với params để debug
+                if 'params' in kwargs:
+                    from urllib.parse import urlencode
+                    params_str = urlencode(kwargs['params'])
+                    full_url = f"{url}?{params_str}" if params_str else url
+                    logger.debug(f"[{method}] {full_url} (attempt {attempt + 1}/{retry})")
+                else:
+                    logger.debug(f"[{method}] {url} (attempt {attempt + 1}/{retry})")
                 
                 response = self.session.request(
                     method=method,
@@ -101,7 +108,23 @@ class BaseRepository(ABC):
                 
                 return response
                 
-            except (requests.ConnectionError, requests.Timeout) as e:
+            except requests.Timeout as e:
+                # Timeout: chỉ retry 1 lần để tăng tốc xử lý
+                last_exception = e
+                logger.warning(
+                    f"Request timeout (attempt {attempt + 1}/{retry}): {e}"
+                )
+                
+                # Chỉ retry 1 lần cho timeout (không phải 3 lần)
+                timeout_retry_limit = min(1, retry - 1)
+                if attempt < timeout_retry_limit:
+                    logger.info(f"Retrying timeout request in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"Request timeout after {timeout_retry_limit + 1} attempt(s), skipping...")
+                    raise
+            
+            except requests.ConnectionError as e:
                 last_exception = e
                 logger.warning(
                     f"Request failed (attempt {attempt + 1}/{retry}): {e}"

@@ -1,4 +1,5 @@
 {% extends "cskh/base_cskh.html" %}
+{% load humanize %}
 
 {% block title %}Ticket free – Tổng hợp chi phí{% endblock %}
 
@@ -15,42 +16,258 @@
 
 {% block content %}
 <section class="space-y-4">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-xs text-gray-500 mb-1">Tổng số khoản chi phí</div>
-            <div class="text-2xl font-semibold">{{ cost_summary.total_items|default:0 }}</div>
+    <!-- Bộ lọc -->
+    <div class="bg-white border rounded-xl p-4 shadow-sm">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end text-xs md:text-sm">
+            <div>
+                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Từ ngày thanh toán</label>
+                <input type="date" name="payment_from" value="{{ filter_payment_from }}"
+                       class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+            </div>
+            <div>
+                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Đến ngày thanh toán</label>
+                <input type="date" name="payment_to" value="{{ filter_payment_to }}"
+                       class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+            </div>
+            <div>
+                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Loại chi phí</label>
+                <select name="cost_type"
+                        multiple
+                        class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-[11px]">
+                    <option value="" disabled>Giữ Ctrl để chọn nhiều</option>
+                    {% for ct in cost_type_options %}
+                    <option value="{{ ct }}" {% if ct in filter_cost_types %}selected{% endif %}>{{ ct }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Người thanh toán</label>
+                <select name="person_id"
+                        class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="" {% if not filter_person_id %}selected{% endif %}>Tất cả</option>
+                    {% for p in person_options %}
+                    <option value="{{ p.id }}"{% if filter_person_id and filter_person_id|add:'' == p.id|add:'' %} selected{% endif %}>
+                        {{ p.first_name|default:p.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="md:col-span-4 flex justify-end gap-2">
+                <button type="submit"
+                        class="px-4 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-semibold">
+                    Lọc
+                </button>
+                <a href="{% url 'cskh:ticket_cost_overview' %}"
+                   class="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs font-semibold">
+                    Xoá lọc
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tổng quan + Chi phí theo loại (chia 2 cột: 30% / 70%) -->
+    <div class="grid grid-cols-1 md:grid-cols-10 gap-4">
+        <!-- Cột 1: Tổng quan (30%) -->
+        <div class="md:col-span-3 space-y-4">
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Tổng số khoản chi phí</div>
+                <div class="text-2xl font-semibold">{{ cost_summary.total_items|default:0 }}</div>
+            </div>
+            <div class="bg-white border rounded-xl p-4 shadow-sm">
+                <div class="text-xs text-gray-500 mb-1">Tổng số tiền</div>
+                <div class="text-2xl font-semibold">
+                    {{ cost_summary.total_amount|default:0|floatformat:0|intcomma }} đ
+                </div>
+            </div>
         </div>
-        <div class="bg-white border rounded-xl p-4 shadow-sm">
-            <div class="text-xs text-gray-500 mb-1">Tổng số tiền</div>
-            <div class="text-2xl font-semibold">
-                {{ cost_summary.total_amount|default:0|floatformat:0|intcomma }} đ
+
+        <!-- Cột 2: Chi phí theo loại (70%) -->
+        <div class="md:col-span-7">
+            <div class="bg-white border rounded-xl p-4 shadow-sm h-full">
+                <h2 class="text-sm font-semibold mb-3">Chi phí theo loại</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-xs md:text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-semibold text-gray-600">Loại chi phí</th>
+                                <th class="px-3 py-2 text-right font-semibold text-gray-600">Số khoản</th>
+                                <th class="px-3 py-2 text-right font-semibold text-gray-600">Tổng tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in cost_by_type %}
+                            <tr class="border-t">
+                                <td class="px-3 py-2">{{ row.cost_type }}</td>
+                                <td class="px-3 py-2 text-right">{{ row.count }}</td>
+                                <td class="px-3 py-2 text-right">
+                                    {{ row.total_amount|default:0|floatformat:0|intcomma }} đ
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="px-3 py-4 text-center text-gray-400">
+                                    Chưa có dữ liệu chi phí.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Danh sách chi phí (limit 100) -->
     <div class="bg-white border rounded-xl p-4 shadow-sm">
-        <h2 class="text-sm font-semibold mb-3">Chi phí theo loại</h2>
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold">Danh sách chi phí</h2>
+            <p class="text-[11px] text-gray-500">
+                Đang hiển thị {{ costs|length }} / {{ cost_summary.total_items|default:0 }} khoản.
+            </p>
+        </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-xs md:text-sm">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Loại chi phí</th>
-                        <th class="px-3 py-2 text-right font-semibold text-gray-600">Số khoản</th>
-                        <th class="px-3 py-2 text-right font-semibold text-gray-600">Tổng tiền</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Ngày thanh toán</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Người thanh toán</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Loại</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Chi tiết</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Chứng từ</th>
+                        <th class="px-3 py-2 text-left font-semibold text-gray-600">Ticket</th>
+                        <th class="px-3 py-2 text-right font-semibold text-gray-600">Số tiền</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in cost_by_type %}
-                    <tr class="border-t">
-                        <td class="px-3 py-2">{{ row.cost_type }}</td>
-                        <td class="px-3 py-2 text-right">{{ row.count }}</td>
-                        <td class="px-3 py-2 text-right">
-                            {{ row.total_amount|default:0|floatformat:0|intcomma }} đ
+                    {% for cost in costs %}
+                    <tr class="border-t hover:bg-slate-50">
+                        <!-- Ngày thanh toán -->
+                        <td class="px-3 py-2 whitespace-nowrap text-[11px] text-gray-700">
+                            {% if cost.payment_date %}
+                                {{ cost.payment_date|date:"d/m/Y" }}
+                            {% else %}
+                                {{ cost.created_at|date:"d/m/Y" }}
+                            {% endif %}
+                            <span class="text-[10px] text-gray-400">
+                                {{ cost.created_at|date:"H:i" }}
+                            </span>
+                        </td>
+
+                        <!-- Người thanh toán -->
+                        <td class="px-3 py-2 text-[11px] text-gray-700 whitespace-nowrap">
+                            {% if cost.person %}
+                                <div class="flex items-center gap-1">
+                                    <span>
+                                        {{ cost.person.first_name|default:cost.person.username }}
+                                    </span>
+                                    {% if cost.person.last_name %}
+                                        {% with dept=cost.person.last_name %}
+                                        <span class="px-1.5 py-0.5 rounded-full border text-[9px] font-semibold leading-none align-middle
+                                                     {% if dept == 'KHO_HN' %}
+                                                         bg-orange-50 border-orange-300 text-orange-700
+                                                     {% elif dept == 'KHO_HCM' %}
+                                                         bg-emerald-50 border-emerald-300 text-emerald-700
+                                                     {% elif dept == 'CSKH' %}
+                                                         bg-sky-50 border-sky-300 text-sky-700
+                                                     {% elif dept == 'MARKETING' %}
+                                                         bg-purple-50 border-purple-300 text-purple-700
+                                                     {% elif dept == 'QUẢN TRỊ VIÊN' %}
+                                                         bg-rose-50 border-rose-300 text-rose-700
+                                                     {% else %}
+                                                         bg-slate-50 border-slate-300 text-slate-700
+                                                     {% endif %}">
+                                            {{ dept }}
+                                        </span>
+                                        {% endwith %}
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-[11px]">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Loại (tag màu) -->
+                        <td class="px-3 py-2">
+                            {% if cost.cost_type %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] font-semibold
+                                             {% if cost.cost_type == 'Hàng hỏng vỡ' %}
+                                                 bg-orange-50 border-orange-300 text-orange-800
+                                             {% elif cost.cost_type == 'Chi phí gửi mới' %}
+                                                 bg-sky-50 border-sky-300 text-sky-800
+                                             {% elif cost.cost_type == 'Chi phí đổi trả' %}
+                                                 bg-amber-50 border-amber-300 text-amber-800
+                                             {% elif cost.cost_type == 'Chi phí hoàn tiền' %}
+                                                 bg-emerald-50 border-emerald-300 text-emerald-800
+                                             {% elif cost.cost_type == 'Voucher giảm giá' %}
+                                                 bg-purple-50 border-purple-300 text-purple-800
+                                             {% else %}
+                                                 bg-slate-50 border-slate-300 text-slate-800
+                                             {% endif %}">
+                                    {{ cost.cost_type }}
+                                </span>
+                            {% else %}
+                                <span class="text-gray-400 text-[11px]">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Chi tiết -->
+                        <td class="px-3 py-2 text-[11px] text-gray-700">
+                            {% if cost.cost_type == 'Hàng hỏng vỡ' and cost.sku %}
+                                <div>
+                                    SKU: {{ cost.sku }}
+                                </div>
+                                <div class="text-[10px] text-gray-500">
+                                    {% if cost.quantity %}
+                                        SL: {{ cost.quantity }}
+                                    {% endif %}
+                                    {% if cost.unit_price %}
+                                        {% if cost.quantity %} · {% endif %}
+                                        Giá: {{ cost.unit_price|floatformat:0|intcomma }} đ
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-[11px]">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Chứng từ -->
+                        <td class="px-3 py-2 text-[11px] text-gray-700">
+                            {% if cost.images %}
+                                <div class="flex flex-wrap gap-1">
+                                    {% for img_path in cost.images %}
+                                    <button type="button"
+                                            class="w-8 h-8 rounded border border-gray-200 overflow-hidden bg-gray-50 cost-proof-thumb"
+                                            data-media-src="/static/{{ img_path }}">
+                                        <img src="/static/{{ img_path }}" alt="Bill image"
+                                             class="w-full h-full object-cover pointer-events-none">
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-gray-400 text-[11px]">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Ticket -->
+                        <td class="px-3 py-2 whitespace-nowrap">
+                            {% if cost.ticket %}
+                                <a href="{% url 'cskh:ticket_detail' cost.ticket.id %}"
+                                   class="text-sky-700 hover:text-sky-900 font-medium text-[11px]">
+                                    {{ cost.ticket.ticket_number }}
+                                </a>
+                            {% else %}
+                                <span class="text-gray-400 text-[11px]">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Số tiền -->
+                        <td class="px-3 py-2 text-right text-red-600 font-semibold whitespace-nowrap">
+                            {{ cost.amount|default:0|floatformat:0|intcomma }} đ
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="3" class="px-3 py-4 text-center text-gray-400">
+                        <td colspan="6" class="px-3 py-4 text-center text-gray-400">
                             Chưa có dữ liệu chi phí.
                         </td>
                     </tr>
@@ -58,8 +275,110 @@
                 </tbody>
             </table>
         </div>
+
+        <!-- Phân trang -->
+        {% if page_obj and paginator.num_pages > 1 %}
+        <div class="mt-3 flex items-center justify-between text-[11px] text-gray-600">
+            <div>
+                Trang {{ page_obj.number }} / {{ paginator.num_pages }}
+            </div>
+            <div class="flex items-center gap-1">
+                {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&payment_from={{ filter_payment_from }}&payment_to={{ filter_payment_to }}{% for ct in filter_cost_types %}&cost_type={{ ct|urlencode }}{% endfor %}&person_id={{ filter_person_id }}"
+                   class="px-2 py-1 border rounded hover:bg-gray-50">« Trước</a>
+                {% endif %}
+
+                {% for num in paginator.page_range %}
+                    {% if num == page_obj.number %}
+                        <span class="px-2 py-1 border rounded bg-gray-900 text-white">{{ num }}</span>
+                    {% else %}
+                        <a href="?page={{ num }}&payment_from={{ filter_payment_from }}&payment_to={{ filter_payment_to }}{% for ct in filter_cost_types %}&cost_type={{ ct|urlencode }}{% endfor %}&person_id={{ filter_person_id }}"
+                           class="px-2 py-1 border rounded hover:bg-gray-50">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&payment_from={{ filter_payment_from }}&payment_to={{ filter_payment_to }}{% for ct in filter_cost_types %}&cost_type={{ ct|urlencode }}{% endfor %}&person_id={{ filter_person_id }}"
+                   class="px-2 py-1 border rounded hover:bg-gray-50">Sau »</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 </section>
 {% endblock %}
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const thumbs = document.querySelectorAll('.cost-proof-thumb');
+    if (!thumbs.length) return;
+
+    // Tạo lightbox nếu chưa có
+    let lightbox = document.getElementById('costMediaLightbox');
+    if (!lightbox) {
+        lightbox = document.createElement('div');
+        lightbox.id = 'costMediaLightbox';
+        lightbox.className = 'hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center';
+        lightbox.innerHTML = `
+            <div class="relative max-w-5xl w-full h-full flex items-center justify-center px-4">
+                <button type="button" id="costMediaCloseBtn"
+                        class="absolute top-4 right-6 text-white text-2xl font-bold">
+                    ×
+                </button>
+                <div id="costMediaContent" class="max-h-[90vh] max-w-full flex items-center justify-center"></div>
+            </div>
+        `;
+        document.body.appendChild(lightbox);
+    }
+
+    const content = document.getElementById('costMediaContent');
+    const btnClose = document.getElementById('costMediaCloseBtn');
+
+    function openLightbox(src) {
+        if (!lightbox || !content || !src) return;
+        content.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = src;
+        img.className = 'max-h-[90vh] max-w-full rounded shadow-lg';
+        content.appendChild(img);
+        lightbox.classList.remove('hidden');
+    }
+
+    function closeLightbox() {
+        if (!lightbox || !content) return;
+        lightbox.classList.add('hidden');
+        content.innerHTML = '';
+    }
+
+    thumbs.forEach(btn => {
+        btn.addEventListener('click', function () {
+            const src = this.getAttribute('data-media-src');
+            openLightbox(src);
+        });
+    });
+
+    if (btnClose) {
+        btnClose.addEventListener('click', function (e) {
+            e.stopPropagation();
+            closeLightbox();
+        });
+    }
+
+    lightbox.addEventListener('click', function (e) {
+        if (e.target === lightbox) {
+            closeLightbox();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (lightbox.classList.contains('hidden')) return;
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeLightbox();
+        }
+    });
+});
+</script>
 
 
+{% endblock %}

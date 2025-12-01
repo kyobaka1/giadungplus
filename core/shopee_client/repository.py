@@ -45,11 +45,12 @@ class ShopeeRepository(BaseRepository):
         """
         logger.debug(f"[ShopeeRepo] Searching order: {order_sn}")
         
+        # Timeout ngắn hơn (15s) và chỉ retry 1 lần để tăng tốc xử lý
         return self.get("order/get_order_list_search_bar_hint", params={
             "keyword": order_sn,
             "category": 1,
             "order_list_tab": 100
-        })
+        }, timeout=15, retry=1)
     
     def get_package_raw(self, order_id: int) -> Dict[str, Any]:
         """
@@ -71,9 +72,10 @@ class ShopeeRepository(BaseRepository):
         """
         logger.debug(f"[ShopeeRepo] Getting package for order: {order_id}")
         
+        # Timeout ngắn hơn (15s) và chỉ retry 1 lần để tăng tốc xử lý
         return self.get("order/get_package", params={
             "order_id": order_id
-        })
+        }, timeout=15, retry=1)
     
     def get_pickup_raw(self, order_id: int, package_number: str) -> Dict[str, Any]:
         """
@@ -209,6 +211,7 @@ class ShopeeRepository(BaseRepository):
         payload = {"queries": queries}
         
         # Make request với params SPC_CDS
+        # Timeout ngắn hơn (15s) để tăng tốc xử lý
         response = self.session.post(
             url,
             params={
@@ -216,7 +219,7 @@ class ShopeeRepository(BaseRepository):
                 "SPC_CDS_VER": "2"
             },
             json=payload,
-            timeout=30
+            timeout=15
         )
         response.raise_for_status()
         

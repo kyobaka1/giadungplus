@@ -99,13 +99,14 @@
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Loại ticket</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Trạng thái</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bộ phận xử lý</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Hướng xử lý</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Tổng thiệt hại</th>
                         <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
                     {% for ticket in tickets %}
-                    <tr class="hover:bg-slate-50">
+                    <tr class="hover:bg-slate-50 {% if ticket.ticket_status == 'closed' %}ticket-closed-row{% endif %}">
                         <!-- Mã ticket -->
                         <td class="px-4 py-3 whitespace-nowrap">
                             <a href="{% url 'cskh:ticket_detail' ticket.id %}"
@@ -250,7 +251,17 @@
                                 {{ ticket.depart|upper|default:"-" }}
                             </span>
                             {% endif %}
-                            
+                        </td>
+
+                        <!-- Hướng xử lý (Sugget process) -->
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            {% if ticket.sugget_process.sugget_main %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-medium">
+                                {{ ticket.sugget_process.sugget_main }}
+                            </span>
+                            {% else %}
+                            <span class="text-[11px] text-slate-400">-</span>
+                            {% endif %}
                         </td>
 
                         <!-- Tổng thiệt hại -->
@@ -414,4 +425,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+{% endblock %}
+
+{% block extra_scripts %}
+<style>
+/* Hàng ticket đã đóng: nền sọc xám nhẹ để phân biệt */
+.ticket-closed-row {
+    position: relative;
+    /* Nền trắng với sọc xám nhạt chéo */
+    background: repeating-linear-gradient(
+        135deg,
+        #ffffff 0px,
+        #ffffff 8px,
+        rgba(107, 114, 128, 0.08) 8px,   /* gray-500 nhạt */
+        rgba(107, 114, 128, 0.08) 10px
+    );
+}
+</style>
 {% endblock %}
