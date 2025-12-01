@@ -167,6 +167,68 @@ def ticket_list(request):
 
 
 @group_required("CSKHManager", "CSKHStaff")
+def ticket_cost_overview(request):
+    """
+    Ticket free – Tổng hợp chi phí / rà soát chi phí cho toàn bộ ticket.
+    """
+    from django.db.models import Count
+
+    cost_summary = TicketCost.objects.aggregate(
+        total_amount=Sum('amount'),
+        total_items=Count('id'),
+    )
+
+    cost_by_type = (
+        TicketCost.objects
+        .values('cost_type')
+        .annotate(
+            total_amount=Sum('amount'),
+            count=Count('id'),
+        )
+        .order_by('-total_amount')
+    )
+
+    context = {
+        'cost_summary': cost_summary,
+        'cost_by_type': cost_by_type,
+    }
+    return render(request, 'cskh/tickets/cost_overview.html', context)
+
+
+@group_required("CSKHManager", "CSKHStaff")
+def ticket_compensation_overview(request):
+    """
+    Compensation Tracking – Tổng hợp hàng hỏng vỡ / rà soát lý do hỏng.
+    """
+    from django.db.models import Count
+
+    damaged_costs = TicketCost.objects.filter(cost_type='Hàng hỏng vỡ')
+
+    damaged_summary = damaged_costs.aggregate(
+        total_amount=Sum('amount'),
+        total_items=Count('id'),
+    )
+
+    # Tổng hợp theo ticket_type để xem loại ticket nào hay phát sinh hỏng vỡ
+    damaged_by_ticket_type = (
+        damaged_costs
+        .values('ticket__ticket_type')
+        .annotate(
+            total_amount=Sum('amount'),
+            count=Count('id'),
+        )
+        .order_by('-total_amount')
+    )
+
+    context = {
+        'damaged_summary': damaged_summary,
+        'damaged_by_ticket_type': damaged_by_ticket_type,
+        'ticket_type_labels': dict(Ticket.TICKET_TYPE_CHOICES),
+    }
+    return render(request, 'cskh/tickets/compensation_overview.html', context)
+
+
+@group_required("CSKHManager", "CSKHStaff")
 def ticket_detail(request, ticket_id):
     """Chi tiết ticket"""
     from datetime import datetime

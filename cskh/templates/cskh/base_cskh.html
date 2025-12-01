@@ -181,76 +181,73 @@
                             <li>
                                 <a href="{% url 'cskh:ticket_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Danh sách ticket</span>
+                                    <span class="truncate">Tickets List</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:ticket_list' %}?status=closed" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                <a href="{% url 'cskh:ticket_list' %}?ticket_type=warranty" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Ticket đã đóng</span>
+                                    <span class="truncate">Warranty</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:ticket_list' %}?ticket_type=return_exchange" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Return Center</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:ticket_cost_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Ticket free</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:ticket_compensation_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Compensation Tracking</span>
                                 </a>
                             </li>
                         </ul>
                     </div>
 
-                    <!-- GROUP: Warranty -->
-                    <div class="px-3 md:px-4 mb-2 md:mb-1">
-                        <button type="button" class="w-full flex items-center justify-between
-                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
-                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-warranty">
-                            <span>Bảo hành</span>
-                            <span
-                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
-                        </button>
-                        <ul id="menu-warranty" class="space-y-1">
-                            <li>
-                                <a href="{% url 'cskh:warranty_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
-                                      hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Tổng quan</span>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="{% url 'cskh:warranty_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
-                                      hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Danh sách</span>
-                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <!-- GROUP: Review -->
+                    <!-- GROUP: Feedback Management (Review) -->
                     <div class="px-3 md:px-4 mb-2 md:mb-1">
                         <button type="button" class="w-full flex items-center justify-between
                                text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
                                uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-review">
-                            <span>Đánh giá</span>
+                            <span>Feedback Management</span>
                             <span
                                 class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                         </button>
                         <ul id="menu-review" class="space-y-1">
                             <li>
-                                <a href="{% url 'cskh:review_overview' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                <a href="{% url 'cskh:review_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Tổng quan</span>
+                                    <span class="truncate">Reviews List</span>
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'cskh:review_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                <a href="{% url 'cskh:review_list' %}?sentiment=positive" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Danh sách</span>
-                                    <span class="text-xs md:text-[10px] text-gray-500">0</span>
+                                    <span class="truncate">Good Reviews</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a href="{% url 'cskh:review_list' %}?sentiment=negative" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Bad Reviews</span>
                                 </a>
                             </li>
                         </ul>
                     </div>
 
-                    <!-- GROUP: Tra cứu -->
+                    <!-- GROUP: Information Center (Tra cứu) -->
                     <div class="px-3 md:px-4 mb-2 md:mb-1">
                         <button type="button" class="w-full flex items-center justify-between
                                text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
                                uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-lookup">
-                            <span>Tra cứu</span>
+                            <span>Information Center</span>
                             <span
                                 class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                         </button>
@@ -396,7 +393,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const currentURL = window.location.pathname;
+            // So sánh cả query string để các link có filter (vd: Warranty, Return Center) vẫn active đúng
+            const currentURL = window.location.pathname + window.location.search;
             const links = document.querySelectorAll('.sidebar-link');
 
             links.forEach(link => {
