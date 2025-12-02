@@ -122,7 +122,13 @@
                             Guest
                             {% endif %}
                         </div>
-                        <div class="text-gray-500">CSKH Staff</div>
+                        <div class="text-gray-500">
+                            {% if request.user.is_authenticated and request.user.last_name %}
+                                {{ request.user.last_name }}
+                            {% else %}
+                                CSKH Staff
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
 
