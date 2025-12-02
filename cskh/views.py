@@ -3,7 +3,7 @@ import json
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from cskh.utils import group_required
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.contrib import messages
 from django.contrib.auth.models import User
 from django.db.models import Q, Count, Sum, Avg, F, ExpressionWrapper, DurationField
@@ -11,7 +11,15 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from django.urls import reverse
 
-from .models import Ticket, TicketCost, TicketEvent, TicketView, Feedback, FeedbackLog
+from .models import (
+    Ticket,
+    TicketCost,
+    TicketEvent,
+    TicketView,
+    Feedback,
+    FeedbackLog,
+    TrainingDocument,
+)
 from .services.ticket_service import TicketService
 from .settings import (
     get_reason_sources, get_reason_types_by_source, get_cost_types,
@@ -1627,3 +1635,202 @@ def ticket_config(request):
         "loai_chi_phi_text": "\n".join(config.get("loai_chi_phi", [])),
     }
     return render(request, "cskh/tickets/config.html", context)
+
+
+# =======================
+# TRAINING DOCUMENTS
+# =======================
+
+
+@group_required("CSKHManager", "CSKHStaff")
+def training_list(request):
+    """
+    Danh sách tài liệu training nội bộ.
+    - Toàn bộ CSKH (Staff + Manager + Admin) đều có quyền xem.
+    - Chỉ Admin & CSKHManager mới được upload / reupload / delete.
+    """
+    from pathlib import Path
+    from django.utils.text import slugify
+    from datetime import datetime
+
+    docs_qs = TrainingDocument.objects.all().order_by("title")
+
+    # Quyền quản lý: Admin hoặc thuộc group CSKHManager
+    can_manage = request.user.is_superuser or request.user.groups.filter(
+        name__in=["Admin", "CSKHManager"]
+    ).exists()
+
+    if request.method == "POST" and can_manage:
+        action = request.POST.get("action") or "create"
+        title = (request.POST.get("title") or "").strip()
+        doc_id = request.POST.get("doc_id")
+        file_obj = request.FILES.get("file")
+
+        # Thư mục lưu file markdown
+        base_dir = Path("settings/logs/train_cskh")
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        if action == "delete" and doc_id:
+            doc = get_object_or_404(TrainingDocument, id=doc_id)
+            file_path = base_dir / doc.filename
+            if file_path.exists():
+                try:
+                    file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Could not delete training file {file_path}: {e}")
+            doc.delete()
+            messages.success(request, "Đã xoá tài liệu training.")
+            return redirect("cskh:training_list")
+
+        if not title or not file_obj:
+            messages.error(request, "Vui lòng nhập tên tài liệu và chọn file Markdown.")
+            return redirect("cskh:training_list")
+
+        # Re-upload: giữ lại record, chỉ thay file & metadata
+        if action == "reupload" and doc_id:
+            doc = get_object_or_404(TrainingDocument, id=doc_id)
+            # Xoá file cũ nếu có
+            old_path = base_dir / doc.filename
+            if old_path.exists():
+                try:
+                    old_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Could not delete old training file {old_path}: {e}")
+            safe_slug = slugify(title) or "training-doc"
+            ext = ".md"
+            original_name = file_obj.name or ""
+            if "." in original_name:
+                ext = "." + original_name.split(".")[-1].lower()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{safe_slug}_{timestamp}{ext}"
+            new_path = base_dir / filename
+            with open(new_path, "wb") as f:
+                for chunk in file_obj.chunks():
+                    f.write(chunk)
+            doc.title = title
+            doc.filename = filename
+            doc.uploaded_by = request.user
+            doc.uploaded_at = timezone.now()
+            doc.save()
+            messages.success(request, "Đã cập nhật (reupload) tài liệu training.")
+            return redirect("cskh:training_list")
+
+        # Tạo mới
+        safe_slug = slugify(title) or "training-doc"
+        ext = ".md"
+        original_name = file_obj.name or ""
+        if "." in original_name:
+            ext = "." + original_name.split(".")[-1].lower()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_slug}_{timestamp}{ext}"
+        file_path = base_dir / filename
+        with open(file_path, "wb") as f:
+            for chunk in file_obj.chunks():
+                f.write(chunk)
+
+        TrainingDocument.objects.create(
+            title=title,
+            filename=filename,
+            uploaded_by=request.user,
+            uploaded_at=timezone.now(),
+        )
+        messages.success(request, "Đã thêm tài liệu training mới.")
+        return redirect("cskh:training_list")
+
+    # Chuẩn hoá dữ liệu hiển thị: tách thư mục (category) và tên tài liệu bằng dấu "###"
+    def build_doc_meta(doc: TrainingDocument):
+        raw_title = (doc.title or "").strip()
+        category = ""
+        display_title = raw_title or "(Không có tiêu đề)"
+
+        if "###" in raw_title:
+            cat, name = raw_title.split("###", 1)
+            category = cat.strip()
+            display_title = (name or "").strip() or category or display_title
+
+        # Gán màu theo category (cùng category => cùng màu)
+        cat_upper = category.upper()
+        if cat_upper.startswith("QUY ĐỊNH"):
+            color_classes = "bg-red-100 text-red-800 border-red-200"
+        elif cat_upper.startswith("QUY TRÌNH"):
+            color_classes = "bg-blue-100 text-blue-800 border-blue-200"
+        elif cat_upper.startswith("HƯỚNG DẪN"):
+            color_classes = "bg-emerald-100 text-emerald-800 border-emerald-200"
+        else:
+            color_classes = "bg-slate-100 text-slate-700 border-slate-200"
+
+        return {
+            "id": doc.id,
+            "category": category,
+            "display_title": display_title,
+            "uploaded_by": doc.uploaded_by,
+            "uploaded_at": doc.uploaded_at,
+            "category_color_classes": color_classes,
+        }
+
+    docs_meta = [build_doc_meta(d) for d in docs_qs]
+
+    # Sort để cùng category đứng gần nhau, sau đó sort theo tên hiển thị
+    docs_meta.sort(
+        key=lambda d: (
+            (d["category"] or "ZZZ").upper(),
+            d["display_title"].upper(),
+        )
+    )
+
+    context = {
+        "documents": docs_meta,
+        "can_manage": can_manage,
+    }
+    return render(request, "cskh/train/training_list.html", context)
+
+
+@group_required("CSKHManager", "CSKHStaff")
+def training_detail(request, doc_id: int):
+    """
+    Xem nội dung tài liệu training dưới dạng HTML.
+    """
+    from pathlib import Path
+
+    doc = get_object_or_404(TrainingDocument, id=doc_id)
+    base_dir = Path("settings/logs/train_cskh")
+    file_path = base_dir / doc.filename
+
+    if not file_path.exists():
+        raise Http404("Tài liệu không tồn tại trên hệ thống.")
+
+    try:
+        raw_content = file_path.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"Could not read training file {file_path}: {e}")
+        raise Http404("Không thể đọc nội dung tài liệu.")
+
+    # Render Markdown -> HTML
+    from django.utils.html import escape
+
+    html_content = None
+    try:
+        import markdown  # type: ignore
+    except ImportError:
+        # Fallback đơn giản: convert xuống HTML cơ bản (không cần thư viện ngoài)
+        paragraphs = []
+        for block in raw_content.split("\n\n"):
+            if not block.strip():
+                continue
+            # Giữ xuống dòng trong cùng block
+            escaped = escape(block).replace("\n", "<br>")
+            paragraphs.append(f"<p>{escaped}</p>")
+        html_content = "\n".join(paragraphs) or "<p></p>"
+    else:
+        # Dùng thư viện markdown nếu có
+        html_content = markdown.markdown(
+            raw_content,
+            extensions=["fenced_code", "tables"],
+            output_format="html5",
+        )
+
+    context = {
+        "document": doc,
+        "content_html": html_content,
+    }
+    return render(request, "cskh/train/training_detail.html", context)

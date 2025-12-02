@@ -1,0 +1,134 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}{{ document.title }} – Tài liệu training CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between gap-2">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+                {{ document.title }}
+            </h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+                Tài liệu training nội bộ CSKH. Upload bởi
+                {% if document.uploaded_by %}
+                    <span class="font-medium">
+                        {{ document.uploaded_by.first_name|default:document.uploaded_by.username }}
+                    </span>
+                {% else %}
+                    <span class="font-medium">Hệ thống</span>
+                {% endif %}
+                vào lúc {{ document.uploaded_at|date:"d/m/Y H:i" }}.
+            </p>
+        </div>
+        <a href="{% url 'cskh:training_list' %}"
+           class="inline-flex items-center px-3 py-1.5 rounded-md border text-xs font-medium text-gray-700 bg-white hover:bg-slate-50">
+            ← Danh sách tài liệu
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section>
+    <style>
+        /* Styling riêng cho nội dung tài liệu training */
+        .cskh-markdown {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: #1f2933; /* slate-800 */
+        }
+
+        .cskh-markdown h1,
+        .cskh-markdown h2,
+        .cskh-markdown h3,
+        .cskh-markdown h4 {
+            font-weight: 700;
+            line-height: 1.4;
+            color: #111827; /* gray-900 */
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .cskh-markdown h1 {
+            font-size: 1.35rem;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+
+        .cskh-markdown h2 {
+            font-size: 1.15rem;
+        }
+
+        .cskh-markdown h3 {
+            font-size: 1rem;
+        }
+
+        .cskh-markdown p {
+            margin-top: 0.4rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .cskh-markdown ul,
+        .cskh-markdown ol {
+            margin-top: 0.3rem;
+            margin-bottom: 0.3rem;
+            padding-left: 1.25rem;
+        }
+
+        .cskh-markdown ul li {
+            margin-bottom: 0.15rem;
+            list-style-type: disc;
+        }
+
+        .cskh-markdown ol li {
+            margin-bottom: 0.15rem;
+            list-style-type: decimal;
+        }
+
+        .cskh-markdown strong {
+            font-weight: 600;
+            color: #111827;
+        }
+
+        .cskh-markdown code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 0.8rem;
+            background-color: #f3f4f6;
+            padding: 0.1rem 0.3rem;
+            border-radius: 0.25rem;
+        }
+
+        .cskh-markdown pre {
+            background-color: #0b1120;
+            color: #e5e7eb;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .cskh-markdown blockquote {
+            border-left: 3px solid #60a5fa;
+            padding-left: 0.75rem;
+            margin-left: 0;
+            color: #4b5563;
+            font-style: italic;
+        }
+
+        .cskh-markdown hr {
+            border: none;
+            border-top: 1px dashed #e5e7eb;
+            margin: 1.25rem 0;
+        }
+    </style>
+
+    <div class="bg-white border rounded-xl shadow-sm p-4 md:p-6 cskh-markdown">
+        {{ content_html|safe }}
+    </div>
+</section>
+{% endblock %}
+
+

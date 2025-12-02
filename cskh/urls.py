@@ -53,4 +53,8 @@ urlpatterns = [
     # Orders & Products
     path('orders/', views.orders_view, name='orders_view'),
     path('products/', views.products_view, name='products_view'),
+
+    # Training documents
+    path('training/', views.training_list, name='training_list'),
+    path('training/<int:doc_id>/', views.training_detail, name='training_detail'),
 ]

@@ -417,3 +417,32 @@ class FeedbackLog(models.Model):
     
     def __str__(self):
         return f"FeedbackLog {self.action_type} for Feedback {self.feedback.feedback_id} by {self.user_name or 'System'}"
+
+
+class TrainingDocument(models.Model):
+    """
+    Tài liệu training nội bộ cho CSKH.
+    Nội dung được lưu dưới dạng file Markdown trong thư mục settings/logs/train_cskh/,
+    model này chỉ lưu metadata để quản lý.
+    """
+
+    title = models.CharField(max_length=255, help_text="Tên hiển thị của tài liệu")
+    filename = models.CharField(
+        max_length=255,
+        unique=True,
+        help_text="Tên file .md được lưu trong settings/logs/train_cskh/",
+    )
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="training_documents",
+    )
+    uploaded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["title"]
+
+    def __str__(self):
+        return self.title or self.filename
