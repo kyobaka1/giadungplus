@@ -2,7 +2,7 @@
 Service để xử lý Ticket - tìm order, tạo ticket, etc.
 """
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from orders.services.sapo_service import SapoCoreOrderService
 from orders.services.dto import OrderDTO
@@ -57,6 +57,48 @@ class TicketService:
         
         logger.warning(f"[TicketService] Order not found: {search_key}")
         return None
+
+    def search_orders_for_ticket(self, search_key: str, limit: int = 10) -> List[OrderDTO]:
+        """
+        Tìm danh sách orders phục vụ cho màn tạo ticket:
+        - Tìm theo reference_number (mã Shopee) nếu khớp chính xác
+        - Sau đó tìm theo SON / query trong list_orders (giới hạn số lượng)
+        """
+        from orders.services.order_builder import build_order_from_sapo
+
+        logger.debug(f"[TicketService] Searching orders for ticket: {search_key}")
+        results: List[OrderDTO] = []
+        seen_ids = set()
+
+        # 1. Thử tìm theo reference_number (mã Shopee) – thường chỉ ra 1 đơn
+        try:
+            order = self.order_service.get_order_dto_from_shopee_sn(search_key)
+            if order and order.id not in seen_ids:
+                results.append(order)
+                seen_ids.add(order.id)
+        except Exception as e:
+            logger.debug(f"[TicketService] search_orders_for_ticket: not found by reference: {e}")
+
+        # 2. Tìm theo SON / query trong list_orders
+        try:
+            flt = BaseFilter(params={'query': search_key, 'limit': limit, 'page': 1})
+            raw = self.order_service.list_orders(flt)
+            orders_data = raw.get('orders', []) or []
+
+            if orders_data:
+                sapo_client = get_sapo_client()
+                for od in orders_data:
+                    try:
+                        dto = build_order_from_sapo({'order': od}, sapo_client=sapo_client)
+                        if dto.id not in seen_ids:
+                            results.append(dto)
+                            seen_ids.add(dto.id)
+                    except Exception as e:
+                        logger.debug(f"[TicketService] search_orders_for_ticket: error building DTO: {e}")
+        except Exception as e:
+            logger.debug(f"[TicketService] search_orders_for_ticket: error in list_orders: {e}")
+
+        return results
     
     def extract_order_info(self, order: OrderDTO) -> Dict[str, Any]:
         """
@@ -138,6 +180,15 @@ class TicketService:
         except Exception:
             freight_amount = 0.0
 
+        # Nguồn đơn hàng: ưu tiên tên nguồn từ source_id (OrderDTO.source_name)
+        channel_display = ""
+        try:
+            channel_display = (order.source_name or "").strip()
+        except Exception:
+            channel_display = ""
+        if not channel_display:
+            channel_display = order.channel or ""
+
         return {
             'order_id': order.id,
             'order_code': order.code,
@@ -151,7 +202,8 @@ class TicketService:
             'location_id': order.location_id,
             'warehouse': warehouse,
             'shop': order.shop_name or order.channel or '',  # Ưu tiên shop_name từ tags, fallback về channel
-            'channel': order.channel or '',
+            # "Nguồn" hiển thị trên UI – lấy từ source_id (source_name) nếu có, fallback về channel gốc
+            'channel': channel_display,
             'order_status': order_status,
             'order_status_label': order_status_label,
             'fulfillment_status': fulfillment_status,

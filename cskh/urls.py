@@ -33,6 +33,7 @@ urlpatterns = [
     path('api/tickets/<int:ticket_id>/delete/', views_api.api_delete_ticket, name='api_delete_ticket'),
     path('api/reason-types/', views_api.api_get_reason_types, name='api_get_reason_types'),
     path('api/search-order/', views_api.api_search_order, name='api_search_order'),
+    path('api/search-order-multi/', views_api.api_search_order_multi, name='api_search_order_multi'),
     
     # Warranty URLs
     path('warranty/', views.warranty_overview, name='warranty_overview'),
