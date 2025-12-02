@@ -1,6 +1,0 @@
-{"timestamp": "2025-11-26T15:45:49.785173", "user": "giadungplus", "action": "created", "details": {"order_code": "SON613970", "ticket_type": "bad_review"}}
-{"timestamp": "2025-11-26T15:48:00.032584", "user": "giadungplus", "action": "added_event", "details": {"event_id": 2, "tags": ""}}
-{"timestamp": "2025-11-26T15:48:12.600388", "user": "giadungplus", "action": "added_event", "details": {"event_id": 3, "tags": ""}}
-{"timestamp": "2025-11-26T15:48:23.603375", "user": "giadungplus", "action": "added_event", "details": {"event_id": 4, "tags": "Gọi điện"}}
-{"timestamp": "2025-11-26T16:20:41.163310", "user": "giadungplus", "action": "saved_ticket", "details": {"old": {"ticket_type": "bad_review", "source_reason": "Lỗi kho", "reason_type": "gói thiếu", "ticket_status": "new", "note": "Khách báo thiếu sản phẩm A", "variants_issue": [232488333]}, "new": {"ticket_type": "bad_review", "source_reason": "Lỗi kho", "reason_type": "gói thiếu", "ticket_status": "waiting_warehouse", "note": "Khách báo thiếu sản phẩm A", "variants_issue": [232488333]}}}
-{"timestamp": "2025-11-26T21:44:57.127058", "user": "giadungplus", "action": "transferred_department", "details": {"from": "cskh", "to": "warehouse", "reason": "CHUYỂN BỘ PHẬN: KHO qua Trouble & Event", "event_id": 22}}
