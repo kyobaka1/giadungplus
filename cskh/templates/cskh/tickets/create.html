@@ -40,6 +40,8 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
                         </div>
+                        <!-- Danh sách nhiều đơn hàng trùng với mã search để chọn -->
+                        <div id="orderSearchResults" class="mt-2 space-y-1 hidden"></div>
                     </div>
                     
                     <!-- Thông tin đơn hàng sau khi tìm thấy -->
@@ -234,6 +236,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reasonTypeSelect = document.getElementById('reason_type');
     const imagesInput = document.getElementById('images');
     const imagePreview = document.getElementById('imagePreview');
+    const orderSearchResults = document.getElementById('orderSearchResults');
     
     // Lưu thông tin variants của order
     const orderVariantsById = {};
@@ -299,16 +302,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Tìm đơn hàng
+    // Tìm đơn hàng (bước 1: lấy danh sách nhiều đơn để chọn)
     searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            searchOrder();
+            searchOrderList();
         }
     });
     
-    function searchOrder() {
-        const searchKey = searchInput.value.trim();
+    function searchOrder(searchKeyOverride) {
+        const searchKey = (searchKeyOverride || searchInput.value || '').trim();
         if (!searchKey) {
             alert('Vui lòng nhập mã đơn hàng');
             return;
@@ -318,6 +321,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    // Khi đã chọn một đơn cụ thể để dùng cho ticket thì ẩn danh sách gợi ý
+                    if (orderSearchResults) {
+                        orderSearchResults.classList.add('hidden');
+                        orderSearchResults.innerHTML = '';
+                    }
+
                     // Hiển thị thông tin đơn hàng
                     document.getElementById('orderCode').textContent = data.order.order_code || data.order.reference_number;
                     document.getElementById('warehouse').textContent = data.order.warehouse || '-';
@@ -436,6 +445,91 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(err => {
                 alert('Lỗi khi tìm đơn hàng');
                 console.error(err);
+            });
+    }
+
+    function renderOrderCandidates(orders) {
+        if (!orderSearchResults) return;
+
+        if (!orders || orders.length === 0) {
+            orderSearchResults.classList.add('hidden');
+            orderSearchResults.innerHTML = '';
+            return;
+        }
+
+        // Chỉ hiển thị danh sách nếu có từ 2 đơn trở lên
+        if (orders.length === 1) {
+            orderSearchResults.classList.add('hidden');
+            orderSearchResults.innerHTML = '';
+            return;
+        }
+
+        orderSearchResults.classList.remove('hidden');
+        orderSearchResults.innerHTML = '';
+
+        orders.forEach(order => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'w-full text-left px-3 py-1.5 text-xs border border-slate-200 rounded-md bg-white hover:bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-1';
+
+            const code = order.order_code || order.reference_number || '';
+            const branch = order.warehouse || '-';
+            const channel = order.channel || '-';
+            const status = order.order_status_label || order.order_status || '-';
+
+            let totalText = '';
+            if (typeof order.total_to_pay === 'number') {
+                try {
+                    totalText = order.total_to_pay.toLocaleString('vi-VN') + 'đ';
+                } catch (e) {
+                    totalText = order.total_to_pay + 'đ';
+                }
+            }
+
+            btn.innerHTML = `
+                <span class="font-semibold text-gray-800">${code}</span>
+                <span class="text-[11px] text-gray-600 flex-1 md:text-right">
+                    ${branch} · ${channel} · ${status}
+                    ${totalText ? ' · Khách phải trả: ' + totalText : ''}
+                </span>
+            `;
+
+            btn.addEventListener('click', function () {
+                // Khi chọn đơn, set lại input search và gọi searchOrder để load chi tiết & sản phẩm
+                searchInput.value = code;
+                searchOrder(code);
+            });
+
+            orderSearchResults.appendChild(btn);
+        });
+    }
+
+    function searchOrderList() {
+        const searchKey = (searchInput.value || '').trim();
+        if (!searchKey) {
+            alert('Vui lòng nhập mã đơn hàng');
+            return;
+        }
+
+        fetch(`{% url 'cskh:api_search_order_multi' %}?q=${encodeURIComponent(searchKey)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.orders && data.orders.length) {
+                    renderOrderCandidates(data.orders);
+                } else {
+                    if (data && data.error) {
+                        alert('Không tìm thấy đơn hàng: ' + data.error);
+                    } else {
+                        alert('Không tìm thấy đơn hàng phù hợp');
+                    }
+                    if (orderSearchResults) {
+                        orderSearchResults.classList.add('hidden');
+                        orderSearchResults.innerHTML = '';
+                    }
+                }
+            })
+            .catch(err => {
+                alert('Lỗi khi tìm đơn hàng: ' + err);
             });
     }
     

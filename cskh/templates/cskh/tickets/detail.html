@@ -206,14 +206,18 @@
                     </div>
 
                     <!-- Tìm & gắn đơn xử lý -->
-                    <div class="mb-3 flex gap-2 items-center">
-                        <input type="text" id="search_process_order"
-                               class="flex-1 px-3 py-1.5 border rounded-lg text-sm"
-                               placeholder="Nhập mã SON hoặc mã sàn để gắn đơn xử lý...">
-                        <button type="button" id="btnSearchProcessOrder"
-                                class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
-                            Tìm đơn
-                        </button>
+                    <div class="mb-3 flex flex-col gap-2">
+                        <div class="flex gap-2 items-center">
+                            <input type="text" id="search_process_order"
+                                   class="flex-1 px-3 py-1.5 border rounded-lg text-sm"
+                                   placeholder="Nhập mã SON hoặc mã sàn để gắn đơn xử lý...">
+                            <button type="button" id="btnSearchProcessOrder"
+                                    class="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+                                Tìm đơn
+                            </button>
+                        </div>
+                        <!-- Danh sách nhiều đơn hàng trùng để chọn làm đơn xử lý -->
+                        <div id="processOrderSearchResults" class="space-y-1 hidden"></div>
                     </div>
 
                     <div id="processOrderResult" class="hidden mb-2 p-3 bg-slate-50 border border-dashed border-slate-300 rounded-lg text-xs"></div>
@@ -1132,6 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const processOrderSearchInput = document.getElementById('search_process_order');
     const btnSearchProcessOrder = document.getElementById('btnSearchProcessOrder');
     const processOrderResult = document.getElementById('processOrderResult');
+    const processOrderSearchResults = document.getElementById('processOrderSearchResults');
     const btnSaveResponsible = document.getElementById('btnSaveResponsible');
     const responsibleUserSelect = document.getElementById('responsible_user');
     const responsibleDepartmentSelect = document.getElementById('responsible_department');
@@ -1278,7 +1283,68 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function searchProcessOrder() {
+    function renderProcessOrderCandidates(orders) {
+        if (!processOrderSearchResults) return;
+
+        if (!orders || orders.length === 0) {
+            processOrderSearchResults.classList.add('hidden');
+            processOrderSearchResults.innerHTML = '';
+            return;
+        }
+
+        // Chỉ hiển thị danh sách nếu có từ 2 đơn trở lên
+        if (orders.length === 1) {
+            processOrderSearchResults.classList.add('hidden');
+            processOrderSearchResults.innerHTML = '';
+            // Với 1 đơn duy nhất, vẫn render chi tiết bên dưới để gắn
+            renderProcessOrderResult(orders[0]);
+            return;
+        }
+
+        processOrderSearchResults.classList.remove('hidden');
+        processOrderSearchResults.innerHTML = '';
+
+        orders.forEach(order => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'w-full text-left px-3 py-1.5 text-[11px] border border-slate-200 rounded-md bg-white hover:bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-1';
+
+            const code = order.order_code || order.reference_number || '';
+            const branch = order.warehouse || '-';
+            const channel = order.channel || '-';
+            const status = order.order_status_label || order.order_status || '-';
+
+            let totalText = '';
+            if (typeof order.total_to_pay === 'number') {
+                try {
+                    totalText = order.total_to_pay.toLocaleString('vi-VN') + 'đ';
+                } catch (e) {
+                    totalText = order.total_to_pay + 'đ';
+                }
+            }
+
+            btn.innerHTML = `
+                <span class="font-semibold text-gray-800">${code}</span>
+                <span class="text-[11px] text-gray-600 flex-1 md:text-right">
+                    ${branch} · ${channel} · ${status}
+                    ${totalText ? ' · Khách phải trả: ' + totalText : ''}
+                </span>
+            `;
+
+            btn.addEventListener('click', function () {
+                // Khi chọn 1 đơn trong danh sách: ẩn danh sách và render chi tiết bên dưới
+                if (processOrderSearchResults) {
+                    processOrderSearchResults.classList.add('hidden');
+                    processOrderSearchResults.innerHTML = '';
+                }
+                renderProcessOrderResult(order);
+            });
+
+            processOrderSearchResults.appendChild(btn);
+        });
+    }
+
+    function searchProcessOrderList() {
         if (!processOrderSearchInput) return;
         const key = (processOrderSearchInput.value || '').trim();
         if (!key) {
@@ -1286,13 +1352,17 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        fetch(`{% url 'cskh:api_search_order' %}?q=${encodeURIComponent(key)}`)
+        fetch(`{% url 'cskh:api_search_order_multi' %}?q=${encodeURIComponent(key)}`)
             .then(res => res.json())
             .then(data => {
-                if (data.success && data.order) {
-                    renderProcessOrderResult(data.order);
+                if (data.success && data.orders && data.orders.length) {
+                    renderProcessOrderCandidates(data.orders);
                 } else {
                     alert('Không tìm thấy đơn xử lý: ' + (data.error || ''));
+                    if (processOrderSearchResults) {
+                        processOrderSearchResults.classList.add('hidden');
+                        processOrderSearchResults.innerHTML = '';
+                    }
                 }
             })
             .catch(err => {
@@ -1301,11 +1371,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (btnSearchProcessOrder && processOrderSearchInput) {
-        btnSearchProcessOrder.addEventListener('click', searchProcessOrder);
+        btnSearchProcessOrder.addEventListener('click', searchProcessOrderList);
         processOrderSearchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                searchProcessOrder();
+                searchProcessOrderList();
             }
         });
     }

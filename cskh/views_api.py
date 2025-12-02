@@ -6,6 +6,7 @@ from cskh.utils import group_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Q
 import json
 import os
 from pathlib import Path
@@ -599,18 +600,15 @@ def api_update_process_order(request, ticket_id):
         # Dùng extract_order_info để đảm bảo code/reference_number chuẩn
         order_info = ticket_service.extract_order_info(order)
 
-        # Kiểm tra xem đã có ticket nào khác với cùng process_order_code hoặc process_reference_number chưa
-        process_order_code = order_info.get('order_code', '')
-        process_reference_number = order_info.get('reference_number', '')
+        # Kiểm tra xem đã có ticket nào khác đang dùng đơn này hay chưa
+        # - order_id (thông tin đơn hàng)
+        # - hoặc process_order_id (thông tin đơn xử lý)
+        process_order_id = order_info.get('order_id')
         
         existing_ticket = None
-        if process_order_code:
+        if process_order_id:
             existing_ticket = Ticket.objects.filter(
-                process_order_code=process_order_code
-            ).exclude(id=ticket.id).first()
-        if not existing_ticket and process_reference_number:
-            existing_ticket = Ticket.objects.filter(
-                process_reference_number=process_reference_number
+                Q(order_id=process_order_id) | Q(process_order_id=process_order_id)
             ).exclude(id=ticket.id).first()
         
         if existing_ticket:
@@ -726,23 +724,26 @@ def api_search_order(request):
     if not search_key:
         return JsonResponse({'success': False, 'error': 'Thiếu search key'}, status=400)
     
+    # Endpoint cũ: vẫn giữ behavior tìm 1 đơn để dùng cho các màn chi tiết / đơn xử lý
     ticket_service = TicketService()
     order = ticket_service.find_order(search_key)
-    
+
     if not order:
         return JsonResponse({'success': False, 'error': 'Không tìm thấy đơn hàng'}, status=404)
-    
+
     order_info = ticket_service.extract_order_info(order)
     
     # Kiểm tra xem đơn hàng này đã có ticket chưa
-    final_order_code = order_info.get('order_code', '')
-    final_reference_number = order_info.get('reference_number', '')
+    # Chỉ tính là trùng khi order_id đã được gắn vào:
+    # - Thông tin đơn hàng (order_id)
+    # - Hoặc thông tin đơn xử lý (process_order_id)
+    final_order_id = order_info.get('order_id')
     
     existing_ticket = None
-    if final_order_code:
-        existing_ticket = Ticket.objects.filter(order_code=final_order_code).first()
-    if not existing_ticket and final_reference_number:
-        existing_ticket = Ticket.objects.filter(reference_number=final_reference_number).first()
+    if final_order_id:
+        existing_ticket = Ticket.objects.filter(
+            Q(order_id=final_order_id) | Q(process_order_id=final_order_id)
+        ).first()
     
     if existing_ticket:
         ticket_url = reverse('cskh:ticket_detail', args=[existing_ticket.id])
@@ -800,6 +801,60 @@ def api_search_order(request):
         'order': order_info,
         'variants': variants
     })
+
+
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["GET"])
+def api_search_order_multi(request):
+    """
+    API: Tìm nhiều orders theo search key (dùng cho màn tạo ticket).
+    Trả về danh sách đơn đơn giản để người dùng chọn:
+        [
+            {
+                "order_id": ...,
+                "order_code": ...,
+                "reference_number": ...,
+                "warehouse": ...,
+                "channel": ...,
+                "order_status": ...,
+                "order_status_label": ...,
+                "total_to_pay": float,
+            },
+            ...
+        ]
+    """
+    from .services.ticket_service import TicketService
+
+    search_key = request.GET.get('q', '').strip()
+    if not search_key:
+        return JsonResponse({'success': False, 'error': 'Thiếu search key'}, status=400)
+
+    ticket_service = TicketService()
+    orders = ticket_service.search_orders_for_ticket(search_key, limit=10)
+
+    if not orders:
+        return JsonResponse({'success': False, 'error': 'Không tìm thấy đơn hàng'}, status=404)
+
+    items = []
+    for order in orders:
+        try:
+            info = ticket_service.extract_order_info(order)
+            items.append({
+                'order_id': info.get('order_id'),
+                'order_code': info.get('order_code') or '',
+                'reference_number': info.get('reference_number') or '',
+                'warehouse': info.get('warehouse') or '',
+                'channel': info.get('channel') or '',
+                'order_status': info.get('order_status') or '',
+                'order_status_label': info.get('order_status_label') or info.get('order_status') or '',
+                # Khách phải trả – dùng tổng đơn hàng (có thể tinh chỉnh sau nếu cần)
+                'total_to_pay': float(getattr(order, 'total', 0) or 0),
+            })
+        except Exception as e:
+            # Bỏ qua đơn lỗi, tiếp tục với đơn khác
+            continue
+
+    return JsonResponse({'success': True, 'orders': items})
 
 
 @group_required("CSKHManager", "CSKHStaff")
