@@ -5,6 +5,12 @@ from django.db import migrations, models
 
 def check_and_add_fields(apps, schema_editor):
     """Kiểm tra và thêm các field còn thiếu"""
+    # Chỉ chạy PRAGMA khi dùng SQLite (dev/local).
+    # Trên PostgreSQL/MySQL, các field đã/được tạo bằng migrations chuẩn,
+    # không cần (và không được) dùng PRAGMA.
+    if schema_editor.connection.vendor != "sqlite":
+        return
+
     db_alias = schema_editor.connection.alias
     with schema_editor.connection.cursor() as cursor:
         # Kiểm tra xem các column đã có chưa
