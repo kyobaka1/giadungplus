@@ -157,10 +157,26 @@
                                 
                                 <!-- Tên / SĐT cùng 1 cột -->
                                 <div>
-                                    <strong>Tên khách:</strong> <span class="text-gray-700">{{ order_info.customer_name|default:"-" }}</span>
+                                    <strong>Tên khách:</strong>
+                                    <span class="text-gray-700">
+                                        {{ order_info.customer_name|default:"-" }}
+                                        {% if order_info.customer_username %}
+                                            <span class="text-xs text-gray-500">
+                                                ({{ order_info.customer_username }})
+                                            </span>
+                                        {% endif %}
+                                    </span>
                                 </div>
                                 <div>
-                                    <strong>SĐT:</strong> <span class="text-gray-700">{{ order_info.customer_phone|default:"-" }}</span>
+                                    <strong>SĐT:</strong>
+                                    <span class="text-gray-700">
+                                        {{ order_info.customer_phone|default:"-" }}
+                                        {% if order_info.customer_email %}
+                                            <span class="text-xs text-gray-500">
+                                                ({{ order_info.customer_email }})
+                                            </span>
+                                        {% endif %}
+                                    </span>
                                 </div>
                                 
                                 <!-- Địa chỉ 1 cột -->
@@ -288,6 +304,14 @@
                                 <div>
                                     <strong>Nguồn:</strong> <span class="text-gray-700">{{ process_order_info.channel|default:"-" }}</span>
                                 </div>
+                                {% if process_order_info.freight_amount %}
+                                <div>
+                                    <strong>Chi phí gửi đơn:</strong>
+                                    <span class="text-gray-700">
+                                        {{ process_order_info.freight_amount|floatformat:0|intcomma }}đ
+                                    </span>
+                                </div>
+                                {% endif %}
                                 {% if process_order_info.shop %}
                                 <div class="flex items-center gap-2">
                                     <span class="font-semibold text-sm text-gray-700">Shop:</span>
@@ -566,12 +590,17 @@
                         </div>
                     </div>
 
-                    <!-- Loại vấn đề - label và select cùng hàng -->
+                    <!-- Loại vấn đề - label và select cùng hàng (lấy từ config: loai_van_de) -->
                     <div class="flex items-center gap-3">
                         <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề</label>
-                        <select disabled
-                            class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
-                            <option>{{ ticket.get_ticket_type_display|default:"-" }}</option>
+                        <select id="ticket_type"
+                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                            <option value="">-- Chọn loại vấn đề --</option>
+                            {% for value in issue_type_options %}
+                            <option value="{{ value }}" {% if ticket.ticket_type == value %}selected{% endif %}>
+                                {{ value }}
+                            </option>
+                            {% endfor %}
                         </select>
                     </div>
                     
@@ -1198,6 +1227,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderProcessOrderResult(order) {
         if (!processOrderResult) return;
         processOrderResult.classList.remove('hidden');
+
+        // Lưu tạm thông tin đơn xử lý vào data-* để dùng khi bấm "Lưu ticket"
+        processOrderResult.dataset.orderId = order.order_id || '';
+        processOrderResult.dataset.orderCode = order.order_code || '';
+        processOrderResult.dataset.referenceNumber = order.reference_number || '';
+
         processOrderResult.innerHTML = `
             <div class="flex items-center justify-between gap-2">
                 <div class="space-y-0.5">
@@ -1289,14 +1324,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Lưu toàn bộ ticket
-    btnSaveTicket.addEventListener('click', function() {
+    // Hàm thực hiện gọi API lưu ticket
+    function doSaveTicket() {
         // Thu thập các variant_id đã được tick
         const checkedVariants = [];
         document.querySelectorAll('.variant-checkbox:checked').forEach(checkbox => {
             checkedVariants.push(parseInt(checkbox.value));
         });
-        
+
         const payload = {
             ticket_type: "{{ ticket.ticket_type }}",
             source_reason: sourceReasonSelect.value || "",
@@ -1304,7 +1339,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ticket_status: ticketStatusSelect.value || "",
             variants_issue: checkedVariants
         };
-        
+
         fetch(`{% url 'cskh:api_save_ticket' ticket.id %}`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -1319,6 +1354,44 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Lỗi: ' + (data.error || ''));
             }
         });
+    }
+
+    // Lưu toàn bộ ticket
+    btnSaveTicket.addEventListener('click', function() {
+        // Nếu người dùng vừa tìm được đơn xử lý nhưng chưa bấm "Gắn làm đơn xử lý"
+        // thì tự động gắn đơn xử lý trước khi lưu ticket
+        if (processOrderResult && processOrderResult.dataset.orderId) {
+            const orderId = processOrderResult.dataset.orderId;
+            const orderCode = processOrderResult.dataset.orderCode || '';
+            const referenceNumber = processOrderResult.dataset.referenceNumber || '';
+
+            fetch(`{% url 'cskh:api_update_process_order' ticket.id %}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    order_id: orderId,
+                    order_code: orderCode,
+                    reference_number: referenceNumber,
+                }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) {
+                    alert('Lỗi gắn đơn xử lý: ' + (data.error || ''));
+                    return;
+                }
+                // Sau khi gắn đơn xử lý thành công thì mới lưu ticket
+                doSaveTicket();
+            })
+            .catch(err => {
+                alert('Lỗi gắn đơn xử lý: ' + err);
+            });
+        } else {
+            // Không có đơn xử lý đang chờ gắn -> chỉ lưu ticket như bình thường
+            doSaveTicket();
+        }
     });
     
     // Modal add cost

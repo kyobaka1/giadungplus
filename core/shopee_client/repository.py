@@ -228,3 +228,81 @@ class ShopeeRepository(BaseRepository):
         except ValueError:
             logger.warning(f"Response is not JSON: {response.text[:200]}")
             return {}
+    
+    def get_shop_ratings_raw(
+        self,
+        rating_star: str = "5,4,3,2,1",
+        time_start: int = None,
+        time_end: int = None,
+        page_number: int = 1,
+        page_size: int = 50,
+        cursor: int = 0,
+        from_page_number: int = 1,
+        language: str = "vi"
+    ) -> Dict[str, Any]:
+        """
+        Lấy danh sách đánh giá từ Shopee KNB API.
+        
+        Args:
+            rating_star: Comma-separated ratings (vd: "5,4,3,2,1")
+            time_start: Timestamp bắt đầu (Unix timestamp)
+            time_end: Timestamp kết thúc (Unix timestamp)
+            page_number: Số trang
+            page_size: Số items mỗi trang
+            cursor: Cursor cho pagination
+            from_page_number: From page number
+            language: Ngôn ngữ (default: "vi")
+            
+        Returns:
+            {
+                "code": 0,
+                "message": "success",
+                "data": {
+                    "page_info": {
+                        "total": 128233,
+                        "page_number": null,
+                        "page_size": null
+                    },
+                    "list": [
+                        {
+                            "comment_id": 80386957542,
+                            "rating_star": 5,
+                            "comment": "",
+                            "images": [],
+                            "ctime": 1764654168,
+                            "user_id": 1041304483,
+                            "user_name": "thanhnguynphng915",
+                            "user_portrait": "vn-11134233-7qukw-ljp38pnhuxmc97",
+                            "order_id": 218167800298720,
+                            "order_sn": "2511304V8TTQ70",
+                            "product_id": 17185925586,
+                            ...
+                        },
+                        ...
+                    ]
+                }
+            }
+        """
+        logger.debug(f"[ShopeeRepo] Getting shop ratings: rating_star={rating_star}, page={page_number}")
+        
+        # Build URL với SPC_CDS
+        url = "settings/search_shop_rating_comments_new/"
+        
+        params = {
+            "SPC_CDS": "15c18032-c3ae-45ea-9393-85c234ac4a32",
+            "SPC_CDS_VER": "2",
+            "rating_star": rating_star,
+            "language": language,
+            "page_number": page_number,
+            "page_size": page_size,
+            "cursor": cursor,
+            "from_page_number": from_page_number,
+        }
+        
+        if time_start:
+            params["time_start"] = time_start
+        if time_end:
+            params["time_end"] = time_end
+        
+        # Timeout dài hơn (30s) vì API này có thể chậm
+        return self.get(url, params=params, timeout=30, retry=2)

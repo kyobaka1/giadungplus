@@ -829,6 +829,9 @@ def ticket_detail(request, ticket_id):
     # Cấu hình ticket CSKH (nguồn lỗi, hướng xử lý, loại chi phí, ...)
     ticket_config = CSKHTicketConfigService.get_config()
 
+    # Các dropdown lấy từ config
+    issue_type_options = ticket_config.get('loai_van_de', []) or []
+
     # Sugget process (hướng xử lý) - chuẩn hoá để dễ hiển thị
     raw_sugget = ticket.sugget_process or {}
     sugget_process = {}
@@ -973,6 +976,7 @@ def ticket_detail(request, ticket_id):
         'departments': departments,
         'sugget_process': sugget_process,
         # Lý do, chi phí, hướng xử lý lấy từ cấu hình CSKH
+        'issue_type_options': issue_type_options,
         'reason_sources': ticket_config.get('nguon_loi', []),
         'cost_types': ticket_config.get('loai_chi_phi', []),
         'huong_xu_ly_list': ticket_config.get('huong_xu_ly', []),
@@ -1128,13 +1132,23 @@ def ticket_create(request):
     
     # GET request - hiển thị form
     ticket_config = CSKHTicketConfigService.get_config()
+
+    # Các dropdown lấy trực tiếp từ file config CSKH, không hard-code:
+    # - loai_van_de: dùng cho "Loại vấn đề"
+    # - nguon_loi: dùng cho "Nguồn lỗi"
+    # - loai_chi_phi: dùng cho "Loại chi phí"
+    issue_type_options = ticket_config.get('loai_van_de', []) or []
+    reason_sources = ticket_config.get('nguon_loi', []) or []
+    cost_types = ticket_config.get('loai_chi_phi', []) or []
+
     context = {
-        'ticket_type_choices': Ticket.TICKET_TYPE_CHOICES,
+        # Loại vấn đề, nguồn lỗi, loại chi phí lấy từ cấu hình CSKH
+        'issue_type_options': issue_type_options,
+        'reason_sources': reason_sources,
+        'cost_types': cost_types,
+        # Các trường khác vẫn dùng choices mặc định của model (nếu cần sau này có thể cấu hình thêm)
         'status_choices': Ticket.STATUS_CHOICES,
         'source_choices': Ticket.SOURCE_CHOICES,
-        # Nguồn lỗi & loại chi phí lấy từ cấu hình CSKH
-        'reason_sources': ticket_config.get('nguon_loi', []),
-        'cost_types': ticket_config.get('loai_chi_phi', []),
     }
     return render(request, 'cskh/tickets/create.html', context)
 

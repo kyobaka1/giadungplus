@@ -127,6 +127,8 @@ class CustomerDTO(BaseDTO):
     dob: Optional[str] = None
     sex: Optional[str] = None  # "female", "male", "other"
     description: Optional[str] = None
+    # Ghi chú (raw text hoặc JSON string từ Sapo)
+    note: Optional[str] = None
     email: Optional[str] = None
     fax: Optional[str] = None
     phone_number: Optional[str] = None
