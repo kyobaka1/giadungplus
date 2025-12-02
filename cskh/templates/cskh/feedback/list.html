@@ -347,7 +347,7 @@
 let currentFeedbackId = null;
 
 async function syncFeedbacks() {
-    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP? Quá trình này có thể mất vài phút.\n\nMỗi lần chạy: 5000 đánh giá với 25 threads.\n\nHệ thống sẽ tiếp tục từ page đã lưu trong log_feedback.log.')) {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Shopee API? Quá trình này có thể mất vài phút.\n\nHệ thống sẽ lấy các đánh giá trong 3 ngày gần nhất cho tất cả shop.')) {
         return;
     }
     
@@ -370,11 +370,10 @@ async function syncFeedbacks() {
                 'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
-                tenant_id: 1262,  // TODO: Lấy từ config hoặc input
-                connection_ids: null,  // Lấy tất cả
-                rating: "1,2,3,4,5",
-                max_feedbacks: 5000,  // Mỗi lần chạy 5000 đánh giá
-                num_threads: 25  // 25 threads để đồng bộ nhanh hơn
+                // Dùng Shopee API mặc định (không cần tenant_id)
+                use_shopee_api: true,
+                days: 3,       // Lấy 3 ngày gần nhất
+                page_size: 50  // Mỗi lần gọi 50 feedbacks
             })
         });
         

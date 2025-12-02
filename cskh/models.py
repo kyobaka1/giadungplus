@@ -272,43 +272,63 @@ class TicketView(models.Model):
 
 class Feedback(models.Model):
     """
-    Lưu reviews/feedbacks từ Sapo Marketplace API.
-    Sync từ Sapo MP và lưu local để xử lý.
+    Lưu reviews/feedbacks từ Shopee API.
+    Sync trực tiếp từ Shopee API và lưu local để xử lý.
     """
     
-    # IDs từ Sapo MP
-    feedback_id = models.BigIntegerField(unique=True, db_index=True)  # id từ Sapo MP
-    tenant_id = models.IntegerField(db_index=True)
+    # IDs từ Shopee API
+    comment_id = models.BigIntegerField(unique=True, db_index=True)  # Comment ID từ Shopee (duy nhất)
     connection_id = models.IntegerField(db_index=True)  # Shop connection ID
-    cmt_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Comment ID trên Shopee
+    
+    # Legacy fields (giữ lại để tương thích với code cũ)
+    feedback_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Legacy: id từ Sapo MP (có thể null)
+    tenant_id = models.IntegerField(null=True, blank=True, db_index=True)  # Legacy: tenant_id từ Sapo MP
+    cmt_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Legacy: cmt_id (giữ lại để tương thích)
     item_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product item_id trên Shopee
+    product_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product ID từ Shopee
     
     # Product info
     product_name = models.CharField(max_length=500, blank=True)
     product_image = models.URLField(max_length=500, blank=True)
+    product_cover = models.CharField(max_length=200, blank=True)  # Product cover ID từ Shopee
+    model_id = models.BigIntegerField(null=True, blank=True)  # Model ID từ Shopee
+    model_name = models.CharField(max_length=500, blank=True)  # Model name từ Shopee
     
     # Order info
-    channel_order_number = models.CharField(max_length=100, blank=True, db_index=True)  # Mã đơn hàng trên sàn
+    channel_order_number = models.CharField(max_length=100, blank=True, db_index=True)  # order_sn từ Shopee
+    order_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Order ID từ Shopee
     
     # Customer info
-    buyer_user_name = models.CharField(max_length=200, blank=True, db_index=True)
+    buyer_user_name = models.CharField(max_length=200, blank=True, db_index=True)  # user_name từ Shopee
+    user_portrait = models.CharField(max_length=200, blank=True)  # user_portrait từ Shopee (avatar ID)
+    user_id = models.BigIntegerField(null=True, blank=True)  # user_id từ Shopee
     
     # Rating & Comment
-    rating = models.IntegerField(db_index=True)  # 1-5 sao
-    comment = models.TextField(blank=True)  # Nội dung đánh giá
-    images = models.JSONField(default=list, blank=True)  # List URLs hình ảnh/video từ khách
+    rating = models.IntegerField(db_index=True)  # rating_star từ Shopee (1-5 sao)
+    comment = models.TextField(blank=True)  # comment từ Shopee (nội dung đánh giá)
+    images = models.JSONField(default=list, blank=True)  # images từ Shopee (list URLs hình ảnh/video)
     
     # Reply info
     status_reply = models.CharField(max_length=50, null=True, blank=True)  # Trạng thái phản hồi
-    reply = models.TextField(null=True, blank=True)  # Nội dung phản hồi
+    reply = models.TextField(null=True, blank=True)  # reply từ Shopee (nội dung phản hồi)
     reply_time = models.BigIntegerField(null=True, blank=True)  # Timestamp phản hồi
     user_reply = models.CharField(max_length=200, null=True, blank=True)  # User đã phản hồi
     reply_type = models.CharField(max_length=50, null=True, blank=True)
     
+    # Additional fields from Shopee
+    is_hidden = models.BooleanField(default=False)  # is_hidden từ Shopee
+    status = models.IntegerField(null=True, blank=True)  # status từ Shopee
+    can_follow_up = models.BooleanField(null=True, blank=True)  # can_follow_up từ Shopee
+    follow_up = models.TextField(null=True, blank=True)  # follow_up từ Shopee
+    submit_time = models.BigIntegerField(null=True, blank=True)  # submit_time từ Shopee
+    low_rating_reasons = models.JSONField(default=list, blank=True)  # low_rating_reasons từ Shopee
+    
     # Timestamps
-    create_time = models.BigIntegerField(db_index=True)  # Timestamp từ Sapo MP
+    create_time = models.BigIntegerField(db_index=True)  # ctime từ Shopee (timestamp)
+    ctime = models.BigIntegerField(null=True, blank=True, db_index=True)  # ctime từ Shopee
+    mtime = models.BigIntegerField(null=True, blank=True)  # mtime từ Shopee
     created_at = models.DateTimeField(auto_now_add=True)  # Khi sync vào DB
-    updated_at = models.DateTimeField(auto_now=True)  # Khi update từ Sapo MP
+    updated_at = models.DateTimeField(auto_now=True)  # Khi update từ Shopee
     
     # Linked data (sau khi xử lý)
     sapo_customer_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Customer ID từ Sapo
@@ -333,10 +353,12 @@ class Feedback(models.Model):
             models.Index(fields=['status_reply', '-create_time']),
             models.Index(fields=['buyer_user_name']),
             models.Index(fields=['channel_order_number']),
+            models.Index(fields=['comment_id']),  # Unique index cho comment_id
         ]
     
     def __str__(self):
-        return f"Feedback {self.feedback_id} - {self.buyer_user_name} - {self.rating}*"
+        comment_id_str = str(self.comment_id) if self.comment_id else "N/A"
+        return f"Feedback {comment_id_str} - {self.buyer_user_name} - {self.rating}*"
     
     @property
     def is_replied(self) -> bool:

@@ -510,7 +510,55 @@ def api_get_reason_types(request):
     
     if not source_reason:
         return JsonResponse({'success': False, 'error': 'Thiếu source_reason'}, status=400)
-    
+
+    # Ưu tiên đọc mapping từ file config CSKH (cấu hình Admin)
+    try:
+        from settings.services.cskh_ticket_config_service import CSKHTicketConfigService
+
+        config = CSKHTicketConfigService.get_config()
+        raw_types = config.get("loai_loi", []) or []
+
+        # Định dạng mới: "Nguồn lỗi: Loại lỗi"
+        # Ví dụ: "Lỗi kho: Gửi thiếu" → source = "Lỗi kho", type = "Gửi thiếu"
+        mapped_types = []
+        for item in raw_types:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            if ":" in text:
+                src, typ = [p.strip() for p in text.split(":", 1)]
+                if src == source_reason and typ:
+                    mapped_types.append(typ)
+
+        # Nếu config đã trả được danh sách theo source → dùng luôn
+        if mapped_types:
+            return JsonResponse({'success': True, 'types': mapped_types})
+
+        # Fallback: nếu chưa có mapping theo source, dùng toàn bộ loai_loi (bỏ phần "Nguồn lỗi:" nếu có)
+        fallback_types = []
+        for item in raw_types:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if not text:
+                continue
+            if ":" in text:
+                _, typ = [p.strip() for p in text.split(":", 1)]
+                if typ:
+                    fallback_types.append(typ)
+            else:
+                fallback_types.append(text)
+
+        if fallback_types:
+            return JsonResponse({'success': True, 'types': fallback_types})
+
+    except Exception:
+        # Nếu có lỗi khi đọc config, fallback về settings cũ
+        pass
+
+    # Fallback cuối: logic cũ trong cskh/settings.py
     types = get_reason_types_by_source(source_reason)
     return JsonResponse({'success': True, 'types': types})
 
@@ -897,10 +945,17 @@ def api_save_ticket(request, ticket_id):
 @require_http_methods(["POST"])
 def api_sync_feedbacks(request):
     """
-    API: Sync feedbacks từ Sapo MP vào database.
+    API: Sync feedbacks từ Shopee API vào database.
+    Lấy đánh giá 7 ngày gần nhất của tất cả các shop.
     
     POST /cskh/api/feedback/sync/
     Body: {
+        "days": 7 (optional, default: 7),
+        "page_size": 50 (optional, default: 50)
+    }
+    
+    Hoặc để tương thích với code cũ, vẫn hỗ trợ:
+    {
         "tenant_id": 1262,
         "connection_ids": "10925,134366,..." (optional),
         "rating": "1,2,3,4,5" (optional)
@@ -911,33 +966,54 @@ def api_sync_feedbacks(request):
         from core.sapo_client import get_sapo_client
         
         data = json.loads(request.body)
+        
+        # Kiểm tra xem có dùng Shopee API hay Sapo MP (tương thích ngược)
+        use_shopee_api = data.get("use_shopee_api", True)  # Mặc định dùng Shopee API
         tenant_id = data.get("tenant_id")
         
-        if not tenant_id:
-            return JsonResponse({
-                "success": False,
-                "error": "tenant_id is required"
-            }, status=400)
-        
-        connection_ids = data.get("connection_ids")
-        rating = data.get("rating", "1,2,3,4,5")
-        max_feedbacks = data.get("max_feedbacks", 5000)  # Giới hạn số lượng (default: 5000)
-        num_threads = data.get("num_threads", 25)  # Số thread (default: 25)
-        
-        # Initialize service
-        sapo_client = get_sapo_client()
-        feedback_service = FeedbackService(sapo_client)
-        
-        # Sync feedbacks với multi-threading
-        result = feedback_service.sync_feedbacks(
-            tenant_id=tenant_id,
-            connection_ids=connection_ids,
-            rating=rating,
-            max_feedbacks=max_feedbacks,
-            num_threads=num_threads
-        )
-        
-        return JsonResponse(result)
+        if use_shopee_api and not tenant_id:
+            # Dùng Shopee API mới
+            days = data.get("days", 3)  # Mặc định 3 ngày
+            page_size = data.get("page_size", 50)  # Mặc định 50 items/page
+            
+            # Initialize service
+            sapo_client = get_sapo_client()
+            feedback_service = FeedbackService(sapo_client)
+            
+            # Sync feedbacks từ Shopee API
+            result = feedback_service.sync_feedbacks_from_shopee(
+                days=days,
+                page_size=page_size
+            )
+            
+            return JsonResponse(result)
+        else:
+            # Dùng Sapo MP (tương thích ngược)
+            if not tenant_id:
+                return JsonResponse({
+                    "success": False,
+                    "error": "tenant_id is required for Sapo MP sync"
+                }, status=400)
+            
+            connection_ids = data.get("connection_ids")
+            rating = data.get("rating", "1,2,3,4,5")
+            max_feedbacks = data.get("max_feedbacks", 5000)
+            num_threads = data.get("num_threads", 25)
+            
+            # Initialize service
+            sapo_client = get_sapo_client()
+            feedback_service = FeedbackService(sapo_client)
+            
+            # Sync feedbacks với multi-threading
+            result = feedback_service.sync_feedbacks(
+                tenant_id=tenant_id,
+                connection_ids=connection_ids,
+                rating=rating,
+                max_feedbacks=max_feedbacks,
+                num_threads=num_threads
+            )
+            
+            return JsonResponse(result)
         
     except json.JSONDecodeError:
         return JsonResponse({

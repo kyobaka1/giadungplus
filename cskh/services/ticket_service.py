@@ -88,6 +88,20 @@ class TicketService:
             if addr.address1:
                 parts.append(addr.address1)
             customer_address = ', '.join(parts)
+
+        # Lấy username & email khách hàng (push từ kho)
+        customer_username = None
+        customer_email = None
+        if order.customer:
+            # Username Shopee được map trong CustomerDTO.username (website field)
+            customer_username = getattr(order.customer, "username", None)
+            customer_email = order.customer.email or None
+        # Nếu không có email ở customer thì fallback về email trên order/shipping address
+        if not customer_email:
+            if order.email:
+                customer_email = order.email
+            elif order.shipping_address and order.shipping_address.email:
+                customer_email = order.shipping_address.email
         
         # Format trạng thái đơn hàng
         order_status = order.status or 'unknown'
@@ -113,6 +127,17 @@ class TicketService:
             'partial': 'Đóng gói một phần',
         }.get(packed_status, packed_status)
         
+        # Lấy phí ship (freight_amount) từ shipment trong fulfillments (nếu có)
+        freight_amount = 0.0
+        try:
+            if order.fulfillments:
+                for f in order.fulfillments:
+                    if getattr(f, "shipment", None) and getattr(f.shipment, "freight_amount", None):
+                        freight_amount = float(f.shipment.freight_amount or 0)
+                        break
+        except Exception:
+            freight_amount = 0.0
+
         return {
             'order_id': order.id,
             'order_code': order.code,
@@ -120,6 +145,8 @@ class TicketService:
             'customer_id': order.customer_id,
             'customer_name': order.customer.name if order.customer else '',
             'customer_phone': order.phone_number or '',
+            'customer_username': customer_username or '',
+            'customer_email': customer_email or '',
             'customer_address': customer_address,
             'location_id': order.location_id,
             'warehouse': warehouse,
@@ -131,5 +158,6 @@ class TicketService:
             'fulfillment_status_label': fulfillment_status_label,
             'packed_status': packed_status,
             'packed_status_label': packed_status_label,
+            'freight_amount': freight_amount,
         }
 

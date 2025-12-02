@@ -1,20 +1,23 @@
 # cskh/services/feedback_service.py
 """
-Service để xử lý feedbacks/reviews từ Sapo Marketplace API.
+Service để xử lý feedbacks/reviews từ Shopee API và Sapo Marketplace API.
 """
 
 from typing import Dict, Any, List, Optional
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import os
 import json
+import math
 
 from django.utils import timezone
 from core.sapo_client import SapoClient
-from core.system_settings import get_connection_ids, get_shop_by_connection_id
+from core.shopee_client import ShopeeClient
+from core.system_settings import get_connection_ids, get_shop_by_connection_id, load_shopee_shops_detail
 from cskh.models import Feedback, FeedbackLog
 from orders.services.dto import OrderDTO
 from products.services.sapo_product_service import SapoProductService
@@ -27,7 +30,7 @@ FEEDBACK_LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname
 
 class FeedbackService:
     """
-    Service để xử lý feedbacks từ Sapo MP.
+    Service để xử lý feedbacks từ Shopee API và Sapo MP.
     """
     
     def __init__(self, sapo_client: SapoClient):
@@ -40,6 +43,9 @@ class FeedbackService:
         self.sapo_client = sapo_client
         self.mp_repo = sapo_client.marketplace
         self.product_service = SapoProductService(sapo_client)
+        # Cache index: (connection_id, item_id_str) -> List[variant_id]
+        # Được build 1 lần cho mỗi lần chạy sync Shopee để tránh gọi Sapo liên tục.
+        self._shopee_variant_index: Optional[Dict[tuple, List[int]]] = None
     
     def _load_last_page(self) -> int:
         """
@@ -589,8 +595,12 @@ class FeedbackService:
             
             logger.debug(f"Searching variant in order for item_id={item_id}, connection_id={connection_id}, line_items_count={len(line_items)}")
             
-            # Nếu không tìm thấy item_id trực tiếp trong line_items, 
-            # cần match qua variant_id: lấy variant_id từ line_item, sau đó tìm trong GDP_META
+            # Đảm bảo đã có index Shopee (được build 1 lần cho mỗi lần sync)
+            self._ensure_shopee_variant_index()
+            index = self._shopee_variant_index or {}
+            key = (connection_id, item_id_str)
+            indexed_variants = set(index.get(key, []))
+
             for line_item in line_items:
                 variant_id = line_item.get('variant_id')
                 if not variant_id:
@@ -607,31 +617,13 @@ class FeedbackService:
                 if line_item_id == item_id_str:
                     variant_ids.append(variant_id)
                     logger.debug(f"Found variant {variant_id} in order line item for item_id={item_id} (direct match)")
-                else:
-                    # Fallback: Match qua GDP_META của variant
-                    # Lấy product_id từ line_item
-                    product_id = line_item.get('product_id')
-                    if product_id:
-                        # Lấy product và đọc GDP_META
-                        try:
-                            product = self.product_service.get_product(product_id)
-                            if product and product.gdp_metadata:
-                                # Tìm variant trong product metadata
-                                for variant_meta in product.gdp_metadata.variants:
-                                    if variant_meta.id == variant_id:
-                                        # Kiểm tra shopee_connections
-                                        if variant_meta.shopee_connections:
-                                            for conn in variant_meta.shopee_connections:
-                                                conn_connection_id = conn.get('connection_id')
-                                                conn_item_id = str(conn.get('item_id', ''))
-                                                
-                                                if conn_connection_id == connection_id and conn_item_id == item_id_str:
-                                                    variant_ids.append(variant_id)
-                                                    logger.debug(f"Found variant {variant_id} in order line item for item_id={item_id} (via GDP_META)")
-                                                    break
-                                        break
-                        except Exception as e:
-                            logger.debug(f"Error checking GDP_META for variant {variant_id}: {e}")
+                # Nếu không khớp trực tiếp, fallback: dùng index đã build từ GDP_META
+                elif indexed_variants and variant_id in indexed_variants:
+                    variant_ids.append(variant_id)
+                    logger.debug(
+                        f"Found variant {variant_id} in order line item for item_id={item_id} "
+                        f"(via preloaded Shopee index)"
+                    )
             
             if variant_ids:
                 logger.info(f"Found {len(variant_ids)} variants in order for item_id={item_id}: {variant_ids}")
@@ -659,55 +651,89 @@ class FeedbackService:
         Returns:
             List of variant_ids (có thể nhiều variants cùng item_id)
         """
-        from products.services.metadata_helper import extract_gdp_metadata
-        
-        variant_ids = []
+        variant_ids: List[int] = []
         
         try:
-            # Lấy danh sách products từ Sapo
-            # Note: Có thể cache để tối ưu performance
-            logger.debug(f"Searching variant for item_id={item_id}, connection_id={connection_id}")
-            
-            # Lấy products từ Sapo (có thể giới hạn số lượng hoặc cache)
-            # Theo FEEDBACK_CENTER.md: "Trước khi đồng bộ feedback -> Lấy thông tin toàn bộ products"
-            # Tạm thời lấy 1000 products đầu tiên (có thể tăng hoặc cache)
-            products = self.product_service.list_products(page=1, limit=250, status='active')
-            
-            # Nếu cần, có thể paginate để lấy tất cả products
-            # Tạm thời chỉ search trong 250 products đầu tiên
-            # TODO: Có thể cache products hoặc implement search API nếu có
-            
+            # Đảm bảo index đã được build
+            self._ensure_shopee_variant_index()
+            if not self._shopee_variant_index:
+                logger.debug("Shopee variant index is empty; cannot resolve item_id → variant_id")
+                return []
+
             item_id_str = str(item_id)
-            
-            for product in products:
-                if not product.gdp_metadata or not product.gdp_metadata.variants:
-                    continue
-                
-                # Tìm trong variants của product này
-                for variant_meta in product.gdp_metadata.variants:
-                    if not variant_meta.shopee_connections:
-                        continue
-                    
-                    # Tìm trong shopee_connections với connection_id và item_id khớp
-                    for conn in variant_meta.shopee_connections:
-                        conn_connection_id = conn.get('connection_id')
-                        conn_item_id = str(conn.get('item_id', ''))
-                        
-                        if conn_connection_id == connection_id and conn_item_id == item_id_str:
-                            # Tìm thấy variant khớp
-                            variant_ids.append(variant_meta.id)
-                            logger.debug(f"Found variant {variant_meta.id} for item_id={item_id}, connection_id={connection_id}")
-                            break  # Break inner loop, tiếp tục variant tiếp theo
-            
+            key = (connection_id, item_id_str)
+            variant_ids = list(self._shopee_variant_index.get(key, []))
+
             if variant_ids:
-                logger.info(f"Found {len(variant_ids)} variants for item_id={item_id}, connection_id={connection_id}: {variant_ids}")
+                logger.info(
+                    f"Found {len(variant_ids)} variants in preloaded index "
+                    f"for item_id={item_id}, connection_id={connection_id}: {variant_ids}"
+                )
             else:
-                logger.debug(f"No variants found for item_id={item_id}, connection_id={connection_id}")
+                logger.debug(
+                    f"No variants found in preloaded index for item_id={item_id}, "
+                    f"connection_id={connection_id}"
+                )
             
         except Exception as e:
-            logger.warning(f"Error finding variant from item_id {item_id}: {e}")
+            logger.warning(f"Error finding variant from item_id {item_id} using index: {e}")
         
         return variant_ids
+
+    def _ensure_shopee_variant_index(self):
+        """
+        Build index (connection_id, item_id) -> [variant_id] từ toàn bộ products trên Sapo.
+        Chỉ chạy 1 lần cho mỗi vòng đời FeedbackService (hoặc mỗi lần sync), 
+        tránh việc gọi list_products / get_product lặp lại trong từng feedback.
+        """
+        if self._shopee_variant_index is not None:
+            return
+
+        logger.info("[FeedbackService] Building Shopee variant index from all Sapo products...")
+        index: Dict[tuple, List[int]] = {}
+
+        try:
+            start_time = time.time()
+            page = 1
+            limit = 250
+            total_products = 0
+
+            while True:
+                products = self.product_service.list_products(page=page, limit=limit, status='active')
+                if not products:
+                    break
+
+                total_products += len(products)
+
+                for product in products:
+                    if not product.gdp_metadata or not product.gdp_metadata.variants:
+                        continue
+
+                    for variant_meta in product.gdp_metadata.variants:
+                        if not variant_meta.shopee_connections:
+                            continue
+
+                        for conn in variant_meta.shopee_connections:
+                            conn_connection_id = conn.get('connection_id')
+                            conn_item_id = conn.get('item_id')
+                            if not conn_connection_id or not conn_item_id:
+                                continue
+
+                            key = (int(conn_connection_id), str(conn_item_id))
+                            index.setdefault(key, []).append(variant_meta.id)
+
+                page += 1
+
+            self._shopee_variant_index = index
+            duration = time.time() - start_time
+            logger.info(
+                f"[FeedbackService] Built Shopee variant index with {len(index)} keys "
+                f"from {total_products} products in {duration:.2f}s"
+            )
+        except Exception as e:
+            logger.error(f"[FeedbackService] Error building Shopee variant index: {e}", exc_info=True)
+            # Nếu lỗi, vẫn giữ index = {}, tránh None để không build lại liên tục
+            self._shopee_variant_index = self._shopee_variant_index or {}
     
     def _normalize_media(self, media_data: Any) -> List[str]:
         """
@@ -948,4 +974,523 @@ class FeedbackService:
                 "success": False,
                 "message": str(e)
             }
+    
+    def crawl_shopee_ratings(
+        self,
+        shopee_client: ShopeeClient,
+        base_url_params: Dict[str, Any],
+        max_pages: int = 100,
+        page_size: int = 50,
+        delay: float = 0.1
+    ) -> List[Dict[str, Any]]:
+        """
+        Crawl ratings từ Shopee API với pagination.
+        
+        Args:
+            shopee_client: ShopeeClient instance đã switch_shop
+            base_url_params: Dict chứa các params cơ bản (rating_star, time_start, time_end, language)
+            max_pages: Số trang tối đa
+            page_size: Số items mỗi trang
+            delay: Thời gian delay giữa các request (giây)
+            
+        Returns:
+            List of rating comments
+        """
+        cursor = 0
+        page_number = 1
+        from_page_number = 1
+        all_ratings = []
+        
+        for i in range(max_pages):
+            try:
+                response = shopee_client.repo.get_shop_ratings_raw(
+                    rating_star=base_url_params.get("rating_star", "5,4,3,2,1"),
+                    time_start=base_url_params.get("time_start"),
+                    time_end=base_url_params.get("time_end"),
+                    page_number=page_number,
+                    page_size=page_size,
+                    cursor=cursor,
+                    from_page_number=from_page_number,
+                    language=base_url_params.get("language", "vi")
+                )
+                
+                if response.get("code") != 0:
+                    logger.warning(f"Shopee API returned error: {response.get('message')}")
+                    break
+                
+                data = response.get("data", {})
+                page_data = data.get("list", [])
+                
+                if not page_data:
+                    logger.info("Hết dữ liệu.")
+                    break
+                
+                all_ratings.extend(page_data)
+                
+                # Lấy comment_id cuối làm cursor cho trang tiếp theo
+                if page_data:
+                    cursor = page_data[-1].get("comment_id", cursor)
+                
+                logger.info(f"Page {page_number} | Cursor {cursor} | FromPage {from_page_number} | Fetched {len(page_data)} ratings")
+                
+                page_number += 1
+                from_page_number = page_number - 1
+                
+                time.sleep(delay)
+                
+            except Exception as e:
+                logger.error(f"Error crawling page {page_number}: {e}", exc_info=True)
+                break
+        
+        return all_ratings
+    
+    def sync_feedbacks_from_shopee(
+        self,
+        days: int = 3,
+        page_size: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Đồng bộ feedbacks từ Shopee API cho tất cả các shop.
+        Lấy đánh giá của N ngày gần nhất (mặc định 3 ngày).
+        
+        Args:
+            days: Số ngày gần nhất cần lấy (default: 7)
+            page_size: Số items mỗi trang (default: 50)
+            
+        Returns:
+            {
+                "success": True/False,
+                "total_feedbacks": 100,
+                "synced": 50,
+                "updated": 10,
+                "errors": [...],
+                "logs": [...]
+            }
+        """
+        result = {
+            "success": True,
+            "total_feedbacks": 0,
+            "synced": 0,
+            "updated": 0,
+            "errors": [],
+            "logs": []
+        }
+        
+        # Thread-safe counters
+        synced_counter = {"value": 0}
+        updated_counter = {"value": 0}
+        errors_list = []
+        logs_list = []
+        lock = threading.Lock()
+        
+        def log_progress(message: str):
+            """Thread-safe logging với timestamp"""
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            log_message = f"[{timestamp}] {message}"
+            with lock:
+                logs_list.append(log_message)
+                logger.info(f"[FeedbackService] {log_message}")
+                print(f"[FeedbackService] {log_message}")
+        
+        try:
+            # Tính toán time_start và time_end (7 ngày gần nhất)
+            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+            now_vn = datetime.now(tz_vn)
+            time_end = int(now_vn.timestamp())
+            time_start = int((now_vn - timedelta(days=days)).timestamp())
+            
+            log_progress(f"🚀 Bắt đầu sync feedbacks từ Shopee API (7 ngày gần nhất: {time_start} -> {time_end})")
+            
+            # Lấy danh sách tất cả shops
+            shops_detail = load_shopee_shops_detail()
+            
+            if not shops_detail:
+                log_progress("❌ Không tìm thấy shops trong cấu hình")
+                result["success"] = False
+                result["errors"].append("Không tìm thấy shops trong cấu hình")
+                return result
+            
+            log_progress(f"📋 Tìm thấy {len(shops_detail)} shops")
+            
+            # Base URL params
+            base_url_params = {
+                "rating_star": "5,4,3,2,1",  # Lấy tất cả ratings
+                "time_start": time_start,
+                "time_end": time_end,
+                "language": "vi"
+            }
+            
+            all_feedbacks = []
+            
+            # Duyệt qua từng shop
+            for shop_name, shop_info in shops_detail.items():
+                connection_id = shop_info.get("shop_connect")
+                if not connection_id:
+                    log_progress(f"⚠️ Shop {shop_name} không có connection_id, bỏ qua")
+                    continue
+                
+                log_progress(f"🛍️ Đang xử lý shop: {shop_name} (connection_id: {connection_id})")
+                
+                try:
+                    # Khởi tạo ShopeeClient với shop này
+                    shopee_client = ShopeeClient(shop_key=connection_id)
+                    
+                    # Probe để lấy total
+                    probe_response = shopee_client.repo.get_shop_ratings_raw(
+                        rating_star=base_url_params["rating_star"],
+                        time_start=time_start,
+                        time_end=time_end,
+                        page_number=1,
+                        page_size=page_size,
+                        cursor=0,
+                        from_page_number=1,
+                        language="vi"
+                    )
+                    
+                    if probe_response.get("code") != 0:
+                        log_progress(f"⚠️ Shop {shop_name}: API trả về lỗi: {probe_response.get('message')}")
+                        continue
+                    
+                    page_info = probe_response.get("data", {}).get("page_info", {})
+                    total = int(page_info.get("total", 0) or 0)
+                    
+                    log_progress(f"📊 Shop {shop_name}: Tổng {total} đánh giá trong 7 ngày gần nhất")
+                    
+                    if total == 0:
+                        log_progress(f"ℹ️ Shop {shop_name}: Không có đánh giá nào")
+                        continue
+                    
+                    # Tính total_pages
+                    total_pages = max(1, math.ceil(total / page_size)) if total else 1
+                    log_progress(f"📄 Shop {shop_name}: Cần crawl {total_pages} trang")
+                    
+                    # Crawl ratings
+                    shop_ratings = self.crawl_shopee_ratings(
+                        shopee_client=shopee_client,
+                        base_url_params=base_url_params,
+                        max_pages=total_pages,
+                        page_size=page_size,
+                        delay=0.1
+                    )
+                    
+                    log_progress(f"✅ Shop {shop_name}: Đã crawl {len(shop_ratings)} đánh giá")
+                    
+                    # Gắn connection_id vào mỗi rating
+                    for rating in shop_ratings:
+                        rating["connection_id"] = connection_id
+                    
+                    all_feedbacks.extend(shop_ratings)
+                    
+                except Exception as e:
+                    error_msg = f"Lỗi khi xử lý shop {shop_name}: {str(e)}"
+                    log_progress(f"❌ {error_msg}")
+                    logger.error(error_msg, exc_info=True)
+                    with lock:
+                        errors_list.append(error_msg)
+                    continue
+            
+            log_progress(f"📦 Tổng cộng: {len(all_feedbacks)} đánh giá từ tất cả shops")
+            
+            # Process feedbacks với multi-threading
+            if all_feedbacks:
+                log_progress(f"🔄 Bắt đầu xử lý {len(all_feedbacks)} feedbacks...")
+                
+                # Dùng để profile thời gian xử lý feedback đầu tiên
+                first_profile_logged = {"done": False}
+                
+                def process_feedback_batch(feedback_batch: List[Dict[str, Any]], batch_num: int):
+                    """Process một batch feedbacks"""
+                    batch_synced = 0
+                    batch_updated = 0
+                    batch_errors = []
+                    
+                    for feedback_data in feedback_batch:
+                        try:
+                            # Profile thời gian xử lý feedback đầu tiên (toàn bộ pipeline)
+                            if not first_profile_logged["done"]:
+                                t0 = time.time()
+                                updated = self._process_feedback_from_shopee(feedback_data)
+                                duration = time.time() - t0
+                                with lock:
+                                    if not first_profile_logged["done"]:
+                                        first_profile_logged["done"] = True
+                                        log_progress(
+                                            f"⏱ Thời gian xử lý feedback đầu tiên: "
+                                            f"{duration:.3f}s (Shopee -> DB + link Sapo)"
+                                        )
+                            else:
+                                updated = self._process_feedback_from_shopee(feedback_data)
+                            batch_synced += 1
+                            if updated:
+                                batch_updated += 1
+                            
+                            # Log progress mỗi 50 items
+                            if batch_synced % 50 == 0:
+                                with lock:
+                                    total_synced = synced_counter["value"] + batch_synced
+                                    log_progress(f"Thread {batch_num}: Đã xử lý {batch_synced}/{len(feedback_batch)} (Tổng: {total_synced}/{len(all_feedbacks)})")
+                        except Exception as e:
+                            error_msg = f"Error processing feedback {feedback_data.get('comment_id')}: {str(e)}"
+                            batch_errors.append(error_msg)
+                            logger.error(error_msg, exc_info=True)
+                    
+                    # Update counters
+                    with lock:
+                        synced_counter["value"] += batch_synced
+                        updated_counter["value"] += batch_updated
+                        errors_list.extend(batch_errors)
+                        log_progress(f"Thread {batch_num} hoàn thành: {batch_synced} synced, {batch_updated} updated")
+                
+                # Chia feedbacks thành batches cho các threads
+                num_threads = 10  # Số thread xử lý
+                batch_size = len(all_feedbacks) // num_threads
+                if batch_size == 0:
+                    batch_size = 1
+                
+                batches = []
+                for i in range(0, len(all_feedbacks), batch_size):
+                    batches.append((all_feedbacks[i:i + batch_size], i // batch_size + 1))
+                
+                log_progress(f"📦 Chia thành {len(batches)} batches, mỗi batch ~{batch_size} feedbacks")
+                
+                # Process với ThreadPoolExecutor
+                with ThreadPoolExecutor(max_workers=num_threads) as executor:
+                    futures = []
+                    for batch, batch_num in batches:
+                        future = executor.submit(process_feedback_batch, batch, batch_num)
+                        futures.append(future)
+                    
+                    # Wait for all threads to complete
+                    for future in as_completed(futures):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            error_msg = f"Error in thread: {str(e)}"
+                            logger.error(error_msg, exc_info=True)
+                            with lock:
+                                errors_list.append(error_msg)
+            
+            # Update result
+            result["synced"] = synced_counter["value"]
+            result["updated"] = updated_counter["value"]
+            result["errors"] = errors_list
+            result["total_feedbacks"] = len(all_feedbacks)
+            
+            # Add final summary log
+            final_log = f"✅ Hoàn thành sync: {result['synced']} synced, {result['updated']} updated, {len(result['errors'])} errors"
+            log_progress(final_log)
+            
+            # Copy logs to result
+            result["logs"] = logs_list.copy()
+            
+            logger.info(f"[FeedbackService] Final result: {result}")
+            
+        except Exception as e:
+            error_msg = f"Error in sync_feedbacks_from_shopee: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            with lock:
+                errors_list.append(error_msg)
+                logs_list.append(f"❌ Lỗi: {error_msg}")
+            
+            result["errors"] = errors_list
+            result["logs"] = logs_list
+            result["success"] = False
+        
+        # Đảm bảo logs luôn được copy vào result
+        if "logs" not in result or not result["logs"]:
+            result["logs"] = logs_list.copy() if logs_list else ["Không có logs"]
+        
+        return result
+    
+    def _process_feedback_from_shopee(self, feedback_data: Dict[str, Any]) -> bool:
+        """
+        Process một feedback từ Shopee API và lưu/update vào database.
+        
+        Args:
+            feedback_data: Feedback data từ Shopee API
+            
+        Returns:
+            True nếu đã update, False nếu tạo mới
+        """
+        comment_id = feedback_data.get("comment_id")
+        if not comment_id:
+            return False
+        
+        # Map dữ liệu từ Shopee API sang model
+        connection_id = feedback_data.get("connection_id", 0)
+        
+        # Get or create feedback
+        feedback, created = Feedback.objects.get_or_create(
+            comment_id=comment_id,
+            defaults={
+                "connection_id": connection_id,
+                "item_id": feedback_data.get("item_id"),
+                "product_id": feedback_data.get("product_id"),
+                "product_name": feedback_data.get("product_name", ""),
+                "product_cover": feedback_data.get("product_cover", ""),
+                "model_id": feedback_data.get("model_id", 0),
+                "model_name": feedback_data.get("model_name", ""),
+                "channel_order_number": feedback_data.get("order_sn", ""),
+                "order_id": feedback_data.get("order_id"),
+                "buyer_user_name": feedback_data.get("user_name", ""),
+                "user_portrait": feedback_data.get("user_portrait", ""),
+                "user_id": feedback_data.get("user_id"),
+                "rating": feedback_data.get("rating_star", 0),
+                "comment": feedback_data.get("comment", ""),
+                "images": feedback_data.get("images", []),
+                "reply": feedback_data.get("reply"),
+                "is_hidden": feedback_data.get("is_hidden", False),
+                "status": feedback_data.get("status"),
+                "can_follow_up": feedback_data.get("can_follow_up"),
+                "follow_up": feedback_data.get("follow_up"),
+                "submit_time": feedback_data.get("submit_time"),
+                "low_rating_reasons": feedback_data.get("low_rating_reasons", []),
+                "create_time": feedback_data.get("ctime", 0) or feedback_data.get("submit_time", 0),
+                "ctime": feedback_data.get("ctime"),
+                "mtime": feedback_data.get("mtime"),
+            }
+        )
+        
+        if not created:
+            # Update existing feedback
+            updated = False
+            
+            # Check if any field changed
+            if feedback.rating != feedback_data.get("rating_star", 0):
+                feedback.rating = feedback_data.get("rating_star", 0)
+                updated = True
+            if feedback.comment != feedback_data.get("comment", ""):
+                feedback.comment = feedback_data.get("comment", "")
+                updated = True
+            if feedback.reply != feedback_data.get("reply"):
+                feedback.reply = feedback_data.get("reply")
+                updated = True
+            if feedback.user_portrait != feedback_data.get("user_portrait", ""):
+                feedback.user_portrait = feedback_data.get("user_portrait", "")
+                updated = True
+            
+            if updated:
+                feedback.save()
+                return True
+        
+        # Try to link với Sapo data (order, customer, product)
+        self._link_sapo_data_from_shopee(feedback, feedback_data)
+        
+        # Push user_portrait lên Sapo customer note nếu có.
+        # Lưu ý: thao tác này gọi Sapo API và khá nặng, nên mặc định TẮT trong sync hàng loạt.
+        # Chỉ bật khi đặt biến môi trường CSKH_PUSH_USER_PORTRAIT=1 để tránh làm treo/buộc chờ lâu.
+        try:
+            if (
+                os.getenv("CSKH_PUSH_USER_PORTRAIT", "0") == "1"
+                and feedback.user_portrait
+                and feedback.sapo_customer_id
+            ):
+                self._push_user_portrait_to_customer(feedback)
+        except Exception as e:
+            logger.warning(
+                f"Error pushing user_portrait to customer {feedback.sapo_customer_id}: {e}"
+            )
+        
+        return created
+    
+    def _link_sapo_data_from_shopee(self, feedback: Feedback, feedback_data: Dict[str, Any]):
+        """
+        Link feedback với Sapo data (order, customer, product, variant) từ Shopee data.
+        
+        Args:
+            feedback: Feedback instance
+            feedback_data: Feedback data từ Shopee API
+        """
+        try:
+            # 1. Link với Sapo order qua channel_order_number (order_sn)
+            if feedback.channel_order_number and not feedback.sapo_order_id:
+                try:
+                    from orders.services.sapo_order_service import SapoOrderService
+                    order_service = SapoOrderService(self.sapo_client)
+                    
+                    # Lấy raw order để có thông tin item_id trong line items
+                    raw_order = self.sapo_client.core.get_order_by_reference_number(feedback.channel_order_number)
+                    
+                    if raw_order:
+                        # Convert sang OrderDTO
+                        order = order_service.get_order_by_reference(feedback.channel_order_number)
+                        
+                        if order:
+                            feedback.sapo_order_id = order.id
+                            
+                            # 2. Link với customer từ order và update username
+                            if order.customer_id and not feedback.sapo_customer_id:
+                                feedback.sapo_customer_id = order.customer_id
+                            
+                            # 3. Link với product và variant từ order line items
+                            if feedback.item_id:
+                                variant_ids = self._find_variant_ids_from_order(
+                                    raw_order=raw_order,
+                                    item_id=feedback.item_id,
+                                    connection_id=feedback.connection_id
+                                )
+                                
+                                if variant_ids:
+                                    feedback.sapo_variant_id = variant_ids[0]
+                                    
+                                    # Lấy product_id từ variant
+                                    try:
+                                        variant_data = self.sapo_client.core.get_variant_raw(feedback.sapo_variant_id)
+                                        if variant_data and variant_data.get('variant'):
+                                            feedback.sapo_product_id = variant_data['variant'].get('product_id')
+                                    except Exception as e:
+                                        logger.warning(f"Error getting variant {feedback.sapo_variant_id}: {e}")
+                            
+                            feedback.save()
+                            logger.debug(f"Linked feedback {feedback.comment_id} with order {order.id}")
+                except Exception as e:
+                    logger.warning(f"Error linking order for feedback {feedback.comment_id}: {e}")
+            
+        except Exception as e:
+            logger.warning(f"Error linking Sapo data for feedback {feedback.comment_id}: {e}")
+    
+    def _push_user_portrait_to_customer(self, feedback: Feedback):
+        """
+        Push user_portrait lên Sapo customer note (dạng JSON).
+        
+        Args:
+            feedback: Feedback instance có user_portrait và sapo_customer_id
+        """
+        try:
+            from customers.services.customer_service import CustomerService
+            customer_service = CustomerService(self.sapo_client)
+            
+            customer = customer_service.get_customer(feedback.sapo_customer_id)
+            if not customer:
+                return
+            
+            # Lấy note hiện tại
+            current_note = customer.note or ""
+            
+            # Parse note thành JSON nếu có thể
+            note_data = {}
+            if current_note:
+                try:
+                    note_data = json.loads(current_note)
+                except json.JSONDecodeError:
+                    # Nếu không phải JSON, giữ nguyên text cũ
+                    note_data = {"text": current_note}
+            
+            # Thêm user_portrait vào note
+            if "user_portrait" not in note_data:
+                note_data["user_portrait"] = feedback.user_portrait
+            elif note_data.get("user_portrait") != feedback.user_portrait:
+                # Update nếu khác
+                note_data["user_portrait"] = feedback.user_portrait
+            
+            # Update customer note
+            customer_service.update_customer_info(
+                customer_id=feedback.sapo_customer_id,
+                note=json.dumps(note_data, ensure_ascii=False)
+            )
+            
+            logger.info(f"Pushed user_portrait {feedback.user_portrait} to customer {feedback.sapo_customer_id}")
+            
+        except Exception as e:
+            logger.warning(f"Error pushing user_portrait to customer {feedback.sapo_customer_id}: {e}")
 

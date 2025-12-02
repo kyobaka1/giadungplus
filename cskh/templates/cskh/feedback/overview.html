@@ -288,19 +288,64 @@
         </a>
         <button onclick="syncFeedbacks()" 
                 class="flex-1 px-4 py-2 bg-white border-2 border-brand text-brand rounded-lg hover:bg-brandlight transition text-center text-sm font-semibold">
-            🔄 Sync từ Sapo MP
+            🔄 Sync từ Shopee API
         </button>
     </section>
 </div>
 
 <script>
-function syncFeedbacks() {
-    if (!confirm('Bạn có chắc muốn sync feedbacks từ Sapo MP?')) {
+async function syncFeedbacks() {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Shopee API cho 3 ngày gần nhất?')) {
         return;
     }
     
-    // Redirect to sync page or call API
-    window.location.href = "{% url 'cskh:api_sync_feedbacks' %}";
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '🔄 Đang sync...';
+    
+    try {
+        const response = await fetch("{% url 'cskh:api_sync_feedbacks' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': (function getCookie(name) {
+                    let cookieValue = null;
+                    if (document.cookie && document.cookie !== '') {
+                        const cookies = document.cookie.split(';');
+                        for (let i = 0; i < cookies.length; i++) {
+                            const cookie = cookies[i].trim();
+                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
+                        }
+                    }
+                    return cookieValue;
+                })('csrftoken')
+            },
+            body: JSON.stringify({
+                use_shopee_api: true,
+                days: 3,
+                page_size: 50
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Đã sync feedbacks từ Shopee API thành công!');
+            // Reload để cập nhật dashboard
+            window.location.reload();
+        } else {
+            alert('Lỗi sync: ' + (data.error || data.message || 'Không xác định'));
+        }
+    } catch (error) {
+        alert('Lỗi khi gọi API sync: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
 }
 </script>
 {% endblock %}

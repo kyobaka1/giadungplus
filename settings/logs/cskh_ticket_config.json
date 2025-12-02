@@ -3,33 +3,19 @@
     "Lỗi kho",
     "Lỗi sản phẩm",
     "Lỗi vận chuyển",
-    "Lỗi CSKH",
-    "Đánh giá xấu",
-    "Khách yêu cầu"
+    "Lỗi CSKH"
   ],
   "loai_van_de": [
     "Đánh giá xấu",
     "Đổi trả",
-    "Bảo hành",
-    "Hỏng vỡ",
-    "Khách yêu cầu",
-    "Giao sai, thiếu",
-    "Lên đơn sai"
+    "Gửi sai"
   ],
   "loai_loi": [
-    "Gói thiếu",
-    "Gói sai",
-    "Đóng gói kém",
-    "Vỡ/nứt",
-    "Thiếu chi tiết",
-    "Lỗi QC",
-    "Móp méo",
-    "Thất lạc",
-    "Hướng dẫn sai",
-    "Thao tác sai",
-    "Complain chất lượng",
-    "Complain giao hàng",
-    "Muốn đổi mẫu/màu"
+    "Lỗi kho: Gói thiếu",
+    "Lỗi kho: Gói sai",
+    "Lỗi kho: Đóng gói kém",
+    "Lỗi vận chuyển: Giao muộn",
+    "Lỗi CSKH: Tư vấn sai thông tin"
   ],
   "trang_thai": [
     "Mới",

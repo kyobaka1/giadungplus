@@ -64,8 +64,16 @@
                                 </div>
                             </div>
                             
-                            <div><strong>Tên khách:</strong> <span id="customerName" class="text-gray-700"></span></div>
-                            <div><strong>SĐT:</strong> <span id="customerPhone" class="text-gray-700"></span></div>
+                            <div>
+                                <strong>Tên khách:</strong>
+                                <span id="customerName" class="text-gray-700"></span>
+                                <span id="customerUsername" class="text-xs text-gray-500"></span>
+                            </div>
+                            <div>
+                                <strong>SĐT:</strong>
+                                <span id="customerPhone" class="text-gray-700"></span>
+                                <span id="customerEmail" class="text-xs text-gray-500"></span>
+                            </div>
                             <div><strong>Địa chỉ:</strong> <span id="customerAddress" class="text-gray-700"></span></div>
                         </div>
                         
@@ -130,14 +138,14 @@
                                 value="">
                             <span class="text-xs text-gray-500">(Để trống = hiện tại)</span>
                         </div>
-                        <!-- Loại vấn đề - label và select cùng hàng -->
+                        <!-- Loại vấn đề - label và select cùng hàng (lấy từ config: loai_van_de) -->
                         <div class="flex items-center gap-3">
                             <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề *</label>
                             <select name="ticket_type" id="ticket_type" required
                                 class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
                                 <option value="">-- Chọn loại vấn đề --</option>
-                                {% for value, label in ticket_type_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                {% for value in issue_type_options %}
+                                <option value="{{ value }}">{{ value }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -336,7 +344,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     document.getElementById('customerName').textContent = data.order.customer_name || '-';
+                    // Username (nếu có) hiển thị cạnh tên khách
+                    const customerUsernameEl = document.getElementById('customerUsername');
+                    if (customerUsernameEl) {
+                        if (data.order.customer_username) {
+                            customerUsernameEl.textContent = ` (${data.order.customer_username})`;
+                        } else {
+                            customerUsernameEl.textContent = '';
+                        }
+                    }
+
                     document.getElementById('customerPhone').textContent = data.order.customer_phone || '-';
+                    // Email (nếu có) hiển thị trong ngoặc sau SĐT
+                    const customerEmailEl = document.getElementById('customerEmail');
+                    if (customerEmailEl) {
+                        if (data.order.customer_email) {
+                            customerEmailEl.textContent = ` (${data.order.customer_email})`;
+                        } else {
+                            customerEmailEl.textContent = '';
+                        }
+                    }
                     document.getElementById('customerAddress').textContent = data.order.customer_address || '-';
                     
                     document.getElementById('order_id').value = data.order.order_id || '';
