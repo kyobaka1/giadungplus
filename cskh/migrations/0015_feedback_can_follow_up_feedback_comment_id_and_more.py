@@ -2,6 +2,7 @@
 
 import django.utils.timezone
 from django.db import migrations, models
+from django.core.exceptions import FieldError
 
 
 def ensure_columns_exist(apps, schema_editor):
@@ -45,24 +46,32 @@ def populate_comment_id(apps, schema_editor):
     """Populate comment_id for existing records that have NULL values"""
     Feedback = apps.get_model('cskh', 'Feedback')
     db_alias = schema_editor.connection.alias
-    
-    # Get all feedbacks with NULL comment_id
-    feedbacks = Feedback.objects.using(db_alias).filter(comment_id__isnull=True)
-    
+
+    try:
+        # Get all feedbacks with NULL comment_id
+        feedbacks = Feedback.objects.using(db_alias).filter(comment_id__isnull=True)
+    except FieldError:
+        # Trường hợp DB mới chưa có cột comment_id trong state model,
+        # không cần populate gì vì chưa có dữ liệu lịch sử.
+        return
+
     # Try to populate from feedback_id or cmt_id, otherwise use a generated value
     for feedback in feedbacks:
-        if feedback.feedback_id:
+        if getattr(feedback, "comment_id", None):
+            # Đã có comment_id thì bỏ qua
+            continue
+        if getattr(feedback, "feedback_id", None):
             comment_id = feedback.feedback_id
-        elif feedback.cmt_id:
+        elif getattr(feedback, "cmt_id", None):
             comment_id = feedback.cmt_id
         else:
             # Generate a unique negative value (to avoid conflicts with real comment_ids)
             comment_id = -(feedback.id * 1000000 + feedback.id)
-        
+
         # Make sure it's unique
         while Feedback.objects.using(db_alias).filter(comment_id=comment_id).exists():
             comment_id = comment_id - 1
-        
+
         feedback.comment_id = comment_id
         feedback.save(using=db_alias)
 

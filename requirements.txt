@@ -49,6 +49,7 @@ oauth2client
 
 # AI
 openai
+markdown>=3.0
 
 # Development/Testing (có thể bỏ trong production)
 django-sslserver  # Chỉ dùng cho dev, production dùng nginx

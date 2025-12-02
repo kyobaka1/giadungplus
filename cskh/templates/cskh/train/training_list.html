@@ -1,0 +1,150 @@
+{% extends "cskh/base_cskh.html" %}
+
+{% block title %}Tài liệu training CSKH{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+        Tài liệu training CSKH
+    </h1>
+    <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+        Tài liệu nội bộ phục vụ đào tạo CSKH. Danh sách sắp xếp theo tên tài liệu (A → Z).
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+    {% if can_manage %}
+    <div class="bg-white border rounded-xl shadow-sm p-4 md:p-5">
+        <h2 class="text-sm font-semibold text-slate-800 mb-3">
+            Thêm / cập nhật tài liệu training
+        </h2>
+        <form method="post" enctype="multipart/form-data" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                <div class="md:col-span-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Tên tài liệu
+                    </label>
+                    <input type="text" name="title" required
+                           class="w-full border rounded-md px-3 py-2 text-sm focus:ring-1 focus:ring-brand focus:border-brand"
+                           placeholder="VD: QUI ĐỊNH###xử lý đánh giá xấu Shopee">
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        File Markdown (.md)
+                    </label>
+                    <input type="file" name="file" accept=".md,.markdown,.txt" required
+                           class="w-full text-sm">
+                </div>
+                <div class="md:col-span-1 flex items-end">
+                    <button type="submit"
+                            class="inline-flex items-center justify-center px-4 py-2 rounded-md text-sm font-semibold text-white bg-brand hover:bg-red-700 transition">
+                        Lưu tài liệu
+                    </button>
+                </div>
+            </div>
+            <p class="text-[11px] text-gray-500">
+                File sẽ được lưu tại <code>settings/logs/train_cskh/</code>. Hỗ trợ nội dung dạng Markdown.
+            </p>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="bg-white border rounded-xl shadow-sm p-4 md:p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-800">
+                Danh sách tài liệu ({{ documents|length }})
+            </h2>
+        </div>
+
+        {% if documents %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="border-b text-xs text-gray-500 uppercase tracking-wide">
+                        <th class="text-left py-2 pr-3">Tên tài liệu</th>
+                        <th class="text-left py-2 pr-3">Người upload</th>
+                        <th class="text-left py-2 pr-3">Thời gian</th>
+                        {% if can_manage %}
+                        <th class="text-right py-2 pl-3">Thao tác</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for doc in documents %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2 pr-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                {% if doc.category %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full border text-[11px] font-semibold tracking-wide {{ doc.category_color_classes }}">
+                                        {{ doc.category }}
+                                    </span>
+                                {% endif %}
+                                <a href="{% url 'cskh:training_detail' doc.id %}"
+                                   class="text-sm font-medium text-brand hover:underline">
+                                    {{ doc.display_title }}
+                                </a>
+                            </div>
+                        </td>
+                        <td class="py-2 pr-3 text-xs text-gray-700">
+                            {% if doc.uploaded_by %}
+                                <span class="font-medium">
+                                    {{ doc.uploaded_by.first_name|default:doc.uploaded_by.username }}
+                                </span>
+                                {% if doc.uploaded_by.last_name %}
+                                    <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-[10px] font-semibold text-slate-700 uppercase tracking-wide">
+                                        {{ doc.uploaded_by.last_name }}
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="py-2 pr-3 text-xs text-gray-500">
+                            {{ doc.uploaded_at|date:"d/m/Y H:i" }}
+                        </td>
+                        {% if can_manage %}
+                        <td class="py-2 pl-3 text-right text-xs">
+                            <div class="flex items-center justify-end gap-2">
+                                <form method="post" enctype="multipart/form-data" class="inline-block">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="reupload">
+                                    <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                                    <input type="hidden" name="title" value="{{ doc.category }}{% if doc.category %} ### {% endif %}{{ doc.display_title }}">
+                                    <label class="inline-flex items-center px-2 py-1 rounded border text-[11px] text-gray-700 bg-white hover:bg-slate-50 cursor-pointer">
+                                        <span>Reupload</span>
+                                        <input type="file" name="file" class="hidden" accept=".md,.markdown,.txt"
+                                               onchange="if (this.files.length) this.form.submit();">
+                                    </label>
+                                </form>
+                                <form method="post" class="inline-block"
+                                      onsubmit="return confirm('Bạn chắc chắn muốn xoá tài liệu này?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="doc_id" value="{{ doc.id }}">
+                                    <button type="submit"
+                                            class="px-2 py-1 rounded text-[11px] text-red-600 hover:bg-red-50 border border-red-100">
+                                        Xoá
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500">
+            Chưa có tài liệu nào. {% if can_manage %}Hãy thêm tài liệu training đầu tiên cho đội CSKH.{% endif %}
+        </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+
