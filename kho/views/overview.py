@@ -4,7 +4,13 @@ from kho.models import WarehousePackingSetting
 from core.system_settings import get_connection_ids, SAPO_TMDT
 from core.sapo_client import get_sapo_client
 
-connection_ids = get_connection_ids()
+import logging
+from requests import HTTPError
+
+logger = logging.getLogger(__name__)
+
+# Lưu ý: không tính sẵn connection_ids ở mức module để tránh phụ thuộc CWD / thời điểm import.
+# Sẽ gọi get_connection_ids() bên trong view mỗi lần request.
 
 @group_required("WarehouseManager")
 def dashboard(request):
@@ -40,16 +46,32 @@ def dashboard(request):
 
     # New API - use repository directly
     sapo = get_sapo_client()
-    
-    # Get marketplace orders
-    mp_orders = sapo.marketplace.list_orders_raw(
-        connection_ids=connection_ids,
-        account_id=int(SAPO_TMDT.STAFF_ID),
-        page=1,
-        limit=50,
-        sortBy="ISSUED_AT",
-        orderBy="desc"
-    )
+
+    # Đọc connection_ids theo runtime, tránh phụ thuộc vào CWD/server import time
+    connection_ids = get_connection_ids()
+
+    # Get marketplace orders (nếu đã cấu hình shop)
+    mp_orders = None
+    if connection_ids:
+        try:
+            mp_orders = sapo.marketplace.list_orders_raw(
+                connection_ids=connection_ids,
+                account_id=int(SAPO_TMDT.STAFF_ID),
+                page=1,
+                limit=50,
+                sortBy="ISSUED_AT",
+                orderBy="desc",
+            )
+        except HTTPError as e:
+            # Log chi tiết để debug nhưng không làm trang overview bị crash
+            logger.error(
+                "Failed to load marketplace orders for overview: %s", e, exc_info=True
+            )
+    else:
+        logger.warning(
+            "No Shopee shops configured (empty connection_ids). "
+            "Skipping marketplace orders on overview dashboard."
+        )
     
     # Lấy cài đặt packing cho cả 2 kho
     packing_settings = {}

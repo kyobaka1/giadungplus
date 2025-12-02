@@ -16,7 +16,11 @@ from typing import Any, Dict, List, Optional
 # Đọc biến môi trường với default (anh có thể set trong .env, Docker, v.v.)
 # Ưu tiên đọc từ file settings/logs/sapo_config.env
 
-SAPO_CONFIG_FILE = Path("settings/logs/sapo_config.env")
+# BASE_DIR: thư mục gốc project, tính từ vị trí file này
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Dùng đường dẫn tuyệt đối để không phụ thuộc vào current working directory
+SAPO_CONFIG_FILE = BASE_DIR / "settings" / "logs" / "sapo_config.env"
 _file_config = {}
 
 def load_config_file():
@@ -107,7 +111,8 @@ HOATOC_HCM_ON: bool = env("GDPLUS_HOATOC_HCM_ON", "1") == "1"
 
 # ================== SHOPEE CONFIG ==================
 
-SHOPEE_SHOPS_CONFIG = Path("settings/logs/shopee_shops.json")
+# Dùng absolute path để tránh lỗi khi Django chạy ở thư mục khác (Ubuntu server)
+SHOPEE_SHOPS_CONFIG = BASE_DIR / "settings" / "logs" / "shopee_shops.json"
 
 # Location ID theo Sapo
 KHO_GELEXIMCO = 241737  # Hà Nội
