@@ -7,6 +7,12 @@ from django.core.exceptions import FieldError
 
 def ensure_columns_exist(apps, schema_editor):
     """Ensure all required columns exist, create them if not"""
+    # Chỉ chạy logic PRAGMA cho SQLite (dev/local).
+    # Trên PostgreSQL/MySQL, các cột đã được tạo bởi migration 0014,
+    # nên bỏ qua để tránh lỗi cú pháp.
+    if schema_editor.connection.vendor != "sqlite":
+        return
+
     db_alias = schema_editor.connection.alias
     with schema_editor.connection.cursor() as cursor:
         # Check if columns exist
