@@ -228,8 +228,10 @@
   // - iOS Safari + standalone mode: KHÔNG auto-init, chỉ expose window.initPush,
   //   để template gắn vào nút "Bật thông báo".
   // - Các nền tảng khác: vẫn auto-init khi DOM ready.
-  const isStandaloneIos =
-    isIosSafari() && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const isStandaloneDisplayMode =
+    window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const isNavigatorStandalone = typeof window.navigator !== 'undefined' && window.navigator.standalone === true;
+  const isStandaloneIos = isIosSafari() && (isStandaloneDisplayMode || isNavigatorStandalone);
 
   if (!isStandaloneIos) {
     // Tự khởi động khi DOM ready (Android, desktop, Safari thường)
