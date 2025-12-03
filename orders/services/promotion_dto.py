@@ -30,11 +30,20 @@ class PromotionConditionDTO:
         # Parse goods_condition từ string thành list int
         goods_condition = []
         if data.get('goods_condition'):
-            goods_condition = [
-                int(vid.strip()) 
-                for vid in str(data['goods_condition']).split(',')
-                if vid.strip()
-            ]
+            # Sapo đôi khi trả về 'all' hoặc các giá trị không phải số.
+            # Ở đây ta chỉ giữ lại những phần tử convert được sang int.
+            raw = str(data['goods_condition']).split(',')
+            cleaned_ids = []
+            for vid in raw:
+                v = vid.strip()
+                if not v:
+                    continue
+                try:
+                    cleaned_ids.append(int(v))
+                except (ValueError, TypeError):
+                    # Bỏ qua các giá trị đặc biệt như 'all' thay vì raise lỗi
+                    continue
+            goods_condition = cleaned_ids
         
         return cls(
             id=data['id'],

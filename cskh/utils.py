@@ -29,10 +29,12 @@ def is_admin_or_group(user, *group_names):
 def group_required(*group_names):
     """
     Decorator yêu cầu user phải là Admin hoặc thuộc một trong các groups được chỉ định.
-    Nếu không có quyền, redirect về trang thông báo.
+    Nếu không có quyền, redirect về trang thông báo (hoặc trả về JSON nếu là API request).
     
     Lưu ý: WarehouseManager luôn có quyền với ticket vì kho cũng phải làm việc với ticket.
     """
+    from django.http import JsonResponse
+    
     def decorator(view_func):
         @wraps(view_func)
         def wrapped_view(request, *args, **kwargs):
@@ -41,8 +43,22 @@ def group_required(*group_names):
             if is_admin_or_group(request.user, *allowed_groups):
                 return view_func(request, *args, **kwargs)
             else:
-                # Redirect về trang thông báo không có quyền
-                return redirect('permission_denied')
+                # Kiểm tra nếu là API request (path chứa /api/ hoặc content-type là application/json)
+                is_api_request = (
+                    '/api/' in request.path or 
+                    request.content_type == 'application/json' or
+                    request.headers.get('Content-Type', '').startswith('application/json')
+                )
+                
+                if is_api_request:
+                    # Trả về JSON response cho API request
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Bạn không có quyền thực hiện thao tác này.'
+                    }, status=403)
+                else:
+                    # Redirect về trang thông báo không có quyền cho web request
+                    return redirect('permission_denied')
         return wrapped_view
     return decorator
 

@@ -75,67 +75,116 @@ class PromotionService:
             response = self._sapo.promotion.list_programs(
                 statuses="active",
                 page=1,
-                limit=100
+                limit=100,
             )
-            
-            programs = response.get('promotion_list', [])
-            logger.info(f"[PromotionService] Found {len(programs)} active promotions")
-            
+
+            programs = response.get("promotion_list", [])
+            logger.info(
+                "[PromotionService] Found %s active promotions from Sapo: %s",
+                len(programs),
+                [(p.get("id"), p.get("name")) for p in programs],
+            )
+
             # Step 2: For each program, fetch conditions
             for program in programs:
-                program_id = program['id']
-                debug_print(f"PromotionService Fetching conditions for program {program_id}...")
-                
+                program_id = program.get("id")
+                program_name = program.get("name")
+                debug_print(
+                    f"PromotionService Fetching conditions for program {program_id} – {program_name}..."
+                )
+
                 try:
                     conditions_response = self._sapo.promotion.get_conditions(program_id)
-                    
+
                     # Step 3: Collect all variant_ids từ gifts để fetch thông tin
                     variant_ids_to_fetch = set()
-                    for ci_data in conditions_response.get('condition_items', []):
-                        for item in ci_data.get('items', []):
-                            if item.get('type') == 'gift':
-                                detail_dict = json.loads(item.get('detail', '{}'))
-                                variant_id = detail_dict.get('condition_include')
+                    for ci_data in conditions_response.get("condition_items", []):
+                        for item in ci_data.get("items", []):
+                            if item.get("type") == "gift":
+                                try:
+                                    detail_dict = json.loads(item.get("detail", "{}"))
+                                except Exception as json_err:
+                                    # Log chi tiết lỗi JSON nhưng không làm hỏng cả sync
+                                    logger.warning(
+                                        "[PromotionService] Invalid gift detail JSON for program %s (%s): %s | raw_detail=%s",
+                                        program_id,
+                                        program_name,
+                                        json_err,
+                                        item.get("detail"),
+                                    )
+                                    continue
+
+                                variant_id = detail_dict.get("condition_include")
                                 if variant_id:
                                     try:
                                         variant_ids_to_fetch.add(int(variant_id))
                                     except (ValueError, TypeError):
-                                        pass
-                    
+                                        logger.warning(
+                                            "[PromotionService] Invalid variant_id '%s' in promotion %s (%s)",
+                                            variant_id,
+                                            program_id,
+                                            program_name,
+                                        )
+
+                    if not variant_ids_to_fetch:
+                        logger.info(
+                            "[PromotionService] Program %s (%s) has no gift items in conditions",
+                            program_id,
+                            program_name,
+                        )
+
                     # Step 4: Fetch variant info cho tất cả gifts
                     variant_info_cache = {}
                     for variant_id in variant_ids_to_fetch:
                         try:
                             variant_response = self._sapo.core.get_variant_raw(variant_id)
                             variant_info_cache[variant_id] = variant_response
-                            debug_print(f"PromotionService ✓ Fetched variant info: {variant_id}")
+                            debug_print(
+                                f"PromotionService ✓ Fetched variant info: {variant_id}"
+                            )
                         except Exception as e:
-                            logger.warning(f"[PromotionService] Failed to fetch variant {variant_id}: {e}")
+                            logger.warning(
+                                "[PromotionService] Failed to fetch variant %s for promotion %s (%s): %s",
+                                variant_id,
+                                program_id,
+                                program_name,
+                                e,
+                            )
                             variant_info_cache[variant_id] = None
-                    
+
                     # Step 5: Parse into DTO với variant_info
                     promotion_dto = PromotionProgramDTO.from_dict(
                         program_data=program,
                         conditions_data=conditions_response,
-                        variant_info_cache=variant_info_cache
+                        variant_info_cache=variant_info_cache,
                     )
-                    
+
                     promotions.append(promotion_dto)
                     debug_print(f"PromotionService ✓ Loaded: {promotion_dto.name}")
-                    
+
                 except Exception as e:
-                    logger.error(f"[PromotionService] Failed to load conditions for {program_id}: {e}")
+                    # Log đầy đủ lý do bỏ qua 1 CTKM cụ thể
+                    logger.exception(
+                        "[PromotionService] Failed to load/parse conditions for program %s (%s). This promotion will be skipped. Error: %s",
+                        program_id,
+                        program_name,
+                        e,
+                    )
                     continue
-            
+
             # Step 4: Save to cache
             self._save_to_cache(promotions)
             self._promotions = promotions
-            
-            logger.info(f"[PromotionService] ✓ Cached {len(promotions)} promotions")
+
+            logger.info(
+                "[PromotionService] ✓ Cached %s promotions to %s",
+                len(promotions),
+                self.CACHE_FILE,
+            )
             return promotions
-            
+
         except Exception as e:
-            logger.error(f"[PromotionService] Failed to fetch promotions: {e}")
+            logger.exception("[PromotionService] Failed to fetch promotions from Sapo: %s", e)
             raise
     
     def load_from_cache(self) -> List[PromotionProgramDTO]:

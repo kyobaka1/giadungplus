@@ -1,6 +1,72 @@
 {
-  "cached_at": "2025-11-25T22:48:31.821855",
+  "cached_at": "2025-12-03T07:27:11.131858+00:00",
   "promotions": [
+    {
+      "id": 257385,
+      "tenant_id": 236571,
+      "name": "TẶNG KEO 6GR - KẸP CHỔI",
+      "code": "KEPCHOI0718-GF",
+      "type": "gift_by_variant",
+      "status": "active",
+      "start_date": "2025-12-03T07:26:05Z",
+      "end_date": null,
+      "description": null,
+      "location_ids": [],
+      "order_source_ids": [],
+      "condition_items": [
+        {
+          "id": 21572339,
+          "multiple": false,
+          "limit": null,
+          "group": null,
+          "group_limit": null,
+          "conditions": [
+            {
+              "id": 22049679,
+              "condition_item_id": 21572339,
+              "goods_range_from": 1,
+              "goods_range_to": null,
+              "goods_condition": [
+                220500121,
+                220500120,
+                220500119,
+                220500118
+              ],
+              "goods_condition_labels": [
+                {
+                  "goods_id": 220500121,
+                  "goods_label": "Kẹp treo chổi XÁM/ Móc nhỏ xịn dán tường inox 304 - Đen / Kèm Móc"
+                },
+                {
+                  "goods_id": 220500120,
+                  "goods_label": "Kẹp treo chổi XÁM/ Móc nhỏ xịn dán tường inox 304 - Đen / Đơn Lớn"
+                },
+                {
+                  "goods_id": 220500119,
+                  "goods_label": "Kẹp treo chổi XÁM/ Móc nhỏ xịn dán tường inox 304 - Xám / Kèm Móc"
+                },
+                {
+                  "goods_id": 220500118,
+                  "goods_label": "Kẹp treo chổi XÁM/ Móc nhỏ xịn dán tường inox 304 - Xám / Đơn Lớn"
+                }
+              ],
+              "promotion_type": "gift_by_variant",
+              "limit": null
+            }
+          ],
+          "gifts": [
+            {
+              "variant_id": 123996615,
+              "quantity": 1,
+              "variant_name": "Keo dán+miếng cố định/ dán tường siêu chắc - KEO 6G",
+              "sku": "KEO-6G",
+              "unit": "lọ",
+              "opt1": "KEO 6G"
+            }
+          ]
+        }
+      ]
+    },
     {
       "id": 256528,
       "tenant_id": 236571,

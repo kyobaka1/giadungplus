@@ -514,9 +514,30 @@ def api_add_event(request, ticket_id):
             ticket.ticket_status = 'processing'
             ticket.save(update_fields=['ticket_status'])
 
-        # Nếu tags chứa "CHUYỂN BỘ PHẬN: KHO" và bộ phận hiện tại là CSKH -> chuyển sang KHO
+        # Xử lý tags chuyển bộ phận
         tag_list = [t.strip() for t in tags.split(',')] if tags else []
-        if 'CHUYỂN BỘ PHẬN: KHO' in tag_list and ticket.depart == 'cskh':
+        
+        # Nếu tags chứa "CHUYỂN SANG CSKH" và bộ phận hiện tại là KHO -> chuyển sang CSKH
+        if 'CHUYỂN SANG CSKH' in tag_list and ticket.depart == 'warehouse':
+            from_depart = ticket.depart
+            ticket.depart = 'cskh'
+            ticket.ticket_status = 'waiting_cskh'  # Chờ CSKH xử lý
+            ticket.save(update_fields=['depart', 'ticket_status'])
+
+            log_ticket_action(
+                ticket.ticket_number,
+                request.user.username,
+                'transferred_department',
+                {
+                    'from': from_depart,
+                    'to': ticket.depart,
+                    'reason': 'CHUYỂN SANG CSKH qua Trouble & Event',
+                    'event_id': event.id,
+                    'status_change': 'waiting_cskh',
+                }
+            )
+        # Nếu tags chứa "CHUYỂN BỘ PHẬN: KHO" và bộ phận hiện tại là CSKH -> chuyển sang KHO
+        elif 'CHUYỂN BỘ PHẬN: KHO' in tag_list and ticket.depart == 'cskh':
             from_depart = ticket.depart
             ticket.depart = 'warehouse'
             ticket.save(update_fields=['depart'])
@@ -791,6 +812,9 @@ def api_update_process_order(request, ticket_id):
         ticket.process_order_id = order_info['order_id']
         ticket.process_order_code = order_info['order_code']
         ticket.process_reference_number = order_info['reference_number']
+        # Cập nhật location_id của ticket theo đơn xử lý để kho filter theo kho chính xác
+        if order_info.get('location_id'):
+            ticket.location_id = order_info['location_id']
         ticket.save()
 
         # Log action

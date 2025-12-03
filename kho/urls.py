@@ -33,6 +33,7 @@ urlpatterns = [
 
     # ----- TICKET -----
     path("tickets/", tickets.ticket_list, name="ticket_list"),
+    path("tickets/create/", tickets.ticket_create, name="ticket_create"),
     path("tickets/<int:ticket_id>/", tickets.ticket_detail, name="ticket_detail"),
     path("tickets/<int:ticket_id>/confirm-error/", tickets.ticket_confirm_error, name="ticket_confirm_error"),
 

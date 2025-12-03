@@ -1,8 +1,8 @@
-{% extends "cskh/base_cskh.html" %}
+{% extends "kho/base_kho.html" %}
 {% load humanize %}
 {% load ticket_filters %}
 
-{% block title %}Chi tiết Ticket {{ ticket.ticket_number }} – CSKH{% endblock %}
+{% block title %}Chi tiết Ticket {{ ticket.ticket_number }} – Kho{% endblock %}
 
 {% block overview %}
 <section class="flex items-center justify-between">
@@ -11,7 +11,7 @@
         <p class="text-sm md:text-xs text-gray-500 mt-1">{{ ticket.get_ticket_type_display|default:"-" }}</p>
     </div>
     <div class="flex gap-2">
-        <a href="{% url 'cskh:ticket_list' %}"
+        <a href="{% url 'kho:ticket_list' %}"
             class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
             ← Quay lại
         </a>
@@ -245,10 +245,10 @@
                                 <input type="checkbox" class="event-tag-option w-3 h-3" value="KHÁCH KHÓ TÍNH">
                                 <span>KHÁCH KHÓ TÍNH</span>
                             </label>
-                            {% if ticket.depart == 'cskh' %}
-                            <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-orange-400 bg-orange-50 text-orange-700 cursor-pointer">
-                                <input type="checkbox" class="event-tag-option w-3 h-3" value="CHUYỂN BỘ PHẬN: KHO">
-                                <span>CHUYỂN BỘ PHẬN: KHO</span>
+                            {% if ticket.depart == 'warehouse' %}
+                            <label class="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-blue-400 bg-blue-50 text-blue-700 cursor-pointer">
+                                <input type="checkbox" class="event-tag-option w-3 h-3" value="CHUYỂN SANG CSKH">
+                                <span>CHUYỂN SANG CSKH</span>
                             </label>
                             {% endif %}
                         </div>
@@ -856,18 +856,15 @@
                         </div>
                     </div>
 
-                    <!-- Loại vấn đề - label và select cùng hàng (lấy từ config: loai_van_de) -->
+                    <!-- Loại vấn đề - ticket kho: hiển thị readonly -->
                     <div class="flex items-center gap-3">
                         <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề</label>
-                        <select id="ticket_type"
-                            class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
-                            <option value="">-- Chọn loại vấn đề --</option>
-                            {% for value in issue_type_options %}
-                            <option value="{{ value }}" {% if ticket.ticket_type == value %}selected{% endif %}>
-                                {{ value }}
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <div class="flex-1 flex items-center gap-2">
+                            <span class="px-3 py-1 text-sm rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-semibold">
+                                {{ ticket.ticket_type|default:"Kho hàng" }}
+                            </span>
+                            <span class="text-xs text-gray-500">Ticket tạo từ kho có loại vấn đề cố định là "Kho hàng".</span>
+                        </div>
                     </div>
                     
                     <!-- Nguồn lỗi - label và select cùng hàng -->
@@ -882,7 +879,7 @@
                         </select>
                     </div>
                     
-                    <!-- Loại lỗi - label và select cùng hàng -->
+                    <!-- Loại lỗi - label và select cùng hàng (theo Nguồn lỗi kho) -->
                     <div class="flex items-center gap-3">
                         <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại lỗi</label>
                         <select id="reason_type"
@@ -909,7 +906,13 @@
                         <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Nguồn ticket</label>
                         <select disabled
                             class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
-                            <option>{{ ticket.get_source_ticket_display }}</option>
+                            <option>
+                                {% if ticket.source_ticket == 'cskh_created' %}
+                                    Kho tạo
+                                {% else %}
+                                    {{ ticket.get_source_ticket_display }}
+                                {% endif %}
+                            </option>
                         </select>
                     </div>
                     <!-- Người tạo ticket (readonly) - label và select cùng hàng -->
@@ -1255,7 +1258,7 @@
     </div>
 </div>
 {% endblock %}
-{% block extra_scripts %}
+{% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Tự động scroll xuống cuối event list khi trang load
@@ -1349,36 +1352,59 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Load reason types
-    function loadReasonTypes(source) {
+    // Load reason types cho ticket kho dựa trên cấu hình warehouse_error_types
+    const warehouseErrorTypesRawDetail = [
+        {% for value in warehouse_error_types %}
+        "{{ value|escapejs }}",
+        {% endfor %}
+    ];
+
+    function reloadWarehouseReasonTypesDetail() {
+        if (!reasonTypeSelect) return;
+        const source = (sourceReasonSelect && sourceReasonSelect.value) || "";
+        const currentSelected = "{{ ticket.reason_type|escapejs }}";
         reasonTypeSelect.innerHTML = '<option value="">-- Chọn loại lỗi --</option>';
-        if (source) {
-            fetch(`{% url 'cskh:api_get_reason_types' %}?source_reason=${encodeURIComponent(source)}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        data.types.forEach(type => {
-                            const option = document.createElement('option');
-                            option.value = type;
-                            option.textContent = type;
-                            if (type === '{{ ticket.reason_type }}') {
-                                option.selected = true;
-                            }
-                            reasonTypeSelect.appendChild(option);
-                        });
+
+        const mapped = [];
+        const fallback = [];
+
+        warehouseErrorTypesRawDetail.forEach(function(item) {
+            if (!item) return;
+            const text = item.trim();
+            if (!text) return;
+
+            if (text.includes(':')) {
+                const parts = text.split(':', 2);
+                const src = parts[0].trim();
+                const typ = parts[1].trim();
+                if (src && typ) {
+                    if (source && src === source) {
+                        mapped.push(typ);
                     }
-                });
-        }
+                    fallback.push(typ);
+                }
+            } else {
+                fallback.push(text);
+            }
+        });
+
+        const finalList = (source && mapped.length) ? mapped : fallback;
+        finalList.forEach(function(typ) {
+            const option = document.createElement('option');
+            option.value = typ;
+            option.textContent = typ;
+            if (typ === currentSelected) {
+                option.selected = true;
+            }
+            reasonTypeSelect.appendChild(option);
+        });
     }
-    
-    // Load reason types khi page load
-    if (sourceReasonSelect.value) {
-        loadReasonTypes(sourceReasonSelect.value);
+
+    if (sourceReasonSelect && reasonTypeSelect) {
+        sourceReasonSelect.addEventListener('change', reloadWarehouseReasonTypesDetail);
+        // Khởi tạo khi load trang
+        reloadWarehouseReasonTypesDetail();
     }
-    
-    sourceReasonSelect.addEventListener('change', function() {
-        loadReasonTypes(this.value);
-    });
 
     // =======================
     // TÌM & GẮN ĐƠN XỬ LÝ
@@ -2538,9 +2564,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Thêm Trouble & Event mới
-    if (btnAddEvent) {
+    console.log('Initializing add event handler...');
+    console.log('btnAddEvent:', btnAddEvent);
+    console.log('eventContentInput:', eventContentInput);
+    
+    if (btnAddEvent && eventContentInput) {
+        console.log('Adding event listener to btnAddEvent');
         btnAddEvent.addEventListener('click', function() {
+            console.log('btnAddEvent clicked');
             const content = (eventContentInput.value || '').trim();
+            console.log('Event content:', content);
             
             // Thu thập tags từ checkbox preset
             const selectedTags = [];
@@ -2549,21 +2582,56 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const tags = selectedTags.join(', ');
+            console.log('Selected tags:', tags);
             
             if (!content) {
                 alert('Vui lòng nhập nội dung event');
                 return;
             }
             
-            fetch(`{% url 'cskh:api_add_event' ticket.id %}`, {
+            // Disable button để tránh double submit
+            btnAddEvent.disabled = true;
+            btnAddEvent.textContent = 'Đang thêm...';
+            
+            const apiUrl = `{% url 'cskh:api_add_event' ticket.id %}`;
+            console.log('API URL:', apiUrl);
+            
+            const requestBody = { content: content, tags: tags };
+            console.log('Request body:', requestBody);
+            
+            fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ content: content, tags: tags }),
+                body: JSON.stringify(requestBody),
             })
-            .then(res => res.json())
+            .then(res => {
+                console.log('Response status:', res.status);
+                console.log('Response headers:', res.headers);
+                if (!res.ok) {
+                    // Try to get error message from response
+                    return res.text().then(text => {
+                        console.error('Error response text:', text);
+                        let errorMsg = `HTTP error! status: ${res.status}`;
+                        try {
+                            const errorData = JSON.parse(text);
+                            if (errorData.error) {
+                                errorMsg = errorData.error;
+                            }
+                        } catch (e) {
+                            // If not JSON, use the text
+                            if (text) {
+                                errorMsg = text.substring(0, 200);
+                            }
+                        }
+                        throw new Error(errorMsg);
+                    });
+                }
+                return res.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
                 if (data.success) {
                     eventContentInput.value = '';
                     document.querySelectorAll('.event-tag-option').forEach(cb => cb.checked = false);
@@ -2571,13 +2639,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     sessionStorage.setItem('ticketEventScrollToBottom', 'true');
                     location.reload();
                 } else {
-                    alert('Lỗi thêm event: ' + (data.error || ''));
+                    alert('Lỗi thêm event: ' + (data.error || 'Không xác định được lỗi'));
+                    btnAddEvent.disabled = false;
+                    btnAddEvent.textContent = '+ Thêm event';
                 }
             })
             .catch(err => {
-                alert('Lỗi thêm event: ' + err);
+                console.error('Error adding event:', err);
+                alert('Lỗi thêm event: ' + (err.message || err));
+                btnAddEvent.disabled = false;
+                btnAddEvent.textContent = '+ Thêm event';
             });
         });
+    } else {
+        console.error('btnAddEvent or eventContentInput not found');
+        console.error('btnAddEvent:', btnAddEvent);
+        console.error('eventContentInput:', eventContentInput);
     }
 
     // Thêm / sửa hướng xử lý (sugget_process)
@@ -2755,4 +2832,4 @@ document.addEventListener('DOMContentLoaded', function() {
     text-overflow: ellipsis;
 }
 </style>
-{% endblock extra_scripts %}
+{% endblock%}

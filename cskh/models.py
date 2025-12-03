@@ -15,6 +15,7 @@ class Ticket(models.Model):
         ('processing', 'Đang xử lý'),
         ('waiting_customer', 'Chờ khách'),
         ('waiting_warehouse', 'Chờ kho'),
+        ('waiting_cskh', 'Chờ CSKH xử lý'),
         ('resolved', 'Đã xử lý'),
         ('closed', 'Đóng'),
     ]
