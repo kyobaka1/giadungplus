@@ -51,6 +51,9 @@ oauth2client
 openai
 markdown>=3.0
 
+# Web Push (desktop browsers)
+pywebpush
+
 # Development/Testing (có thể bỏ trong production)
 django-sslserver  # Chỉ dùng cho dev, production dùng nginx
 

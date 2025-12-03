@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% load static %}
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
@@ -164,6 +165,23 @@
         © 2025 GIADUNGPLUS TOOLs. Tất cả các quyền được bảo lưu.
     </div>
 </footer>
+
+<!-- Web Push scripts -->
+<!-- Firebase SDK (v8 compat) để dùng messaging.getToken trên Chrome Android -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+
+<script>
+    // Config cho Web Push
+    window.GP_PUSH_CONFIG = {
+        apiRegisterUrl: '/api/push/register/',
+        // Service worker nằm trong static/js/service-worker.js
+        swUrl: '{% static "js/service-worker.js" %}',
+        // VAPID public key (Web Push keypair)
+        vapidPublicKey: 'BMAinpH2KhQxtclH3XM3UJ_9e-NvlKTzY-WIszcXxCkll7ISLR3BEdWKmgBgkXvjjILJz5Uh375hHwRj3IvaIHU'
+    };
+</script>
+<script src="{% static 'js/push-setup.js' %}"></script>
 
 </body>
 </html>
