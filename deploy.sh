@@ -87,6 +87,13 @@ else
     echo -e "${YELLOW}⚠️  Không phát hiện Git repository. Bỏ qua bước pull code.${NC}"
 fi
 
+# Xóa cache Python trước khi deploy
+echo -e "${YELLOW}🧹 Clearing Python cache...${NC}"
+find . -type d -name "__pycache__" -exec rm -r {} + 2>/dev/null || true
+find . -type f -name "*.pyc" -delete 2>/dev/null || true
+find . -type f -name "*.pyo" -delete 2>/dev/null || true
+echo -e "${GREEN}✅ Python cache cleared${NC}"
+
 # Cài đặt/update dependencies
 if [ -f "requirements.txt" ]; then
     echo -e "${YELLOW}📦 Installing/updating dependencies...${NC}"
