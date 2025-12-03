@@ -86,6 +86,18 @@
             </p>
         </div>
 
+        <!-- Hướng dẫn bật thông báo cho iOS PWA -->
+        <div id="ios-pwa-notice" class="hidden mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-sm">
+            <div class="font-semibold mb-1">Bật thông báo trên iPhone (PWA)</div>
+            <p class="mb-2">
+                Bạn đang mở ứng dụng từ màn hình chính (Add to Home Screen). Để bật thông báo, vui lòng bấm nút dưới đây.
+            </p>
+            <button id="btn-ios-enable-push"
+                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition">
+                Bật thông báo
+            </button>
+        </div>
+
         <!-- Grid menu cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
             
@@ -182,6 +194,29 @@
     };
 </script>
 <script src="{% static 'js/push-setup.js' %}"></script>
+
+<script>
+    // Hiển thị nút "Bật thông báo" cho iOS PWA (Add to Home Screen)
+    (function () {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPhone|iPad|iPod/i.test(ua);
+        const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
+        const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+
+        if (isIOS && isSafari && isStandalone) {
+            const notice = document.getElementById('ios-pwa-notice');
+            const btn = document.getElementById('btn-ios-enable-push');
+            if (notice && btn) {
+                notice.classList.remove('hidden');
+                btn.addEventListener('click', function () {
+                    if (window.initPush) {
+                        window.initPush();
+                    }
+                });
+            }
+        }
+    })();
+</script>
 
 </body>
 </html>

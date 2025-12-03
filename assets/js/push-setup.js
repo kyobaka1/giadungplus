@@ -223,14 +223,26 @@
     await sendSubscriptionToServer(payload);
   }
 
-  // Tự khởi động khi DOM ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initPush);
-  } else {
-    initPush();
+  // iOS Safari (PWA / Add to Home Screen) yêu cầu gọi Notification.requestPermission()
+  // trong context user gesture (onclick). Vì vậy:
+  // - iOS Safari + standalone mode: KHÔNG auto-init, chỉ expose window.initPush,
+  //   để template gắn vào nút "Bật thông báo".
+  // - Các nền tảng khác: vẫn auto-init khi DOM ready.
+  const isStandaloneIos =
+    isIosSafari() && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+
+  if (!isStandaloneIos) {
+    // Tự khởi động khi DOM ready (Android, desktop, Safari thường)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPush);
+    } else {
+      initPush();
+    }
   }
 
-  // Expose ra global nếu muốn gọi thủ công
+  // Expose ra global để:
+  // - iOS PWA gọi qua nút "Bật thông báo"
+  // - các nơi khác có thể gọi thủ công nếu cần
   window.initPush = initPush;
 })();
 
