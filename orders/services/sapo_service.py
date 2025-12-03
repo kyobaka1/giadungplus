@@ -85,6 +85,7 @@ class SapoCoreOrderService:
         packing_status: int,
         dvvc: Optional[str] = None,
         time_packing: Optional[str] = None,
+        nguoi_goi: Optional[str] = None,
         max_retries: int = 3, 
         retry_delay: float = 2.0
     ) -> bool:
@@ -168,10 +169,15 @@ class SapoCoreOrderService:
                     # Nếu vẫn chưa có dvvc, để rỗng nhưng log warning
                     debug_print(f"⚠️ No dvvc available for order {order_id}, vc will be empty")
                 
-                # Update time_print
+                # Update time_packing
                 if time_packing is not None:
-                    note_data["time_print"] = time_packing
-                    debug_print(f"✏️ Set time_print = {time_packing}")
+                    note_data["time_packing"] = time_packing
+                    debug_print(f"✏️ Set time_packing = {time_packing}")
+                
+                # Update nguoi_goi
+                if nguoi_goi is not None and nguoi_goi.strip():
+                    note_data["nguoi_goi"] = nguoi_goi.strip()
+                    debug_print(f"✏️ Set nguoi_goi = {note_data['nguoi_goi']}")
                 
                 # Compress and create JSON
                 compressed = gopnhan_gon(note_data)
