@@ -113,10 +113,9 @@
 
   async function subscribeWithPushManager(registration) {
     try {
-      // Đảm bảo service worker đã ở trạng thái "active"
-      const reg = await navigator.serviceWorker.ready;
-
-      const subscription = await reg.pushManager.subscribe({
+      // Dùng trực tiếp registration vừa đăng ký service worker
+      // (scope đang là /static/js/, không control trang "/", nên navigator.serviceWorker.ready sẽ không resolve)
+      const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
       });
