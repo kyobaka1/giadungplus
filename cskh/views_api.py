@@ -698,12 +698,20 @@ def api_get_reason_types(request):
     if not source_reason:
         return JsonResponse({'success': False, 'error': 'Thiếu source_reason'}, status=400)
 
-    # Ưu tiên đọc mapping từ file config CSKH (cấu hình Admin)
+    # Ưu tiên đọc mapping từ file config (CSKH + Kho) do Admin cấu hình
     try:
         from settings.services.cskh_ticket_config_service import CSKHTicketConfigService
 
         config = CSKHTicketConfigService.get_config()
-        raw_types = config.get("loai_loi", []) or []
+        # Gộp loại lỗi CSKH + loại lỗi kho
+        base_raw_types = (config.get("loai_loi", []) or []) + (
+            config.get("loai_loi_kho", []) or []
+        )
+        # Loại bỏ trùng, giữ thứ tự
+        raw_types = []
+        for item in base_raw_types:
+            if item and item not in raw_types:
+                raw_types.append(item)
 
         # Định dạng mới: "Nguồn lỗi: Loại lỗi"
         # Ví dụ: "Lỗi kho: Gửi thiếu" → source = "Lỗi kho", type = "Gửi thiếu"
