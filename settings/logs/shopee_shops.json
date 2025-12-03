@@ -1,0 +1,44 @@
+{
+  "shops": [
+    {
+      "name": "giadungplus_official",
+      "shop_connect": 10925,
+      "headers_file": "settings/logs/raw_cookie/giadungplus_official.txt",
+      "seller_shop_id": 241961702,
+      "address_geleximco": 29719283,
+      "address_toky": 200025624
+    },
+    {
+      "name": "phaledo",
+      "shop_connect": 155687,
+      "headers_file": "settings/logs/raw_cookie/phaledo.txt",
+      "seller_shop_id": 15064699,
+      "address_geleximco": 71071674,
+      "address_toky": 71071674
+    },
+    {
+      "name": "lteng_vn",
+      "shop_connect": 155174,
+      "headers_file": "settings/logs/raw_cookie/lteng_vn.txt",
+      "seller_shop_id": 1612223456,
+      "address_geleximco": 200165433,
+      "address_toky": 200165433
+    },
+    {
+      "name": "lteng_hcm",
+      "shop_connect": 155938,
+      "headers_file": "settings/logs/raw_cookie/lteng_hcm.txt",
+      "seller_shop_id": 1638634407,
+      "address_geleximco": 200174020,
+      "address_toky": 200174020
+    },
+    {
+      "name": "phaledo_official",
+      "shop_connect": 134366,
+      "headers_file": "settings/logs/raw_cookie/phaledo_official.txt",
+      "seller_shop_id": 1009027554,
+      "address_geleximco": 100094417,
+      "address_toky": 100127545
+    }
+  ]
+}
