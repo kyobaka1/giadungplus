@@ -96,6 +96,8 @@
                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition">
                 Bật thông báo
             </button>
+            <!-- Dòng debug đơn giản để xem flags iOS nếu cần -->
+            <p id="ios-pwa-debug-line" class="mt-2 text-[11px] text-amber-700 hidden"></p>
         </div>
 
         <!-- Grid menu cards -->
@@ -205,17 +207,39 @@
         const isNavigatorStandalone = typeof window.navigator !== 'undefined' && window.navigator.standalone === true;
         const isStandalone = isStandaloneDisplayMode || isNavigatorStandalone;
 
-        if (isIOS && isSafari && isStandalone) {
-            const notice = document.getElementById('ios-pwa-notice');
-            const btn = document.getElementById('btn-ios-enable-push');
-            if (notice && btn) {
-                notice.classList.remove('hidden');
-                btn.addEventListener('click', function () {
-                    if (window.initPush) {
-                        window.initPush();
-                    }
-                });
-            }
+        const params = new URLSearchParams(window.location.search);
+        const debugPush = params.get('push_debug') === '1';
+
+        console.log('[PushDebug] iOS flags', {
+            ua,
+            isIOS,
+            isSafari,
+            isStandaloneDisplayMode,
+            isNavigatorStandalone,
+            isStandalone,
+            debugPush,
+        });
+
+        const notice = document.getElementById('ios-pwa-notice');
+        const btn = document.getElementById('btn-ios-enable-push');
+        const debugLine = document.getElementById('ios-pwa-debug-line');
+
+        if (debugPush && debugLine) {
+            debugLine.classList.remove('hidden');
+            debugLine.textContent =
+                'Debug iOS PWA — isIOS=' + isIOS +
+                ', isSafari=' + isSafari +
+                ', isStandaloneDisplayMode=' + isStandaloneDisplayMode +
+                ', navigator.standalone=' + isNavigatorStandalone;
+        }
+
+        if (notice && btn && (isIOS && isSafari && isStandalone || debugPush)) {
+            notice.classList.remove('hidden');
+            btn.addEventListener('click', function () {
+                if (window.initPush) {
+                    window.initPush();
+                }
+            });
         }
     })();
 </script>
