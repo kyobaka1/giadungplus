@@ -16,3 +16,4 @@ settings/logs/train_cskh/
 settings/logs/cskh_ticket_config.json
 settings/logs/ticket_actions
 settings/logs/raw_cookie
+settings/firebase/
