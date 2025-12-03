@@ -260,6 +260,171 @@ def api_upload_ticket_files(request, ticket_id):
     return JsonResponse({'success': True, 'files': saved_paths})
 
 
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["PUT", "POST"])
+def api_update_cost(request, ticket_id, cost_id):
+    """API: Cập nhật chi phí cho ticket"""
+    ticket = get_object_or_404(Ticket, id=ticket_id)
+    cost = get_object_or_404(TicketCost, id=cost_id, ticket=ticket)
+    
+    try:
+        data = json.loads(request.body)
+        cost_type = (data.get('cost_type') or '').strip()
+        note = data.get('note', '') or ''
+
+        # Thông tin sản phẩm
+        variant_id = data.get('variant_id') or None
+        try:
+            variant_id = int(variant_id) if variant_id else None
+        except (TypeError, ValueError):
+            variant_id = None
+
+        product_name = data.get('product_name') or ''
+        variant_name = data.get('variant_name') or ''
+        sku = data.get('sku') or ''
+
+        quantity_raw = data.get('quantity')
+        try:
+            quantity = int(quantity_raw) if quantity_raw is not None else None
+        except (TypeError, ValueError):
+            quantity = None
+
+        unit_price_raw = data.get('unit_price')
+        try:
+            unit_price = float(unit_price_raw) if unit_price_raw is not None else None
+        except (TypeError, ValueError):
+            unit_price = None
+
+        amount_raw = data.get('amount', 0)
+        try:
+            amount = float(amount_raw or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+
+        # Ngày thanh toán
+        payment_date = None
+        payment_date_str = (data.get('payment_date') or '').strip()
+        if payment_date_str:
+            try:
+                payment_date = datetime.fromisoformat(payment_date_str).date()
+            except Exception:
+                payment_date = None
+
+        # Ràng buộc: số lượng hỏng vỡ không được vượt quá số lượng trong đơn
+        if cost_type == 'Hàng hỏng vỡ' and variant_id and (quantity or 0) > 0 and ticket.order_id:
+            max_qty = None
+            try:
+                ticket_service = TicketService()
+                order = ticket_service.order_service.get_order_dto(ticket.order_id)
+                if hasattr(order, 'line_items') and order.line_items:
+                    for item in order.line_items:
+                        if item.variant_id == variant_id:
+                            try:
+                                max_qty = int(item.quantity or 0)
+                            except (TypeError, ValueError):
+                                max_qty = None
+                            break
+            except Exception:
+                max_qty = None
+
+            if max_qty is not None and quantity > max_qty:
+                return JsonResponse(
+                    {
+                        'success': False,
+                        'error': f'Số lượng hàng hỏng vỡ ({quantity}) không được vượt quá số lượng trong đơn ({max_qty}).'
+                    },
+                    status=400
+                )
+
+        # Auto tính amount cho loại "Hàng hỏng vỡ" nếu có variant + quantity
+        if cost_type == 'Hàng hỏng vỡ' and variant_id and (quantity or 0) > 0:
+            if unit_price is None:
+                try:
+                    sapo = get_sapo_client()
+                    core_api = sapo.core
+                    raw = core_api.get_variant_raw(variant_id)
+                    variant_data = raw.get('variant') or {}
+                    unit_price = float(variant_data.get('price') or 0)
+                except Exception:
+                    unit_price = None
+
+            if unit_price is not None:
+                amount = unit_price * (quantity or 0)
+
+        if not cost_type or amount <= 0:
+            return JsonResponse({'success': False, 'error': 'Thiếu thông tin chi phí'}, status=400)
+
+        # Cập nhật cost
+        cost.cost_type = cost_type
+        cost.amount = amount
+        cost.note = note
+        cost.variant_id = variant_id
+        cost.product_name = product_name
+        cost.variant_name = variant_name
+        cost.sku = sku
+        cost.quantity = quantity
+        cost.unit_price = unit_price
+        cost.payment_date = payment_date
+        cost.save()
+        
+        # Log action
+        log_ticket_action(
+            ticket.ticket_number,
+            request.user.username,
+            'updated_cost',
+            {'cost_id': cost.id, 'cost_type': cost_type, 'amount': float(amount)}
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'cost': {
+                'id': cost.id,
+                'cost_type': cost.cost_type,
+                'amount': float(cost.amount),
+                'note': cost.note,
+                'variant_id': cost.variant_id,
+                'product_name': cost.product_name,
+                'variant_name': cost.variant_name,
+                'sku': cost.sku,
+                'quantity': cost.quantity,
+                'unit_price': float(cost.unit_price) if cost.unit_price is not None else None,
+                'payment_date': cost.payment_date.isoformat() if cost.payment_date else None,
+                'created_at': cost.created_at.isoformat(),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["DELETE", "POST"])
+def api_delete_cost(request, ticket_id, cost_id):
+    """API: Xóa chi phí cho ticket"""
+    ticket = get_object_or_404(Ticket, id=ticket_id)
+    cost = get_object_or_404(TicketCost, id=cost_id, ticket=ticket)
+    
+    try:
+        cost_id_save = cost.id
+        cost_type_save = cost.cost_type
+        amount_save = float(cost.amount)
+        
+        cost.delete()
+        
+        # Log action
+        log_ticket_action(
+            ticket.ticket_number,
+            request.user.username,
+            'deleted_cost',
+            {'cost_id': cost_id_save, 'cost_type': cost_type_save, 'amount': amount_save}
+        )
+        
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
 @group_required("CSKHManager", "CSKHStaff")
 @csrf_exempt
 @require_http_methods(["POST"])
