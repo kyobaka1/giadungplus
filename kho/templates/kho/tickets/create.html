@@ -1,0 +1,710 @@
+{% extends "kho/base_kho.html" %}
+
+{% block title %}Tạo Ticket mới – Kho{% endblock %}
+
+{% block overview %}
+<section class="flex items-center justify-between">
+    <div>
+        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Tạo Ticket mới</h1>
+    </div>
+    <div class="flex gap-2">
+        <a href="{% url 'kho:ticket_list' %}" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+            Thoát
+        </a>
+        <button type="submit" form="ticketForm" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+            Tạo Ticket (F1)
+        </button>
+    </div>
+</section>
+{% endblock %}
+
+{% block main_content %}
+<div class="flex-1 min-w-0 overflow-x-hidden">
+    <form method="post" id="ticketForm" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- CỘT TRÁI -->
+            <div class="space-y-6">
+                
+                <!-- Thông tin đơn hàng -->
+                <div class="bg-white border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-base font-semibold text-gray-800 mb-4">Thông tin đơn hàng</h3>
+                    
+                    <div class="mb-4">
+                        <div class="relative">
+                            <input type="text" id="search_order" 
+                                class="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                                placeholder="Tìm theo mã đơn hàng (SON) hoặc mã Shopee... (F4)">
+                            <svg class="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                        </div>
+                        <!-- Danh sách nhiều đơn hàng trùng với mã search để chọn -->
+                        <div id="orderSearchResults" class="mt-2 space-y-1 hidden"></div>
+                    </div>
+                    
+                    <!-- Thông tin đơn hàng sau khi tìm thấy -->
+                    <div id="orderInfo" class="hidden p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                        <div class="space-y-2 text-sm mb-3">
+                            <div><strong>Mã đơn:</strong> <span id="orderCode" class="text-gray-700"></span></div>
+                            <div><strong>Kho hàng:</strong> <span id="warehouse" class="text-gray-700"></span></div>
+                            <div><strong>Nguồn đơn hàng:</strong> <span id="orderSource" class="text-gray-700"></span></div>
+                            
+                            <!-- Shop với logo & màu sắc giống shopee_orders -->
+                            <div class="flex items-center gap-2">
+                                <span class="font-semibold text-sm text-gray-700">Shop:</span>
+                                <div class="flex items-center gap-2" id="shopWrapper">
+                                    <img id="shopLogo"
+                                         src="/static/giaodiensang.png"
+                                         class="w-5 h-5 rounded-sm border border-slate-200 object-contain bg-white"
+                                         alt="logo">
+                                    <span id="shopTag"
+                                          class="px-2 py-0.5 text-[11px] font-medium rounded border bg-sky-50 border-sky-300 text-sky-700">
+                                        <span id="shop" class="text-gray-700"></span>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <strong>Tên khách:</strong>
+                                <span id="customerName" class="text-gray-700"></span>
+                                <span id="customerUsername" class="text-xs text-gray-500"></span>
+                            </div>
+                            <div>
+                                <strong>SĐT:</strong>
+                                <span id="customerPhone" class="text-gray-700"></span>
+                                <span id="customerEmail" class="text-xs text-gray-500"></span>
+                            </div>
+                            <div><strong>Địa chỉ:</strong> <span id="customerAddress" class="text-gray-700"></span></div>
+                        </div>
+                        
+                        <!-- Trạng thái đơn hàng và giao hàng -->
+                        <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+                            <span id="orderStatusTag" class="px-2 py-1 text-xs rounded-full font-medium"></span>
+                            <span id="fulfillmentStatusTag" class="px-2 py-1 text-xs rounded-full font-medium"></span>
+                            <span id="packedStatusTag" class="px-2 py-1 text-xs rounded-full font-medium"></span>
+                        </div>
+                        
+                        <input type="hidden" name="order_id" id="order_id">
+                        <input type="hidden" name="order_code" id="order_code_hidden">
+                        <input type="hidden" name="reference_number" id="reference_number_hidden">
+                    </div>
+                    
+                    <!-- Trạng thái chưa có đơn -->
+                    <div id="orderPlaceholder" class="p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-500">Chưa có thông tin đơn hàng</p>
+                    </div>
+                </div>
+                
+                <!-- Thông tin sản phẩm -->
+                <div class="bg-white border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-base font-semibold text-gray-800 mb-4">Thông tin sản phẩm</h3>
+                    
+                    <div id="productsPlaceholder" class="p-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 text-center">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                        <p class="mt-2 text-sm text-gray-500">Chưa có thông tin sản phẩm</p>
+                    </div>
+                    
+                    <div id="productsList" class="hidden space-y-2 max-h-96 overflow-y-auto">
+                        <!-- Danh sách sản phẩm sẽ được thêm vào đây -->
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- CỘT PHẢI -->
+            <div class="space-y-6">
+                
+                <!-- Thông tin bổ sung -->
+                <div class="bg-white border rounded-xl p-6 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-semibold text-gray-800">Thông tin bổ sung</h3>
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <!-- Ngày tạo ticket - ở đầu -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Ngày tạo ticket</label>
+                            <input type="datetime-local" name="created_at" id="created_at"
+                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                                value="">
+                            <span class="text-xs text-gray-500">(Để trống = hiện tại)</span>
+                        </div>
+                        <!-- Loại vấn đề - cố định cho ticket kho -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại vấn đề *</label>
+                            <div class="flex-1 flex items-center gap-2">
+                                <span class="px-3 py-1 text-sm rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-semibold">
+                                    Kho hàng
+                                </span>
+                                <input type="hidden" name="ticket_type" id="ticket_type" value="Kho hàng">
+                                <span class="text-xs text-gray-500">Ticket tạo từ kho sẽ luôn có loại vấn đề là "Kho hàng".</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Nguồn lỗi - label và select cùng hàng -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Nguồn lỗi</label>
+                            <select name="source_reason" id="source_reason"
+                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                                <option value="">-- Chọn nguồn lỗi --</option>
+                                {% for source in reason_sources %}
+                                <option value="{{ source }}">{{ source }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Loại lỗi (ticket kho) - label và select cùng hàng -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Loại lỗi</label>
+                            <select name="reason_type" id="reason_type"
+                                class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                                <option value="">-- Chọn loại lỗi --</option>
+                                {% for value in warehouse_error_types %}
+                                <option value="{{ value }}">{{ value }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Trạng thái (ẩn) -->
+                        <input type="hidden" name="ticket_status" value="new">
+                        
+                        <!-- Nguồn ticket (readonly) - label và select cùng hàng -->
+                        <div class="flex items-center gap-3">
+                            <label class="text-sm font-medium text-gray-700 w-32 flex-shrink-0">Nguồn ticket</label>
+                            <select name="source_ticket" disabled
+                                class="flex-1 px-4 py-2 border rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed">
+                                <option value="cskh_created" selected>Kho tạo</option>
+                            </select>
+                            <input type="hidden" name="source_ticket" value="cskh_created">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload ảnh/video -->
+                <div class="bg-white border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-base font-semibold text-gray-800 mb-4">Upload ảnh/video</h3>
+                    <input type="file" name="images" id="images" multiple accept="image/*,video/*" 
+                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+                    <div id="imagePreview" class="mt-4 grid grid-cols-3 gap-2">
+                        <!-- Preview images sẽ hiển thị ở đây -->
+                    </div>
+                </div>
+                
+                <!-- Trouble & Event đầu tiên -->
+                <div class="bg-white border rounded-xl p-6 shadow-sm">
+                    <h3 class="text-base font-semibold text-gray-800 mb-1">Trouble & Event</h3>
+                    <p class="text-xs text-gray-500 mb-3">Ghi nhận vấn đề khách hàng báo và bối cảnh ban đầu.</p>
+                    <textarea name="note" rows="4" 
+                        class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand"
+                        placeholder="VD: Khách báo thiếu sản phẩm A, đã gọi xác nhận với khách, khách yêu cầu đổi mới..."></textarea>
+                </div>
+                
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default datetime-local value cho ngày tạo ticket (hiện tại)
+    const createdAtInput = document.getElementById('created_at');
+    if (createdAtInput) {
+        const now = new Date();
+        // Format: YYYY-MM-DDTHH:mm
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        createdAtInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+    
+    const searchInput = document.getElementById('search_order');
+    const orderInfo = document.getElementById('orderInfo');
+    const orderPlaceholder = document.getElementById('orderPlaceholder');
+    const productsPlaceholder = document.getElementById('productsPlaceholder');
+    const productsList = document.getElementById('productsList');
+    const sourceReasonSelect = document.getElementById('source_reason');
+    const reasonTypeSelect = document.getElementById('reason_type');
+    const imagesInput = document.getElementById('images');
+    const imagePreview = document.getElementById('imagePreview');
+    const orderSearchResults = document.getElementById('orderSearchResults');
+    
+    // Lưu thông tin variants của order
+    const orderVariantsById = {};
+    // Hàm tạo status tag với màu sắc
+    function createStatusTag(label, status, type) {
+        const tag = document.createElement('span');
+        tag.className = 'px-2 py-1 text-xs rounded-full font-medium';
+        tag.textContent = label;
+        
+        // Màu sắc cho trạng thái đơn hàng
+        if (type === 'order') {
+            if (status === 'finalized') {
+                tag.className += ' bg-blue-100 text-blue-700';
+            } else if (status === 'completed') {
+                tag.className += ' bg-green-100 text-green-700';
+            } else if (status === 'cancelled') {
+                tag.className += ' bg-red-100 text-red-700';
+            } else {
+                tag.className += ' bg-gray-100 text-gray-700';
+            }
+        }
+        // Màu sắc cho trạng thái giao hàng
+        else if (type === 'fulfillment') {
+            if (status === 'shipped') {
+                tag.className += ' bg-green-100 text-green-700';
+            } else if (status === 'unshipped') {
+                tag.className += ' bg-yellow-100 text-yellow-700';
+            } else {
+                tag.className += ' bg-gray-100 text-gray-700';
+            }
+        }
+        // Màu sắc cho trạng thái đóng gói
+        else if (type === 'packed') {
+            if (status === 'packed') {
+                tag.className += ' bg-green-100 text-green-700';
+            } else if (status === 'unpacked') {
+                tag.className += ' bg-orange-100 text-orange-700';
+            } else {
+                tag.className += ' bg-gray-100 text-gray-700';
+            }
+        }
+        
+        return tag;
+    }
+    
+    // Load reason types cho ticket kho dựa trên cấu hình warehouse_error_types
+    const warehouseErrorTypesRaw = [
+        {% for value in warehouse_error_types %}
+        "{{ value|escapejs }}",
+        {% endfor %}
+    ];
+
+    function reloadWarehouseReasonTypes() {
+        const source = (sourceReasonSelect && sourceReasonSelect.value) || "";
+        reasonTypeSelect.innerHTML = '<option value="">-- Chọn loại lỗi --</option>';
+
+        const mapped = [];
+        const fallback = [];
+
+        warehouseErrorTypesRaw.forEach(function(item) {
+            if (!item) return;
+            const text = item.trim();
+            if (!text) return;
+
+            if (text.includes(':')) {
+                const parts = text.split(':', 2);
+                const src = parts[0].trim();
+                const typ = parts[1].trim();
+                if (src && typ) {
+                    if (source && src === source) {
+                        mapped.push(typ);
+                    }
+                    fallback.push(typ);
+                }
+            } else {
+                fallback.push(text);
+            }
+        });
+
+        const finalList = (source && mapped.length) ? mapped : fallback;
+        finalList.forEach(function(typ) {
+            const option = document.createElement('option');
+            option.value = typ;
+            option.textContent = typ;
+            reasonTypeSelect.appendChild(option);
+        });
+    }
+
+    if (sourceReasonSelect && reasonTypeSelect) {
+        sourceReasonSelect.addEventListener('change', reloadWarehouseReasonTypes);
+        // Khởi tạo lần đầu
+        reloadWarehouseReasonTypes();
+    }
+    
+    // Tìm đơn hàng (bước 1: lấy danh sách nhiều đơn để chọn)
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            searchOrderList();
+        }
+    });
+    
+    function searchOrder(searchKeyOverride) {
+        const searchKey = (searchKeyOverride || searchInput.value || '').trim();
+        if (!searchKey) {
+            alert('Vui lòng nhập mã đơn hàng');
+            return;
+        }
+        
+        // Dùng API từ cskh vì logic giữ nguyên
+        fetch(`{% url 'cskh:api_search_order' %}?q=${encodeURIComponent(searchKey)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Khi đã chọn một đơn cụ thể để dùng cho ticket thì ẩn danh sách gợi ý
+                    if (orderSearchResults) {
+                        orderSearchResults.classList.add('hidden');
+                        orderSearchResults.innerHTML = '';
+                    }
+
+                    // Hiển thị thông tin đơn hàng
+                    document.getElementById('orderCode').textContent = data.order.order_code || data.order.reference_number;
+                    document.getElementById('warehouse').textContent = data.order.warehouse || '-';
+                    document.getElementById('orderSource').textContent = data.order.channel || '-';
+                    
+                    // Shop + logo + màu sắc
+                    const shopName = data.order.shop || '';
+                    const shopLower = shopName.toLowerCase();
+                    const shopSpan = document.getElementById('shop');
+                    const shopLogo = document.getElementById('shopLogo');
+                    const shopTag = document.getElementById('shopTag');
+                    
+                    shopSpan.textContent = shopName || '-';
+                    
+                    if (shopLower.includes('lteng')) {
+                        shopLogo.src = '/static/logo-lteng.jpg';
+                        shopTag.className = 'px-2 py-0.5 text-[11px] font-medium rounded border bg-orange-50 border-orange-300 text-orange-700';
+                    } else if (shopLower.includes('phaledo')) {
+                        shopLogo.src = '/static/logo-phaledo.jpg';
+                        shopTag.className = 'px-2 py-0.5 text-[11px] font-medium rounded border bg-amber-50 border-amber-300 text-amber-700';
+                    } else {
+                        shopLogo.src = '/static/giaodiensang.png';
+                        shopTag.className = 'px-2 py-0.5 text-[11px] font-medium rounded border bg-sky-50 border-sky-300 text-sky-700';
+                    }
+                    
+                    document.getElementById('customerName').textContent = data.order.customer_name || '-';
+                    // Username (nếu có) hiển thị cạnh tên khách
+                    const customerUsernameEl = document.getElementById('customerUsername');
+                    if (customerUsernameEl) {
+                        if (data.order.customer_username) {
+                            customerUsernameEl.textContent = ` (${data.order.customer_username})`;
+                        } else {
+                            customerUsernameEl.textContent = '';
+                        }
+                    }
+
+                    document.getElementById('customerPhone').textContent = data.order.customer_phone || '-';
+                    // Email (nếu có) hiển thị trong ngoặc sau SĐT
+                    const customerEmailEl = document.getElementById('customerEmail');
+                    if (customerEmailEl) {
+                        if (data.order.customer_email) {
+                            customerEmailEl.textContent = ` (${data.order.customer_email})`;
+                        } else {
+                            customerEmailEl.textContent = '';
+                        }
+                    }
+                    document.getElementById('customerAddress').textContent = data.order.customer_address || '-';
+                    
+                    document.getElementById('order_id').value = data.order.order_id || '';
+                    document.getElementById('order_code_hidden').value = data.order.order_code || '';
+                    document.getElementById('reference_number_hidden').value = data.order.reference_number || '';
+                    
+                    // Hiển thị trạng thái đơn hàng
+                    const statusContainer = document.querySelector('#orderInfo .flex.flex-wrap');
+                    statusContainer.innerHTML = '';
+                    
+                    if (data.order.order_status) {
+                        const orderTag = createStatusTag(
+                            data.order.order_status_label || data.order.order_status,
+                            data.order.order_status,
+                            'order'
+                        );
+                        statusContainer.appendChild(orderTag);
+                    }
+                    
+                    if (data.order.fulfillment_status) {
+                        const fulfillmentTag = createStatusTag(
+                            data.order.fulfillment_status_label || data.order.fulfillment_status,
+                            data.order.fulfillment_status,
+                            'fulfillment'
+                        );
+                        statusContainer.appendChild(fulfillmentTag);
+                    }
+                    
+                    if (data.order.packed_status) {
+                        const packedTag = createStatusTag(
+                            data.order.packed_status_label || data.order.packed_status,
+                            data.order.packed_status,
+                            'packed'
+                        );
+                        statusContainer.appendChild(packedTag);
+                    }
+                    
+                    orderInfo.classList.remove('hidden');
+                    orderPlaceholder.classList.add('hidden');
+                    
+                    // Hiển thị danh sách sản phẩm
+                    if (data.variants && data.variants.length > 0) {
+                        displayProducts(data.variants);
+                        productsPlaceholder.classList.add('hidden');
+                        productsList.classList.remove('hidden');
+                    }
+                } else {
+                    // Kiểm tra xem có phải lỗi do ticket đã tồn tại không
+                    if (data.existing_ticket) {
+                        const ticketUrl = data.existing_ticket.url;
+                        const ticketNumber = data.existing_ticket.ticket_number;
+                        const errorMsg = `${data.error}\n\nVui lòng xem ticket: #${ticketNumber}`;
+                        if (confirm(errorMsg + '\n\nBạn có muốn mở ticket này không?')) {
+                            window.location.href = ticketUrl;
+                        }
+                    } else {
+                        alert('Không tìm thấy đơn hàng: ' + (data.error || ''));
+                    }
+                    // Ẩn thông tin đơn hàng nếu có
+                    orderInfo.classList.add('hidden');
+                    orderPlaceholder.classList.remove('hidden');
+                    productsList.classList.add('hidden');
+                    productsPlaceholder.classList.remove('hidden');
+                    // Xóa các giá trị hidden
+                    document.getElementById('order_id').value = '';
+                    document.getElementById('order_code_hidden').value = '';
+                    document.getElementById('reference_number_hidden').value = '';
+                }
+            })
+            .catch(err => {
+                alert('Lỗi khi tìm đơn hàng');
+                console.error(err);
+            });
+    }
+
+    function renderOrderCandidates(orders) {
+        if (!orderSearchResults) return;
+
+        if (!orders || orders.length === 0) {
+            orderSearchResults.classList.add('hidden');
+            orderSearchResults.innerHTML = '';
+            return;
+        }
+
+        // Hiển thị danh sách để chọn, kể cả khi chỉ có 1 đơn
+        orderSearchResults.classList.remove('hidden');
+        orderSearchResults.innerHTML = '';
+
+        orders.forEach(order => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'w-full text-left px-3 py-1.5 text-xs border border-slate-200 rounded-md bg-white hover:bg-slate-50 flex flex-col md:flex-row md:items-center md:justify-between gap-1';
+
+            const code = order.order_code || order.reference_number || '';
+            const branch = order.warehouse || '-';
+            const channel = order.channel || '-';
+            const status = order.order_status_label || order.order_status || '-';
+
+            let totalText = '';
+            if (typeof order.total_to_pay === 'number') {
+                try {
+                    totalText = order.total_to_pay.toLocaleString('vi-VN') + 'đ';
+                } catch (e) {
+                    totalText = order.total_to_pay + 'đ';
+                }
+            }
+
+            btn.innerHTML = `
+                <span class="font-semibold text-gray-800">${code}</span>
+                <span class="text-[11px] text-gray-600 flex-1 md:text-right">
+                    ${branch} · ${channel} · ${status}
+                    ${totalText ? ' · Khách phải trả: ' + totalText : ''}
+                </span>
+            `;
+
+            btn.addEventListener('click', function () {
+                // Khi chọn đơn, set lại input search và gọi searchOrder để load chi tiết & sản phẩm
+                searchInput.value = code;
+                searchOrder(code);
+            });
+
+            orderSearchResults.appendChild(btn);
+        });
+    }
+
+    function searchOrderList() {
+        const searchKey = (searchInput.value || '').trim();
+        if (!searchKey) {
+            alert('Vui lòng nhập mã đơn hàng');
+            return;
+        }
+
+        // Dùng API từ cskh vì logic giữ nguyên
+        fetch(`{% url 'cskh:api_search_order_multi' %}?q=${encodeURIComponent(searchKey)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.orders && data.orders.length) {
+                    renderOrderCandidates(data.orders);
+                } else {
+                    if (data && data.error) {
+                        alert('Không tìm thấy đơn hàng: ' + data.error);
+                    } else {
+                        alert('Không tìm thấy đơn hàng phù hợp');
+                    }
+                    if (orderSearchResults) {
+                        orderSearchResults.classList.add('hidden');
+                        orderSearchResults.innerHTML = '';
+                    }
+                }
+            })
+            .catch(err => {
+                alert('Lỗi khi tìm đơn hàng: ' + err);
+            });
+    }
+    
+    function displayProducts(variants) {
+        productsList.innerHTML = '';
+        
+        variants.forEach(variant => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-3 p-3 border rounded-lg variant-item hover:bg-gray-50';
+            const imgSrc = variant.image_url || '';
+            div.innerHTML = `
+                <input type="checkbox" name="variants_issue" value="${variant.variant_id}" 
+                    class="variant-checkbox w-4 h-4 text-brand focus:ring-brand border-gray-300 rounded">
+                <div class="w-12 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                    ${imgSrc ? `<img src="${imgSrc}" alt="Ảnh" class="w-full h-full object-cover"
+                         onerror="this.style.display='none'; this.parentElement.classList.add('bg-gray-200');">` : ''}
+                </div>
+                <div class="flex-1">
+                    <div class="font-medium text-sm">${variant.product_name || variant.variant_name}</div>
+                    <div class="text-xs text-gray-500">
+                        SKU: ${variant.sku || '-'}
+                        ${variant.price ? ' · Giá: ' + (variant.price).toLocaleString('vi-VN') + ' đ' : ''}
+                    </div>
+                </div>
+            `;
+            productsList.appendChild(div);
+
+            // Lưu vào map để dùng cho thiệt hại
+            if (variant.variant_id) {
+                orderVariantsById[String(variant.variant_id)] = {
+                    variant_id: variant.variant_id,
+                    product_name: variant.product_name || variant.variant_name || '',
+                    variant_name: variant.variant_name || '',
+                    sku: variant.sku || '',
+                    price: variant.price || 0,
+                    quantity: variant.quantity || 0,
+                };
+            }
+        });
+        attachVariantCheckboxHandlers();
+    }
+    
+    // Visual feedback khi tick/untick checkbox sản phẩm
+    function attachVariantCheckboxHandlers() {
+        document.querySelectorAll('.variant-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const item = this.closest('.variant-item');
+                if (this.checked) {
+                    item.classList.add('bg-blue-50', 'border-blue-200');
+                    item.classList.remove('hover:bg-gray-50');
+                } else {
+                    item.classList.remove('bg-blue-50', 'border-blue-200');
+                    item.classList.add('hover:bg-gray-50');
+                }
+                // Sắp xếp lại: đã tick lên đầu
+                reorderVariants();
+            });
+        });
+    }
+    
+    // Sắp xếp lại variants: đã tick lên đầu
+    function reorderVariants() {
+        const items = Array.from(productsList.querySelectorAll('.variant-item'));
+        const sorted = items.sort((a, b) => {
+            const aChecked = a.querySelector('.variant-checkbox')?.checked || false;
+            const bChecked = b.querySelector('.variant-checkbox')?.checked || false;
+            if (aChecked && !bChecked) return -1;
+            if (!aChecked && bChecked) return 1;
+            return 0;
+        });
+        sorted.forEach(item => productsList.appendChild(item));
+    }
+    
+    // Hàm chung để thêm preview file (ảnh/video)
+    function addPreviewFile(file) {
+        const div = document.createElement('div');
+        div.className = 'relative';
+        
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.className = 'w-full h-24 object-cover rounded';
+            div.appendChild(img);
+        } else if (file.type.startsWith('video/')) {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.className = 'w-full h-24 object-cover rounded';
+            video.controls = true;
+            div.appendChild(video);
+        }
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = function() {
+            div.remove();
+            // Remove file from input
+            const dt = new DataTransfer();
+            Array.from(imagesInput.files).forEach(f => {
+                if (f !== file) dt.items.add(f);
+            });
+            imagesInput.files = dt.files;
+        };
+        div.appendChild(removeBtn);
+        imagePreview.appendChild(div);
+    }
+    
+    // Preview images khi chọn file
+    imagesInput.addEventListener('change', function(e) {
+        imagePreview.innerHTML = '';
+        const files = Array.from(e.target.files);
+        files.forEach(file => addPreviewFile(file));
+    });
+    
+    // Hỗ trợ dán (Ctrl+V) ảnh từ clipboard vào upload
+    document.addEventListener('paste', function(e) {
+        // Không can thiệp khi đang gõ trong input/textarea
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+            return;
+        }
+        
+        const clipboardData = e.clipboardData || window.clipboardData;
+        if (!clipboardData || !clipboardData.items) return;
+        
+        const items = Array.from(clipboardData.items);
+        const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+        if (!imageItems.length) return;
+        
+        e.preventDefault();
+        
+        const dt = new DataTransfer();
+        Array.from(imagesInput.files || []).forEach(f => dt.items.add(f));
+        
+        imageItems.forEach(item => {
+            const file = item.getAsFile();
+            if (file) {
+                dt.items.add(file);
+                addPreviewFile(file);
+            }
+        });
+        
+        imagesInput.files = dt.files;
+    });
+
+});
+</script>
+{% endblock %}
+

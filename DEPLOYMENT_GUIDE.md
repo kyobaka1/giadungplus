@@ -1,12 +1,14 @@
-XÂY DỰNG TÍNH NĂNG trainning cho cskh app.
+SỬA LẠI LOGIC VÀ CODE CHO TICKET TẠI APPS KHO.
 
-*Yêu cầu* Thêm menu ở dưới mục Information Center -> Tài liệu trainning.
-*Xây dựng tính năng views template phục vụ mục đích sau*
-  - Tính năng: Thêm tài liệu nội bộ -> Admin/CSKH Manager
-     + Upload / Reupload / Delete tài liệu nội bộ dạng Markdown -> upload lên settings/logs/train_cskh/
-     + Quản lý tên tài liệu nội bộ.
-     + Thể hiện file được upload bởi ai, đăng lên khi nào.
-  
-  - Tính năng: Xem tài liệu nội bộ -> All CSKH (Staff+Admin)
-     + Xem file tài liệu nội bộ được hiển thị dưới dạng html
-     + Danh sách tên file được sắp xếp alphabet để dễ dàng quản lý.
+1. Danh sách ticket
+-> Mặc định lọc: Bộ phận xử lý: KHO.
+-> Sửa lại cách hiển thị các cột:
+   Mã ticket (hiện thông báo tin nhắn bên dưới mã ticket) - Mã đơn - Người tạo -> Loại ticket -> Trang thái -> Bộ phận xử lý -> Thao tác (Bỏ thao tác xoá).
+
+2. Ticket detail -> ở kho (app kho)
+   Sửa lại tags: CHUYỂN SANG KHO -> CHUYỂN SANG CSKH. 
+   Khi bộ phận xử lý: KHO -> hiện tags CHUYỂN SANG CSKH
+   Tin nhắn chuyển bộ phận sang CSKH sẽ hiển thị màu xanh dương -> Thêm đoạn code và logic này sang cả cskh detail.
+
+   Khi nhắn chuyển sang CSKH -> tự động chuyển bộ phận xử lý sang CSKH, chuyển trạng thái sang -> Chờ CSKH xử lý
+   

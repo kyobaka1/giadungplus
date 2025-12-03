@@ -13,5 +13,6 @@ venv/
 # Ignore bill logs
 settings/logs/bill/
 settings/logs/train_cskh/
-settings/logs/ticket_actions/
 settings/logs/cskh_ticket_config.json
+settings/logs/ticket_actions
+settings/logs/raw_cookie

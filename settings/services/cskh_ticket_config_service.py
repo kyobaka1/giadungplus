@@ -66,6 +66,25 @@ DEFAULT_CONFIG: Dict[str, List[str]] = {
         "Voucher giảm giá",
         "Chi phí khác",
     ],
+    # Cấu hình riêng cho ticket kho
+    "nguon_loi_kho": [
+        "Lỗi soạn hàng",
+        "Lỗi đóng gói",
+        "Lỗi kiểm hàng",
+        "Lỗi nhập kho",
+    ],
+    "loai_loi_kho": [
+        "Soạn thiếu",
+        "Soạn nhầm mẫu/màu",
+        "Đóng gói không kỹ",
+        "Giao nhầm kho",
+    ],
+    "huong_xu_ly_kho": [
+        "Kiểm kê lại tồn kho",
+        "Soạn bù hàng",
+        "Thu hồi hàng sai",
+        "Báo CSKH xử lý với khách",
+    ],
 }
 
 

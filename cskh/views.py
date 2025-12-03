@@ -856,15 +856,30 @@ def ticket_detail(request, ticket_id):
                 sugget_process['formatted_time'] = ts_str[:16].replace('T', ' ') if len(ts_str) > 16 else ts_str
 
     # Trouble & Event timeline
-    events = ticket.events.select_related('created_by').all()
+    events = ticket.events.select_related('created_by').order_by('created_at').all()
     
     # Đánh dấu event nào cần hiển thị avatar/name (chỉ event đầu tiên trong nhóm cùng người tạo)
+    # và event nào là cuối cùng trong nhóm (để hiển thị thời gian)
     prev_creator_id = None
-    for ev in events:
+    events_list = list(events)
+    for i, ev in enumerate(events_list):
         current_creator_id = ev.created_by.id if ev.created_by else None
         ev.show_avatar = (current_creator_id != prev_creator_id)
+        
+        # Đánh dấu event cuối cùng trong nhóm (event trước khi creator_id thay đổi hoặc là event cuối cùng)
+        next_ev = events_list[i + 1] if i + 1 < len(events_list) else None
+        next_creator_id = next_ev.created_by.id if next_ev and next_ev.created_by else None
+        ev.is_last_in_group = (current_creator_id != next_creator_id)
+        
         prev_creator_id = current_creator_id
     
+    # Xác định kho hiển thị theo location_id
+    warehouse_name = None
+    if ticket.location_id == 241737:
+        warehouse_name = "Kho Geleximco"
+    elif ticket.location_id == 548744:
+        warehouse_name = "Kho Tô Ký"
+
     # Lấy thông tin order nếu có order_id
     order_info = None
     process_order_info = None
@@ -991,6 +1006,7 @@ def ticket_detail(request, ticket_id):
         'huong_xu_ly_list': ticket_config.get('huong_xu_ly', []),
         'status_choices': Ticket.STATUS_CHOICES,
         'ticket_type_choices': Ticket.TICKET_TYPE_CHOICES,
+        'warehouse_name': warehouse_name,
     }
     return render(request, 'cskh/tickets/detail.html', context)
 
@@ -1617,6 +1633,10 @@ def ticket_config(request):
             "trang_thai": parse_lines("trang_thai"),
             "huong_xu_ly": parse_lines("huong_xu_ly"),
             "loai_chi_phi": parse_lines("loai_chi_phi"),
+            # Cấu hình riêng cho ticket kho
+            "nguon_loi_kho": parse_lines("nguon_loi_kho"),
+            "loai_loi_kho": parse_lines("loai_loi_kho"),
+            "huong_xu_ly_kho": parse_lines("huong_xu_ly_kho"),
         }
 
         try:
@@ -1634,6 +1654,10 @@ def ticket_config(request):
         "trang_thai_text": "\n".join(config.get("trang_thai", [])),
         "huong_xu_ly_text": "\n".join(config.get("huong_xu_ly", [])),
         "loai_chi_phi_text": "\n".join(config.get("loai_chi_phi", [])),
+        # Text cho cấu hình ticket kho
+        "nguon_loi_kho_text": "\n".join(config.get("nguon_loi_kho", [])),
+        "loai_loi_kho_text": "\n".join(config.get("loai_loi_kho", [])),
+        "huong_xu_ly_kho_text": "\n".join(config.get("huong_xu_ly_kho", [])),
     }
     return render(request, "cskh/tickets/config.html", context)
 

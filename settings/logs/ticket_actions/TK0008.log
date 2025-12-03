@@ -5,3 +5,4 @@
 {"timestamp": "2025-11-26T18:45:25.487971", "user": "giaphuc", "action": "added_event", "details": {"event_id": 19, "tags": "GẤP GẤP GẤP!!!"}}
 {"timestamp": "2025-11-26T18:46:32.868159", "user": "giaphuc", "action": "added_event", "details": {"event_id": 20, "tags": "KHÁCH KHÓ TÍNH"}}
 {"timestamp": "2025-11-26T21:46:41.282665", "user": "giadungplus", "action": "transferred_department", "details": {"from": "cskh", "to": "warehouse", "reason": "CHUYỂN BỘ PHẬN: KHO qua Trouble & Event", "event_id": 23}}
+{"ticket_number": "TK0008", "username": "giadungplus", "user": "giadungplus", "action": "transferred_department", "data": {"from": "warehouse", "to": "cskh", "reason": "CHUYỂN SANG CSKH qua Trouble & Event", "event_id": 39, "status_change": "waiting_cskh"}, "details": {"from": "warehouse", "to": "cskh", "reason": "CHUYỂN SANG CSKH qua Trouble & Event", "event_id": 39, "status_change": "waiting_cskh"}, "timestamp": "2025-12-03T04:46:53.777429+00:00"}
