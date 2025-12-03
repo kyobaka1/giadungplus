@@ -59,11 +59,26 @@ def log_ticket_action(ticket_number, username, action, data=None):
     log_entry = {
         'ticket_number': ticket_number,
         'username': username,
+        'user': username,  # Thêm field 'user' để tương thích với get_ticket_logs
         'action': action,
         'data': data or {},
+        'details': data or {},  # Thêm field 'details' để tương thích
         'timestamp': timezone.now().isoformat(),
     }
+    
+    # Ghi vào logger
     logger.info(f"Ticket Action: {json.dumps(log_entry, ensure_ascii=False)}")
+    
+    # Ghi trực tiếp vào file log
+    try:
+        logs_dir = Path('settings/logs/ticket_actions')
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        log_file = logs_dir / f"{ticket_number}.log"
+        
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        logger.warning(f"Could not write ticket log to file for {ticket_number}: {e}")
 
 def get_ticket_logs(ticket_number):
     """

@@ -980,6 +980,7 @@ def ticket_detail(request, ticket_id):
         'order_info': order_info,
         'process_order_info': process_order_info,
         'variants': variants,
+        'variants_json': json.dumps(variants) if variants else '[]',
         'users': users_with_dept,
         'departments': departments,
         'sugget_process': sugget_process,

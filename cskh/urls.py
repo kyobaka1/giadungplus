@@ -20,6 +20,8 @@ urlpatterns = [
     
     # Ticket API URLs
     path('api/tickets/<int:ticket_id>/add-cost/', views_api.api_add_cost, name='api_add_cost'),
+    path('api/tickets/<int:ticket_id>/costs/<int:cost_id>/update/', views_api.api_update_cost, name='api_update_cost'),
+    path('api/tickets/<int:ticket_id>/costs/<int:cost_id>/delete/', views_api.api_delete_cost, name='api_delete_cost'),
     path('api/tickets/<int:ticket_id>/update-process-order/', views_api.api_update_process_order, name='api_update_process_order'),
     path('api/tickets/<int:ticket_id>/update-responsible/', views_api.api_update_responsible, name='api_update_responsible'),
     path('api/tickets/<int:ticket_id>/costs/<int:cost_id>/upload-files/', views_api.api_upload_cost_files, name='api_upload_cost_files'),
