@@ -457,13 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Chỉ hiển thị danh sách nếu có từ 2 đơn trở lên
-        if (orders.length === 1) {
-            orderSearchResults.classList.add('hidden');
-            orderSearchResults.innerHTML = '';
-            return;
-        }
-
+        // Hiển thị danh sách để chọn, kể cả khi chỉ có 1 đơn
         orderSearchResults.classList.remove('hidden');
         orderSearchResults.innerHTML = '';
 
