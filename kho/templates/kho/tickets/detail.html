@@ -463,45 +463,29 @@
                 {% endif %}
             </div>
             
-            <!-- Lịch sử xử lý -->
+            <!-- Lịch sử xử lý (tối giản) -->
             <div class="bg-white border rounded-xl p-6 shadow-sm">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-base font-semibold text-gray-800">Lịch sử xử lý</h3>
-                    <button type="button" id="btnToggleLogs"
-                            class="text-xs text-sky-700 hover:text-sky-900 flex items-center gap-1">
-                        <span id="btnToggleLogsText">Xem thêm</span>
-                        <span id="btnToggleLogsIcon">▼</span>
-                    </button>
                 </div>
-                <div id="logsContainer" class="space-y-4 max-h-64 overflow-y-hidden transition-all duration-300 ease-in-out">
+                <div id="logsContainer" class="space-y-1 max-h-64 overflow-y-auto text-xs font-mono text-gray-700">
                     {% for log in logs %}
-                    <div class="flex gap-3">
-                        <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <span class="text-xs font-semibold text-blue-600">{{ log.user|first|upper }}</span>
-                        </div>
-                        <div class="flex-1">
-                            <div class="flex items-center gap-2">
-                                <span class="font-medium text-sm">{{ log.user }}</span>
-                                <span class="text-xs text-gray-500">
-                                    {% if log.formatted_time %}
-                                        {{ log.formatted_time }}
-                                    {% elif log.timestamp %}
-                                        {{ log.timestamp|date:"d/m/Y H:i" }}
-                                    {% else %}
-                                        {{ ticket.created_at|date:"d/m/Y H:i" }}
-                                    {% endif %}
-                                </span>
-                            </div>
-                            <div class="text-sm text-gray-700 mt-1">
-                                <strong>{{ log.action|default:"Thao tác" }}</strong>
-                                {% if log.details %}
-                                <span class="text-gray-500">- {{ log.details|safe }}</span>
+                        <div>
+                            <span class="text-gray-500">
+                                {% if log.formatted_time %}
+                                    {{ log.formatted_time }}
+                                {% elif log.timestamp %}
+                                    {{ log.timestamp|date:"d/m/Y H:i" }}
+                                {% else %}
+                                    {{ ticket.created_at|date:"d/m/Y H:i" }}
                                 {% endif %}
-                            </div>
+                            </span>
+                            <span> -- </span>
+                            <span class="font-semibold">{{ log.user }}</span>
+                            <span> {{ log.action|default:"Thao tác" }}</span>
                         </div>
-                    </div>
                     {% empty %}
-                    <p class="text-sm text-gray-500">Chưa có lịch sử</p>
+                        <p class="text-xs text-gray-500">Chưa có lịch sử</p>
                     {% endfor %}
                 </div>
             </div>

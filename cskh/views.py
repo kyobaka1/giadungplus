@@ -834,11 +834,17 @@ def ticket_detail(request, ticket_id):
     # Tính tổng chi phí
     total_cost = costs.aggregate(total=Sum('amount'))['total'] or 0
 
-    # Cấu hình ticket CSKH (nguồn lỗi, hướng xử lý, loại chi phí, ...)
+    # Cấu hình ticket CSKH/Kho (nguồn lỗi, loại vấn đề, loại lỗi, hướng xử lý, loại chi phí, ...)
     ticket_config = CSKHTicketConfigService.get_config()
 
-    # Các dropdown lấy từ config
-    issue_type_options = ticket_config.get('loai_van_de', []) or []
+    # Loại vấn đề: gộp loại vấn đề CSKH + loại vấn đề kho (nếu có), loại bỏ trùng
+    base_issue_types = (ticket_config.get('loai_van_de', []) or []) + (
+        ticket_config.get('loai_van_de_kho', []) or []
+    )
+    issue_type_options = []
+    for item in base_issue_types:
+        if item and item not in issue_type_options:
+            issue_type_options.append(item)
 
     # Sugget process (hướng xử lý) - chuẩn hoá để dễ hiển thị
     raw_sugget = ticket.sugget_process or {}
@@ -986,6 +992,15 @@ def ticket_detail(request, ticket_id):
     if ticket.responsible_department and ticket.responsible_department not in departments:
         departments.append(ticket.responsible_department)
     
+    # Nguồn lỗi: gộp nguồn lỗi CSKH + nguồn lỗi kho, loại bỏ trùng
+    base_sources = (ticket_config.get('nguon_loi', []) or []) + (
+        ticket_config.get('nguon_loi_kho', []) or []
+    )
+    reason_sources = []
+    for item in base_sources:
+        if item and item not in reason_sources:
+            reason_sources.append(item)
+
     context = {
         'ticket': ticket,
         'costs': costs,
@@ -999,9 +1014,9 @@ def ticket_detail(request, ticket_id):
         'users': users_with_dept,
         'departments': departments,
         'sugget_process': sugget_process,
-        # Lý do, chi phí, hướng xử lý lấy từ cấu hình CSKH
+        # Lý do, chi phí, hướng xử lý lấy từ cấu hình
         'issue_type_options': issue_type_options,
-        'reason_sources': ticket_config.get('nguon_loi', []),
+        'reason_sources': reason_sources,
         'cost_types': ticket_config.get('loai_chi_phi', []),
         'huong_xu_ly_list': ticket_config.get('huong_xu_ly', []),
         'status_choices': Ticket.STATUS_CHOICES,
