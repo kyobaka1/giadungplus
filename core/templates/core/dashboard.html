@@ -201,7 +201,9 @@
         const ua = navigator.userAgent || '';
         const isIOS = /iPhone|iPad|iPod/i.test(ua);
         const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
-        const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+        const isStandaloneDisplayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+        const isNavigatorStandalone = typeof window.navigator !== 'undefined' && window.navigator.standalone === true;
+        const isStandalone = isStandaloneDisplayMode || isNavigatorStandalone;
 
         if (isIOS && isSafari && isStandalone) {
             const notice = document.getElementById('ios-pwa-notice');
