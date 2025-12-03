@@ -9,9 +9,8 @@ db.sqlite3
 venv/
 .idea/
 .vscode/
+
 # Ignore bill logs
 settings/logs/bill/
-
-# Ignore local settings/logs on dev (server có file cấu hình riêng)
-settings/logs/
-settings/log_feedback.log
+settings/logs/train_cskh/
+settings/logs/cskh_ticket_config.json

@@ -1,0 +1,36 @@
+accept
+application/json, text/plain, */*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9,vi;q=0.8
+cache-control
+no-cache
+cookie
+_fbp=fb.1.1700489523640.1798445263; fulfillment-language=vi; _hjSessionUser_868286=eyJpZCI6Ijg0NGQwYTVmLTRhNDQtNTE4MS05NTk5LTc2MGM1OWY1ZjM0NCIsImNyZWF0ZWQiOjE3MDM3NDY2Nzk3NjUsImV4aXN0aW5nIjp0cnVlfQ==; __stripe_mid=01e43552-05c4-4864-89f5-34e6d11529cc265662; REC7iLP4Q=80b5d10f-d55d-4c30-9b8b-a0d7ff7acd8e; SPC_F=wjPPDANeLTZAgemVrbZdHhJkGQzxmNEb; SC_DFP=dgdNkIfztSFEqTkAgYNFJhbyyJvNLkkm; REC_T_ID=c04f88eb-c340-11ef-94ee-0aba9acbf78f; SPC_CLIENTID=d2pQUERBTmVMVFpBhffgqhrthsxkgcyw; _QPWSDCXHZQA=e33482a2-b7ea-4615-e8c4-ea48bbac6428; _ga_V5F62RCCZ6=GS2.1.s1758793655$o1$g1$t1758793723$j60$l0$h0; _ga_QLZF8ZGF0S=GS2.1.s1762156488$o1$g0$t1762156993$j60$l0$h0; _med=notification; _ga_3XVGTY3603=GS2.1.s1762430681$o9$g1$t1762430730$j11$l0$h0; _gcl_au=1.1.57079139.1763949904; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_SI=YiQcaQAAAABZU1hCMFEwbC3IyAwAAAAAWWp2QVVnNFY=; SPC_SEC_SI=v1-VjgxSlJJelJTenVPZ0MzWoJEMXfecarJ1lamc0cUuI4G+1QA9/vKK3t9WleVSGqEoIOi3rTERCDAeNVd0hWfxJOmq3A1V7eFfBL89y8tDrc=; SPC_CDS=57c46db9-fc6f-4e81-9fe8-ec94aeb4add7; SPC_SI=NZAdaQAAAAB0Vm5mWG5ZbxokmgAAAAAATWJqWEx5bEY=; SPC_CDS_CHAT=efa2f45c-231e-419d-b861-24336ffbb204; _sapid=3a9b494e3a36972b62189b902f88e5809fbe02f5ba17c1c6f2e3e856; SPC_U=1009212076; csrftoken=hhNkjocueUARROTjHx9cJj85xda1kyia; SPC_R_T_ID=neoStHagzehwqUJgsgeFJGVBW3ingGmdr/e/UKkLpnHVuhVxLGYjDiX7391hPkEfJFczjn/NGLXGJ1filZIU5HsLylXqL3H898ak+KpYsgATdObQq51JAuN2SzdWfJeDtjAAlFx2AIM2YVZ0djTK7VM8h+XEIo1J9T4sTFVhUrs=; SPC_R_T_IV=bk5xb3FOR2ozTDBZQ2RrSg==; SPC_T_ID=neoStHagzehwqUJgsgeFJGVBW3ingGmdr/e/UKkLpnHVuhVxLGYjDiX7391hPkEfJFczjn/NGLXGJ1filZIU5HsLylXqL3H898ak+KpYsgATdObQq51JAuN2SzdWfJeDtjAAlFx2AIM2YVZ0djTK7VM8h+XEIo1J9T4sTFVhUrs=; SPC_T_IV=bk5xb3FOR2ozTDBZQ2RrSg==; AMP_TOKEN=%24NOT_FOUND; _ga=GA1.2.1006142831.1700489524; _gid=GA1.2.1236060709.1764423920; _dc_gtm_UA-61914164-6=1; SPC_ST=.WG5Zd3hLeUMzaVdJRTJmWZePAL4sekrWd/VNiTnrwhPoKAbQmeE4GtIGuoBBLB6HrH/guTgTPwnHY/EwSW3M6D650Bhuvgnx7CkHyZ2DSyChx9NcnW5oisiha544KR8ApfWQDnq38xs842zUF5CIHhDiTdOQqkLmzZ4POLpVqzA1zG6FmgF43uvqjNvXUzxef3dZDcXfVmVC77KqEDtYfuPJcpxxNSYp4+swG0+HxvulS4wTveKgBO/0EgZB+x7XA+fLFiJS5xTVSWaojH7g5w==; _ga_4GPP1ZXG63=GS2.1.s1764423919$o575$g0$t1764423925$j54$l1$h1186511725; SPC_SC_SESSION=gauYOFu8xb4sYDtOJihNSXqhumox5YUegOpVRoNpM6rPK/wRhnUfOd1GLQyaclwQayaZ5YAz1Qx1maDIBwAJ6yjLawovQiRB6a1aVZmnITIbHgBiy8nLyPG16e0/s/gPCahmPbwYM/f+8TuYzk8VutwEIDxSLchIcyirgKqgUwOjfAuYfBUfgFKXm7dt19UE6IrK4ZRt8UR9HWYip2fUcXByR4Gk9vElQN2Y+jtiSnpP7TxXmLs8RlVpjqyf45H3QcvNAAfqGd+sGuMI0P+/PkA==_1_1009212076; SPC_STK=/IKE+2Cyc1aBkSyoQS+BQtU2EO6DUK+lRbN8hnL69WtkQgKXkPexu2EMpvIEga2beZsyU+aKdPekM5+ntLYUCc6N4t1V/7+Fl+vGmwOd5Ipzos1kp7dmiv+hYoWVPy29Qy3dddRWDNr2mAUjuu7iMl372+V/TzHyPxcmwAl7e4Vho23N9rYFJ8ie977tl4762+v4N9GQjtwYOdmOPcF7DVUTPLdsEUj/0Q9aN7iiyucVaZp57+0+6wIxY33ejU09GEIrfS2CakR2v5YjnlBxHxSuRQaFN5raPppef2M2O2r/a0d1T2805uAiYwddDalp9qElsj08wEZz24JFdL/DpMNlEeGliJEUA0sLjJ5ntNkQRCy7+TRaNnunsasMsWOq37m92VZfMHLb4cnXOI/mJACF8nbtAAwemOX2MZqUrqQlzI1ZKxmVQ8aUA77g1asopz/VDT+fB2+UXz/jq8Xz68WAuMF8zjhXaFO6rbdqaCZWylkARr6ePyrOyTApgYvr2+rt8QYXhdRMGuD3/XTwyg==; SPC_EC=.UU1qc0tkRUZHTTNRUXZHWTx3/DICF/o2pOxi9SQ9huluqtw36usyLxWLN1/YFCWjefaR4Gqyfa/4wcAP5uOn6xOX+50QOmlEglVpVYWbOSMBuElAcU4/hUvJ6gN2eeJz+nnu6Eh5b4IpkkLXKhS8eHnzTXjrQ4t4jIIIdu9wGeowMVqEhhXIDdzqoIrGYer8tmhxX6k8+5bGbKeJ8R+r23Lw3+dBBP6uwhgcRd8Wx2U4KdKsc2M9MzujbmkrwVfMMQDhquIugiJ85F3Vd9DgSg==; CTOKEN=qYfQNM0pEfCscVIXsv7I9w%3D%3D; shopee_webUnique_ccd=PSVjB1OI%2BMkUhHYBXNSE%2Fw%3D%3D%7CGRJKm4ztjG9xAn3eLZ3gZnVhALjSEzGDY0uBI6lWOpJgCFBx1siGxr%2FjaYENaHusgNXwkszMQ3w%3D%7Cu9ZyAzdwzzgpaYWQ%7C08%7C3; ds=44c21eda67249e78169faec5598b5807
+locale
+vi
+pragma
+no-cache
+priority
+u=1, i
+referer
+https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2
+sc-fe-session
+F99536AC03C3964F
+sc-fe-ver
+21.127161
+sec-ch-ua
+"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36

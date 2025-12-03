@@ -1,0 +1,32 @@
+accept
+application/json, text/plain, */*
+accept-encoding
+gzip, deflate, br, zstd
+accept-language
+en-US,en;q=0.9
+cookie
+SPC_F=DT0TzojQctCMb7S6czYZUsG9KRAg4pjk; REC_T_ID=57e9eb52-737b-11f0-b2a8-5229195f4f73; _fbp=fb.1.1754563404303.597777788959842155; SPC_CLIENTID=RFQwVHpvalFjdENNbelccaleqtmllcpk; _med=affiliates; _hjSessionUser_868286=eyJpZCI6IjJmMGY4ZDlhLTgwOTktNTJlYy1hNGU3LWZhMjUxYjA3NmYzNyIsImNyZWF0ZWQiOjE3NTg3NzE4MjU3MTUsImV4aXN0aW5nIjp0cnVlfQ==; SC_DFP=KTwwzPamgfoizpUgQjuhJrMnEanqIoUp; _QPWSDCXHZQA=6344dff0-1c85-460a-9c4a-3155ac06f861; REC7iLP4Q=75b267b0-a5cc-461a-b578-9a4c9958807e; fulfillment-language=vi; __stripe_mid=7fbc0929-bce4-4f8e-84e2-421c6372130c8e802b; _gcl_au=1.1.756719383.1762340328; SPC_SI=uCQcaQAAAABaRzg3cUJSNKvllgwAAAAATmF3Z2FJckI=; SPC_SEC_SI=v1-c25KR0NxNWdTMkZrZ2c2TM2Jg3foL601mDHr2dPS2JwfD+bGsySM72YdqjTVElz1qaKB3YP4WlAWASZz8CZAT4mWeFRL4f8mbGEk8dVhXrk=; SPC_CDS=c85839e8-753c-452d-96f2-91182cd73ca2; SPC_SI=+o8daQAAAABoQ0pKUlJCVDMrmgAAAAAAZFJER2haa2Q=; SPC_CDS_CHAT=24b4f4cb-00b7-44b5-b3d4-8d7f9e501e35; _sapid=3ad89541e91678293f85594301b4e67089a5db768c2a6e2c3d81e635; SPC_SC_SA_TK=; SPC_SC_SA_UD=; SPC_SC_OFFLINE_TOKEN=; SC_SSO=-; SC_SSO_U=-; SPC_U=1639480824; csrftoken=swBXsAVv7Oqr5J2Q6H6lkLEeo5z0rwgP; SPC_R_T_IV=ZERzaXp0a0ZJVWt2aGdBMA==; SPC_T_ID=hFa5oQWQuj0hoiZnuMv9PbVlL69wby8I0gt4aC3F9rXOLCLbJmBSJEfEG3XInkwTUnqVItbMd0Z9rHvKPNNlgYrGspTYbumSG+h72JLphXNsG3QyFk8e+0yvfy7az5gfohm229gKJDQnFcjQL0Hnp5KcaS9jdEzUgeRqxDUg9Sg=; SPC_T_IV=ZERzaXp0a0ZJVWt2aGdBMA==; SPC_R_T_ID=hFa5oQWQuj0hoiZnuMv9PbVlL69wby8I0gt4aC3F9rXOLCLbJmBSJEfEG3XInkwTUnqVItbMd0Z9rHvKPNNlgYrGspTYbumSG+h72JLphXNsG3QyFk8e+0yvfy7az5gfohm229gKJDQnFcjQL0Hnp5KcaS9jdEzUgeRqxDUg9Sg=; AMP_TOKEN=%24NOT_FOUND; _ga=GA1.2.1904914627.1710317951; _gid=GA1.2.921836708.1764423956; _dc_gtm_UA-61914164-6=1; SPC_ST=.M1BXQVBtZ2J2R2lVbGt3S2mwJA7isFtPgQuv0OPZvL1x41W0NobGb/GI/82tH+8tSAMtiCEgMc1wOwjg+6W//Vc8toE/3cvKuEV6HOjA6HM31Mlit6J1WwBn+6S5390GYSOfLzbBvNVghy76/z+MhvTi+LxzJv16b8GpMFFJhrnclSO9JMGp+kmRko0H/gea5NhCjy6qO+cnfCrXvyPw7mfbNWViOziaG0RE/QfCNUO/jlQYgYf6GB0WTwv18B1vwNPUr4e5zdmX/ELNiTEW9w==; _ga_4GPP1ZXG63=GS2.1.s1764423955$o32$g0$t1764423959$j56$l1$h2010963030; SPC_SC_SESSION=gnNZLahr9Wc7Lbzu08khPGQOjF/Bt0V9d3IbW55QFcxASEvCh3MlaSou5d5GvU7FBRvIyl5xjB0CSmsZq6BCjLqC8koplahl0UHJ1FwenZvEnbXPHcbvo7FBhl3cww2D9zQxaLtYiaESNA8SOnowiey+JwYjjGfrlsnq+uYVqaJCo4n2kA0kaFO4JVhUX9JsgDNFoeA8jps63ltLJh4sRirAu98RovEy7ijGkultiiAjethjVFIpBXEx6pJncL0zCa7phPw6RAvhCNUJqKCXjxg==_1_1639480824; SPC_SC_MAIN_SHOP_SA_UD=0; SPC_STK=3m3nEVnNNYRbAf7Z9vLCFvx2SnZvtP5cPhYb7gKGWYSLKBStRdsyln51cE9qNg/oLw7fhVkoa334/CUk3VpnOb0yWpJsjNDDQxnCyGLTxtiwoHAuOdAWmidPT2eM6PrE8OlJqLlTD1T/aq4Nm4GP6SFOdgXawbWHmHl5/YhtW235x/yg8vDitiyEcR2E7juQCXf2MFu6Gfi/MXmEt5XFw1DIAkhtq4RLIUdljxJWkGmw7o9V5m8S/DVEMDFQOtvCNqOtrKgcCXYpr42tJ91zpJ9TLx2l94hM8Xpsi0efoTzo6LKVJufLUMIpTxYkIoiGifTzR0kO/clS4sU40uIU3HXTyljZE+TEnf4O5K3zwPWYx/YO0QezlU4cJH2rTntgi6qHyxqB70t6KihLoMTFHr+oE1VujsxhcFQIlvOXQIBh0P7yB3POCr12CluAasIcPmyyF5tnx+iILIFAhiaXd2ihSMAAyYdL/p2OtI3kU+9G4RS/OJ8ghLoorBMKBVgB; shopee_webUnique_ccd=JGQ2GcX1BNqnRXeU4emQ1A%3D%3D%7CPWlsIwMzdobFge4RwVbLeyKrThbjme0id69mMhkpCHcMMwZPNZuZvT3cOEC3Eh%2BOu0ZjdStKNAU%3D%7CTV2AzMkM75CGfUa8%7C08%7C3; ds=c4be4c929e5cfef53fc23577ea2b92e7; SPC_EC=.MzRlSjYwVVBvNkdYQkkwTofcvKrZPDTqfnGPhAvdZkK2YgVP3Z1Zu5HjQ9+BYG/gn5Y5hxygSDCXVr5xav+7DwK6gxLR7jCAfmyrL5+ZqAiQUn2LTVwW0LGfHuv35eDAeD4BnYp1INK4hoZZJdqpl0nPOYn4BDI1dOyNnvDpGBrwLsgX3kSIWlnndlilivZDuQjqE0qzaqWQ5ArPgpFL186+HFhISLruaDrWbpj0ztGEmcb9ByB6Vq1as4KTdKg1uqkl41HfyjSmUjAkQl5BqQ==; CTOKEN=wlrFhs0pEfCZm14I77p%2F%2BA%3D%3D
+locale
+vi
+priority
+u=1, i
+referer
+https://banhang.shopee.vn/portal/product/list/live/all?operationSortBy=recommend_v2
+sc-fe-session
+A9FD4B8E665E5CD8
+sc-fe-ver
+21.127161
+sec-ch-ua
+"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"
+sec-ch-ua-mobile
+?0
+sec-ch-ua-platform
+"Windows"
+sec-fetch-dest
+empty
+sec-fetch-mode
+cors
+sec-fetch-site
+same-origin
+user-agent
+Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36
