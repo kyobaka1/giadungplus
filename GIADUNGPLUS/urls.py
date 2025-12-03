@@ -28,4 +28,11 @@ urlpatterns = [
     path("products/", include("products.urls")),
     path("settings/", include("settings.urls")),
     path("core/", include("core.urls")),  # Selenium loading page
+
+    # API Web Push Notification
+    path(
+        "api/push/register/",
+        core_views.register_webpush_subscription,
+        name="api_push_register",
+    ),
 ]

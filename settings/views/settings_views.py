@@ -4,10 +4,14 @@ from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
+
 from kho.utils import admin_only
 from ..services.config_service import SapoConfigService, ShopeeConfigService
 from core.sapo_client import SapoClient
 from products.services.shopee_init_service import ShopeeInitService
+from core.models import WebPushSubscription
+from core.services.notifications import send_webpush_to_subscription
+
 
 @admin_only
 def settings_dashboard(request):
@@ -166,3 +170,54 @@ def init_shopee_products_api(request):
             "success": False,
             "error": str(e)
         }, status=500)
+
+
+@admin_only
+@require_http_methods(["GET", "POST"])
+def push_notification_view(request):
+    """
+    Màn hình gửi Web Push Notification từ Settings.
+    - Gửi tới toàn bộ subscription active (kể cả user_id=None).
+    """
+    if request.method == "POST":
+        title = request.POST.get("title", "").strip() or "Thông báo"
+        body = request.POST.get("body", "").strip()
+        url = request.POST.get("url", "").strip() or "/"
+        icon = request.POST.get("icon", "").strip() or None
+        extra_data_raw = request.POST.get("extra_data", "").strip()
+
+        if not body:
+            messages.error(request, "Nội dung (body) không được để trống.")
+            return redirect("push_notification")
+
+        # Parse JSON data nếu có
+        extra_data = {}
+        if extra_data_raw:
+            try:
+                extra_data = json.loads(extra_data_raw)
+            except json.JSONDecodeError:
+                messages.error(request, "Dữ liệu JSON bổ sung không hợp lệ.")
+                return redirect("push_notification")
+
+        # Thêm url vào data để service worker dùng nếu cần
+        extra_data.setdefault("url", url)
+
+        qs = WebPushSubscription.objects.filter(is_active=True)
+        total = qs.count()
+        success = 0
+        for sub in qs:
+            if send_webpush_to_subscription(sub, title, body, data=extra_data, icon=icon, url=url):
+                success += 1
+
+        if total == 0:
+            messages.warning(request, "Hiện chưa có subscription Web Push nào để gửi.")
+        else:
+            messages.success(
+                request,
+                f"Đã gửi thông báo tới {success}/{total} subscription active."
+            )
+
+        return redirect("push_notification")
+
+    # GET
+    return render(request, "settings/push_notification.html")
