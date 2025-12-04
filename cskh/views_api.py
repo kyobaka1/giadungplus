@@ -959,7 +959,19 @@ def api_search_order(request):
     order = ticket_service.find_order(search_key)
 
     if not order:
-        return JsonResponse({'success': False, 'error': 'Không tìm thấy đơn hàng'}, status=404)
+        # Log chi tiết để debug các case không tìm thấy (ví dụ: SON code vẫn tồn tại trên Sapo)
+        logger.warning(
+            "[api_search_order] Không tìm thấy đơn hàng cho search_key='%s' - "
+            "đã thử cả reference_number và query SON code.",
+            search_key,
+        )
+        return JsonResponse(
+            {
+                'success': False,
+                'error': f"Không tìm thấy đơn hàng với mã: {search_key}",
+            },
+            status=404,
+        )
 
     order_info = ticket_service.extract_order_info(order)
     

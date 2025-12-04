@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any, List
 from orders.services.sapo_service import SapoCoreOrderService
 from orders.services.dto import OrderDTO
 from core.sapo_client import BaseFilter, get_sapo_client
+from core.sapo_client.client import debug_print
 
 logger = logging.getLogger(__name__)
 
@@ -29,33 +30,72 @@ class TicketService:
         Returns:
             OrderDTO hoặc None nếu không tìm thấy
         """
-        logger.debug(f"[TicketService] Finding order: {search_key}")
+        logger.info(f"[TicketService] find_order() start, search_key='{search_key}'")
+        debug_print("[TicketService.find_order] start", {"search_key": search_key})
         
         # Thử tìm theo reference_number trước (mã Shopee)
         try:
             order = self.order_service.get_order_dto_from_shopee_sn(search_key)
             if order:
-                logger.info(f"[TicketService] Found order by reference: {search_key} -> {order.code}")
+                logger.info(
+                    "[TicketService] find_order() matched by reference_number: "
+                    f"search_key='{search_key}', order_id={order.id}, code='{order.code}'"
+                )
+                debug_print(
+                    "[TicketService.find_order] matched by reference_number",
+                    {"search_key": search_key, "order_id": order.id, "code": order.code},
+                )
                 return order
+            else:
+                logger.debug(
+                    "[TicketService] find_order() no result from get_order_dto_from_shopee_sn "
+                    f"for key='{search_key}'"
+                )
         except Exception as e:
-            logger.debug(f"[TicketService] Not found by reference: {e}")
+            logger.debug(f"[TicketService] find_order() not found by reference: {e}")
+            debug_print("[TicketService.find_order] not found by reference", {"error": str(e)})
         
         # Thử tìm theo SON code (query trong list_orders)
         try:
             flt = BaseFilter(params={'query': search_key, 'limit': 1, 'page': 1})
+            logger.debug(
+                "[TicketService] find_order() calling list_orders with params="
+                f"{flt.to_params()}"
+            )
+            debug_print(
+                "[TicketService.find_order] calling list_orders",
+                {"params": flt.to_params()},
+            )
             result = self.order_service.list_orders(flt)
-            orders_data = result.get('orders', [])
+            orders_data = result.get('orders', []) or []
+            logger.debug(
+                "[TicketService] find_order() list_orders returned "
+                f"{len(orders_data)} orders for key='{search_key}'"
+            )
+            debug_print(
+                "[TicketService.find_order] list_orders returned",
+                {"count": len(orders_data), "search_key": search_key},
+            )
             if orders_data:
                 # Build OrderDTO từ raw data - payload format: {'order': {...}}
                 from orders.services.order_builder import build_order_from_sapo
                 sapo_client = get_sapo_client()
                 order = build_order_from_sapo({'order': orders_data[0]}, sapo_client=sapo_client)
-                logger.info(f"[TicketService] Found order by code: {search_key} -> {order.code}")
+                logger.info(
+                    "[TicketService] find_order() matched by SON/query: "
+                    f"search_key='{search_key}', order_id={order.id}, code='{order.code}'"
+                )
+                debug_print(
+                    "[TicketService.find_order] matched by SON/query",
+                    {"search_key": search_key, "order_id": order.id, "code": order.code},
+                )
                 return order
         except Exception as e:
-            logger.debug(f"[TicketService] Not found by code: {e}")
+            logger.debug(f"[TicketService] find_order() not found by code/query: {e}")
+            debug_print("[TicketService.find_order] not found by code/query", {"error": str(e)})
         
-        logger.warning(f"[TicketService] Order not found: {search_key}")
+        logger.warning(f"[TicketService] find_order() order not found for key='{search_key}'")
+        debug_print("[TicketService.find_order] order NOT FOUND", {"search_key": search_key})
         return None
 
     def search_orders_for_ticket(self, search_key: str, limit: int = 10) -> List[OrderDTO]:
@@ -66,7 +106,11 @@ class TicketService:
         """
         from orders.services.order_builder import build_order_from_sapo
 
-        logger.debug(f"[TicketService] Searching orders for ticket: {search_key}")
+        logger.info(f"[TicketService] search_orders_for_ticket() start, search_key='{search_key}', limit={limit}")
+        debug_print(
+            "[TicketService.search_orders_for_ticket] start",
+            {"search_key": search_key, "limit": limit},
+        )
         results: List[OrderDTO] = []
         seen_ids = set()
 
@@ -76,14 +120,42 @@ class TicketService:
             if order and order.id not in seen_ids:
                 results.append(order)
                 seen_ids.add(order.id)
+                logger.info(
+                    "[TicketService] search_orders_for_ticket() matched by reference_number: "
+                    f"search_key='{search_key}', order_id={order.id}, code='{order.code}'"
+                )
+                debug_print(
+                    "[TicketService.search_orders_for_ticket] matched by reference_number",
+                    {"search_key": search_key, "order_id": order.id, "code": order.code},
+                )
         except Exception as e:
-            logger.debug(f"[TicketService] search_orders_for_ticket: not found by reference: {e}")
+            logger.debug(f"[TicketService] search_orders_for_ticket() not found by reference: {e}")
+            debug_print(
+                "[TicketService.search_orders_for_ticket] not found by reference",
+                {"error": str(e)},
+            )
 
         # 2. Tìm theo SON / query trong list_orders
         try:
             flt = BaseFilter(params={'query': search_key, 'limit': limit, 'page': 1})
+            logger.debug(
+                "[TicketService] search_orders_for_ticket() calling list_orders with params="
+                f"{flt.to_params()}"
+            )
+            debug_print(
+                "[TicketService.search_orders_for_ticket] calling list_orders",
+                {"params": flt.to_params()},
+            )
             raw = self.order_service.list_orders(flt)
             orders_data = raw.get('orders', []) or []
+            logger.debug(
+                "[TicketService] search_orders_for_ticket() list_orders returned "
+                f"{len(orders_data)} orders for key='{search_key}'"
+            )
+            debug_print(
+                "[TicketService.search_orders_for_ticket] list_orders returned",
+                {"count": len(orders_data), "search_key": search_key},
+            )
 
             if orders_data:
                 sapo_client = get_sapo_client()
@@ -93,10 +165,29 @@ class TicketService:
                         if dto.id not in seen_ids:
                             results.append(dto)
                             seen_ids.add(dto.id)
+                            logger.info(
+                                "[TicketService] search_orders_for_ticket() matched by SON/query: "
+                                f"search_key='{search_key}', order_id={dto.id}, code='{dto.code}'"
+                            )
+                            debug_print(
+                                "[TicketService.search_orders_for_ticket] matched by SON/query",
+                                {"search_key": search_key, "order_id": dto.id, "code": dto.code},
+                            )
                     except Exception as e:
-                        logger.debug(f"[TicketService] search_orders_for_ticket: error building DTO: {e}")
+                        logger.debug(
+                            "[TicketService] search_orders_for_ticket() error building DTO "
+                            f"for key='{search_key}': {e}"
+                        )
+                        debug_print(
+                            "[TicketService.search_orders_for_ticket] error building DTO",
+                            {"error": str(e)},
+                        )
         except Exception as e:
-            logger.debug(f"[TicketService] search_orders_for_ticket: error in list_orders: {e}")
+            logger.debug(f"[TicketService] search_orders_for_ticket() error in list_orders: {e}")
+            debug_print(
+                "[TicketService.search_orders_for_ticket] error in list_orders",
+                {"error": str(e)},
+            )
 
         return results
     
