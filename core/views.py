@@ -253,7 +253,16 @@ def register_webpush_subscription(request: HttpRequest):
     }
     """
 
+    # Debug nhanh: log payload thô (limit độ dài để tránh spam log)
     try:
+        logger.info(
+            "[WebPushRegister] New request: path=%s, method=%s, user=%s, data=%s",
+            request.path,
+            request.method,
+            getattr(request.user, "username", None),
+            dict(request.data) if hasattr(request, "data") else request.body[:500],
+        )
+
         serializer = WebPushSubscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data: Dict[str, Any] = serializer.validated_data
@@ -312,6 +321,13 @@ def register_webpush_subscription(request: HttpRequest):
             )
 
         out = WebPushSubscriptionSerializer(subscription)
+        logger.info(
+            "[WebPushRegister] Saved subscription id=%s user_id=%s device_type=%s endpoint_prefix=%s",
+            subscription.id,
+            getattr(subscription.user, "id", None),
+            subscription.device_type,
+            (subscription.endpoint or "")[:50],
+        )
         return Response(
             {"created": created, "subscription": out.data},
             status=status.HTTP_200_OK,
