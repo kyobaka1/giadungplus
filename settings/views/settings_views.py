@@ -325,19 +325,52 @@ def push_notification_view(request):
                 ):
                     webpush_success += 1
 
-        # Thông báo kết quả
+        # Thông báo kết quả (kèm debug: đã gửi cho user / thiết bị nào)
         if scheduled_time is None:
             processed = processed_result["processed"] if processed_result else 0
             success = processed_result["success"] if processed_result else 0
             failed = processed_result["failed"] if processed_result else 0
 
+            # Debug: liệt kê user đã gửi in-app / web_push theo NotificationDelivery
+            from core.models import NotificationDelivery as ND
+
+            inapp_sent = ND.objects.filter(
+                notification=notification,
+                channel=ND.CHANNEL_IN_APP,
+                status=ND.STATUS_SENT,
+            ).select_related("user")
+
+            webpush_sent = ND.objects.filter(
+                notification=notification,
+                channel=ND.CHANNEL_WEB_PUSH,
+                status=ND.STATUS_SENT,
+            ).select_related("user")
+
+            def summarize_users(qs, max_items: int = 5) -> str:
+                names = []
+                for d in qs[:max_items]:
+                    if d.user:
+                        names.append(f"{d.user.id}:{d.user.username}")
+                    else:
+                        names.append(f"anon(sub#{d.id})")
+                extra = ""
+                total = qs.count()
+                if total > max_items:
+                    extra = f", ... (+{total - max_items} nữa)"
+                return ", ".join(names) + extra if names else "không có"
+
+            inapp_users_debug = summarize_users(inapp_sent)
+            webpush_users_debug = summarize_users(webpush_sent)
+
             msg_parts = [
                 f"Đã tạo notification #{notification.id}. ",
-                f"In-app: processed={processed}, success={success}, failed={failed}.",
+                f"In-app: processed={processed}, success={success}, failed={failed}. ",
+                f"[In-app users: {inapp_users_debug}]",
             ]
             if send_web_push:
                 msg_parts.append(
-                    f" WebPush broadcast: {webpush_success}/{webpush_total} subscription active."
+                    f" WebPush broadcast: {webpush_success}/{webpush_total} subscription active. "
+                    f"[WebPush users (ND): {webpush_users_debug}]"
                 )
 
             messages.success(request, " ".join(msg_parts))
