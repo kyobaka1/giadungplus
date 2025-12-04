@@ -211,8 +211,26 @@
 
       // Nếu vẫn chưa có active worker, chờ thêm một chút
       if (!targetRegistration.active) {
-        logPushDebug('Service worker chưa active, chờ thêm 1s rồi thử subscribe.');
+        logPushDebug('Service worker chưa active, chờ thêm 1s rồi thử subscribe.', {
+          scope: targetRegistration.scope,
+          hasActive: !!targetRegistration.active,
+          installing: !!targetRegistration.installing,
+          waiting: !!targetRegistration.waiting,
+        });
         await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      // Kiểm tra lại trước khi subscribe
+      const hasPushManager = !!targetRegistration.pushManager;
+      logPushDebug('Trạng thái trước khi gọi pushManager.subscribe', {
+        scope: targetRegistration.scope,
+        hasPushManager,
+        hasActive: !!targetRegistration.active,
+      });
+
+      if (!hasPushManager) {
+        logPushDebug('Không tìm thấy pushManager trên registration này. Trình duyệt không hỗ trợ Web Push cho scope hiện tại.');
+        return null;
       }
 
       const subscription = await targetRegistration.pushManager.subscribe({
