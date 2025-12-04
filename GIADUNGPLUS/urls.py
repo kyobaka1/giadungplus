@@ -35,4 +35,10 @@ urlpatterns = [
         core_views.register_webpush_subscription,
         name="api_push_register",
     ),
+    
+    # API Notifications
+    path("api/notifications/", core_views.list_notifications, name="api_notifications_list"),
+    path("api/notifications/unread-count/", core_views.unread_notifications_count, name="api_notifications_unread_count"),
+    path("api/notifications/<int:delivery_id>/mark-read/", core_views.mark_notification_read, name="api_notifications_mark_read"),
+    path("api/notifications/mark-all-read/", core_views.mark_all_notifications_read, name="api_notifications_mark_all_read"),
 ]

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% load static %}
+{% load group_tags %}
 <html lang="vi">
 <head>
     <meta charset="UTF-8" />
@@ -58,22 +59,25 @@
 
 <!-- Thanh top -->
 <header class="w-full border-b border-slate-100">
-    <div class="max-w-6xl mx-auto flex items-center justify-between py-3 px-4">
-        <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
+    <div class="max-w-6xl mx-auto flex items-center justify-between py-4 px-4">
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-lg overflow-hidden flex justify-center items-center">
                 <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
             </div>
             <div>
-                <div class="text-sm font-semibold">Gia Dụng Plus</div>
-                <div class="text-[11px] text-gray-500 -mt-1">Phần mềm hỗ trợ vận hành</div>
+                <div class="text-base font-semibold">Gia Dụng Plus</div>
+                <div class="text-xs text-gray-500 -mt-0.5">Phần mềm hỗ trợ vận hành</div>
             </div>
         </div>
         <div class="flex items-center gap-4">
-            <span class="text-sm text-slate-600">{{ user.get_full_name|default:user.username }}</span>
+            <!-- Notification Bell -->
+            {% include 'core/notification_bell.html' %}
+            
+            <span class="text-sm text-slate-600 hidden sm:inline">{{ user.get_full_name|default:user.username }}</span>
             <a href="{% url 'logout' %}" class="text-sm text-orange-500 hover:underline">
                 Đăng xuất
             </a>
-            <a href="#" class="text-sm text-orange-500 hover:underline">
+            <a href="#" class="text-sm text-orange-500 hover:underline hidden md:inline">
                 Hỏi <b>Sếp</b> nếu bạn cần giúp đỡ?
             </a>
         </div>
@@ -87,7 +91,7 @@
         <!-- Tiêu đề -->
         <div class="mb-10 text-center">
             <h1 class="text-3xl font-semibold text-slate-800 mb-2">
-                Chào mừng bạn quay trở lại!
+                Chào mừng {% if user.first_name %}{{ user.first_name }}{% else %}{{ user.username }}{% endif %} quay trở lại!
             </h1>
             <p class="text-slate-600 text-sm">
                 Chọn module bạn muốn sử dụng
@@ -109,72 +113,92 @@
         </div>
 
         <!-- Grid menu cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        {% comment %}
+        Determine user role:
+        - WarehousePacker: Only Kho (direct to packing orders)
+        - WarehouseManager: Only Kho (to kho homepage)
+        - CSKHStaff/CSKHManager: Only CSKH
+        - MarketingStaff/MarketingManager: Only Marketing
+        - Admin/Superuser: All cards
+        {% endcomment %}
+        {% user_primary_group user as primary_group %}
+        <div class="grid grid-cols-2 gap-4 sm:gap-6 md:gap-8 max-w-5xl mx-auto">
             
             <!-- Kho Hàng -->
-            <a href="/kho/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-8 group">
-                <div class="flex items-start gap-5">
-                    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% if user.is_superuser or user.groups.all|length == 0 or user|has_group:"WarehousePacker" or user|has_group:"WarehouseManager" %}
+            <a href="{% if primary_group == 'WarehousePacker' %}/kho/orders/packing_orders/{% else %}/kho/{% endif %}" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-4 sm:p-6 md:p-8 group">
+                <div class="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <svg class="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                         </svg>
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-xl font-semibold text-slate-800 mb-2 group-hover:text-blue-600 transition">Kho Hàng</h3>
-                        <p class="text-base text-slate-500">Quản lý đơn hàng, đóng gói, xuất kho</p>
-                        <div class="mt-4 text-sm text-blue-500 font-medium">/kho</div>
+                        <h3 class="text-base sm:text-lg md:text-xl font-semibold text-slate-800 mb-1 sm:mb-2 group-hover:text-blue-600 transition">Kho Hàng</h3>
+                        <p class="text-xs sm:text-sm md:text-base text-slate-500 hidden sm:block">Quản lý đơn hàng, đóng gói, xuất kho</p>
+                        <div class="mt-2 sm:mt-4 text-xs sm:text-sm text-blue-500 font-medium">/kho</div>
                     </div>
                 </div>
             </a>
 
+            {% endif %}
+
             <!-- Chăm sóc khách hàng -->
-            <a href="/cskh/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-8 group">
-                <div class="flex items-start gap-5">
-                    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% if user.is_superuser or user.groups.all|length == 0 or user|has_group:"CSKHStaff" or user|has_group:"CSKHManager" %}
+            <a href="/cskh/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-4 sm:p-6 md:p-8 group">
+                <div class="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <svg class="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
                         </svg>
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-xl font-semibold text-slate-800 mb-2 group-hover:text-emerald-600 transition">Chăm sóc khách hàng</h3>
-                        <p class="text-base text-slate-500">Xử lý ticket, hỗ trợ khách hàng</p>
-                        <div class="mt-4 text-sm text-emerald-500 font-medium">/cskh</div>
+                        <h3 class="text-base sm:text-lg md:text-xl font-semibold text-slate-800 mb-1 sm:mb-2 group-hover:text-emerald-600 transition">Chăm sóc khách hàng</h3>
+                        <p class="text-xs sm:text-sm md:text-base text-slate-500 hidden sm:block">Xử lý ticket, hỗ trợ khách hàng</p>
+                        <div class="mt-2 sm:mt-4 text-xs sm:text-sm text-emerald-500 font-medium">/cskh</div>
                     </div>
                 </div>
             </a>
 
+            {% endif %}
+
             <!-- Quản trị -->
-            <a href="/products/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-8 group">
-                <div class="flex items-start gap-5">
-                    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% if user.is_superuser or user.groups.filter|length == 0 %}
+            <a href="/products/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-4 sm:p-6 md:p-8 group">
+                <div class="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <svg class="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                         </svg>
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-xl font-semibold text-slate-800 mb-2 group-hover:text-purple-600 transition">Quản trị</h3>
-                        <p class="text-base text-slate-500">Quản lý sản phẩm, danh mục, thông tin</p>
-                        <div class="mt-4 text-sm text-purple-500 font-medium">/products</div>
+                        <h3 class="text-base sm:text-lg md:text-xl font-semibold text-slate-800 mb-1 sm:mb-2 group-hover:text-purple-600 transition">Quản trị</h3>
+                        <p class="text-xs sm:text-sm md:text-base text-slate-500 hidden sm:block">Quản lý sản phẩm, danh mục, thông tin</p>
+                        <div class="mt-2 sm:mt-4 text-xs sm:text-sm text-purple-500 font-medium">/products</div>
                     </div>
                 </div>
             </a>
 
+            {% endif %}
+
             <!-- Cấu hình -->
-            <a href="/settings/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-8 group">
-                <div class="flex items-start gap-5">
-                    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {% if user.is_superuser or user.groups.filter|length == 0 %}
+            <a href="/settings/" class="menu-card block bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg p-4 sm:p-6 md:p-8 group">
+                <div class="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
+                    <div class="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <svg class="w-7 h-7 sm:w-8 sm:h-8 md:w-10 md:h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         </svg>
                     </div>
                     <div class="flex-1">
-                        <h3 class="text-xl font-semibold text-slate-800 mb-2 group-hover:text-amber-600 transition">Cấu hình</h3>
-                        <p class="text-base text-slate-500">Thiết lập hệ thống, tài khoản, cài đặt</p>
-                        <div class="mt-4 text-sm text-amber-500 font-medium">/settings</div>
+                        <h3 class="text-base sm:text-lg md:text-xl font-semibold text-slate-800 mb-1 sm:mb-2 group-hover:text-amber-600 transition">Cấu hình</h3>
+                        <p class="text-xs sm:text-sm md:text-base text-slate-500 hidden sm:block">Thiết lập hệ thống, tài khoản, cài đặt</p>
+                        <div class="mt-2 sm:mt-4 text-xs sm:text-sm text-amber-500 font-medium">/settings</div>
                     </div>
                 </div>
             </a>
+            {% endif %}
 
         </div>
 
@@ -211,6 +235,7 @@
         const ua = navigator.userAgent || '';
         const isIOS = /iPhone|iPad|iPod/i.test(ua);
         const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
+        const isIosOrSafari = isIOS || isSafari;
         const isStandaloneDisplayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
         const isNavigatorStandalone = typeof window.navigator !== 'undefined' && window.navigator.standalone === true;
         const isStandalone = isStandaloneDisplayMode || isNavigatorStandalone;
@@ -222,6 +247,7 @@
             ua,
             isIOS,
             isSafari,
+            isIosOrSafari,
             isStandaloneDisplayMode,
             isNavigatorStandalone,
             isStandalone,
@@ -237,20 +263,33 @@
             debugLine.textContent =
                 'Debug iOS PWA — isIOS=' + isIOS +
                 ', isSafari=' + isSafari +
+                ', isIosOrSafari=' + isIosOrSafari +
                 ', isStandaloneDisplayMode=' + isStandaloneDisplayMode +
                 ', navigator.standalone=' + isNavigatorStandalone;
         }
 
-        if (notice && btn && (isIOS && isSafari && isStandalone || debugPush)) {
-            notice.classList.remove('hidden');
-            btn.addEventListener('click', function () {
-                if (window.initPush) {
-                    window.initPush();
-                }
-            });
+        // Điều kiện hiển thị:
+        // - Thiết bị là iOS HOẶC Safari
+        // - Đang ở chế độ standalone (Add to Home Screen)
+        // - Chưa bật thông báo (Notification.permission !== 'granted')
+        if (notice && btn && ((isIosOrSafari && isStandalone) || debugPush)) {
+            if (!debugPush && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+                // Đã bật thông báo rồi -> ẩn nút
+                notice.classList.add('hidden');
+            } else {
+                notice.classList.remove('hidden');
+                btn.addEventListener('click', function () {
+                    if (window.initPush) {
+                        window.initPush();
+                    }
+                });
+            }
         }
     })();
 </script>
+
+<!-- Notification Bell Script -->
+<script src="{% static 'js/notifications.js' %}"></script>
 
 </body>
 </html>
