@@ -18,7 +18,8 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
     # Cho phép client gửi thêm username để backend map sang user (input)
     username = serializers.CharField(required=False, allow_blank=True, write_only=True)
     # Thông tin user ở dạng read-only để client dễ debug (output)
-    user_id = serializers.IntegerField(source="user_id", read_only=True)
+    # DRF không cho phép dùng source="user_id" khi trùng tên field, nên bỏ source.
+    user_id = serializers.IntegerField(read_only=True)
     user_name = serializers.CharField(source="user.username", read_only=True, allow_null=True)
 
     class Meta:

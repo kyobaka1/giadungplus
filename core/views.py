@@ -4,10 +4,17 @@ Core app views.
 """
 
 import logging
+import os
 from typing import Any, Dict
 
+from django.conf import settings
 from django.shortcuts import render, redirect
-from django.http import JsonResponse, HttpRequest
+from django.http import (
+    JsonResponse,
+    HttpRequest,
+    HttpResponse,
+    HttpResponseForbidden,
+)
 from django.core.cache import cache
 from django.contrib.auth import logout, get_user_model
 from django.contrib.auth.decorators import login_required
@@ -122,6 +129,105 @@ def selenium_login_status_api(request):
     return JsonResponse(response_data)
 
 
+# ==================== SERVER LOGS (ADMIN ONLY) ====================
+
+
+def _tail_file(path: str, num_lines: int = 200) -> str:
+    """
+    Đọc num_lines dòng cuối cùng của file log.
+
+    Ưu tiên an toàn / đơn giản vì file log thường không quá lớn.
+    Nếu file rất lớn, có thể tối ưu sau.
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return ""
+    except OSError as exc:  # Các lỗi IO khác
+        logger.error("Không thể đọc log file %s: %s", path, exc)
+        return ""
+
+    if num_lines <= 0:
+        return "".join(lines)
+
+    return "".join(lines[-num_lines:])
+
+
+@login_required
+def server_logs_api(request: HttpRequest) -> JsonResponse:
+    """
+    API endpoint: /core/api/server-logs/
+
+    Đọc log server (tail N dòng cuối) để sử dụng cho UI realtime (JS polling).
+
+    Query params:
+        - file: django | gunicorn-error | gunicorn-access | supervisor | supervisor-error
+        - lines: số dòng cuối muốn lấy (mặc định: 200)
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({"detail": "Bạn không có quyền xem logs."}, status=403)
+
+    file_key = request.GET.get("file", "django").strip() or "django"
+    try:
+        num_lines = int(request.GET.get("lines", "200"))
+    except ValueError:
+        num_lines = 200
+
+    # Chỉ cho phép map tới một số file log cố định, tránh path traversal
+    logs_dir = os.path.join(settings.BASE_DIR, "logs")
+    file_map = {
+        "django": os.path.join(logs_dir, "django.log"),
+        "gunicorn-error": os.path.join(logs_dir, "gunicorn-error.log"),
+        "gunicorn-access": os.path.join(logs_dir, "gunicorn-access.log"),
+        "supervisor": os.path.join(logs_dir, "gunicorn-supervisor.log"),
+        "supervisor-error": os.path.join(logs_dir, "gunicorn-supervisor-error.log"),
+    }
+
+    path = file_map.get(file_key)
+    if not path:
+        return JsonResponse({"detail": "Loại file log không hợp lệ."}, status=400)
+
+    content = _tail_file(path, num_lines=num_lines)
+
+    return JsonResponse(
+        {
+            "file": file_key,
+            "path": path,
+            "lines": num_lines,
+            "content": content,
+        }
+    )
+
+
+@login_required
+def server_logs_view(request: HttpRequest) -> HttpResponse:
+    """
+    Trang HTML đơn giản để xem log server theo thời gian thực (JS auto refresh).
+
+    Chỉ cho phép superuser truy cập.
+    """
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("Bạn không có quyền xem logs.")
+
+    default_file = request.GET.get("file", "django").strip() or "django"
+
+    available_logs = [
+        {"id": "django", "label": "Django (django.log)"},
+        {"id": "gunicorn-error", "label": "Gunicorn Error (gunicorn-error.log)"},
+        {"id": "gunicorn-access", "label": "Gunicorn Access (gunicorn-access.log)"},
+        {"id": "supervisor", "label": "Supervisor (gunicorn-supervisor.log)"},
+        {"id": "supervisor-error", "label": "Supervisor Error (gunicorn-supervisor-error.log)"},
+    ]
+
+    context = {
+        "title": "Server Logs - Gia Dụng Plus",
+        "available_logs": available_logs,
+        "default_file": default_file,
+    }
+    return render(request, "core/server_logs.html", context)
+
+
 @api_view(["POST"])
 @authentication_classes([])  # Tắt SessionAuthentication để DRF không bắt CSRF
 @permission_classes([AllowAny])
@@ -147,65 +253,79 @@ def register_webpush_subscription(request: HttpRequest):
     }
     """
 
-    serializer = WebPushSubscriptionSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    data: Dict[str, Any] = serializer.validated_data
+    try:
+        serializer = WebPushSubscriptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data: Dict[str, Any] = serializer.validated_data
 
-    # Ưu tiên user đang đăng nhập (nếu có session)
-    user = request.user if request.user.is_authenticated else None
+        # Ưu tiên user đang đăng nhập (nếu có session)
+        user = request.user if request.user.is_authenticated else None
 
-    # Cho phép client gửi thêm username để map sang user_id (trong trường hợp không có session)
-    username = (data.pop("username", "") or "").strip()
-    if not user and username:
-        User = get_user_model()
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            logger.warning("register_webpush_subscription: không tìm thấy user với username=%s", username)
+        # Cho phép client gửi thêm username để map sang user_id (trong trường hợp không có session)
+        username = (data.pop("username", "") or "").strip()
+        if not user and username:
+            User = get_user_model()
+            try:
+                user = User.objects.get(username=username)
+            except User.DoesNotExist:
+                logger.warning(
+                    "register_webpush_subscription: không tìm thấy user với username=%s",
+                    username,
+                )
 
-    endpoint = data.get("endpoint")
-    fcm_token = data.get("fcm_token")
+        endpoint = data.get("endpoint")
+        fcm_token = data.get("fcm_token")
 
-    # Ưu tiên match theo endpoint (Web Push thuần)
-    subscription = None
-    created = False
+        # Ưu tiên match theo endpoint (Web Push thuần)
+        subscription = None
+        created = False
 
-    if endpoint:
-        subscription, created = WebPushSubscription.objects.update_or_create(
-            endpoint=endpoint,
-            defaults={
-                "user": user,
-                "device_type": data.get("device_type"),
-                "p256dh": data.get("p256dh"),
-                "auth": data.get("auth"),
-                "fcm_token": fcm_token or "",
-                "is_active": True,
-            },
-        )
-    elif fcm_token:
-        subscription, created = WebPushSubscription.objects.update_or_create(
-            fcm_token=fcm_token,
-            defaults={
-                "user": user,
-                "device_type": data.get("device_type"),
-                "p256dh": data.get("p256dh"),
-                "auth": data.get("auth"),
-                "endpoint": "",
-                "is_active": True,
-            },
-        )
+        if endpoint:
+            subscription, created = WebPushSubscription.objects.update_or_create(
+                endpoint=endpoint,
+                defaults={
+                    "user": user,
+                    "device_type": data.get("device_type"),
+                    "p256dh": data.get("p256dh"),
+                    "auth": data.get("auth"),
+                    "fcm_token": fcm_token or "",
+                    "is_active": True,
+                },
+            )
+        elif fcm_token:
+            subscription, created = WebPushSubscription.objects.update_or_create(
+                fcm_token=fcm_token,
+                defaults={
+                    "user": user,
+                    "device_type": data.get("device_type"),
+                    "p256dh": data.get("p256dh"),
+                    "auth": data.get("auth"),
+                    "endpoint": "",
+                    "is_active": True,
+                },
+            )
 
-    if not subscription:
+        if not subscription:
+            return Response(
+                {"detail": "Thiếu endpoint hoặc fcm_token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        out = WebPushSubscriptionSerializer(subscription)
         return Response(
-            {"detail": "Thiếu endpoint hoặc fcm_token."},
-            status=status.HTTP_400_BAD_REQUEST,
+            {"created": created, "subscription": out.data},
+            status=status.HTTP_200_OK,
         )
-
-    out = WebPushSubscriptionSerializer(subscription)
-    return Response(
-        {"created": created, "subscription": out.data},
-        status=status.HTTP_200_OK,
-    )
+    except Exception as exc:
+        # Log chi tiết để debug nhanh khi client báo 500
+        logger.exception("Lỗi không mong đợi trong register_webpush_subscription: %s", exc)
+        return Response(
+            {
+                "detail": "Internal Server Error in register_webpush_subscription",
+                "error": str(exc),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 # ==================== NOTIFICATION APIs ====================

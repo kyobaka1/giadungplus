@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <link rel="icon" href="/static/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div class="max-w-6xl mx-auto py-6 px-4">
+        <div class="flex items-center justify-between mb-4">
+            <h1 class="text-xl font-semibold text-slate-800">
+                Server logs (realtime)
+            </h1>
+            <a href="/" class="text-sm text-blue-500 hover:underline">
+                ← Về Dashboard
+            </a>
+        </div>
+
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <label class="text-sm font-medium text-slate-600">
+                Chọn file log:
+            </label>
+            <select id="log-file-select"
+                    class="text-sm border border-slate-300 rounded-md px-2 py-1 bg-white">
+                {% for item in available_logs %}
+                    <option value="{{ item.id }}"
+                            {% if item.id == default_file %}selected{% endif %}>
+                        {{ item.label }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <label class="text-sm font-medium text-slate-600 ml-4">
+                Số dòng cuối:
+            </label>
+            <input id="lines-input"
+                   type="number"
+                   min="50"
+                   max="2000"
+                   value="300"
+                   class="w-20 text-sm border border-slate-300 rounded-md px-2 py-1 bg-white">
+
+            <button id="btn-refresh"
+                    class="text-sm px-3 py-1 rounded-md bg-slate-800 text-white hover:bg-slate-900">
+                Refresh
+            </button>
+
+            <label class="flex items-center gap-1 text-xs text-slate-600 ml-auto">
+                <input id="auto-refresh-checkbox" type="checkbox" checked class="rounded border-slate-300">
+                Tự động refresh mỗi 2s
+            </label>
+        </div>
+
+        <div class="text-xs text-slate-500 mb-2" id="log-meta">
+            Đang tải log...
+        </div>
+
+        <div class="border border-slate-300 rounded-md bg-black text-green-100 text-xs">
+            <pre id="log-content" class="p-3 overflow-auto max-h-[70vh] whitespace-pre-wrap"></pre>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            const selectEl = document.getElementById('log-file-select');
+            const linesInput = document.getElementById('lines-input');
+            const logContentEl = document.getElementById('log-content');
+            const logMetaEl = document.getElementById('log-meta');
+            const btnRefresh = document.getElementById('btn-refresh');
+            const autoRefreshCheckbox = document.getElementById('auto-refresh-checkbox');
+
+            let lastScrollBottom = true;
+
+            function fetchLogs() {
+                const file = selectEl.value;
+                const lines = parseInt(linesInput.value || '300', 10) || 300;
+                const url = `/core/api/server-logs/?file=${encodeURIComponent(file)}&lines=${lines}&_ts=${Date.now()}`;
+
+                // Ghi nhận xem user đang ở cuối log hay không (để auto-scroll)
+                const el = logContentEl;
+                const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+                lastScrollBottom = isAtBottom;
+
+                fetch(url, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.detail && data.content === undefined) {
+                            logMetaEl.textContent = `Lỗi: ${data.detail}`;
+                            return;
+                        }
+                        const content = data.content || '';
+                        logContentEl.textContent = content || '(File log trống hoặc chưa tồn tại)';
+
+                        logMetaEl.textContent = `File: ${data.path || file} — Số dòng: ${data.lines || lines} — Cập nhật lúc: ${new Date().toLocaleTimeString()}`;
+
+                        // Nếu user đang ở cuối, sau khi cập nhật thì auto-scroll xuống dưới
+                        if (lastScrollBottom) {
+                            el.scrollTop = el.scrollHeight;
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Fetch logs error', err);
+                        logMetaEl.textContent = 'Không thể tải log. Vui lòng thử lại.';
+                    });
+            }
+
+            btnRefresh.addEventListener('click', function () {
+                fetchLogs();
+            });
+
+            selectEl.addEventListener('change', function () {
+                fetchLogs();
+            });
+
+            let timerId = null;
+            function setupAutoRefresh() {
+                if (timerId) {
+                    clearInterval(timerId);
+                    timerId = null;
+                }
+                if (autoRefreshCheckbox.checked) {
+                    timerId = setInterval(fetchLogs, 2000);
+                }
+            }
+
+            autoRefreshCheckbox.addEventListener('change', setupAutoRefresh);
+
+            // Khởi tạo
+            fetchLogs();
+            setupAutoRefresh();
+        })();
+    </script>
+</body>
+</html>
+
+
