@@ -39,6 +39,39 @@
     return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
 
+  // Phát hiện loại thiết bị chi tiết hơn (ưu tiên userAgentData nếu có)
+  async function getDeviceType() {
+    try {
+      if (navigator.userAgentData) {
+        const brands = navigator.userAgentData.brands || [];
+        const mobile = navigator.userAgentData.mobile;
+        if (mobile) return 'mobile';
+        if (brands.some((b) => b.brand && b.brand.includes('Chromium'))) return 'desktop';
+        if (brands.some((b) => b.brand && b.brand.includes('Android'))) return 'android';
+      }
+    } catch (e) {
+      console.warn('Lỗi đọc navigator.userAgentData:', e);
+    }
+
+    // fallback: userAgent cũ
+    const ua = (navigator.userAgent || '').toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua)) return 'ios';
+    if (/android/.test(ua)) return 'android';
+    if (/windows|mac|linux/.test(ua)) return 'desktop';
+    return 'unknown';
+  }
+
+  // Chuẩn hoá device_type gửi lên server theo enum backend
+  // - ios  → ios_web
+  // - android|mobile → android_web
+  // - desktop/unknown → unknown
+  async function getNormalizedDeviceType() {
+    const raw = await getDeviceType();
+    if (raw === 'ios') return 'ios_web';
+    if (raw === 'android' || raw === 'mobile') return 'android_web';
+    return 'unknown';
+  }
+
   function isAndroidChrome() {
     const ua = navigator.userAgent || '';
     return /Android/i.test(ua) && /Chrome/i.test(ua) && !/OPR|Edg|SamsungBrowser/i.test(ua);
@@ -175,7 +208,8 @@
       return;
     }
 
-    let deviceType = 'unknown';
+    // Device type mặc định (chuẩn hoá theo enum backend)
+    let deviceType = await getNormalizedDeviceType();
     let payload = {
       device_type: deviceType,
       endpoint: null,
@@ -184,6 +218,7 @@
     };
 
     if (isAndroidChrome()) {
+      // Android Chrome: ưu tiên gắn nhãn android_web
       deviceType = 'android_web';
       const messaging = await initFirebaseMessaging();
       if (messaging) {
@@ -205,8 +240,7 @@
         payload.keys = json.keys || {};
       }
     } else {
-      // Các browser khác (Desktop, Android khác, ...)
-      deviceType = 'unknown';
+      // Các browser khác (Desktop, Android khác, ...) giữ nguyên deviceType đã chuẩn hoá trước đó
       const sub = await subscribeWithPushManager(registration);
       if (sub) {
         const json = sub.toJSON();

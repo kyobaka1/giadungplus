@@ -309,34 +309,77 @@ def register_webpush_subscription(request: HttpRequest):
             # Giữ nguyên device_type client gửi, hoặc UNKNOWN nếu không hợp lệ
             device_type = raw_device_type
 
-        # Ưu tiên match theo endpoint (Web Push thuần)
+        # Ưu tiên match theo endpoint + auth (Web Push thuần) hoặc fcm_token (Android Chrome).
+        # YÊU CẦU:
+        #   - Nếu login bằng device khác, endpoint khác, auth khác → tạo dòng mới trong DB
+        #     (có thể cùng user_id / username).
         subscription = None
         created = False
 
         if endpoint:
-            subscription, created = WebPushSubscription.objects.update_or_create(
-                endpoint=endpoint,
-                defaults={
-                    "user": user,
-                    "device_type": device_type,
-                    "p256dh": data.get("p256dh"),
-                    "auth": data.get("auth"),
-                    "fcm_token": fcm_token or "",
-                    "is_active": True,
-                },
-            )
+            # Tìm subscription hiện có cho cùng user + endpoint (+ auth nếu có).
+            qs = WebPushSubscription.objects.filter(endpoint=endpoint)
+            if user is not None:
+                qs = qs.filter(user=user)
+            auth = data.get("auth")
+            if auth:
+                qs = qs.filter(auth=auth)
+            subscription = qs.first()
+
+            if subscription:
+                # Cập nhật subscription hiện có
+                subscription.user = user or subscription.user
+                subscription.device_type = device_type
+                subscription.p256dh = data.get("p256dh")
+                subscription.auth = data.get("auth")
+                subscription.fcm_token = fcm_token or subscription.fcm_token
+                subscription.is_active = True
+                subscription.save(
+                    update_fields=["user", "device_type", "p256dh", "auth", "fcm_token", "is_active"]
+                )
+                created = False
+            else:
+                # Không tìm thấy subscription phù hợp → tạo bản ghi mới
+                subscription = WebPushSubscription.objects.create(
+                    user=user,
+                    device_type=device_type,
+                    endpoint=endpoint,
+                    p256dh=data.get("p256dh"),
+                    auth=data.get("auth"),
+                    fcm_token=fcm_token or "",
+                    is_active=True,
+                )
+                created = True
         elif fcm_token:
-            subscription, created = WebPushSubscription.objects.update_or_create(
-                fcm_token=fcm_token,
-                defaults={
-                    "user": user,
-                    "device_type": device_type,
-                    "p256dh": data.get("p256dh"),
-                    "auth": data.get("auth"),
-                    "endpoint": "",
-                    "is_active": True,
-                },
-            )
+            # Với FCM token, cho phép 1 user có nhiều token khác nhau (nhiều device/browser).
+            # Chỉ update nếu tìm được bản ghi trùng user + fcm_token, ngược lại tạo mới.
+            qs = WebPushSubscription.objects.filter(fcm_token=fcm_token)
+            if user is not None:
+                qs = qs.filter(user=user)
+            subscription = qs.first()
+
+            if subscription:
+                subscription.user = user or subscription.user
+                subscription.device_type = device_type
+                subscription.p256dh = data.get("p256dh")
+                subscription.auth = data.get("auth")
+                subscription.endpoint = endpoint or subscription.endpoint
+                subscription.is_active = True
+                subscription.save(
+                    update_fields=["user", "device_type", "p256dh", "auth", "endpoint", "is_active"]
+                )
+                created = False
+            else:
+                subscription = WebPushSubscription.objects.create(
+                    user=user,
+                    device_type=device_type,
+                    endpoint=endpoint or "",
+                    p256dh=data.get("p256dh"),
+                    auth=data.get("auth"),
+                    fcm_token=fcm_token,
+                    is_active=True,
+                )
+                created = True
 
         if not subscription:
             return Response(
