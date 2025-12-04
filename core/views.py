@@ -68,14 +68,22 @@ def dashboard_home(request):
     Trang dashboard điều hướng sau khi login.
     Hiển thị grid các menu chính: Kho Hàng, CSKH, Quản trị, Cấu hình
     """
-    if request.method != 'GET':
+    if request.method != "GET":
         from django.http import HttpResponseNotAllowed
-        return HttpResponseNotAllowed(['GET'])
-    
+
+        return HttpResponseNotAllowed(["GET"])
+
+    # WebPush debug: hiển thị subscription hiện tại của user ngay trên trang chủ
+    webpush_subs = (
+        WebPushSubscription.objects.filter(user=request.user, is_active=True)
+        .order_by("-created_at")[:10]
+    )
+
     context = {
-        'title': 'Dashboard - Gia Dụng Plus',
+        "title": "Dashboard - Gia Dụng Plus",
+        "webpush_subscriptions": webpush_subs,
     }
-    return render(request, 'core/dashboard.html', context)
+    return render(request, "core/dashboard.html", context)
 
 
 def selenium_loading_view(request):
