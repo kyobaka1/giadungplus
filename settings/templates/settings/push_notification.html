@@ -8,7 +8,7 @@
         Push Notification
     </h1>
     <p class="text-xs text-gray-500 mt-1">
-        Gửi Web Push tới tất cả thiết bị đã đăng ký subscription.
+        Test hệ thống Notification (Notification Engine + Delivery).
     </p>
 </section>
 {% endblock %}
@@ -54,32 +54,170 @@
                     URL khi click
                 </label>
                 <input type="text" name="url" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
-                    placeholder="Ví dụ: / hoặc https://giadungplus.io.vn/" />
+                    placeholder="Ví dụ: / hoặc /kho/orders/123" />
+                <p class="mt-1 text-xs text-gray-400">
+                    Sẽ được set vào context.url và dùng cho Web Push / frontend.
+                </p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                    Icon (URL)
+                    Action
                 </label>
-                <input type="text" name="icon" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
-                    placeholder="Ví dụ: /static/favicon.png" />
+                <select name="action" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand">
+                    <option value="show_popup">show_popup (mặc định)</option>
+                    <option value="play_sound">play_sound</option>
+                    <option value="badge_update">badge_update</option>
+                    <option value="boss_popup">boss_popup</option>
+                </select>
+                <p class="mt-1 text-xs text-gray-400">
+                    Theo PUSH_NOTIFY.md: show_popup, play_sound, badge_update, boss_popup.
+                </p>
             </div>
         </div>
 
-        <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">
-                Dữ liệu JSON bổ sung (tùy chọn)
-            </label>
-            <textarea name="extra_data" rows="3" class="w-full border rounded-md px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
-                placeholder='Ví dụ: {"type": "promotion", "campaign": "noel-2025"}'></textarea>
-            <p class="mt-1 text-xs text-gray-400">
-                Sẽ được merge vào payload <code>data</code> và gửi kèm. Trường <code>url</code> sẽ tự được set bằng ô URL nếu bạn không ghi đè.
-            </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Sound (URL)
+                </label>
+                <input type="text" name="sound" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: /static/sounds/alert.mp3" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Count (badge_update)
+                </label>
+                <input type="number" name="count" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: 5" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Collapse ID
+                </label>
+                <input type="text" name="collapse_id" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: ticket_count" />
+                <p class="mt-1 text-xs text-gray-400">
+                    Dùng để đè notify cũ (cùng collapse_id) bằng notify mới.
+                </p>
+            </div>
         </div>
 
-        <div class="flex items-center justify-end gap-3 pt-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Tag
+                </label>
+                <input type="text" name="tag" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: ticket_created" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Event type
+                </label>
+                <input type="text" name="event_type" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Ví dụ: ticket_created, order_created" />
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Scheduled time (tùy chọn)
+                </label>
+                <input type="text" name="scheduled_time" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder="Định dạng: YYYY-MM-DD HH:MM (giờ local)" />
+                <p class="mt-1 text-xs text-gray-400">
+                    Nếu để trống sẽ gửi ngay. Nếu có, cần cron <code>process_notifications</code> chạy định kỳ.
+                </p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Dữ liệu JSON bổ sung (context)
+                </label>
+                <textarea name="extra_data" rows="3" class="w-full border rounded-md px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    placeholder='Ví dụ: {"type": "promotion", "campaign": "noel-2025"}'></textarea>
+                <p class="mt-1 text-xs text-gray-400">
+                    Sẽ được lưu vào <code>context</code>. Trường <code>url</code> sẽ tự được set bằng ô URL nếu bạn không ghi đè.
+                </p>
+            </div>
+        </div>
+
+        <hr class="my-4" />
+
+        <div>
+            <h2 class="text-sm font-semibold text-slate-800 mb-2">Target Criteria</h2>
+            <p class="text-xs text-gray-400 mb-3">
+                Theo PUSH_NOTIFY.md: có thể gửi theo group, department, shop hoặc user cụ thể.
+                Dùng <code>ALL</code> để chọn tất cả (mặc định nếu để trống).
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Groups
+                    </label>
+                    <input type="text" name="groups" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                        placeholder='Ví dụ: Admin, CSKHManager, CSKHStaff hoặc ALL' />
+                    <p class="mt-1 text-xs text-gray-400">
+                        Nhập danh sách group, phân cách bởi dấu phẩy.
+                    </p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Departments
+                    </label>
+                    <input type="text" name="departments" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                        placeholder='Ví dụ: CSKH, Marketing, QUẢN TRỊ VIÊN, KHO_HN, KHO_HCM' />
+                    <p class="mt-1 text-xs text-gray-400">
+                        Tương ứng với <code>user.last_name</code>.
+                    </p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Shops
+                    </label>
+                    <input type="text" name="shops" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                        placeholder='Ví dụ: SHOP_GIADUNGPLUS, SHOP_LTENG, SHOP_PHALEDO' />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        User IDs
+                    </label>
+                    <input type="text" name="user_ids" class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                        placeholder='Ví dụ: 1, 2, 3' />
+                    <p class="mt-1 text-xs text-gray-400">
+                        Gửi cho user cụ thể (ưu tiên cao hơn groups/departments nếu set trùng).
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-4" />
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="send_in_app" name="send_in_app" checked
+                    class="h-4 w-4 text-brand border-gray-300 rounded focus:ring-brand">
+                <label for="send_in_app" class="text-sm text-gray-700">
+                    Gửi In-app (chuông thông báo)
+                </label>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="checkbox" id="send_web_push" name="send_web_push" checked
+                    class="h-4 w-4 text-brand border-gray-300 rounded focus:ring-brand">
+                <label for="send_web_push" class="text-sm text-gray-700">
+                    Gửi Web Push (FCM / WebPush)
+                </label>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-4">
             <button type="submit"
                 class="px-4 py-2 rounded-md bg-brand text-white text-sm font-medium hover:bg-red-600 transition">
-                Gửi Push cho tất cả subscription
+                Gửi Notification
             </button>
         </div>
     </form>
