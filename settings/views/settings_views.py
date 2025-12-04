@@ -13,6 +13,8 @@ from core.sapo_client import SapoClient
 from products.services.shopee_init_service import ShopeeInitService
 from core.services.notify import notify
 from core.services.notification_delivery import NotificationDeliveryWorker
+from core.models import WebPushSubscription
+from core.services.notifications import send_webpush_to_subscription
 
 
 @admin_only
@@ -275,7 +277,7 @@ def push_notification_view(request):
             # Nếu không chọn gì, mặc định gửi cả 2 kênh
             channels = ["in_app", "web_push"]
 
-        # Gửi notification thông qua Notification Engine
+        # Gửi notification thông qua Notification Engine (In-app + WebPush theo user)
         notification = notify.send(
             title=title,
             body=body,
@@ -295,28 +297,60 @@ def push_notification_view(request):
             channels=channels,
         )
 
-        # Nếu không hẹn giờ, xử lý gửi ngay để test
+        # Nếu không hẹn giờ, xử lý gửi ngay để test In-app + WebPush theo user
+        processed_result = None
         if scheduled_time is None:
-            result = NotificationDeliveryWorker.process_pending_deliveries(
+            processed_result = NotificationDeliveryWorker.process_pending_deliveries(
                 notification_id=notification.id
             )
-            messages.success(
-                request,
-                (
-                    f"Đã tạo notification #{notification.id}. "
-                    f"Gửi ngay: processed={result['processed']}, "
-                    f"success={result['success']}, failed={result['failed']}"
-                ),
-            )
+
+        # Bổ sung luồng test WebPush: broadcast tới tất cả subscription active,
+        # để đảm bảo có Web Push kể cả khi mapping user-subscription chưa đủ.
+        webpush_total = 0
+        webpush_success = 0
+        if send_web_push:
+            qs = WebPushSubscription.objects.filter(is_active=True)
+            webpush_total = qs.count()
+            extra_payload = dict(extra_data)
+            extra_payload.setdefault("url", url)
+
+            for sub in qs:
+                if send_webpush_to_subscription(
+                    sub,
+                    title,
+                    body,
+                    data=extra_payload,
+                    icon=None,
+                    url=url,
+                ):
+                    webpush_success += 1
+
+        # Thông báo kết quả
+        if scheduled_time is None:
+            processed = processed_result["processed"] if processed_result else 0
+            success = processed_result["success"] if processed_result else 0
+            failed = processed_result["failed"] if processed_result else 0
+
+            msg_parts = [
+                f"Đã tạo notification #{notification.id}. ",
+                f"In-app: processed={processed}, success={success}, failed={failed}.",
+            ]
+            if send_web_push:
+                msg_parts.append(
+                    f" WebPush broadcast: {webpush_success}/{webpush_total} subscription active."
+                )
+
+            messages.success(request, " ".join(msg_parts))
         else:
-            messages.success(
-                request,
-                (
-                    f"Đã tạo scheduled notification #{notification.id} "
-                    f"(sẽ gửi lúc {scheduled_time}). "
-                    "Hãy đảm bảo cron job process_notifications đang chạy."
-                ),
+            msg = (
+                f"Đã tạo scheduled notification #{notification.id} "
+                f"(sẽ gửi lúc {scheduled_time}). "
             )
+            if send_web_push:
+                msg += "Lưu ý: broadcast WebPush chỉ chạy với notification gửi ngay (không hẹn giờ)."
+            else:
+                msg += "Hãy đảm bảo cron job process_notifications đang chạy."
+            messages.success(request, msg)
 
         return redirect("push_notification")
 

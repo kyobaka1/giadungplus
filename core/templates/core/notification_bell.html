@@ -34,20 +34,25 @@
         background-color: #f8fafc;
     }
 
-    /* Mobile layout: fullscreen-ish centered popup để tránh bị che khuất */
+    /* Mobile layout: popup rộng 90% nằm giữa theo chiều ngang, đổ từ vị trí chuông xuống (ngay dưới top bar) */
     @media (max-width: 640px) {
         #notificationDropdown {
             position: fixed;
-            top: 50%;
+            top: 4rem; /* ngay dưới top bar h-16 */
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translateX(-50%);
             width: 90vw;
-            max-height: 90vh;
+            max-height: calc(100vh - 5rem);
             margin-top: 0;
         }
     }
 </style>
 <div class="relative" id="notificationBellContainer">
+    <!-- Overlay làm mờ nền khi mở dropdown -->
+    <div
+        id="notificationOverlay"
+        class="fixed inset-0 bg-black bg-opacity-40 hidden z-40">
+    </div>
     <!-- Bell Button -->
     <button 
         type="button" 
