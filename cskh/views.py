@@ -606,10 +606,14 @@ def ticket_list(request):
     
     tickets = Ticket.objects.all()
     
-    # Bộ lọc lồng nhau (AND): loại ticket, bộ phận xử lý, trạng thái
+    # Bộ lọc lồng nhau (AND): loại ticket, bộ phận xử lý, trạng thái, nguồn tạo, người tạo, thời gian
     ticket_type_filter = request.GET.get('ticket_type', '')
     depart_filter = request.GET.get('depart', '')
     status_filter = request.GET.get('status', '')
+    source_ticket_filter = request.GET.get('source_ticket', '')
+    created_by_filter = request.GET.get('created_by', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
 
     if ticket_type_filter:
         # Return Center: lọc theo OR các điều kiện liên quan đổi trả
@@ -628,10 +632,67 @@ def ticket_list(request):
     if status_filter:
         tickets = tickets.filter(ticket_status=status_filter)
     
+    if source_ticket_filter:
+        tickets = tickets.filter(source_ticket=source_ticket_filter)
+    
+    if created_by_filter:
+        try:
+            created_by_id = int(created_by_filter)
+            tickets = tickets.filter(created_by_id=created_by_id)
+        except (ValueError, TypeError):
+            pass
+    
+    # Lọc theo thời gian (created_at)
+    if start_date:
+        try:
+            from django.utils.dateparse import parse_date
+            from datetime import datetime
+            start = parse_date(start_date)
+            if start:
+                start_datetime = datetime.combine(start, datetime.min.time())
+                tickets = tickets.filter(created_at__gte=timezone.make_aware(start_datetime))
+        except (ValueError, TypeError):
+            pass
+    
+    if end_date:
+        try:
+            from django.utils.dateparse import parse_date
+            from datetime import datetime
+            end = parse_date(end_date)
+            if end:
+                end_datetime = datetime.combine(end, datetime.max.time())
+                tickets = tickets.filter(created_at__lte=timezone.make_aware(end_datetime))
+        except (ValueError, TypeError):
+            pass
+    
     tickets = tickets.select_related('created_by', 'assigned_to').annotate(
         total_cost=Sum('costs__amount')
     ).order_by('-created_at')[:100]
     
+    # --- Bulk fetch order data for search ---
+    order_ids = [t.order_id for t in tickets if t.order_id]
+    if order_ids:
+        try:
+            from orders.services.sapo_service import SapoCoreOrderService
+            from core.sapo_client import BaseFilter
+            
+            sapo_service = SapoCoreOrderService()
+            ids_str = ",".join(map(str, order_ids))
+            # Fetch orders with minimal fields if possible, but search needs details
+            # Sapo API supports 'ids' param
+            orders_result = sapo_service.list_orders(BaseFilter(params={"ids": ids_str, "limit": 100}))
+            orders_data = orders_result.get("orders", [])
+            
+            # Create map for quick lookup
+            order_map = {order["id"]: order for order in orders_data}
+            
+            # Attach to tickets
+            for ticket in tickets:
+                if ticket.order_id and ticket.order_id in order_map:
+                    ticket.order_data = order_map[ticket.order_id]
+        except Exception as e:
+            logger.error(f"Failed to fetch order data for tickets: {e}")
+            
     # Tính số event mới chưa xem cho mỗi ticket
     ticket_ids = [t.id for t in tickets]
     ticket_views = TicketView.objects.filter(
@@ -658,15 +719,26 @@ def ticket_list(request):
             count = ticket.events.count()
         ticket.new_events_count = count
     
+    # Lấy danh sách users đã tạo ticket để hiển thị trong dropdown
+    created_by_users = User.objects.filter(
+        cskh_tickets_created__isnull=False
+    ).distinct().order_by('first_name', 'username')
+    
     context = {
         'tickets': tickets,
         'total_count': tickets.count(),
         'ticket_type_filter': ticket_type_filter,
         'depart_filter': depart_filter,
         'status_filter': status_filter,
+        'source_ticket_filter': source_ticket_filter,
+        'created_by_filter': created_by_filter,
+        'start_date': start_date,
+        'end_date': end_date,
         'status_choices': Ticket.STATUS_CHOICES,
         'ticket_type_choices': Ticket.TICKET_TYPE_CHOICES,
         'depart_choices': Ticket.DEPART_CHOICES,
+        'source_ticket_choices': Ticket.SOURCE_CHOICES,
+        'created_by_users': created_by_users,
     }
     return render(request, 'cskh/tickets/list.html', context)
 

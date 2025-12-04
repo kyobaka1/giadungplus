@@ -92,6 +92,7 @@
                 <thead class="bg-slate-50 border-b">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã ticket</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Ngày tạo</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Mã đơn hàng</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Người tạo</th>
                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Loại ticket</th>
@@ -114,6 +115,15 @@
                             <span class="text-[11px] text-red-600 font-bold mt-1 block">({{ new_count }} thông báo mới)</span>
                             {% endif %}
                             {% endwith %}
+                        </td>
+
+                        <!-- Ngày tạo -->
+                        <td class="px-4 py-3 whitespace-nowrap text-[13px] text-slate-600">
+                            {% if ticket.created_at %}
+                                {{ ticket.created_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                <span class="text-slate-400">-</span>
+                            {% endif %}
                         </td>
 
                         <!-- Mã đơn hàng (link Sapo) -->
@@ -260,7 +270,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="px-4 py-8 text-center text-gray-500">Không tìm thấy tickets</td>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">Không tìm thấy tickets</td>
                     </tr>
                     {% endfor %}
                 </tbody>

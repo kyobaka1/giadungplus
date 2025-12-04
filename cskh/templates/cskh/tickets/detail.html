@@ -5,20 +5,22 @@
 {% block title %}Chi tiết Ticket {{ ticket.ticket_number }} – CSKH{% endblock %}
 
 {% block overview %}
-<section class="flex items-center justify-between">
-    <div>
-        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket {{ ticket.ticket_number }}</h1>
-        <p class="text-sm md:text-xs text-gray-500 mt-1">{{ ticket.get_ticket_type_display|default:"-" }}</p>
-    </div>
-    <div class="flex gap-2">
-        <a href="{% url 'cskh:ticket_list' %}"
-            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
-            ← Quay lại
-        </a>
-        <button id="btnSaveTicket"
-            class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
-            Lưu ticket
-        </button>
+<section class="px-4 mb-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">Ticket {{ ticket.ticket_number }}</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">{{ ticket.get_ticket_type_display|default:"-" }}</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'cskh:ticket_list' %}"
+                class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                ← Quay lại
+            </a>
+            <button id="btnSaveTicket"
+                class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                Lưu ticket
+            </button>
+        </div>
     </div>
 </section>
 {% endblock %}
