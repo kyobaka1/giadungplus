@@ -26,8 +26,19 @@
 {% block main_content %}
 <div class="flex-1 min-w-0 overflow-x-hidden">
 
+    <!-- Nút hiện bộ lọc (chỉ hiện trên mobile) -->
+    <div class="md:hidden mb-2">
+        <button type="button" id="toggleFilterBtn" 
+                class="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-semibold flex items-center justify-center gap-2">
+            <span>Hiện bộ lọc</span>
+            <svg class="w-4 h-4 transition-transform" id="filterIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+        </button>
+    </div>
+
     <!-- Bộ lọc lồng nhau -->
-    <form method="GET" class="bg-white border rounded-xl p-4 shadow-sm mb-2">
+    <form method="GET" id="filterForm" class="bg-white border rounded-xl p-4 shadow-sm mb-2 hidden md:block">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
             <!-- Loại ticket -->
             <div>
@@ -327,6 +338,26 @@ function getCookie(name) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Toggle bộ lọc trên mobile
+    const toggleFilterBtn = document.getElementById('toggleFilterBtn');
+    const filterForm = document.getElementById('filterForm');
+    const filterIcon = document.getElementById('filterIcon');
+    
+    if (toggleFilterBtn && filterForm) {
+        toggleFilterBtn.addEventListener('click', function() {
+            const isHidden = filterForm.classList.contains('hidden');
+            if (isHidden) {
+                filterForm.classList.remove('hidden');
+                filterIcon.style.transform = 'rotate(180deg)';
+                toggleFilterBtn.querySelector('span').textContent = 'Ẩn bộ lọc';
+            } else {
+                filterForm.classList.add('hidden');
+                filterIcon.style.transform = 'rotate(0deg)';
+                toggleFilterBtn.querySelector('span').textContent = 'Hiện bộ lọc';
+            }
+        });
+    }
+    
     const refreshIndicator = document.getElementById('refreshIndicator');
     let countdown = 30;
 
