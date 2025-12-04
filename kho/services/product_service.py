@@ -12,8 +12,8 @@ from core.sapo_client import get_sapo_client
 
 logger = logging.getLogger(__name__)
 
-# Debug print function
-DEBUG_PRINT_ENABLED = True
+# Debug print function (tắt mặc định để tránh spam log)
+DEBUG_PRINT_ENABLED = False
 def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:
         print("[DEBUG]", *args, **kwargs)

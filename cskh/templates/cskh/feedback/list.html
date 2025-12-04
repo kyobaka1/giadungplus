@@ -379,9 +379,7 @@ async function syncFeedbacks() {
         
         const data = await response.json();
         
-        console.log('Sync response:', data);  // Debug
-        
-        // Display logs
+        // TODO: Hiển thị thông báo thành công/thất bại nếu cần
         if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
             progressLogs.innerHTML = data.logs.map(log => 
                 `<div class="text-sm text-gray-700 py-1 border-b">${escapeHtml(log)}</div>`

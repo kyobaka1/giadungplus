@@ -412,7 +412,6 @@
 
     // Camera scan success callback
     function onScanSuccess(decodedText) {
-        console.log('QR Code detected:', decodedText);
         stopCamera();
         if (decodedText && decodedText.trim()) {
             scanOrder(decodedText.trim());

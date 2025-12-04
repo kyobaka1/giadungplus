@@ -20,7 +20,8 @@ from orders.services.order_builder import OrderDTOFactory
 
 logger = logging.getLogger(__name__)
 
-DEBUG_PRINT_ENABLED = True
+# Tắt debug print mặc định để tránh spam log trong kho
+DEBUG_PRINT_ENABLED = False
 
 def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:

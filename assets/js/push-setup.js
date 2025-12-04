@@ -35,15 +35,24 @@
 
   const CONFIG = Object.assign({}, DEFAULT_CONFIG, window.GP_PUSH_CONFIG || {});
 
+  // Flag debug cho WebPush client:
+  // - Bật khi URL có ?push_debug=1 hoặc global window.GP_PUSH_DEBUG = true
+  const DEBUG_PUSH =
+    typeof window !== 'undefined' &&
+    window.location &&
+    (window.location.search.indexOf('push_debug=1') !== -1 ||
+      (window.GP_PUSH_DEBUG && window.GP_PUSH_DEBUG === true));
+
   // Debug helper: log ra console + HTML (nếu có #webpush-debug-client)
   function logPushDebug(message, data) {
+    if (!DEBUG_PUSH) return;
     try {
       const prefix = '[PushClient] ';
-      if (data !== undefined) {
-        console.log(prefix + message, data);
-      } else {
-        console.log(prefix + message);
-      }
+        if (data !== undefined) {
+          console.log(prefix + message, data);
+        } else {
+          console.log(prefix + message);
+        }
       const el = document.getElementById('webpush-debug-client');
       if (el) {
         const time = new Date().toISOString().split('T')[1].split('.')[0];
@@ -294,7 +303,9 @@
       }
 
       const data = await res.json();
-      console.log('Đăng ký WebPush thành công:', data);
+      if (DEBUG_PUSH) {
+        console.log('Đăng ký WebPush thành công:', data);
+      }
       logPushDebug('Đăng ký WebPush thành công.', data);
       return true;
     } catch (err) {
@@ -322,7 +333,9 @@
     let registration;
     try {
       registration = await registerServiceWorker();
-      console.log('Service Worker registered:', registration);
+      if (DEBUG_PUSH) {
+        console.log('Service Worker registered:', registration);
+      }
       logPushDebug('Service Worker đã được đăng ký thành công.');
     } catch (err) {
       console.error('Không thể đăng ký Service Worker:', err);

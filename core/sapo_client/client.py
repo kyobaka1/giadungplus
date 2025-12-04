@@ -40,7 +40,8 @@ from .exceptions import SeleniumLoginInProgressException
 logger = logging.getLogger(__name__)
 
 # Debug print function
-DEBUG_PRINT_ENABLED = True
+# Mặc định tắt để tránh spam log trên server; bật tạm thời khi cần debug Sapo Selenium.
+DEBUG_PRINT_ENABLED = False
 
 def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:

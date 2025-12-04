@@ -40,7 +40,9 @@ LOCATION_BY_KHO = {
     "toky": 548744,       # HCM
 }
 BILL_DIR = "settings/logs/bill"
-DEBUG_PRINT_ENABLED = True
+
+# Tắt debug print mặc định để tránh log nhiều trong module kho
+DEBUG_PRINT_ENABLED = False
 
 def debug_print(*args, **kwargs):
     if DEBUG_PRINT_ENABLED:

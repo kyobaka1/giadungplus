@@ -301,8 +301,6 @@
                 if (pdfIframe) {
                     pdfIframe.classList.add('hidden');
                 }
-                
-                console.log('Fetching PDF from separate endpoint...');
                 const pdfUrl = `/kho/orders/print_now/pdf/?ids=${encodeURIComponent(orderIds)}&print=${printParam}`;
                 
                 fetch(pdfUrl, { method: 'GET' })
@@ -330,11 +328,8 @@
                         return response.blob();
                     })
                     .then(blob => {
-                        console.log('PDF blob received, size:', blob.size);
-                        
                         // Create blob URL
                         pdfBlobUrl = URL.createObjectURL(blob);
-                        console.log('PDF blob URL created:', pdfBlobUrl);
                         
                         // Hide loading, show iframe
                         if (pdfLoading) {
@@ -345,14 +340,12 @@
                         if (pdfIframe) {
                             pdfIframe.src = pdfBlobUrl;
                             pdfIframe.classList.remove('hidden');
-                            console.log('PDF iframe src set');
                         }
                         
                         // Show print button
                         const printBtn = document.getElementById('btn-print-pdf');
                         if (printBtn) {
                             printBtn.classList.remove('hidden');
-                            console.log('Print button shown');
                         }
                     })
                     .catch(err => {

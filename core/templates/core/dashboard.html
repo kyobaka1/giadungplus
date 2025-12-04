@@ -308,17 +308,19 @@
 
         const params = new URLSearchParams(window.location.search);
         const debugPush = params.get('push_debug') === '1';
-
-        console.log('[PushDebug] iOS flags', {
-            ua,
-            isIOS,
-            isSafari,
-            isIosOrSafari,
-            isStandaloneDisplayMode,
-            isNavigatorStandalone,
-            isStandalone,
-            debugPush,
-        });
+        
+        if (debugPush) {
+            console.log('[PushDebug] iOS flags', {
+                ua,
+                isIOS,
+                isSafari,
+                isIosOrSafari,
+                isStandaloneDisplayMode,
+                isNavigatorStandalone,
+                isStandalone,
+                debugPush,
+            });
+        }
 
         const notice = document.getElementById('ios-pwa-notice');
         const btn = document.getElementById('btn-ios-enable-push');
@@ -343,7 +345,10 @@
                 // Đã bật thông báo rồi -> ẩn nút
                 notice.classList.add('hidden');
             } else {
-                notice.classList.remove('hidden');
+                // Chỉ hiển thị notice khi có debug_push để tránh làm phiền người dùng cuối
+                if (debugPush) {
+                    notice.classList.remove('hidden');
+                }
                 btn.addEventListener('click', function () {
                     if (window.initPush) {
                         window.initPush();

@@ -153,7 +153,6 @@ function getCSRFToken() {
     // Try cookie first
     let token = getCookie('csrftoken');
     if (token) {
-        console.log('[CSRF] Token from cookie');
         return token;
     }
     
@@ -161,7 +160,6 @@ function getCSRFToken() {
     const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
     if (csrfInput) {
         token = csrfInput.value;
-        console.log('[CSRF] Token from input');
         return token;
     }
     
@@ -171,17 +169,12 @@ function getCSRFToken() {
 
 // Toggle packing setting function
 async function togglePackingSetting(warehouseCode, isActive) {
-    console.log(`[PackingSettings] Toggle ${warehouseCode} to ${isActive}`);
     
     // Map warehouse code to element ID suffix (hcm or hn)
     const idSuffix = warehouseCode === 'KHO_HCM' ? 'hcm' : 'hn';
     
     const statusElement = document.getElementById(`status-${idSuffix}`);
     const toggleElement = document.getElementById(`toggle-${idSuffix}`);
-    
-    console.log(`[PackingSettings] Looking for elements: status-${idSuffix}, toggle-${idSuffix}`);
-    console.log(`[PackingSettings] Found statusElement:`, statusElement);
-    console.log(`[PackingSettings] Found toggleElement:`, toggleElement);
     
     if (!statusElement || !toggleElement) {
         console.error(`[PackingSettings] Cannot find elements for ${warehouseCode}`);
@@ -193,7 +186,6 @@ async function togglePackingSetting(warehouseCode, isActive) {
     
     // Get CSRF token
     const csrftoken = getCSRFToken();
-    console.log(`[PackingSettings] CSRF token: ${csrftoken ? 'Found' : 'Not found'}`);
     
     if (!csrftoken) {
         alert('Lỗi: Không tìm thấy CSRF token. Vui lòng tải lại trang.');
@@ -203,8 +195,6 @@ async function togglePackingSetting(warehouseCode, isActive) {
     }
     
     try {
-        console.log(`[PackingSettings] Sending request to /kho/management/packing_settings/toggle/`);
-        
         const response = await fetch('/kho/management/packing_settings/toggle/', {
             method: 'POST',
             headers: {
@@ -217,10 +207,7 @@ async function togglePackingSetting(warehouseCode, isActive) {
             })
         });
         
-        console.log(`[PackingSettings] Response status: ${response.status}`);
-        
         const data = await response.json();
-        console.log(`[PackingSettings] Response data:`, data);
         
         if (data.success) {
             // Update status badge
@@ -231,8 +218,6 @@ async function togglePackingSetting(warehouseCode, isActive) {
                 statusElement.textContent = 'Tạm dừng';
                 statusElement.className = 'inline-block px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700';
             }
-            
-            console.log(`[PackingSettings] Success: ${data.message}`);
         } else {
             // Revert toggle on error
             toggleElement.checked = !isActive;
@@ -252,7 +237,6 @@ async function togglePackingSetting(warehouseCode, isActive) {
 
 // Initialize event listeners when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('[PackingSettings] Initializing toggle listeners...');
     
     // Setup toggle for KHO_HCM
     const toggleHcm = document.getElementById('toggle-hcm');
@@ -260,9 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleHcm.addEventListener('change', function() {
             togglePackingSetting('KHO_HCM', this.checked);
         });
-        console.log('[PackingSettings] HCM toggle listener attached');
     } else {
-        console.error('[PackingSettings] Cannot find toggle-hcm element');
     }
     
     // Setup toggle for KHO_HN
@@ -271,9 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleHn.addEventListener('change', function() {
             togglePackingSetting('KHO_HN', this.checked);
         });
-        console.log('[PackingSettings] HN toggle listener attached');
     } else {
-        console.error('[PackingSettings] Cannot find toggle-hn element');
     }
 });
 </script>
