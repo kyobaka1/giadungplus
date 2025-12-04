@@ -188,10 +188,34 @@
 
   async function subscribeWithPushManager(registration) {
     try {
-      // Dùng trực tiếp registration vừa đăng ký service worker
-      // (scope đang là /static/js/, không control trang "/", nên navigator.serviceWorker.ready sẽ không resolve)
-      logPushDebug('Thực hiện subscribe với PushManager...');
-      const subscription = await registration.pushManager.subscribe({
+      logPushDebug('Thực hiện subscribe với PushManager... chuẩn bị chờ service worker active.');
+
+      let targetRegistration = registration;
+
+      // Thử sử dụng navigator.serviceWorker.ready để chắc chắn SW đã active
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        try {
+          const readyReg = await navigator.serviceWorker.ready;
+          if (readyReg) {
+            targetRegistration = readyReg;
+            logPushDebug('navigator.serviceWorker.ready đã resolve, dùng registration từ ready().', {
+              scope: readyReg.scope,
+            });
+          }
+        } catch (e) {
+          logPushDebug('navigator.serviceWorker.ready bị lỗi, fallback dùng registration ban đầu.', {
+            error: String(e),
+          });
+        }
+      }
+
+      // Nếu vẫn chưa có active worker, chờ thêm một chút
+      if (!targetRegistration.active) {
+        logPushDebug('Service worker chưa active, chờ thêm 1s rồi thử subscribe.');
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
+      const subscription = await targetRegistration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
       });
