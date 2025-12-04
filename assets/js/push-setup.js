@@ -35,8 +35,40 @@
 
   const CONFIG = Object.assign({}, DEFAULT_CONFIG, window.GP_PUSH_CONFIG || {});
 
+  // Debug helper: log ra console + HTML (nếu có #webpush-debug-client)
+  function logPushDebug(message, data) {
+    try {
+      const prefix = '[PushClient] ';
+      if (data !== undefined) {
+        console.log(prefix + message, data);
+      } else {
+        console.log(prefix + message);
+      }
+      const el = document.getElementById('webpush-debug-client');
+      if (el) {
+        const time = new Date().toISOString().split('T')[1].split('.')[0];
+        const line =
+          '[' + time + '] ' + message + (data !== undefined ? ' ' + JSON.stringify(data) : '');
+        const div = document.createElement('div');
+        div.textContent = line;
+        el.appendChild(div);
+      }
+    } catch (e) {
+      // ignore debug errors
+    }
+  }
+
   function isPushSupported() {
-    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    const supported =
+      'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+    if (!supported) {
+      logPushDebug('Push không được hỗ trợ trên trình duyệt này.', {
+        hasServiceWorker: 'serviceWorker' in navigator,
+        hasPushManager: 'PushManager' in window,
+        hasNotification: 'Notification' in window,
+      });
+    }
+    return supported;
   }
 
   // Phát hiện loại thiết bị chi tiết hơn (ưu tiên userAgentData nếu có)
@@ -97,27 +129,32 @@
 
   async function requestNotificationPermission() {
     if (Notification.permission === 'granted') {
+      logPushDebug('Notification.permission đã là granted, bỏ qua requestPermission().');
       return true;
     }
     if (Notification.permission === 'denied') {
       console.warn('User đã từ chối notification.');
+      logPushDebug('Notification.permission = denied, dừng lại.');
       return false;
     }
     const permission = await Notification.requestPermission();
+    logPushDebug('Kết quả Notification.requestPermission()', { permission });
     return permission === 'granted';
   }
 
   async function registerServiceWorker() {
     // Cho phép override URL nếu template đã set GP_PUSH_CONFIG.swUrl
     const swUrl = CONFIG.swUrl;
+    logPushDebug('Đăng ký Service Worker với swUrl=' + swUrl);
     return navigator.serviceWorker.register(swUrl);
   }
 
   async function initFirebaseMessaging() {
     if (!window.firebase || !window.firebase.messaging) {
-      console.warn(
-        'Firebase messaging chưa được load. Hãy include CDN firebase-app.js và firebase-messaging.js (v8) trước push-setup.js.'
-      );
+      const msg =
+        'Firebase messaging chưa được load. Hãy include CDN firebase-app.js và firebase-messaging.js (v8) trước push-setup.js.';
+      console.warn(msg);
+      logPushDebug(msg);
       return null;
     }
 
@@ -130,6 +167,7 @@
       return messaging;
     } catch (err) {
       console.error('Lỗi khởi tạo Firebase messaging:', err);
+      logPushDebug('Lỗi khởi tạo Firebase messaging', { error: String(err) });
       return null;
     }
   }
@@ -139,9 +177,11 @@
       const token = await messaging.getToken({
         vapidKey: CONFIG.vapidPublicKey,
       });
+      logPushDebug('Đã lấy được FCM token (Android Chrome).');
       return token;
     } catch (err) {
       console.error('Lỗi lấy FCM token:', err);
+      logPushDebug('Lỗi lấy FCM token', { error: String(err) });
       return null;
     }
   }
@@ -150,19 +190,29 @@
     try {
       // Dùng trực tiếp registration vừa đăng ký service worker
       // (scope đang là /static/js/, không control trang "/", nên navigator.serviceWorker.ready sẽ không resolve)
+      logPushDebug('Thực hiện subscribe với PushManager...');
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
       });
+      logPushDebug('Đã subscribe PushManager thành công.');
       return subscription;
     } catch (err) {
       console.error('Lỗi subscribe PushManager:', err);
+      logPushDebug('Lỗi subscribe PushManager', { error: String(err) });
       return null;
     }
   }
 
   async function sendSubscriptionToServer(payload) {
     try {
+      logPushDebug('Gửi subscription lên server...', {
+        url: CONFIG.apiRegisterUrl,
+        device_type: payload.device_type,
+        hasEndpoint: !!payload.endpoint,
+        hasFcmToken: !!payload.fcm_token,
+      });
+
       const res = await fetch(CONFIG.apiRegisterUrl, {
         method: 'POST',
         headers: {
@@ -174,28 +224,38 @@
       });
 
       if (!res.ok) {
-        console.error('Đăng ký subscription thất bại:', res.status, await res.text());
+        const text = await res.text();
+        console.error('Đăng ký subscription thất bại:', res.status, text);
+        logPushDebug('Đăng ký subscription thất bại', {
+          status: res.status,
+          body: text.slice(0, 200),
+        });
         return false;
       }
 
       const data = await res.json();
       console.log('Đăng ký WebPush thành công:', data);
+      logPushDebug('Đăng ký WebPush thành công.', data);
       return true;
     } catch (err) {
       console.error('Lỗi gửi subscription lên server:', err);
+      logPushDebug('Lỗi gửi subscription lên server', { error: String(err) });
       return false;
     }
   }
 
   async function initPush() {
+    logPushDebug('Bắt đầu initPush()...');
     if (!isPushSupported()) {
       console.warn('Trình duyệt không hỗ trợ Service Worker / Push / Notification.');
+      logPushDebug('Dừng initPush vì không hỗ trợ Push.');
       return;
     }
 
     const granted = await requestNotificationPermission();
     if (!granted) {
       console.warn('User không cho phép gửi notification.');
+      logPushDebug('User không cho phép gửi notification, dừng initPush.');
       return;
     }
 
@@ -203,13 +263,16 @@
     try {
       registration = await registerServiceWorker();
       console.log('Service Worker registered:', registration);
+      logPushDebug('Service Worker đã được đăng ký thành công.');
     } catch (err) {
       console.error('Không thể đăng ký Service Worker:', err);
+      logPushDebug('Không thể đăng ký Service Worker', { error: String(err) });
       return;
     }
 
     // Device type mặc định (chuẩn hoá theo enum backend)
     let deviceType = await getNormalizedDeviceType();
+    logPushDebug('Device type (normalized) = ' + deviceType);
     let payload = {
       device_type: deviceType,
       endpoint: null,
@@ -232,6 +295,7 @@
     } else if (isIosSafari()) {
       // Safari iOS 16.4+ hỗ trợ Web Push, nhưng không dùng trực tiếp Firebase Messaging
       deviceType = 'ios_web';
+      logPushDebug('Nhánh iOS Safari: deviceType=ios_web, chuẩn bị subscribe PushManager...');
       const sub = await subscribeWithPushManager(registration);
       if (sub) {
         const json = sub.toJSON();
