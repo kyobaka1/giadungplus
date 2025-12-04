@@ -10,10 +10,13 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
       - device_type: android_web | ios_web | unknown
       - endpoint, keys: cho Web Push
       - fcm_token: cho Android Chrome (hoặc nơi khác)
+      - username (optional): cho phép client đẩy username để map sang user_id
     """
 
     # Cho phép client gửi "keys" dạng object {p256dh, auth}
     keys = serializers.DictField(required=False, allow_null=True)
+    # Cho phép client gửi thêm username để backend map sang user
+    username = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
     class Meta:
         model = WebPushSubscription
@@ -28,6 +31,7 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "keys",
+            "username",
         )
         read_only_fields = ("id", "created_at", "updated_at")
 
@@ -45,6 +49,7 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
         if keys:
             attrs["p256dh"] = keys.get("p256dh") or attrs.get("p256dh")
             attrs["auth"] = keys.get("auth") or attrs.get("auth")
+        # username giữ nguyên trong attrs để view có thể xử lý
         return attrs
 
 
