@@ -110,13 +110,20 @@ class OrderDTOFactory:
             payment_status=raw_order.get("payment_status"),
             return_status=raw_order.get("return_status"),
             
-            total=float(raw_order.get("total", 0) or 0),
-            total_discount=float(raw_order.get("total_discount", 0) or 0),
-            total_tax=float(raw_order.get("total_tax", 0) or 0),
-            delivery_fee=float(raw_order.get("delivery_fee", 0) or 0),
-            order_discount_rate=float(raw_order.get("order_discount_rate", 0) or 0),
-            order_discount_value=float(raw_order.get("order_discount_value", 0) or 0),
-            order_discount_amount=float(raw_order.get("order_discount_amount", 0) or 0),
+            # Money fields – Sapo đôi khi trả về dạng dict (ví dụ: delivery_fee: { fee: ... })
+            total=float((raw_order.get("total", 0) or 0)),
+            total_discount=float((raw_order.get("total_discount", 0) or 0)),
+            total_tax=float((raw_order.get("total_tax", 0) or 0)),
+            delivery_fee=float(
+                (
+                    (raw_order.get("delivery_fee") or {}).get("fee", 0)
+                    if isinstance(raw_order.get("delivery_fee"), dict)
+                    else (raw_order.get("delivery_fee", 0) or 0)
+                )
+            ),
+            order_discount_rate=float((raw_order.get("order_discount_rate", 0) or 0)),
+            order_discount_value=float((raw_order.get("order_discount_value", 0) or 0)),
+            order_discount_amount=float((raw_order.get("order_discount_amount", 0) or 0)),
             
             tags=raw_order.get("tags") or [],
             note=raw_order.get("note") or "",
