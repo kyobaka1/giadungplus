@@ -190,34 +190,42 @@
     try {
       logPushDebug('Thực hiện subscribe với PushManager... chuẩn bị chờ service worker active.');
 
-      let targetRegistration = registration;
+      // Dùng trực tiếp registration trả về từ navigator.serviceWorker.register.
+      // Tránh await navigator.serviceWorker.ready vì trên một số trình duyệt (scope không control trang)
+      // nó sẽ không bao giờ resolve.
+      const targetRegistration = registration;
 
-      // Thử sử dụng navigator.serviceWorker.ready để chắc chắn SW đã active
-      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-        try {
-          const readyReg = await navigator.serviceWorker.ready;
-          if (readyReg) {
-            targetRegistration = readyReg;
-            logPushDebug('navigator.serviceWorker.ready đã resolve, dùng registration từ ready().', {
-              scope: readyReg.scope,
-            });
-          }
-        } catch (e) {
-          logPushDebug('navigator.serviceWorker.ready bị lỗi, fallback dùng registration ban đầu.', {
-            error: String(e),
-          });
-        }
-      }
+      logPushDebug('Trạng thái service worker sau register', {
+        scope: targetRegistration.scope,
+        hasActive: !!targetRegistration.active,
+        installing: !!targetRegistration.installing,
+        waiting: !!targetRegistration.waiting,
+      });
 
-      // Nếu vẫn chưa có active worker, chờ thêm một chút
-      if (!targetRegistration.active) {
-        logPushDebug('Service worker chưa active, chờ thêm 1s rồi thử subscribe.', {
+      // Chờ tối đa ~5s cho đến khi service worker active (nếu có thay đổi).
+      const maxWaitMs = 5000;
+      const stepMs = 500;
+      let waited = 0;
+      while (!targetRegistration.active && waited < maxWaitMs) {
+        logPushDebug('Service worker chưa active, tiếp tục chờ...', {
           scope: targetRegistration.scope,
+          waitedMs: waited,
           hasActive: !!targetRegistration.active,
           installing: !!targetRegistration.installing,
           waiting: !!targetRegistration.waiting,
         });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, stepMs));
+        waited += stepMs;
+      }
+
+      if (!targetRegistration.active) {
+        logPushDebug(
+          'Service worker vẫn chưa active sau khi chờ, vẫn thử gọi pushManager.subscribe (có thể lỗi InvalidStateError).',
+          {
+            scope: targetRegistration.scope,
+            hasActive: !!targetRegistration.active,
+          }
+        );
       }
 
       // Kiểm tra lại trước khi subscribe
@@ -233,10 +241,20 @@
         return null;
       }
 
-      const subscription = await targetRegistration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
-      });
+      let subscription = null;
+      try {
+        subscription = await targetRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
+        });
+      } catch (err) {
+        logPushDebug('Lỗi ngay khi gọi pushManager.subscribe', {
+          name: err && err.name,
+          message: err && err.message,
+        });
+        throw err;
+      }
+
       logPushDebug('Đã subscribe PushManager thành công.');
       return subscription;
     } catch (err) {
