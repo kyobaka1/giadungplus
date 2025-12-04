@@ -309,6 +309,8 @@ def push_notification_view(request):
         webpush_total = 0
         webpush_success = 0
         if send_web_push:
+            from core.models import NotificationDelivery as ND
+
             qs = WebPushSubscription.objects.filter(is_active=True)
             webpush_total = qs.count()
             extra_payload = dict(extra_data)
@@ -324,6 +326,23 @@ def push_notification_view(request):
                     url=url,
                 ):
                     webpush_success += 1
+
+                    # Tạo NotificationDelivery channel web_push để tracking theo user
+                    if sub.user:
+                        ND.objects.update_or_create(
+                            notification=notification,
+                            user=sub.user,
+                            channel=ND.CHANNEL_WEB_PUSH,
+                            defaults={
+                                "status": ND.STATUS_SENT,
+                                "sent_at": timezone.now(),
+                                "delivery_metadata": {
+                                    "method": "web_push_broadcast",
+                                    "subscription_id": sub.id,
+                                    "device_type": sub.device_type,
+                                },
+                            },
+                        )
 
         # Thông báo kết quả (kèm debug: đã gửi cho user / thiết bị nào)
         if scheduled_time is None:
