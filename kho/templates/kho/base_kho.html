@@ -53,6 +53,20 @@
         }
     </style>
 
+    <!-- Web Push config (Kho) -->
+    <!-- Firebase SDK (v8 compat) để dùng messaging.getToken trên Chrome Android -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+    <script>
+        window.GP_PUSH_CONFIG = {
+            apiRegisterUrl: '/api/push/register/',
+            swUrl: '{% static "js/service-worker.js" %}',
+            vapidPublicKey: 'BMAinpH2KhQxtclH3XM3UJ_9e-NvlKTzY-WIszcXxCkll7ISLR3BEdWKmgBgkXvjjILJz5Uh375hHwRj3IvaIHU',
+            username: '{{ request.user.username|escapejs }}',
+        };
+    </script>
+    <script src="{% static 'js/push-setup.js' %}"></script>
+
     <script>
         tailwind.config = {
             theme: {
