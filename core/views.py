@@ -9,7 +9,7 @@ from typing import Any, Dict
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpRequest
 from django.core.cache import cache
-from django.contrib.auth import logout
+from django.contrib.auth import logout, get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.views.decorators.csrf import csrf_exempt
@@ -151,7 +151,17 @@ def register_webpush_subscription(request: HttpRequest):
     serializer.is_valid(raise_exception=True)
     data: Dict[str, Any] = serializer.validated_data
 
+    # Ưu tiên user đang đăng nhập (nếu có session)
     user = request.user if request.user.is_authenticated else None
+
+    # Cho phép client gửi thêm username để map sang user_id (trong trường hợp không có session)
+    username = (data.pop("username", "") or "").strip()
+    if not user and username:
+        User = get_user_model()
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            logger.warning("register_webpush_subscription: không tìm thấy user với username=%s", username)
 
     endpoint = data.get("endpoint")
     fcm_token = data.get("fcm_token")

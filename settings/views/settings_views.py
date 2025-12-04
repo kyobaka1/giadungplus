@@ -304,45 +304,77 @@ def push_notification_view(request):
                 notification_id=notification.id
             )
 
-        # Bổ sung luồng test WebPush: broadcast tới tất cả subscription active,
-        # để đảm bảo có Web Push kể cả khi mapping user-subscription chưa đủ.
+        # Bổ sung luồng test WebPush: broadcast WebPush, có lọc theo user_ids nếu được set.
         webpush_total = 0
         webpush_success = 0
+        webpush_errors: list[str] = []
         if send_web_push:
+            import logging
             from core.models import NotificationDelivery as ND
 
-            qs = WebPushSubscription.objects.filter(is_active=True)
+            logger = logging.getLogger(__name__)
+
+            # Nếu có user_ids -> chỉ gửi WebPush cho subscription của các user này
+            if user_ids:
+                qs = WebPushSubscription.objects.filter(
+                    is_active=True,
+                    user_id__in=user_ids,
+                    user__isnull=False,
+                )
+                if not qs.exists():
+                    messages.warning(
+                        request,
+                        f"Không có WebPush subscription nào gắn với user_ids={user_ids}. "
+                        "Bỏ qua bước broadcast WebPush."
+                    )
+                    qs = WebPushSubscription.objects.none()
+            else:
+                # Nếu không truyền user_ids -> broadcast tới tất cả subscription active, có gắn user
+                qs = WebPushSubscription.objects.filter(
+                    is_active=True,
+                    user__isnull=False,
+                )
+
             webpush_total = qs.count()
             extra_payload = dict(extra_data)
             extra_payload.setdefault("url", url)
 
             for sub in qs:
-                if send_webpush_to_subscription(
-                    sub,
-                    title,
-                    body,
-                    data=extra_payload,
-                    icon=None,
-                    url=url,
-                ):
-                    webpush_success += 1
+                try:
+                    if send_webpush_to_subscription(
+                        sub,
+                        title,
+                        body,
+                        data=extra_payload,
+                        icon=None,
+                        url=url,
+                    ):
+                        webpush_success += 1
 
-                    # Tạo NotificationDelivery channel web_push để tracking theo user
-                    if sub.user:
-                        ND.objects.update_or_create(
-                            notification=notification,
-                            user=sub.user,
-                            channel=ND.CHANNEL_WEB_PUSH,
-                            defaults={
-                                "status": ND.STATUS_SENT,
-                                "sent_at": timezone.now(),
-                                "delivery_metadata": {
-                                    "method": "web_push_broadcast",
-                                    "subscription_id": sub.id,
-                                    "device_type": sub.device_type,
+                        # Tạo NotificationDelivery channel web_push để tracking theo user
+                        if sub.user:
+                            ND.objects.update_or_create(
+                                notification=notification,
+                                user=sub.user,
+                                channel=ND.CHANNEL_WEB_PUSH,
+                                defaults={
+                                    "status": ND.STATUS_SENT,
+                                    "sent_at": timezone.now(),
+                                    "delivery_metadata": {
+                                        "method": "web_push_broadcast",
+                                        "subscription_id": sub.id,
+                                        "device_type": sub.device_type,
+                                    },
                                 },
-                            },
-                        )
+                            )
+                    else:
+                        err_msg = f"WebPush FAILED (no active endpoint) cho subscription #{sub.id} (user={sub.user_id})"
+                        webpush_errors.append(err_msg)
+                        logger.warning(err_msg)
+                except Exception as exc:
+                    err_msg = f"WebPush EXCEPTION cho subscription #{sub.id} (user={sub.user_id}): {exc}"
+                    webpush_errors.append(err_msg)
+                    logger.exception(err_msg)
 
         # Thông báo kết quả (kèm debug: đã gửi cho user / thiết bị nào)
         if scheduled_time is None:

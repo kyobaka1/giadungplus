@@ -12,12 +12,14 @@
   //   window.GP_PUSH_CONFIG = {
   //     apiRegisterUrl: '/api/push/register/',
   //     swUrl: '{% static "js/service-worker.js" %}',
-  //     vapidPublicKey: '...'
+  //     vapidPublicKey: '...',
+  //     username: '{{ request.user.username }}', // optional: đẩy kèm username
   //   };
   // </script>
   const DEFAULT_CONFIG = {
     apiRegisterUrl: '/api/push/register/',
     swUrl: '/static/js/service-worker.js', // Có thể override bằng GP_PUSH_CONFIG
+    username: null, // có thể set từ template nếu muốn backend map user theo username
     vapidPublicKey:
       'BMAinpH2KhQxtclH3XM3UJ_9e-NvlKTzY-WIszcXxCkll7ISLR3BEdWKmgBgkXvjjILJz5Uh375hHwRj3IvaIHU', // từ keypair.txt
     firebaseConfig: {
@@ -218,6 +220,11 @@
     if (!payload.fcm_token && !payload.endpoint) {
       console.warn('Không lấy được FCM token hoặc Push subscription.');
       return;
+    }
+
+    // Đính kèm username nếu config có (giúp backend map user_id khi không có session)
+    if (CONFIG.username) {
+      payload.username = CONFIG.username;
     }
 
     await sendSubscriptionToServer(payload);
