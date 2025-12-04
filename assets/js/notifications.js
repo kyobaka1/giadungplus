@@ -81,6 +81,7 @@
         elements.markAllReadButton = document.getElementById('markAllReadButton');
         elements.closeButton = document.getElementById('closeNotificationButton');
         elements.itemTemplate = document.getElementById('notificationItemTemplate');
+        elements.overlay = document.getElementById('notificationOverlay');
 
         if (!elements.bellButton || !elements.dropdown) {
             console.warn('Notification bell elements not found');
@@ -92,12 +93,23 @@
         elements.closeButton?.addEventListener('click', closeDropdown);
         elements.markAllReadButton?.addEventListener('click', markAllRead);
 
-        // Click outside to close
+        // Click outside to close (không áp dụng cho overlay vì overlay tự đóng)
         document.addEventListener('click', (e) => {
+            if (elements.overlay && !elements.overlay.classList.contains('hidden')) {
+                // khi overlay đang hiện, close khi click overlay (xử lý riêng)
+                return;
+            }
             if (!elements.bellContainer.contains(e.target)) {
                 closeDropdown();
             }
         });
+
+        // Click overlay để đóng
+        if (elements.overlay) {
+            elements.overlay.addEventListener('click', () => {
+                closeDropdown();
+            });
+        }
 
         // Load initial data
         loadUnreadCount();
@@ -128,6 +140,9 @@
      */
     function openDropdown() {
         elements.dropdown.classList.remove('hidden');
+        if (elements.overlay) {
+            elements.overlay.classList.remove('hidden');
+        }
         loadNotifications();
     }
 
@@ -136,6 +151,9 @@
      */
     function closeDropdown() {
         elements.dropdown.classList.add('hidden');
+        if (elements.overlay) {
+            elements.overlay.classList.add('hidden');
+        }
     }
 
     /**
@@ -340,9 +358,9 @@
                 renderNotifications();
             }
 
-            // Update count
-            state.unreadCount = Math.max(0, state.unreadCount - 1);
-            updateBadge();
+            // Sync lại với server để đảm bảo đúng trạng thái
+            await loadUnreadCount();
+            await loadNotifications();
         } catch (error) {
             console.error('Error marking notification as read:', error);
         }
@@ -365,15 +383,9 @@
                 throw new Error(`HTTP ${response.status}`);
             }
 
-            // Update local state
-            state.notifications.forEach(n => {
-                n.is_read = true;
-            });
-            renderNotifications();
-
-            // Update count
-            state.unreadCount = 0;
-            updateBadge();
+            // Sau khi server xử lý xong, reload dữ liệu từ API để đảm bảo trạng thái đúng
+            await loadUnreadCount();
+            await loadNotifications();
         } catch (error) {
             console.error('Error marking all notifications as read:', error);
         }
