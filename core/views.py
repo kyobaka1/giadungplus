@@ -20,7 +20,7 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from core.sapo_client.client import SELENIUM_LOCK_KEY
-from .models import WebPushSubscription
+from .models import WebPushSubscription, NotificationDelivery
 from .serializers import WebPushSubscriptionSerializer
 
 logger = logging.getLogger(__name__)
@@ -196,4 +196,134 @@ def register_webpush_subscription(request: HttpRequest):
         {"created": created, "subscription": out.data},
         status=status.HTTP_200_OK,
     )
+
+
+# ==================== NOTIFICATION APIs ====================
+
+@api_view(["GET"])
+@login_required
+def list_notifications(request: HttpRequest):
+    """
+    API endpoint: /api/notifications/
+
+    Lấy danh sách notifications của user hiện tại.
+
+    Query params:
+        - limit: Số lượng (mặc định: 50)
+        - offset: Offset (mặc định: 0)
+        - unread_only: Chỉ lấy chưa đọc (true/false, mặc định: false)
+    """
+    from django.core.paginator import Paginator
+
+    limit = int(request.GET.get("limit", 50))
+    offset = int(request.GET.get("offset", 0))
+    unread_only = request.GET.get("unread_only", "false").lower() == "true"
+
+    qs = NotificationDelivery.objects.filter(
+        user=request.user,
+        channel=NotificationDelivery.CHANNEL_IN_APP,
+        status=NotificationDelivery.STATUS_SENT,
+    ).select_related("notification").order_by("-created_at")
+
+    if unread_only:
+        qs = qs.filter(is_read=False)
+
+    # Pagination
+    paginator = Paginator(qs, limit)
+    page = (offset // limit) + 1
+    deliveries = paginator.get_page(page)
+
+    results = []
+    for delivery in deliveries:
+        notification = delivery.notification
+        results.append({
+            "id": delivery.id,
+            "notification_id": notification.id,
+            "title": notification.title,
+            "body": notification.body,
+            "link": notification.link or "",
+            "action": notification.action,
+            "sound": notification.sound or "",
+            "count": notification.count,
+            "tag": notification.tag or "",
+            "event_type": notification.event_type or "",
+            "context": notification.context,
+            "is_read": delivery.is_read,
+            "read_at": delivery.read_at.isoformat() if delivery.read_at else None,
+            "created_at": delivery.created_at.isoformat(),
+        })
+
+    return Response({
+        "count": paginator.count,
+        "next": deliveries.has_next(),
+        "previous": deliveries.has_previous(),
+        "results": results,
+    })
+
+
+@api_view(["GET"])
+@login_required
+def unread_notifications_count(request: HttpRequest):
+    """
+    API endpoint: /api/notifications/unread-count/
+
+    Lấy số lượng notifications chưa đọc của user hiện tại.
+    """
+    count = NotificationDelivery.objects.filter(
+        user=request.user,
+        channel=NotificationDelivery.CHANNEL_IN_APP,
+        status=NotificationDelivery.STATUS_SENT,
+        is_read=False,
+    ).count()
+
+    return Response({"count": count})
+
+
+@api_view(["POST"])
+@login_required
+def mark_notification_read(request: HttpRequest, delivery_id: int):
+    """
+    API endpoint: /api/notifications/<delivery_id>/mark-read/
+
+    Đánh dấu 1 notification đã đọc.
+    """
+    from django.utils import timezone
+
+    try:
+        delivery = NotificationDelivery.objects.get(
+            id=delivery_id,
+            user=request.user,
+            channel=NotificationDelivery.CHANNEL_IN_APP,
+        )
+    except NotificationDelivery.DoesNotExist:
+        return Response(
+            {"detail": "Notification không tồn tại."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    delivery.is_read = True
+    delivery.read_at = timezone.now()
+    delivery.save(update_fields=["is_read", "read_at"])
+
+    return Response({"success": True})
+
+
+@api_view(["POST"])
+@login_required
+def mark_all_notifications_read(request: HttpRequest):
+    """
+    API endpoint: /api/notifications/mark-all-read/
+
+    Đánh dấu tất cả notifications của user hiện tại là đã đọc.
+    """
+    from django.utils import timezone
+
+    updated = NotificationDelivery.objects.filter(
+        user=request.user,
+        channel=NotificationDelivery.CHANNEL_IN_APP,
+        status=NotificationDelivery.STATUS_SENT,
+        is_read=False,
+    ).update(is_read=True, read_at=timezone.now())
+
+    return Response({"success": True, "updated": updated})
 

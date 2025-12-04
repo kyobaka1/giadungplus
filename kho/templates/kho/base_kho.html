@@ -105,6 +105,9 @@
                     </svg>
                 </button>
 
+                <!-- Notification Bell -->
+                {% include 'core/notification_bell.html' %}
+
                 <!-- Chọn kho -->
                 <div class="relative">
                     <!-- Khu vực hiển thị kho + user, dùng làm nút bấm -->
@@ -550,6 +553,9 @@
 
     {% block extra_js %}
     {% endblock %}
+
+    <!-- Notification Bell Script -->
+    <script src="{% static 'js/notifications.js' %}"></script>
 
 </body>
 
