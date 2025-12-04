@@ -130,12 +130,12 @@ def send_webpush_to_subscription(
         }
 
         try:
-                resp = requests.post(
-                    FCM_LEGACY_ENDPOINT,
-                    json=payload,
-                    headers=headers,
-                    timeout=2,  # giới hạn tối đa ~2 giây cho mỗi request tới FCM
-                )
+            resp = requests.post(
+                FCM_LEGACY_ENDPOINT,
+                json=payload,
+                headers=headers,
+                timeout=2,  # giới hạn tối đa ~2 giây cho mỗi request tới FCM
+            )
             if resp.status_code != 200:
                 logger.error(
                     "Gửi FCM thất bại (%s): %s",
