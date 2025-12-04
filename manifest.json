@@ -1,5 +1,5 @@
 {
-    "name": "Gia Dụng Plus Admin",
+    "name": "Gia Dụng Plus",
     "short_name": "GDP Admin",
     "start_url": "/",
     "display": "standalone",
@@ -7,7 +7,7 @@
     "theme_color": "#db0d29",
     "icons": [
       {
-        "src": "/static/favicon.png",
+        "src": "/static/favicon-192.png",
         "sizes": "192x192",
         "type": "image/png"
       }

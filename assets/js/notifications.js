@@ -19,6 +19,7 @@
         notifications: [],
         isLoading: false,
         pollTimer: null,
+        initialized: false, // để tránh phát âm thanh ở lần load đầu tiên
     };
 
     // DOM Elements
@@ -35,6 +36,29 @@
         closeButton: null,
         itemTemplate: null,
     };
+
+    // Audio for new notifications
+    let notifyAudio = null;
+
+    function getNotifyAudio() {
+        if (!notifyAudio) {
+            notifyAudio = new Audio('/static/sound/notify-1.mp3');
+        }
+        return notifyAudio;
+    }
+
+    function playNotifySound() {
+        try {
+            const audio = getNotifyAudio();
+            // tua về đầu để nếu nhiều notify liên tiếp vẫn nghe rõ
+            audio.currentTime = 0;
+            audio.play().catch(() => {
+                // Một số trình duyệt chặn auto-play nếu chưa có tương tác người dùng
+            });
+        } catch (e) {
+            console.error('Error playing notify sound:', e);
+        }
+    }
 
     /**
      * Initialize notification bell
@@ -128,7 +152,20 @@
             }
 
             const data = await response.json();
-            state.unreadCount = data.count || 0;
+
+            const newCount = data.count || 0;
+            const prevCount = state.unreadCount;
+            state.unreadCount = newCount;
+
+            // Nếu đã init và số lượng chưa đọc tăng → phát âm thanh
+            if (state.initialized && newCount > prevCount) {
+                playNotifySound();
+            }
+
+            if (!state.initialized) {
+                state.initialized = true;
+            }
+
             updateBadge();
         } catch (error) {
             console.error('Error loading unread count:', error);
