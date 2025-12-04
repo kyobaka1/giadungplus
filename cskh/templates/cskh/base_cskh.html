@@ -18,6 +18,13 @@
     <title>{% block title %}CSKH – Dashboard{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+    <!-- iOS PWA meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GDP CSKH">
+    <link rel="apple-touch-icon" href="/static/favicon-192.png">
+    <link rel="manifest" href="/manifest.json">
+
     <!-- Tailwind -->
     <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -59,22 +66,6 @@
             }
         }
     </script>
-    <style>
-        /* Tăng kích thước cho màn hình 2K (tương đương zoom 110%) */
-        @media (min-width: 1920px) {
-            html {
-                font-size: 110%;
-            }
-
-            .right-panel-placeholder {
-                display: block;
-            }
-        }
-
-        .right-panel-placeholder {
-            display: none;
-        }
-    </style>
 </head>
 
 <body class="bg-slate-100 text-gray-900 antialiased text-[14px] sm:text-[15px] md:text-[16px] lg:text-[17px]">
@@ -305,7 +296,7 @@
 
             <!-- █▀ MAIN CONTENT -->
             <main class="flex-1 overflow-y-auto">
-                <div class="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
+                <div class="px-0 py-4 md:py-6 space-y-4 md:space-y-6">
 
                     <!-- █▀ OVERVIEW BLOCK -->
                     {% block overview %}
@@ -321,14 +312,13 @@
 
                     <!-- █▀ CONTENT LAYOUT -->
                     {% block content_layout %}
-                    <div class="flex gap-4 md:gap-6">
+                    <div class="w-full px-4">
                         <!-- MAIN CONTENT -->
                         {% block main_content %}
-                        <div class="flex-1 min-w-0">
+                        <div class="w-full">
                             {% block content %}
                             <section>
-                                <div
-                                    class="p-6 md:p-8 bg-white border rounded-xl shadow-sm text-base md:text-sm text-gray-500">
+                                <div class="p-6 md:p-8 bg-white border rounded-xl shadow-sm text-base md:text-sm text-gray-500">
                                     Nội dung trang CSKH.
                                 </div>
                             </section>
@@ -336,14 +326,9 @@
                         </div>
                         {% endblock %}
 
-                        <!-- RIGHT PANEL -->
-                        <div id="rightPanelContainer">
-                            {% block right_panel %}
-                            {% endblock %}
-                        </div>
-
-                        <div id="rightPanelPlaceholder"
-                            class="right-panel-placeholder w-full lg:w-[280px] xl:w-[320px] shrink-0"></div>
+                        <!-- RIGHT PANEL (optional - only shown if child template uses it) -->
+                        {% block right_panel %}
+                        {% endblock %}
                     </div>
                     {% endblock %}
 
@@ -446,31 +431,6 @@
                 }
             });
 
-            // Right panel placeholder control
-            function checkRightPanel() {
-                const rightPanelContainer = document.getElementById('rightPanelContainer');
-                const placeholder = document.getElementById('rightPanelPlaceholder');
-
-                if (!rightPanelContainer || !placeholder) return;
-
-                const hasContent = Array.from(rightPanelContainer.children).some(child => {
-                    return child.nodeType === 1 && child.offsetHeight > 0;
-                }) || (rightPanelContainer.textContent.trim().length > 0 &&
-                    rightPanelContainer.querySelector('div, span, p, button, form, input, select, textarea'));
-
-                const is2KOrLarger = window.innerWidth >= 1920;
-
-                if (hasContent) {
-                    placeholder.style.display = 'none';
-                } else if (is2KOrLarger) {
-                    placeholder.style.display = 'block';
-                } else {
-                    placeholder.style.display = 'none';
-                }
-            }
-
-            checkRightPanel();
-            window.addEventListener('resize', checkRightPanel);
         });
     </script>
 {% block extra_scripts %}
