@@ -290,8 +290,24 @@ def register_webpush_subscription(request: HttpRequest):
                     username,
                 )
 
-        endpoint = data.get("endpoint")
-        fcm_token = data.get("fcm_token")
+        endpoint = data.get("endpoint") or ""
+        fcm_token = data.get("fcm_token") or ""
+
+        # Chuẩn hoá device_type tốt hơn (tránh toàn bộ là "unknown")
+        # Ưu tiên theo endpoint + User-Agent, sau đó mới fallback device_type client gửi lên.
+        raw_device_type = data.get("device_type") or WebPushSubscription.DEVICE_UNKNOWN
+        ua = request.META.get("HTTP_USER_AGENT", "") or ""
+
+        device_type = raw_device_type
+        if "web.push.apple.com" in endpoint:
+            # Safari iOS Web Push (PWA / Safari 16.4+)
+            device_type = WebPushSubscription.DEVICE_IOS_WEB
+        elif "Android" in ua and "Chrome" in ua:
+            # Chrome trên Android (dùng FCM)
+            device_type = WebPushSubscription.DEVICE_ANDROID_WEB
+        else:
+            # Giữ nguyên device_type client gửi, hoặc UNKNOWN nếu không hợp lệ
+            device_type = raw_device_type
 
         # Ưu tiên match theo endpoint (Web Push thuần)
         subscription = None
@@ -302,7 +318,7 @@ def register_webpush_subscription(request: HttpRequest):
                 endpoint=endpoint,
                 defaults={
                     "user": user,
-                    "device_type": data.get("device_type"),
+                    "device_type": device_type,
                     "p256dh": data.get("p256dh"),
                     "auth": data.get("auth"),
                     "fcm_token": fcm_token or "",
@@ -314,7 +330,7 @@ def register_webpush_subscription(request: HttpRequest):
                 fcm_token=fcm_token,
                 defaults={
                     "user": user,
-                    "device_type": data.get("device_type"),
+                    "device_type": device_type,
                     "p256dh": data.get("p256dh"),
                     "auth": data.get("auth"),
                     "endpoint": "",
