@@ -3,14 +3,16 @@ from django.contrib import messages
 from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.utils import timezone
 import json
+from datetime import datetime
 
 from kho.utils import admin_only
 from ..services.config_service import SapoConfigService, ShopeeConfigService
 from core.sapo_client import SapoClient
 from products.services.shopee_init_service import ShopeeInitService
-from core.models import WebPushSubscription
-from core.services.notifications import send_webpush_to_subscription
+from core.services.notify import notify
+from core.services.notification_delivery import NotificationDeliveryWorker
 
 
 @admin_only
@@ -176,21 +178,43 @@ def init_shopee_products_api(request):
 @require_http_methods(["GET", "POST"])
 def push_notification_view(request):
     """
-    Màn hình gửi Web Push Notification từ Settings.
-    - Gửi tới toàn bộ subscription active (kể cả user_id=None).
+    Màn hình test hệ thống Notification (Notification Engine + Delivery).
+
+    Cho phép:
+    - Gửi notification theo group / department / shop / user_id.
+    - Chọn action (show_popup, play_sound, badge_update, boss_popup).
+    - Gửi ngay hoặc hẹn giờ (scheduled_time).
+    - Gửi qua kênh in_app và/hoặc web_push.
     """
     if request.method == "POST":
         title = request.POST.get("title", "").strip() or "Thông báo"
         body = request.POST.get("body", "").strip()
         url = request.POST.get("url", "").strip() or "/"
-        icon = request.POST.get("icon", "").strip() or None
+        action = request.POST.get("action", "").strip() or "show_popup"
+        sound = request.POST.get("sound", "").strip() or None
+        count_raw = request.POST.get("count", "").strip()
+        collapse_id = request.POST.get("collapse_id", "").strip() or None
+        tag = request.POST.get("tag", "").strip() or None
+        scheduled_time_raw = request.POST.get("scheduled_time", "").strip()
+        event_type = request.POST.get("event_type", "").strip() or None
+
+        # Target criteria
+        groups_raw = request.POST.get("groups", "").strip()
+        departments_raw = request.POST.get("departments", "").strip()
+        shops_raw = request.POST.get("shops", "").strip()
+        user_ids_raw = request.POST.get("user_ids", "").strip()
+
+        # Channels
+        send_in_app = request.POST.get("send_in_app") == "on"
+        send_web_push = request.POST.get("send_web_push") == "on"
+
         extra_data_raw = request.POST.get("extra_data", "").strip()
 
         if not body:
             messages.error(request, "Nội dung (body) không được để trống.")
             return redirect("push_notification")
 
-        # Parse JSON data nếu có
+        # Parse JSON context nếu có
         extra_data = {}
         if extra_data_raw:
             try:
@@ -199,22 +223,99 @@ def push_notification_view(request):
                 messages.error(request, "Dữ liệu JSON bổ sung không hợp lệ.")
                 return redirect("push_notification")
 
-        # Thêm url vào data để service worker dùng nếu cần
+        # Thêm url vào context để service worker / frontend có thể dùng
         extra_data.setdefault("url", url)
 
-        qs = WebPushSubscription.objects.filter(is_active=True)
-        total = qs.count()
-        success = 0
-        for sub in qs:
-            if send_webpush_to_subscription(sub, title, body, data=extra_data, icon=icon, url=url):
-                success += 1
+        # Parse count
+        count = None
+        if count_raw:
+            try:
+                count = int(count_raw)
+            except ValueError:
+                messages.error(request, "Trường 'Count' phải là số nguyên.")
+                return redirect("push_notification")
 
-        if total == 0:
-            messages.warning(request, "Hiện chưa có subscription Web Push nào để gửi.")
+        # Parse scheduled_time (định dạng: YYYY-MM-DD HH:MM)
+        scheduled_time = None
+        if scheduled_time_raw:
+            try:
+                # Giả sử input theo giờ local, convert sang aware datetime
+                naive_dt = datetime.strptime(scheduled_time_raw, "%Y-%m-%d %H:%M")
+                scheduled_time = timezone.make_aware(naive_dt, timezone.get_current_timezone())
+            except ValueError:
+                messages.error(request, "Thời gian hẹn giờ không hợp lệ. Định dạng: YYYY-MM-DD HH:MM")
+                return redirect("push_notification")
+
+        # Parse target criteria (comma-separated)
+        def parse_csv(value: str):
+            if not value:
+                return None
+            parts = [v.strip() for v in value.split(",") if v.strip()]
+            return parts or None
+
+        groups = parse_csv(groups_raw)
+        departments = parse_csv(departments_raw)
+        shops = parse_csv(shops_raw)
+
+        user_ids = None
+        if user_ids_raw:
+            try:
+                user_ids = [int(v.strip()) for v in user_ids_raw.split(",") if v.strip()]
+            except ValueError:
+                messages.error(request, "Trường 'User IDs' phải là danh sách số nguyên, phân cách bởi dấu phẩy.")
+                return redirect("push_notification")
+
+        # Channels list
+        channels = []
+        if send_in_app:
+            channels.append("in_app")
+        if send_web_push:
+            channels.append("web_push")
+        if not channels:
+            # Nếu không chọn gì, mặc định gửi cả 2 kênh
+            channels = ["in_app", "web_push"]
+
+        # Gửi notification thông qua Notification Engine
+        notification = notify.send(
+            title=title,
+            body=body,
+            link=url,
+            action=action,
+            sound=sound,
+            count=count,
+            collapse_id=collapse_id,
+            tag=tag,
+            scheduled_time=scheduled_time,
+            event_type=event_type,
+            context=extra_data,
+            groups=groups or "ALL",  # mặc định ALL nếu không chọn gì
+            departments=departments,
+            shops=shops,
+            user_ids=user_ids,
+            channels=channels,
+        )
+
+        # Nếu không hẹn giờ, xử lý gửi ngay để test
+        if scheduled_time is None:
+            result = NotificationDeliveryWorker.process_pending_deliveries(
+                notification_id=notification.id
+            )
+            messages.success(
+                request,
+                (
+                    f"Đã tạo notification #{notification.id}. "
+                    f"Gửi ngay: processed={result['processed']}, "
+                    f"success={result['success']}, failed={result['failed']}"
+                ),
+            )
         else:
             messages.success(
                 request,
-                f"Đã gửi thông báo tới {success}/{total} subscription active."
+                (
+                    f"Đã tạo scheduled notification #{notification.id} "
+                    f"(sẽ gửi lúc {scheduled_time}). "
+                    "Hãy đảm bảo cron job process_notifications đang chạy."
+                ),
             )
 
         return redirect("push_notification")
