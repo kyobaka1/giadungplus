@@ -906,13 +906,18 @@ def ticket_detail(request, ticket_id):
             if hasattr(order, 'line_items') and order.line_items:
                 for item in order.line_items:
                     vid = item.variant_id
+                    quantity = float(getattr(item, 'quantity', 0) or 0)
+                    line_amount = float(getattr(item, 'line_amount', 0) or 0)
+                    # Tính giá 1 sản phẩm = line_amount / quantity (vì có mã giảm giá)
+                    unit_price = (line_amount / quantity) if quantity > 0 else 0
                     variants.append({
                         'variant_id': vid,
                         'product_name': item.product_name or '',
                         'variant_name': item.variant_name or '',
                         'sku': item.sku or '',
-                        'price': float(getattr(item, 'price', 0) or 0),
-                        'quantity': float(getattr(item, 'quantity', 0) or 0),
+                        'price': unit_price,  # Giá 1 sản phẩm sau giảm giá
+                        'line_amount': line_amount,  # Tổng giá trị dòng item
+                        'quantity': quantity,
                         'is_selected': vid in (ticket.variants_issue or []),
                     })
                     if vid:

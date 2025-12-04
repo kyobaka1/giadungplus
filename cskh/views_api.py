@@ -99,7 +99,23 @@ def api_add_cost(request, ticket_id):
 
         # Auto tính amount cho loại "Hàng hỏng vỡ" nếu có variant + quantity
         if cost_type == 'Hàng hỏng vỡ' and variant_id and (quantity or 0) > 0:
-            # Nếu frontend chưa gửi unit_price thì cố gắng lấy từ Sapo
+            # Ưu tiên lấy giá từ order line_item (line_amount / quantity) vì có mã giảm giá
+            if unit_price is None and ticket.order_id:
+                try:
+                    ticket_service = TicketService()
+                    order = ticket_service.order_service.get_order_dto(ticket.order_id)
+                    if hasattr(order, 'line_items') and order.line_items:
+                        for item in order.line_items:
+                            if item.variant_id == variant_id:
+                                line_amount = float(getattr(item, 'line_amount', 0) or 0)
+                                item_quantity = float(getattr(item, 'quantity', 0) or 0)
+                                if item_quantity > 0:
+                                    unit_price = line_amount / item_quantity
+                                break
+                except Exception:
+                    pass
+            
+            # Fallback: Nếu không lấy được từ order thì lấy từ Sapo variant.price
             if unit_price is None:
                 try:
                     sapo = get_sapo_client()
@@ -339,6 +355,23 @@ def api_update_cost(request, ticket_id, cost_id):
 
         # Auto tính amount cho loại "Hàng hỏng vỡ" nếu có variant + quantity
         if cost_type == 'Hàng hỏng vỡ' and variant_id and (quantity or 0) > 0:
+            # Ưu tiên lấy giá từ order line_item (line_amount / quantity) vì có mã giảm giá
+            if unit_price is None and ticket.order_id:
+                try:
+                    ticket_service = TicketService()
+                    order = ticket_service.order_service.get_order_dto(ticket.order_id)
+                    if hasattr(order, 'line_items') and order.line_items:
+                        for item in order.line_items:
+                            if item.variant_id == variant_id:
+                                line_amount = float(getattr(item, 'line_amount', 0) or 0)
+                                item_quantity = float(getattr(item, 'quantity', 0) or 0)
+                                if item_quantity > 0:
+                                    unit_price = line_amount / item_quantity
+                                break
+                except Exception:
+                    pass
+            
+            # Fallback: Nếu không lấy được từ order thì lấy từ Sapo variant.price
             if unit_price is None:
                 try:
                     sapo = get_sapo_client()
@@ -960,13 +993,18 @@ def api_search_order(request):
     if hasattr(order, 'line_items') and order.line_items:
         for item in order.line_items:
             vid = item.variant_id
+            quantity = float(getattr(item, 'quantity', 0) or 0)
+            line_amount = float(getattr(item, 'line_amount', 0) or 0)
+            # Tính giá 1 sản phẩm = line_amount / quantity (vì có mã giảm giá)
+            unit_price = (line_amount / quantity) if quantity > 0 else 0
             variants.append({
                 'variant_id': vid,
                 'product_name': item.product_name or '',
                 'variant_name': item.variant_name or '',
                 'sku': item.sku or '',
-                'price': float(getattr(item, 'price', 0) or 0),
-                'quantity': float(getattr(item, 'quantity', 0) or 0),
+                'price': unit_price,  # Giá 1 sản phẩm sau giảm giá
+                'line_amount': line_amount,  # Tổng giá trị dòng item
+                'quantity': quantity,
             })
             if vid:
                 variant_ids.add(vid)
