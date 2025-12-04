@@ -204,52 +204,67 @@
 
         {% comment %} WebPush debug: hiển thị subscription hiện tại của user ngay trên trang chủ {% endcomment %}
         <div class="max-w-3xl mx-auto">
-            <div class="bg-white border border-dashed border-slate-200 rounded-xl p-4 text-xs text-slate-600">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="font-semibold text-slate-800">
-                        WebPush Debug (user: {{ user.username }})
+            <div class="bg-white border border-dashed border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-3">
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="font-semibold text-slate-800">
+                            WebPush Debug (server subscriptions - user: {{ user.username }})
+                        </div>
+                        <div class="text-[11px] text-slate-400">
+                            Chỉ dùng để test đăng ký WebPush trên trang chủ
+                        </div>
                     </div>
-                    <div class="text-[11px] text-slate-400">
-                        Chỉ dùng để test đăng ký WebPush trên trang chủ
+                    {% if webpush_subscriptions %}
+                        <div class="space-y-1">
+                            {% for sub in webpush_subscriptions %}
+                                <div class="flex items-start gap-2 border-t border-slate-100 pt-1 {% if forloop.first %}border-t-0 pt-0{% endif %}">
+                                    <div class="mt-0.5 text-[10px] text-slate-400">
+                                        #{{ sub.id }}
+                                    </div>
+                                    <div class="flex-1">
+                                        <div>
+                                            <span class="font-medium text-[11px] text-slate-800">
+                                                {{ sub.device_type }}
+                                            </span>
+                                            <span class="ml-1 text-[10px] text-slate-400">
+                                                (user_id={{ sub.user_id }})
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-slate-500 break-all">
+                                            endpoint: {{ sub.endpoint|default:"-" }}
+                                        </div>
+                                        {% if sub.fcm_token %}
+                                            <div class="text-[10px] text-slate-500 break-all">
+                                                fcm_token: {{ sub.fcm_token }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="text-[10px] text-slate-400 mt-0.5">
+                                            created_at: {{ sub.created_at|date:"Y-m-d H:i:s" }}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-[11px] text-amber-700">
+                            Chưa có WebPushSubscription nào được lưu cho tài khoản này.
+                            Hãy bật thông báo trên thiết bị của bạn, sau đó reload lại trang để kiểm tra.
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="border-t border-dashed border-slate-200 pt-3">
+                    <div class="font-semibold text-slate-800 mb-1">
+                        WebPush Debug (client-side logs)
+                    </div>
+                    <div class="text-[11px] text-slate-500 mb-1">
+                        Nhật ký phía trình duyệt (Push API) sẽ hiển thị tại đây nếu có script chạy.
+                    </div>
+                    <div id="webpush-debug-client"
+                         class="max-h-40 overflow-y-auto bg-slate-50 border border-slate-100 rounded p-2 text-[11px] text-slate-700">
+                        <!-- Các dòng log client sẽ được JS append vào đây -->
                     </div>
                 </div>
-                {% if webpush_subscriptions %}
-                    <div class="space-y-1">
-                        {% for sub in webpush_subscriptions %}
-                            <div class="flex items-start gap-2 border-t border-slate-100 pt-1 {% if forloop.first %}border-t-0 pt-0{% endif %}">
-                                <div class="mt-0.5 text-[10px] text-slate-400">
-                                    #{{ sub.id }}
-                                </div>
-                                <div class="flex-1">
-                                    <div>
-                                        <span class="font-medium text-[11px] text-slate-800">
-                                            {{ sub.device_type }}
-                                        </span>
-                                        <span class="ml-1 text-[10px] text-slate-400">
-                                            (user_id={{ sub.user_id }})
-                                        </span>
-                                    </div>
-                                    <div class="text-[10px] text-slate-500 break-all">
-                                        endpoint: {{ sub.endpoint|default:"-" }}
-                                    </div>
-                                    {% if sub.fcm_token %}
-                                        <div class="text-[10px] text-slate-500 break-all">
-                                            fcm_token: {{ sub.fcm_token }}
-                                        </div>
-                                    {% endif %}
-                                    <div class="text-[10px] text-slate-400 mt-0.5">
-                                        created_at: {{ sub.created_at|date:"Y-m-d H:i:s" }}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-[11px] text-amber-700">
-                        Chưa có WebPushSubscription nào được lưu cho tài khoản này.
-                        Hãy bật thông báo trên thiết bị của bạn, sau đó reload lại trang để kiểm tra.
-                    </div>
-                {% endif %}
             </div>
         </div>
 
