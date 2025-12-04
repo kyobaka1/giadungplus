@@ -280,9 +280,6 @@ def unread_notifications_count(request: HttpRequest):
 
 
 @api_view(["POST"])
-@authentication_classes([])  # Tắt DRF SessionAuthentication (tránh check CSRF lần 2)
-@permission_classes([AllowAny])  # Quyền sẽ được kiểm soát bởi @login_required
-@csrf_exempt  # Bỏ kiểm tra CSRF vì gọi bằng fetch từ frontend
 @login_required
 def mark_notification_read(request: HttpRequest, delivery_id: int):
     """
@@ -312,9 +309,6 @@ def mark_notification_read(request: HttpRequest, delivery_id: int):
 
 
 @api_view(["POST"])
-@authentication_classes([])  # Tắt DRF SessionAuthentication (tránh check CSRF lần 2)
-@permission_classes([AllowAny])  # Quyền sẽ được kiểm soát bởi @login_required
-@csrf_exempt  # Bỏ kiểm tra CSRF vì gọi bằng fetch từ frontend
 @login_required
 def mark_all_notifications_read(request: HttpRequest):
     """

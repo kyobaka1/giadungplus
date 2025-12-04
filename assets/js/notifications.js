@@ -22,6 +22,16 @@
         initialized: false, // để tránh phát âm thanh ở lần load đầu tiên
     };
 
+    // CSRF helper (cho các POST APIs cần bảo vệ)
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    }
+
+    const CSRF_TOKEN = getCookie('csrftoken');
+
     // DOM Elements
     const elements = {
         bellButton: null,
@@ -344,6 +354,7 @@
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN,
                 },
             });
 
@@ -376,6 +387,7 @@
                 credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
+                    'X-CSRFToken': CSRF_TOKEN,
                 },
             });
 
