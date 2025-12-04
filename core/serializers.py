@@ -15,8 +15,11 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
 
     # Cho phép client gửi "keys" dạng object {p256dh, auth}
     keys = serializers.DictField(required=False, allow_null=True)
-    # Cho phép client gửi thêm username để backend map sang user
+    # Cho phép client gửi thêm username để backend map sang user (input)
     username = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    # Thông tin user ở dạng read-only để client dễ debug (output)
+    user_id = serializers.IntegerField(source="user_id", read_only=True)
+    user_name = serializers.CharField(source="user.username", read_only=True, allow_null=True)
 
     class Meta:
         model = WebPushSubscription
@@ -31,7 +34,9 @@ class WebPushSubscriptionSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "keys",
-            "username",
+            "username",   # input
+            "user_id",    # output
+            "user_name",  # output
         )
         read_only_fields = ("id", "created_at", "updated_at")
 

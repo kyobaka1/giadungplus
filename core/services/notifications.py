@@ -13,6 +13,7 @@ import logging
 import os
 from typing import Any, Dict, Optional
 import json
+import time
 
 import requests
 from pywebpush import webpush, WebPushException
@@ -129,12 +130,12 @@ def send_webpush_to_subscription(
         }
 
         try:
-            resp = requests.post(
-                FCM_LEGACY_ENDPOINT,
-                json=payload,
-                headers=headers,
-                timeout=5,
-            )
+                resp = requests.post(
+                    FCM_LEGACY_ENDPOINT,
+                    json=payload,
+                    headers=headers,
+                    timeout=2,  # giới hạn tối đa ~2 giây cho mỗi request tới FCM
+                )
             if resp.status_code != 200:
                 logger.error(
                     "Gửi FCM thất bại (%s): %s",
@@ -211,11 +212,32 @@ def send_webpush_to_user(
 
     qs = WebPushSubscription.objects.filter(user=user, is_active=True)
     success_count = 0
+    start_time = time.monotonic()
 
     for sub in qs:
-        ok = send_webpush_to_subscription(sub, title, body, data=data, icon=icon, url=url)
-        if ok:
-            success_count += 1
+        # Nếu thời gian xử lý cho user này đã vượt quá 2 giây thì bỏ qua các subscription còn lại
+        elapsed = time.monotonic() - start_time
+        if elapsed > 2.0:
+            logger.warning(
+                "Dừng gửi WebPush cho user %s do vượt quá 2s (đã gửi thành công %s subscription)",
+                getattr(user, "id", None),
+                success_count,
+            )
+            break
+
+        try:
+            ok = send_webpush_to_subscription(sub, title, body, data=data, icon=icon, url=url)
+            if ok:
+                success_count += 1
+        except Exception as exc:
+            # Bắt mọi lỗi ở mức user để không làm hỏng toàn bộ luồng push-notification
+            logger.exception(
+                "Lỗi khi gửi WebPush cho user %s, subscription %s: %s",
+                getattr(user, "id", None),
+                sub.id,
+                exc,
+            )
+            continue
 
     logger.info("Đã gửi WebPush tới %s subscription của user %s", success_count, user.id)
     return success_count
