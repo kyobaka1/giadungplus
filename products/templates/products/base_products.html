@@ -103,6 +103,9 @@
                 </svg>
             </button>
 
+            <!-- Notification Bell -->
+            {% include 'core/notification_bell.html' %}
+
             <!-- User info -->
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-600">
@@ -340,6 +343,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
+
+<!-- Notification Bell Script (Products) -->
+<script src="{% static 'js/notifications.js' %}"></script>
 
 </body>
 </html>

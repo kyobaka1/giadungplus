@@ -95,6 +95,9 @@
                     </svg>
                 </button>
 
+                <!-- Notification Bell -->
+                {% include 'core/notification_bell.html' %}
+
                 <!-- User Info -->
                 <div class="flex items-center gap-2">
                     <div
@@ -433,6 +436,9 @@
 
         });
     </script>
+
+    <!-- Notification Bell Script (CSKH) -->
+    <script src="{% static 'js/notifications.js' %}"></script>
 {% block extra_scripts %}
 {% endblock %}
 </body>

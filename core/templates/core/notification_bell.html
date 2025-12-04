@@ -9,11 +9,11 @@
         overflow: hidden;
     }
     
-    /* Notification dropdown animation */
+    /* Notification dropdown animation (desktop) */
     #notificationDropdown {
         animation: slideDown 0.2s ease-out;
     }
-    
+
     @keyframes slideDown {
         from {
             opacity: 0;
@@ -32,6 +32,19 @@
     
     .notification-item:hover {
         background-color: #f8fafc;
+    }
+
+    /* Mobile layout: fullscreen-ish centered popup để tránh bị che khuất */
+    @media (max-width: 640px) {
+        #notificationDropdown {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90vw;
+            max-height: 90vh;
+            margin-top: 0;
+        }
     }
 </style>
 <div class="relative" id="notificationBellContainer">
