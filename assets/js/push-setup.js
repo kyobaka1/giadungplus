@@ -43,6 +43,47 @@
     (window.location.search.indexOf('push_debug=1') !== -1 ||
       (window.GP_PUSH_DEBUG && window.GP_PUSH_DEBUG === true));
 
+  // Helper để log ra HTML (luôn hiển thị, không cần DEBUG_PUSH)
+  function logToHTML(message, type = 'info') {
+    try {
+      const logContainer = document.getElementById('push-log-content');
+      const debugPanel = document.getElementById('push-debug-log');
+      
+      if (logContainer && debugPanel) {
+        // Hiển thị panel nếu đang ẩn
+        if (debugPanel.style.display === 'none') {
+          debugPanel.style.display = 'block';
+        }
+        
+        const time = new Date().toLocaleTimeString('vi-VN');
+        const div = document.createElement('div');
+        div.className = 'py-1 border-b border-slate-100 last:border-0';
+        
+        // Màu sắc theo type
+        let colorClass = 'text-slate-600';
+        let icon = '•';
+        if (type === 'success') {
+          colorClass = 'text-green-600';
+          icon = '✅';
+        } else if (type === 'error') {
+          colorClass = 'text-red-600';
+          icon = '❌';
+        } else if (type === 'warning') {
+          colorClass = 'text-amber-600';
+          icon = '⚠️';
+        }
+        
+        div.innerHTML = `<span class="text-slate-400">[${time}]</span> <span class="${colorClass}">${icon} ${message}</span>`;
+        logContainer.appendChild(div);
+        
+        // Auto scroll to bottom
+        logContainer.scrollTop = logContainer.scrollHeight;
+      }
+    } catch (e) {
+      // ignore errors
+    }
+  }
+
   // Debug helper: log ra console + HTML (nếu có #webpush-debug-client)
   function logPushDebug(message, data) {
     if (!DEBUG_PUSH) return;
@@ -316,35 +357,54 @@
   }
 
   async function initPush() {
+    logToHTML('===== BẮT ĐẦU initPush() =====', 'info');
     logPushDebug('Bắt đầu initPush()...');
+    
+    // Log thông tin môi trường
+    logToHTML('User Agent: ' + navigator.userAgent, 'info');
+    logToHTML('Is Android Chrome: ' + isAndroidChrome(), 'info');
+    logToHTML('Is iOS Safari: ' + isIosSafari(), 'info');
+    logToHTML('Notification permission: ' + Notification.permission, 'info');
+    logToHTML('Service Worker support: ' + ('serviceWorker' in navigator), 'info');
+    logToHTML('PushManager support: ' + ('PushManager' in window), 'info');
+    
     if (!isPushSupported()) {
-      console.warn('Trình duyệt không hỗ trợ Service Worker / Push / Notification.');
+      logToHTML('❌ Trình duyệt không hỗ trợ Service Worker / Push / Notification', 'error');
       logPushDebug('Dừng initPush vì không hỗ trợ Push.');
       return;
     }
+    logToHTML('✅ Trình duyệt hỗ trợ Push', 'success');
 
+    logToHTML('Đang xin quyền notification...', 'info');
     const granted = await requestNotificationPermission();
+    logToHTML('Kết quả xin quyền: ' + (granted ? 'GRANTED' : 'DENIED'), granted ? 'success' : 'error');
+    
     if (!granted) {
-      console.warn('User không cho phép gửi notification.');
+      logToHTML('❌ User không cho phép gửi notification', 'error');
       logPushDebug('User không cho phép gửi notification, dừng initPush.');
       return;
     }
+    logToHTML('✅ User đã cho phép notification', 'success');
 
     let registration;
     try {
+      logToHTML('Đang đăng ký Service Worker...', 'info');
       registration = await registerServiceWorker();
+      logToHTML('✅ Service Worker đã được đăng ký (scope: ' + registration.scope + ')', 'success');
+      logToHTML('  - Active: ' + !!registration.active + ', Installing: ' + !!registration.installing + ', Waiting: ' + !!registration.waiting, 'info');
       if (DEBUG_PUSH) {
         console.log('Service Worker registered:', registration);
       }
       logPushDebug('Service Worker đã được đăng ký thành công.');
     } catch (err) {
-      console.error('Không thể đăng ký Service Worker:', err);
+      logToHTML('❌ Không thể đăng ký Service Worker: ' + String(err), 'error');
       logPushDebug('Không thể đăng ký Service Worker', { error: String(err) });
       return;
     }
 
     // Device type mặc định (chuẩn hoá theo enum backend)
     let deviceType = await getNormalizedDeviceType();
+    logToHTML('Device type (normalized): ' + deviceType, 'info');
     logPushDebug('Device type (normalized) = ' + deviceType);
     let payload = {
       device_type: deviceType,
@@ -355,50 +415,78 @@
 
     if (isAndroidChrome()) {
       // Android Chrome: ưu tiên gắn nhãn android_web
+      logToHTML('Nhánh Android Chrome: deviceType=android_web', 'info');
       deviceType = 'android_web';
+      logToHTML('Đang khởi tạo Firebase Messaging...', 'info');
       const messaging = await initFirebaseMessaging();
       if (messaging) {
+        logToHTML('✅ Firebase Messaging đã được khởi tạo', 'success');
+        logToHTML('Đang lấy FCM token...', 'info');
         const token = await getAndroidFcmToken(messaging);
         if (token) {
+          logToHTML('✅ Đã lấy được FCM token: ' + token.substring(0, 50) + '...', 'success');
           payload.device_type = deviceType;
           payload.fcm_token = token;
           // Với FCM token trên Web, endpoint/keys không bắt buộc
+        } else {
+          logToHTML('❌ Không lấy được FCM token', 'error');
         }
+      } else {
+        logToHTML('❌ Không thể khởi tạo Firebase Messaging', 'error');
       }
     } else if (isIosSafari()) {
       // Safari iOS 16.4+ hỗ trợ Web Push, nhưng không dùng trực tiếp Firebase Messaging
+      logToHTML('Nhánh iOS Safari: deviceType=ios_web', 'info');
       deviceType = 'ios_web';
       logPushDebug('Nhánh iOS Safari: deviceType=ios_web, chuẩn bị subscribe PushManager...');
+      logToHTML('Đang subscribe với PushManager...', 'info');
       const sub = await subscribeWithPushManager(registration);
       if (sub) {
+        logToHTML('✅ Đã subscribe PushManager thành công', 'success');
         const json = sub.toJSON();
         payload.device_type = deviceType;
         payload.endpoint = json.endpoint;
         payload.keys = json.keys || {};
+        logToHTML('Endpoint: ' + json.endpoint, 'info');
+      } else {
+        logToHTML('❌ Không thể subscribe PushManager', 'error');
       }
     } else {
       // Các browser khác (Desktop, Android khác, ...) giữ nguyên deviceType đã chuẩn hoá trước đó
+      logToHTML('Nhánh browser khác: deviceType=' + deviceType, 'info');
+      logToHTML('Đang subscribe với PushManager...', 'info');
       const sub = await subscribeWithPushManager(registration);
       if (sub) {
+        logToHTML('✅ Đã subscribe PushManager thành công', 'success');
         const json = sub.toJSON();
         payload.device_type = deviceType;
         payload.endpoint = json.endpoint;
         payload.keys = json.keys || {};
+        logToHTML('Endpoint: ' + json.endpoint, 'info');
+      } else {
+        logToHTML('❌ Không thể subscribe PushManager', 'error');
       }
     }
 
     // Nếu không có token/subscription nào thì dừng
     if (!payload.fcm_token && !payload.endpoint) {
-      console.warn('Không lấy được FCM token hoặc Push subscription.');
+      logToHTML('❌ Không lấy được FCM token hoặc Push subscription', 'error');
+      logToHTML('Payload: ' + JSON.stringify(payload), 'warning');
       return;
     }
 
     // Đính kèm username nếu config có (giúp backend map user_id khi không có session)
     if (CONFIG.username) {
       payload.username = CONFIG.username;
+      logToHTML('Đã thêm username: ' + CONFIG.username, 'info');
     }
 
-    await sendSubscriptionToServer(payload);
+    logToHTML('Payload cuối cùng: device_type=' + payload.device_type + ', hasEndpoint=' + !!payload.endpoint + ', hasFcmToken=' + !!payload.fcm_token, 'info');
+    
+    logToHTML('Đang gửi subscription lên server...', 'info');
+    const serverResult = await sendSubscriptionToServer(payload);
+    logToHTML(serverResult ? '✅ THÀNH CÔNG - Đã gửi subscription lên server' : '❌ THẤT BẠI - Không thể gửi subscription lên server', serverResult ? 'success' : 'error');
+    logToHTML('===== KẾT THÚC initPush() =====', 'info');
   }
 
   // iOS Safari (PWA / Add to Home Screen) yêu cầu gọi Notification.requestPermission()

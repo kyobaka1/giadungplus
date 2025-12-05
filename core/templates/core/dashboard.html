@@ -106,6 +106,19 @@
             </button>
         </div>
 
+        <!-- Debug log hiển thị trên HTML -->
+        <div id="push-debug-log" class="mb-6 max-w-4xl mx-auto bg-slate-100 rounded-lg p-4 border border-slate-200" style="display: none;">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-semibold text-slate-700">Debug Log - Push Notification</h3>
+                <button id="btn-clear-log" class="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded">
+                    Xóa log
+                </button>
+            </div>
+            <div id="push-log-content" class="bg-white rounded p-3 max-h-96 overflow-y-auto text-xs font-mono text-slate-600 space-y-1">
+                <!-- Log sẽ được thêm vào đây -->
+            </div>
+        </div>
+
         <!-- Grid menu cards -->
         {% comment %}
         Determine user role:
@@ -229,12 +242,65 @@
     (function () {
         const notice = document.getElementById('push-notice');
         const btn = document.getElementById('btn-enable-push');
+        const btnClearLog = document.getElementById('btn-clear-log');
+        const logContent = document.getElementById('push-log-content');
+
+        // Nút xóa log
+        if (btnClearLog && logContent) {
+            btnClearLog.addEventListener('click', function () {
+                logContent.innerHTML = '';
+            });
+        }
 
         if (notice && btn) {
             // Thêm event listener cho nút - hoạt động cho cả Android và iOS
             btn.addEventListener('click', function () {
+                // Hiển thị log panel
+                const debugPanel = document.getElementById('push-debug-log');
+                if (debugPanel) {
+                    debugPanel.style.display = 'block';
+                }
+                
+                // Log vào HTML
+                const logContent = document.getElementById('push-log-content');
+                if (logContent) {
+                    const time = new Date().toLocaleTimeString('vi-VN');
+                    const div = document.createElement('div');
+                    div.className = 'py-1 border-b border-slate-100';
+                    div.innerHTML = '<span class="text-slate-400">[' + time + ']</span> <span class="text-blue-600">🖱️ Nút "Bật thông báo" được click</span>';
+                    logContent.appendChild(div);
+                    logContent.scrollTop = logContent.scrollHeight;
+                }
+                
                 if (window.initPush) {
-                    window.initPush();
+                    if (logContent) {
+                        const div = document.createElement('div');
+                        div.className = 'py-1 border-b border-slate-100';
+                        div.innerHTML = '<span class="text-slate-400">[' + new Date().toLocaleTimeString('vi-VN') + ']</span> <span class="text-blue-600">📞 Gọi window.initPush()...</span>';
+                        logContent.appendChild(div);
+                        logContent.scrollTop = logContent.scrollHeight;
+                    }
+                    try {
+                        window.initPush();
+                    } catch (error) {
+                        const logContent = document.getElementById('push-log-content');
+                        if (logContent) {
+                            const div = document.createElement('div');
+                            div.className = 'py-1 border-b border-slate-100';
+                            div.innerHTML = '<span class="text-slate-400">[' + new Date().toLocaleTimeString('vi-VN') + ']</span> <span class="text-red-600">❌ Lỗi: ' + String(error) + '</span>';
+                            logContent.appendChild(div);
+                            logContent.scrollTop = logContent.scrollHeight;
+                        }
+                    }
+                } else {
+                    const logContent = document.getElementById('push-log-content');
+                    if (logContent) {
+                        const div = document.createElement('div');
+                        div.className = 'py-1 border-b border-slate-100';
+                        div.innerHTML = '<span class="text-slate-400">[' + new Date().toLocaleTimeString('vi-VN') + ']</span> <span class="text-red-600">❌ window.initPush không tồn tại! Có thể push-setup.js chưa được load.</span>';
+                        logContent.appendChild(div);
+                        logContent.scrollTop = logContent.scrollHeight;
+                    }
                 }
             });
         }
