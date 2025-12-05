@@ -200,44 +200,111 @@
   }
 
   async function initFirebaseMessaging() {
-    if (!window.firebase || !window.firebase.messaging) {
-      const msg =
-        'Firebase messaging chưa được load. Hãy include CDN firebase-app.js và firebase-messaging.js (v8) trước push-setup.js.';
+    logToHTML('Kiểm tra Firebase...', 'info');
+    
+    if (!window.firebase) {
+      const msg = '❌ window.firebase không tồn tại. Firebase chưa được load.';
+      logToHTML(msg, 'error');
+      logToHTML('Cần include firebase-app.js trước push-setup.js', 'error');
       console.warn(msg);
       logPushDebug(msg);
       return null;
     }
+    
+    if (!window.firebase.messaging) {
+      const msg = '❌ window.firebase.messaging không tồn tại.';
+      logToHTML(msg, 'error');
+      logToHTML('Cần include firebase-messaging.js trước push-setup.js', 'error');
+      console.warn(msg);
+      logPushDebug(msg);
+      return null;
+    }
+    
+    logToHTML('✅ Firebase đã được load', 'success');
+    logToHTML('Firebase apps hiện có: ' + (window.firebase.apps ? window.firebase.apps.length : 0), 'info');
 
     if (!window.firebase.apps || window.firebase.apps.length === 0) {
-      window.firebase.initializeApp(CONFIG.firebaseConfig);
+      logToHTML('Đang khởi tạo Firebase app...', 'info');
+      try {
+        window.firebase.initializeApp(CONFIG.firebaseConfig);
+        logToHTML('✅ Firebase app đã được khởi tạo', 'success');
+      } catch (initErr) {
+        logToHTML('❌ Lỗi khởi tạo Firebase app: ' + String(initErr), 'error');
+        return null;
+      }
+    } else {
+      logToHTML('Firebase app đã được khởi tạo trước đó', 'info');
     }
 
     try {
+      logToHTML('Đang tạo Firebase messaging instance...', 'info');
       const messaging = window.firebase.messaging();
+      logToHTML('✅ Firebase messaging instance đã được tạo', 'success');
       return messaging;
     } catch (err) {
+      const errorMsg = err && err.message ? err.message : String(err);
+      logToHTML('❌ Lỗi khởi tạo Firebase messaging: ' + errorMsg, 'error');
       console.error('Lỗi khởi tạo Firebase messaging:', err);
       logPushDebug('Lỗi khởi tạo Firebase messaging', { error: String(err) });
       return null;
     }
   }
 
-  async function getAndroidFcmToken(messaging) {
+  async function getAndroidFcmToken(messaging, registration) {
     try {
-      const token = await messaging.getToken({
+      logToHTML('Đang lấy FCM token với VAPID key...', 'info');
+      
+      // Đảm bảo Service Worker đã active trước khi lấy token
+      if (registration && !registration.active) {
+        logToHTML('⚠️ Service Worker chưa active, đang chờ...', 'warning');
+        const maxWait = 5000;
+        const step = 500;
+        let waited = 0;
+        while (!registration.active && waited < maxWait) {
+          await new Promise(resolve => setTimeout(resolve, step));
+          waited += step;
+        }
+        if (!registration.active) {
+          logToHTML('❌ Service Worker vẫn chưa active sau khi chờ', 'error');
+        } else {
+          logToHTML('✅ Service Worker đã active', 'success');
+        }
+      }
+      
+      const tokenOptions = {
         vapidKey: CONFIG.vapidPublicKey,
-      });
-      logPushDebug('Đã lấy được FCM token (Android Chrome).');
-      return token;
+      };
+      
+      // Nếu có Service Worker registration, thêm vào options
+      if (registration && registration.active) {
+        tokenOptions.serviceWorkerRegistration = registration;
+      }
+      
+      logToHTML('Gọi messaging.getToken()...', 'info');
+      const token = await messaging.getToken(tokenOptions);
+      
+      if (token) {
+        logToHTML('✅ Đã lấy được FCM token (Android Chrome)', 'success');
+        logPushDebug('Đã lấy được FCM token (Android Chrome).');
+        return token;
+      } else {
+        logToHTML('❌ messaging.getToken() trả về null', 'error');
+        return null;
+      }
     } catch (err) {
+      const errorMsg = err && err.message ? err.message : String(err);
+      const errorName = err && err.name ? err.name : 'UnknownError';
+      logToHTML('❌ Lỗi lấy FCM token: ' + errorName + ' - ' + errorMsg, 'error');
+      logToHTML('Chi tiết lỗi: ' + JSON.stringify(err), 'error');
       console.error('Lỗi lấy FCM token:', err);
-      logPushDebug('Lỗi lấy FCM token', { error: String(err) });
+      logPushDebug('Lỗi lấy FCM token', { error: String(err), name: errorName, message: errorMsg });
       return null;
     }
   }
 
   async function subscribeWithPushManager(registration) {
     try {
+      logToHTML('Thực hiện subscribe với PushManager...', 'info');
       logPushDebug('Thực hiện subscribe với PushManager... chuẩn bị chờ service worker active.');
 
       // Dùng trực tiếp registration trả về từ navigator.serviceWorker.register.
@@ -287,27 +354,38 @@
       });
 
       if (!hasPushManager) {
+        const msg = '❌ Không tìm thấy pushManager trên registration. Trình duyệt không hỗ trợ Web Push cho scope này.';
+        logToHTML(msg, 'error');
         logPushDebug('Không tìm thấy pushManager trên registration này. Trình duyệt không hỗ trợ Web Push cho scope hiện tại.');
         return null;
       }
 
       let subscription = null;
       try {
+        logToHTML('Gọi pushManager.subscribe()...', 'info');
         subscription = await targetRegistration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(CONFIG.vapidPublicKey),
         });
+        logToHTML('✅ pushManager.subscribe() thành công', 'success');
       } catch (err) {
+        const errorName = err && err.name ? err.name : 'UnknownError';
+        const errorMsg = err && err.message ? err.message : String(err);
+        logToHTML('❌ Lỗi khi gọi pushManager.subscribe: ' + errorName + ' - ' + errorMsg, 'error');
         logPushDebug('Lỗi ngay khi gọi pushManager.subscribe', {
-          name: err && err.name,
-          message: err && err.message,
+          name: errorName,
+          message: errorMsg,
         });
         throw err;
       }
 
+      logToHTML('✅ Đã subscribe PushManager thành công', 'success');
       logPushDebug('Đã subscribe PushManager thành công.');
       return subscription;
     } catch (err) {
+      const errorMsg = err && err.message ? err.message : String(err);
+      const errorName = err && err.name ? err.name : 'UnknownError';
+      logToHTML('❌ Lỗi subscribe PushManager: ' + errorName + ' - ' + errorMsg, 'error');
       console.error('Lỗi subscribe PushManager:', err);
       logPushDebug('Lỗi subscribe PushManager', { error: String(err) });
       return null;
@@ -421,8 +499,9 @@
       const messaging = await initFirebaseMessaging();
       if (messaging) {
         logToHTML('✅ Firebase Messaging đã được khởi tạo', 'success');
-        logToHTML('Đang lấy FCM token...', 'info');
-        const token = await getAndroidFcmToken(messaging);
+        logToHTML('Đang lấy FCM token (cần Service Worker active)...', 'info');
+        // Truyền registration vào để đảm bảo Service Worker active
+        const token = await getAndroidFcmToken(messaging, registration);
         if (token) {
           logToHTML('✅ Đã lấy được FCM token: ' + token.substring(0, 50) + '...', 'success');
           payload.device_type = deviceType;
@@ -430,9 +509,35 @@
           // Với FCM token trên Web, endpoint/keys không bắt buộc
         } else {
           logToHTML('❌ Không lấy được FCM token', 'error');
+          logToHTML('⚠️ Thử fallback: subscribe với PushManager...', 'warning');
+          // Fallback: thử subscribe với PushManager nếu không lấy được FCM token
+          const sub = await subscribeWithPushManager(registration);
+          if (sub) {
+            logToHTML('✅ Fallback thành công: đã subscribe PushManager', 'success');
+            const json = sub.toJSON();
+            payload.device_type = deviceType;
+            payload.endpoint = json.endpoint;
+            payload.keys = json.keys || {};
+            logToHTML('Endpoint: ' + json.endpoint, 'info');
+          } else {
+            logToHTML('❌ Fallback cũng thất bại', 'error');
+          }
         }
       } else {
         logToHTML('❌ Không thể khởi tạo Firebase Messaging', 'error');
+        logToHTML('⚠️ Thử fallback: subscribe với PushManager...', 'warning');
+        // Fallback: thử subscribe với PushManager
+        const sub = await subscribeWithPushManager(registration);
+        if (sub) {
+          logToHTML('✅ Fallback thành công: đã subscribe PushManager', 'success');
+          const json = sub.toJSON();
+          payload.device_type = deviceType;
+          payload.endpoint = json.endpoint;
+          payload.keys = json.keys || {};
+          logToHTML('Endpoint: ' + json.endpoint, 'info');
+        } else {
+          logToHTML('❌ Fallback cũng thất bại', 'error');
+        }
       }
     } else if (isIosSafari()) {
       // Safari iOS 16.4+ hỗ trợ Web Push, nhưng không dùng trực tiếp Firebase Messaging
