@@ -43,44 +43,12 @@
     (window.location.search.indexOf('push_debug=1') !== -1 ||
       (window.GP_PUSH_DEBUG && window.GP_PUSH_DEBUG === true));
 
-  // Helper để log ra HTML (luôn hiển thị, không cần DEBUG_PUSH)
+  // Helper để log ra HTML (đã tắt - chỉ log vào console)
   function logToHTML(message, type = 'info') {
-    try {
-      const logContainer = document.getElementById('push-log-content');
-      const debugPanel = document.getElementById('push-debug-log');
-      
-      if (logContainer && debugPanel) {
-        // Hiển thị panel nếu đang ẩn
-        if (debugPanel.style.display === 'none') {
-          debugPanel.style.display = 'block';
-        }
-        
-        const time = new Date().toLocaleTimeString('vi-VN');
-        const div = document.createElement('div');
-        div.className = 'py-1 border-b border-slate-100 last:border-0';
-        
-        // Màu sắc theo type
-        let colorClass = 'text-slate-600';
-        let icon = '•';
-        if (type === 'success') {
-          colorClass = 'text-green-600';
-          icon = '✅';
-        } else if (type === 'error') {
-          colorClass = 'text-red-600';
-          icon = '❌';
-        } else if (type === 'warning') {
-          colorClass = 'text-amber-600';
-          icon = '⚠️';
-        }
-        
-        div.innerHTML = `<span class="text-slate-400">[${time}]</span> <span class="${colorClass}">${icon} ${message}</span>`;
-        logContainer.appendChild(div);
-        
-        // Auto scroll to bottom
-        logContainer.scrollTop = logContainer.scrollHeight;
-      }
-    } catch (e) {
-      // ignore errors
+    // Đã tắt log HTML, chỉ log vào console nếu cần debug
+    if (DEBUG_PUSH) {
+      const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '•';
+      console.log(`[Push] ${prefix} ${message}`);
     }
   }
 
