@@ -98,18 +98,12 @@
             </p>
         </div>
 
-        <!-- Hướng dẫn bật thông báo cho iOS PWA -->
-        <div id="ios-pwa-notice" class="hidden mb-6 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 text-sm">
-            <div class="font-semibold mb-1">Bật thông báo trên iPhone (PWA)</div>
-            <p class="mb-2">
-                Bạn đang mở ứng dụng từ màn hình chính (Add to Home Screen). Để bật thông báo, vui lòng bấm nút dưới đây.
-            </p>
+        <!-- Nút bật thông báo -->
+        <div id="ios-pwa-notice" class="hidden mb-6 text-center">
             <button id="btn-ios-enable-push"
-                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-amber-500 text-white text-xs font-medium hover:bg-amber-600 transition">
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition">
                 Bật thông báo
             </button>
-            <!-- Dòng debug đơn giản để xem flags iOS nếu cần -->
-            <p id="ios-pwa-debug-line" class="mt-2 text-[11px] text-amber-700 hidden"></p>
         </div>
 
         <!-- Grid menu cards -->
@@ -202,72 +196,6 @@
 
         </div>
 
-        {% comment %} WebPush debug: hiển thị subscription hiện tại của user ngay trên trang chủ {% endcomment %}
-        <div class="max-w-3xl mx-auto">
-            <div class="bg-white border border-dashed border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-3">
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <div class="font-semibold text-slate-800">
-                            WebPush Debug (server subscriptions - user: {{ user.username }})
-                        </div>
-                        <div class="text-[11px] text-slate-400">
-                            Chỉ dùng để test đăng ký WebPush trên trang chủ
-                        </div>
-                    </div>
-                    {% if webpush_subscriptions %}
-                        <div class="space-y-1">
-                            {% for sub in webpush_subscriptions %}
-                                <div class="flex items-start gap-2 border-t border-slate-100 pt-1 {% if forloop.first %}border-t-0 pt-0{% endif %}">
-                                    <div class="mt-0.5 text-[10px] text-slate-400">
-                                        #{{ sub.id }}
-                                    </div>
-                                    <div class="flex-1">
-                                        <div>
-                                            <span class="font-medium text-[11px] text-slate-800">
-                                                {{ sub.device_type }}
-                                            </span>
-                                            <span class="ml-1 text-[10px] text-slate-400">
-                                                (user_id={{ sub.user_id }})
-                                            </span>
-                                        </div>
-                                        <div class="text-[10px] text-slate-500 break-all">
-                                            endpoint: {{ sub.endpoint|default:"-" }}
-                                        </div>
-                                        {% if sub.fcm_token %}
-                                            <div class="text-[10px] text-slate-500 break-all">
-                                                fcm_token: {{ sub.fcm_token }}
-                                            </div>
-                                        {% endif %}
-                                        <div class="text-[10px] text-slate-400 mt-0.5">
-                                            created_at: {{ sub.created_at|date:"Y-m-d H:i:s" }}
-                                        </div>
-                                    </div>
-                                </div>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="text-[11px] text-amber-700">
-                            Chưa có WebPushSubscription nào được lưu cho tài khoản này.
-                            Hãy bật thông báo trên thiết bị của bạn, sau đó reload lại trang để kiểm tra.
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="border-t border-dashed border-slate-200 pt-3">
-                    <div class="font-semibold text-slate-800 mb-1">
-                        WebPush Debug (client-side logs)
-                    </div>
-                    <div class="text-[11px] text-slate-500 mb-1">
-                        Nhật ký phía trình duyệt (Push API) sẽ hiển thị tại đây nếu có script chạy.
-                    </div>
-                    <div id="webpush-debug-client"
-                         class="max-h-40 overflow-y-auto bg-slate-50 border border-slate-100 rounded p-2 text-[11px] text-slate-700">
-                        <!-- Các dòng log client sẽ được JS append vào đây -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
     </div>
 </main>
 
@@ -296,59 +224,20 @@
 <script src="{% static 'js/push-setup.js' %}?v=20251204-1"></script>
 
 <script>
-    // Hiển thị nút "Bật thông báo" cho iOS PWA (Add to Home Screen)
+    // Hiển thị nút "Bật thông báo" - luôn hiển thị nếu chưa bật thông báo
     (function () {
-        const ua = navigator.userAgent || '';
-        const isIOS = /iPhone|iPad|iPod/i.test(ua);
-        const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|OPiOS|EdgiOS/i.test(ua);
-        const isIosOrSafari = isIOS || isSafari;
-        const isStandaloneDisplayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
-        const isNavigatorStandalone = typeof window.navigator !== 'undefined' && window.navigator.standalone === true;
-        const isStandalone = isStandaloneDisplayMode || isNavigatorStandalone;
-
-        const params = new URLSearchParams(window.location.search);
-        const debugPush = params.get('push_debug') === '1';
-        
-        if (debugPush) {
-            console.log('[PushDebug] iOS flags', {
-                ua,
-                isIOS,
-                isSafari,
-                isIosOrSafari,
-                isStandaloneDisplayMode,
-                isNavigatorStandalone,
-                isStandalone,
-                debugPush,
-            });
-        }
-
         const notice = document.getElementById('ios-pwa-notice');
         const btn = document.getElementById('btn-ios-enable-push');
-        const debugLine = document.getElementById('ios-pwa-debug-line');
 
-        if (debugPush && debugLine) {
-            debugLine.classList.remove('hidden');
-            debugLine.textContent =
-                'Debug iOS PWA — isIOS=' + isIOS +
-                ', isSafari=' + isSafari +
-                ', isIosOrSafari=' + isIosOrSafari +
-                ', isStandaloneDisplayMode=' + isStandaloneDisplayMode +
-                ', navigator.standalone=' + isNavigatorStandalone;
-        }
-
-        // Điều kiện hiển thị:
-        // - Thiết bị là iOS HOẶC Safari
-        // - Đang ở chế độ standalone (Add to Home Screen)
-        // - Chưa bật thông báo (Notification.permission !== 'granted')
-        if (notice && btn && ((isIosOrSafari && isStandalone) || debugPush)) {
-            if (!debugPush && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        if (notice && btn) {
+            // Kiểm tra xem đã bật thông báo chưa
+            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
                 // Đã bật thông báo rồi -> ẩn nút
                 notice.classList.add('hidden');
             } else {
-                // Chỉ hiển thị notice khi có debug_push để tránh làm phiền người dùng cuối
-                if (debugPush) {
-                    notice.classList.remove('hidden');
-                }
+                // Chưa bật thông báo -> hiển thị nút
+                notice.classList.remove('hidden');
+                
                 btn.addEventListener('click', function () {
                     if (window.initPush) {
                         window.initPush();
