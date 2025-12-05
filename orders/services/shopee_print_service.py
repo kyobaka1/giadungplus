@@ -695,7 +695,8 @@ def draw_label_with_bg(c, x, y, text,
 
     # 2. Tính thông số
     text_height = font_size
-    total_height = len(lines) * text_height + padding_y * 2
+    padding_bottom = padding_y + 2  # Padding-bottom tăng thêm 2 để tránh overflow
+    total_height = len(lines) * text_height + padding_y + padding_bottom
     max_line_width = max(pdfmetrics.stringWidth(line, font_name, font_size) for line in lines)
 
     bg_x = x - padding_x
