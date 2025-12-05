@@ -224,19 +224,13 @@
 <script src="{% static 'js/push-setup.js' %}?v=20251204-1"></script>
 
 <script>
-    // Nút "Bật thông báo" - luôn hiển thị, chỉ ẩn khi đã bật thông báo
+    // Nút "Bật thông báo" - luôn hiển thị
     // Hỗ trợ cả Android Web và iOS Web
     (function () {
         const notice = document.getElementById('push-notice');
         const btn = document.getElementById('btn-enable-push');
 
         if (notice && btn) {
-            // Kiểm tra xem đã bật thông báo chưa
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-                // Đã bật thông báo rồi -> ẩn nút
-                notice.classList.add('hidden');
-            }
-            
             // Thêm event listener cho nút - hoạt động cho cả Android và iOS
             btn.addEventListener('click', function () {
                 if (window.initPush) {
