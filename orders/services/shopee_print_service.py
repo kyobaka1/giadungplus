@@ -120,13 +120,17 @@ def detect_carrier_type(shipping_carrier_name: str) -> str:
 def _build_mvd_overlay_page(
     channel_order_number: str, 
     shipping_carrier_name: str,
-    order_dto: OrderDTO | None = None  # NEW: Accept OrderDTO from caller
+    order_dto: OrderDTO | None = None,  # NEW: Accept OrderDTO from caller
+    current_package: Dict[str, Any] | None = None,  # NEW: Current package info
+    total_packages: int = 1,  # NEW: Total number of packages
 ):
     """
     Tạo trang MVD overlay – in mã đơn + shop lên trên label.
     
     Args:
         order_dto: OrderDTO with gifts already applied (optional, will fetch if not provided)
+        current_package: Current package dict with package_number
+        total_packages: Total number of packages (DON_TACH_FLAG)
     """
     # Use provided DTO or fetch new one
     if order_dto is None:
@@ -159,6 +163,8 @@ def _build_mvd_overlay_page(
         channel_order_number=channel_order_number,
         shipping_carrier_name=shipping_carrier_name,
         order=order_dto,
+        current_package=current_package,
+        total_packages=total_packages,
     )
 
     # Kết thúc vẽ
@@ -238,6 +244,8 @@ def _render_mvd_overlay(
     channel_order_number: str,
     shipping_carrier_name: str,
     order: OrderDTO,
+    current_package: Dict[str, Any] | None = None,
+    total_packages: int = 1,
 ):
 
     sc = detect_carrier_type(shipping_carrier_name)
@@ -259,24 +267,25 @@ def _render_mvd_overlay(
     config = {
         "spx": {
             "y_start_1": 168, "kho_11":-35,"kho_12":255,"kho_21":-35,"kho_22":245,"kho_31":-35,"kho_32":213,
-            "deadline1": 87, "deadline2": 212
+            "deadline1": 87, "deadline2": 212, "total_11":-25, "total_12": 23, "total_21": 0, "total_22": 23
         },
         "jnt": {
             "y_start_1": 182,
-            "deadline1": -15, "deadline2": 80
+            "deadline1": -15, "deadline2": 80, "total_11":-25, "total_12": 15, "total_21": 0, "total_22": 15
         },
         "ninja": {
             "y_start_1": 172,
-            "deadline1": -5, "deadline2": 50
+            "deadline1": -5, "deadline2": 50, "total_11":-25, "total_12": 15, "total_21": 0, "total_22": 15
         },
         "ghn": {
             "y_start_1": 185, "kho_11":-35,"kho_12":265,"kho_21":-35,"kho_22":255,"kho_31":-35,"kho_32":231,
-            "deadline1": 87, "deadline2": 230        },
+            "deadline1": 87, "deadline2": 230,"total_11":-25, "total_12": 15, "total_21": 0, "total_22": 15
+        },
         "hoatoc": {
-            "y_start_1": 170
+            "y_start_1": 170,"total_11":-25, "total_12": 23, "total_21": 0, "total_22": 23
         },
         "khac": {
-            "y_start_1": 170
+            "y_start_1": 170, "total_11":-25, "total_12": 23, "total_21": 0, "total_22": 23
         }
     }
     y_value = config[sc]["y_start_1"]
@@ -355,6 +364,28 @@ def _render_mvd_overlay(
         c.setFillColorRGB(1, 1, 1)
         c.setFont('UTM Avo Bold', 9)
         c.drawString(config[sc]["deadline1"], config[sc]["deadline2"], SHIP_CONTENT)
+
+    # Tính total_quantity từ order
+    total_quantity = 0
+    for line_item in order.real_items:
+        total_quantity += int(line_item.quantity) if line_item.quantity else 0
+
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont('UTM Avo Bold', 15)
+    if total_packages > 1:
+        parcel_no = current_package.get("parcel_no", "1")
+        c.drawString(config[sc]["total_11"], config[sc]["total_12"], f"- Tách đơn: {parcel_no}/{total_packages} -")
+    else:
+        c.drawString(config[sc]["total_21"], config[sc]["total_22"], f"- Tổng: {int(total_quantity)} -")
+
+    if len(order.note) > 5:
+        draw_label_with_bg(
+            c,
+            int(config[sc]["total_11"]-5),
+            int(config[sc]["total_12"]+20),
+            max_width=165,
+            text="Ghi chú: " + order.note
+        )
 
     return c
 
@@ -509,17 +540,11 @@ def generate_label_pdf_for_channel_order(
     else:
         debug("→ NO COVER FOUND.")
 
-    mvd_page = _build_mvd_overlay_page(
-        channel_order_number, 
-        resolved_carrier,
-        order_dto=order_dto  # Pass OrderDTO với gifts
-    )
-    debug(f"→ MVD overlay built.", channel_order_number, resolved_carrier)
-
     # ----------------------------------------------------------
     # 5. LOOP PACKAGE → GET LABEL → MERGE
     # ----------------------------------------------------------
     final_writer = PyPDF2.PdfWriter()
+    DON_TACH_FLAG = len(package_list)  # Số kiện hàng của đơn hàng
 
     for pack in package_list:
         package_number = pack["package_number"]
@@ -601,6 +626,16 @@ def generate_label_pdf_for_channel_order(
 
         debug("→ label size:", len(pdf_bytes))
 
+        # Build MVD overlay cho package hiện tại (mỗi package có overlay riêng với parcel_no)
+        mvd_page = _build_mvd_overlay_page(
+            channel_order_number, 
+            resolved_carrier,
+            order_dto=order_dto,  # Pass OrderDTO với gifts
+            current_package=pack,  # Pass package hiện tại
+            total_packages=DON_TACH_FLAG,  # Pass tổng số package
+        )
+        debug(f"→ MVD overlay built for package {pack.get('package_number', '')}", channel_order_number, resolved_carrier)
+
         # Merge cover + MVD
         base_reader = PyPDF2.PdfReader(BytesIO(pdf_bytes), strict=False)
         for page in base_reader.pages:
@@ -625,3 +660,57 @@ def generate_label_pdf_for_channel_order(
     debug("=== DONE generate_label_pdf_for_channel_order ===")
 
     return output.getvalue()
+
+
+def wrap_text(text, font_name, font_size, max_width):
+    words = text.split(" ")
+    lines = []
+    current_line = ""
+
+    for word in words:
+        test_line = word if current_line == "" else current_line + " " + word
+        if pdfmetrics.stringWidth(test_line, font_name, font_size) <= max_width:
+            current_line = test_line
+        else:
+            lines.append(current_line)
+            current_line = word
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+
+
+def draw_label_with_bg(c, x, y, text,
+                       font_name="Arial",
+                       font_size=9,
+                       padding_x=4,
+                       padding_y=2,
+                       max_width=200):   # max_width theo PTS (tự chỉnh)
+    
+    c.setFont(font_name, font_size)
+
+    # 1. Tách dòng theo max-width
+    lines = wrap_text(text, font_name, font_size, max_width)
+
+    # 2. Tính thông số
+    text_height = font_size
+    total_height = len(lines) * text_height + padding_y * 2
+    max_line_width = max(pdfmetrics.stringWidth(line, font_name, font_size) for line in lines)
+
+    bg_x = x - padding_x
+    bg_y = y - padding_y
+    bg_w = max_line_width + padding_x * 2
+    bg_h = total_height
+
+    # 3. Vẽ nền đen
+    c.setFillColorRGB(0, 0, 0)
+    c.roundRect(bg_x, bg_y, bg_w, bg_h, radius=3, fill=1, stroke=0)
+
+    # 4. Vẽ chữ từng dòng (trắng)
+    c.setFillColorRGB(1, 1, 1)
+    draw_y = y + (len(lines)-1) * text_height  # Vẽ từ trên xuống
+
+    for line in lines:
+        c.drawString(x, draw_y, line)
+        draw_y -= text_height
