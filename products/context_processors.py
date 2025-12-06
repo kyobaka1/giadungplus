@@ -39,15 +39,15 @@ def product_counts(request) -> Dict[str, Any]:
             product_count = len(products_data)
         
         # Đếm tổng số variants: lấy một số products để đếm variants
-        # Tối ưu: chỉ lấy page 1 với limit=50 để đếm variants
+        # Tối ưu: chỉ lấy page 1 với limit=250 để đếm variants
         variant_count = 0
         if product_count > 0:
             # Lấy products để đếm variants
-            products = SapoProductService(sapo_client).list_products(page=1, limit=50, status="active")
+            products = SapoProductService(sapo_client).list_products(page=1, limit=250, status="active")
             variant_count = sum(p.variant_count for p in products)
             
-            # Nếu có nhiều hơn 50 products, ước tính dựa trên tỷ lệ
-            if product_count > 50:
+            # Nếu có nhiều hơn 250 products, ước tính dựa trên tỷ lệ
+            if product_count > 250:
                 avg_variants_per_product = variant_count / len(products) if products else 0
                 variant_count = int(product_count * avg_variants_per_product)
         

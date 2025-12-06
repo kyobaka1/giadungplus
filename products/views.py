@@ -259,63 +259,40 @@ def variant_list(request: HttpRequest):
         ]
         context["brands"] = sorted(enabled_brands, key=lambda x: x.get("name", ""))
         
-        # Lấy variants theo brand_id từ Sapo API (server-side filter)
-        all_variants = []
+        # Lấy products từ Sapo API (đã bao gồm variants và inventories)
+        # Thử filter theo brand_id nếu API hỗ trợ, nếu không thì filter ở client-side
+        all_products = []
         page = 1
         limit = 250  # Sapo API limit tối đa là 250
-        expected_total = None  # Sẽ được set từ metadata của page đầu tiên
         
-        logger.info(f"[variant_list] Starting to fetch variants for brand_id={brand_id}")
+        logger.info(f"[variant_list] Starting to fetch products (with variants) for brand_id={brand_id}")
         
         while True:
-            variants_response = core_repo.list_variants_raw(
-                page=page,
-                limit=limit,
-                brand_ids=brand_id,
-                # Không filter status để lấy cả active và inactive
-                composite=False,
-                packsize=False
-            )
+            # Thử filter theo brand_id nếu API hỗ trợ
+            filters = {
+                "page": page,
+                "limit": limit,
+                "status": "active"  # Có thể bỏ nếu muốn lấy cả inactive
+            }
+            # Thử thêm brand_ids filter (có thể không hỗ trợ, nhưng thử xem)
+            try:
+                filters["brand_ids"] = brand_id
+            except:
+                pass
             
-            variants_data = variants_response.get("variants", [])
+            products_response = core_repo.list_products_raw(**filters)
+            products_data = products_response.get("products", [])
             
-            # Lấy metadata từ page đầu tiên để biết tổng số
-            metadata = variants_response.get("metadata", {})
-            if page == 1:
-                expected_total = metadata.get("total", 0)
-                logger.info(f"[variant_list] Total variants expected: {expected_total}")
-            
-            # Nếu không còn variants nào, dừng
-            if not variants_data:
-                logger.info(f"[variant_list] No more variants at page {page}")
+            if not products_data:
+                logger.info(f"[variant_list] No more products at page {page}")
                 break
             
-            all_variants.extend(variants_data)
-            logger.info(f"[variant_list] Fetched page {page}: {len(variants_data)} variants (total so far: {len(all_variants)}/{expected_total or 'unknown'})")
+            all_products.extend(products_data)
+            logger.info(f"[variant_list] Fetched page {page}: {len(products_data)} products (total so far: {len(all_products)})")
             
-            # Kiểm tra nếu đã lấy đủ số lượng
-            if expected_total and expected_total > 0:
-                if len(all_variants) >= expected_total:
-                    logger.info(f"[variant_list] Fetched all {expected_total} variants")
-                    break
-            else:
-                # Nếu không có total trong metadata, tính total_pages
-                total_pages = metadata.get("total_pages")
-                if total_pages:
-                    if page >= total_pages:
-                        logger.info(f"[variant_list] Reached last page ({total_pages}), total variants: {len(all_variants)}")
-                        break
-                else:
-                    # Tính total_pages từ total và limit
-                    if expected_total and expected_total > 0:
-                        calculated_pages = (expected_total + limit - 1) // limit  # Ceiling division
-                        if page >= calculated_pages:
-                            logger.info(f"[variant_list] Reached calculated last page ({calculated_pages}), total variants: {len(all_variants)}")
-                            break
-            
-            # Nếu số variants trả về ít hơn limit, có nghĩa là đã hết
-            if len(variants_data) < limit:
-                logger.info(f"[variant_list] Received fewer variants than limit ({len(variants_data)} < {limit}), assuming last page")
+            # Nếu số products trả về ít hơn limit, có nghĩa là đã hết
+            if len(products_data) < limit:
+                logger.info(f"[variant_list] Received fewer products than limit ({len(products_data)} < {limit}), assuming last page")
                 break
             
             page += 1
@@ -325,41 +302,71 @@ def variant_list(request: HttpRequest):
                 logger.warning(f"[variant_list] Reached safety limit of 100 pages, stopping")
                 break
         
-        # Lấy product metadata cho từng variant để có GDP metadata
-        # Tạo map product_id -> product để tránh gọi API nhiều lần
+        # Parse products và extract variants
+        # Tạo map product_id -> product để parse metadata
         product_map = {}
-        product_ids = set(v.get("product_id") for v in all_variants if v.get("product_id"))
+        all_variants_from_products = []
         
-        # Lấy products theo batch (mỗi lần 50 để tránh quá tải)
-        product_ids_list = list(product_ids)
-        batch_size = 50
-        for i in range(0, len(product_ids_list), batch_size):
-            batch_ids = product_ids_list[i:i+batch_size]
-            for product_id in batch_ids:
-                try:
-                    product = product_service.get_product(product_id)
-                    if product:
-                        product_map[product_id] = product
-                except Exception as e:
-                    logger.warning(f"Failed to get product {product_id}: {e}")
+        for product_data in all_products:
+            product_id = product_data.get("id")
+            if not product_id:
+                continue
+            
+            # Lấy brand_id từ product_data (có sẵn trong JSON)
+            brand_id_from_product = product_data.get("brand_id")
+            
+            # Parse product để có metadata
+            try:
+                product = product_service.get_product(product_id)
+                if product:
+                    product_map[product_id] = product
+            except Exception as e:
+                logger.warning(f"Failed to parse product {product_id}: {e}")
+                # Vẫn dùng product_data nếu parse lỗi
+                product = None
+            
+            # Extract variants từ product (đã có inventories sẵn)
+            variants = product_data.get("variants", [])
+            for variant_data in variants:
+                variant_id = variant_data.get("id")
+                if not variant_id:
                     continue
+                
+                # Lưu variant với product_id và brand_id để filter sau
+                variant_data["_product_id"] = product_id
+                variant_data["_brand_id"] = brand_id_from_product
+                variant_data["_product"] = product  # Lưu product object nếu có
+                all_variants_from_products.append(variant_data)
         
-        # Parse variants và lấy metadata
+        logger.info(f"[variant_list] Extracted {len(all_variants_from_products)} variants from {len(all_products)} products")
+        
+        # Parse variants và lấy metadata, filter theo brand_id
         variants_data = []
         brands_set = set()
         statuses_set = set()
         
-        for variant_raw in all_variants:
-            variant_id = variant_raw.get("id")
-            product_id = variant_raw.get("product_id")
+        for variant_data in all_variants_from_products:
+            variant_id = variant_data.get("id")
+            product_id = variant_data.get("_product_id")
+            product = variant_data.get("_product")
             
-            # Lấy product để có brand và metadata
-            product = product_map.get(product_id)
-            if not product:
-                # Nếu không lấy được product, dùng dữ liệu từ variant_raw
-                brand = variant_raw.get("brand") or ""
-            else:
+            # Lấy brand_id từ variant_data (đã lưu từ product_data)
+            variant_brand_id = variant_data.get("_brand_id")
+            
+            # Filter theo brand_id (client-side)
+            if variant_brand_id != brand_id:
+                continue
+            
+            # Lấy brand name từ product hoặc all_brands
+            brand = ""
+            if product:
                 brand = product.brand or ""
+            else:
+                # Fallback: tìm brand name từ all_brands
+                for b in all_brands:
+                    if b.get("id") == variant_brand_id:
+                        brand = b.get("name", "")
+                        break
             
             # Chỉ thêm variants nếu nhãn hiệu được bật
             if brand and not is_brand_enabled(brand):
@@ -368,7 +375,7 @@ def variant_list(request: HttpRequest):
             if brand:
                 brands_set.add(brand)
             
-            variant_status = variant_raw.get("status", "")
+            variant_status = variant_data.get("status", "")
             if variant_status:
                 statuses_set.add(variant_status)
             
@@ -381,45 +388,54 @@ def variant_list(request: HttpRequest):
                         variant_meta = v.gdp_metadata
                         break
             
-            # Tính tổng inventory từ inventories
-            inventories = variant_raw.get("inventories", [])
-            total_inventory = sum(inv.get("on_hand", 0) for inv in inventories)
-            total_available = sum(inv.get("available", 0) for inv in inventories)
+            # Sử dụng inventories từ variant_data (đã có sẵn trong products)
+            inventories = variant_data.get("inventories", [])
+            total_inventory = sum(inv.get("on_hand", 0) or 0 for inv in inventories)
+            total_available = sum(inv.get("available", 0) or 0 for inv in inventories)
             
             # Lấy opt1, opt2, opt3 - kiểm tra cả opt1 và option1
-            opt1_raw = variant_raw.get("opt1")
+            opt1_raw = variant_data.get("opt1")
             if opt1_raw is None:
-                opt1_raw = variant_raw.get("option1")
+                opt1_raw = variant_data.get("option1")
             opt1 = opt1_raw or ""
             
-            opt2_raw = variant_raw.get("opt2")
+            opt2_raw = variant_data.get("opt2")
             if opt2_raw is None:
-                opt2_raw = variant_raw.get("option2")
+                opt2_raw = variant_data.get("option2")
             opt2 = opt2_raw or ""
             
-            opt3_raw = variant_raw.get("opt3")
+            opt3_raw = variant_data.get("opt3")
             if opt3_raw is None:
-                opt3_raw = variant_raw.get("option3")
+                opt3_raw = variant_data.get("option3")
             opt3 = opt3_raw or ""
+            
+            # Lấy product name
+            product_name = ""
+            if product:
+                product_name = product.name
+            else:
+                variant_name = variant_data.get("name", "")
+                if variant_name:
+                    product_name = variant_name.split(" - ")[0]
             
             variants_data.append({
                 "id": variant_id,
                 "product_id": product_id,
-                "product_name": product.name if product else variant_raw.get("name", "").split(" - ")[0] if variant_raw.get("name") else "",
+                "product_name": product_name,
                 "brand": brand,
-                "sku": variant_raw.get("sku", ""),
-                "barcode": variant_raw.get("barcode") or "",
-                "name": variant_raw.get("name", ""),
+                "sku": variant_data.get("sku", ""),
+                "barcode": variant_data.get("barcode") or "",
+                "name": variant_data.get("name", ""),
                 "opt1": opt1,
                 "opt2": opt2,
                 "opt3": opt3,
                 "status": variant_status,
-                "variant_retail_price": variant_raw.get("retail_price", 0) or 0,
-                "variant_whole_price": variant_raw.get("wholesale_price", 0) or 0,
+                "variant_retail_price": variant_data.get("variant_retail_price", 0) or 0,
+                "variant_whole_price": variant_data.get("variant_whole_price", 0) or 0,
                 "total_inventory": total_inventory,
                 "total_available": total_available,
-                "weight_value": variant_raw.get("weight_value", 0) or 0,
-                "weight_unit": variant_raw.get("weight_unit", "g"),
+                "weight_value": variant_data.get("weight_value", 0) or 0,
+                "weight_unit": variant_data.get("weight_unit", "g"),
                 "gdp_metadata": variant_meta,
                 # Extract metadata fields
                 "price_tq": variant_meta.price_tq if variant_meta else None,
@@ -1565,6 +1581,148 @@ def add_supplier_website(request: HttpRequest, supplier_id: int):
         
     except Exception as e:
         logger.error(f"Error in add_supplier_website: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+# ========================= SALES FORECAST =========================
+
+@admin_only
+def sales_forecast_list(request: HttpRequest):
+    """
+    Danh sách dự báo bán hàng & cảnh báo tồn kho:
+    - Hiển thị danh sách variants với dự báo bán hàng
+    - Có nút refresh data để tính toán lại
+    - Cảnh báo màu: đỏ (< 30 ngày), vàng (30-60 ngày), xanh (> 60 ngày)
+    - Có thể sắp xếp theo các cột
+    """
+    context = {
+        "title": "Dự báo bán hàng & Cảnh báo tồn kho",
+        "variants": [],
+        "total": 0,
+        "days": 7,  # Mặc định 7 ngày
+    }
+    
+    try:
+        from products.services.sales_forecast_service import SalesForecastService
+        
+        sapo_client = get_sapo_client()
+        forecast_service = SalesForecastService(sapo_client)
+        
+        # Lấy số ngày từ query param (mặc định 7)
+        days = int(request.GET.get('days', 7))
+        context["days"] = days
+        
+        # KHÔNG force refresh mặc định - chỉ load từ metadata
+        # Chỉ refresh khi bấm nút "Refresh Data"
+        force_refresh = False
+        
+        # Load dữ liệu từ GDP_META (không tính toán lại)
+        logger.info(f"[sales_forecast_list] Loading forecast data from GDP_META for {days} days")
+        forecast_map, all_products, all_variants_map = forecast_service.calculate_sales_forecast(
+            days=days,
+            force_refresh=force_refresh
+        )
+        
+        # Lấy thông tin đầy đủ cho từng variant (dùng variant_data đã có sẵn)
+        print(f"[DEBUG] [VIEW] Lấy thông tin tồn kho cho {len(forecast_map)} variants...")
+        import time
+        view_start = time.time()
+        
+        # Tạo map variant_id -> product_data để lấy brand
+        variant_to_product: Dict[int, Dict[str, Any]] = {}
+        for product in all_products:
+            product_id = product.get("id")
+            variants = product.get("variants", [])
+            for variant in variants:
+                variant_id = variant.get("id")
+                if variant_id:
+                    variant_to_product[variant_id] = product
+        
+        variants_data = []
+        processed = 0
+        for variant_id, forecast in forecast_map.items():
+            # Lấy variant_data từ map (đã có sẵn inventories)
+            variant_data = all_variants_map.get(variant_id)
+            product_data = variant_to_product.get(variant_id)
+            variant_info = forecast_service.get_variant_forecast_with_inventory(
+                variant_id,
+                forecast_map,
+                variant_data=variant_data,  # Truyền variant_data đã có sẵn
+                product_data=product_data  # Truyền product_data để lấy brand
+            )
+            variants_data.append(variant_info)
+            processed += 1
+            
+            # Log progress mỗi 100 variants
+            if processed % 100 == 0:
+                print(f"[DEBUG] [VIEW] Đã xử lý {processed}/{len(forecast_map)} variants...")
+        
+        print(f"[DEBUG] [VIEW] ✅ Đã lấy thông tin cho {len(variants_data)} variants ({time.time() - view_start:.2f}s)")
+        
+        # Sắp xếp mặc định: theo days_remaining (tăng dần - nguy hiểm nhất trước)
+        print(f"[DEBUG] [VIEW] Sắp xếp danh sách...")
+        sort_start = time.time()
+        variants_data.sort(key=lambda x: (
+            0 if x["days_remaining"] == float('inf') else x["days_remaining"],
+            -x["total_inventory"]
+        ))
+        print(f"[DEBUG] [VIEW] ✅ Đã sắp xếp ({time.time() - sort_start:.2f}s)")
+        
+        context["variants"] = variants_data
+        context["total"] = len(variants_data)
+        
+    except Exception as e:
+        logger.error(f"Error in sales_forecast_list: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/sales_forecast_list.html", context)
+
+
+@admin_only
+@require_POST
+def refresh_sales_forecast(request: HttpRequest):
+    """
+    API endpoint để refresh dữ liệu dự báo bán hàng.
+    
+    POST data:
+    - days: Số ngày để tính toán (mặc định 7)
+    
+    Returns:
+        JSON với status và message
+    """
+    try:
+        import json
+        
+        # Lấy days từ request
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+            days = int(data.get('days', 7))
+        else:
+            days = int(request.POST.get('days', 7))
+        
+        from products.services.sales_forecast_service import SalesForecastService
+        
+        sapo_client = get_sapo_client()
+        forecast_service = SalesForecastService(sapo_client)
+        
+        # Tính toán lại với force_refresh=True
+        logger.info(f"[refresh_sales_forecast] Refreshing forecast for {days} days")
+        forecast_map, all_products, all_variants_map = forecast_service.calculate_sales_forecast(
+            days=days,
+            force_refresh=True
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã tính toán lại dự báo cho {len(forecast_map)} variants",
+            "count": len(forecast_map)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in refresh_sales_forecast: {e}", exc_info=True)
         return JsonResponse({
             "status": "error",
             "message": str(e)

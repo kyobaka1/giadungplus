@@ -58,7 +58,7 @@ def dashboard(request):
                 connection_ids=connection_ids,
                 account_id=int(SAPO_TMDT.STAFF_ID),
                 page=1,
-                limit=50,
+                limit=250,
                 sortBy="ISSUED_AT",
                 orderBy="desc",
             )

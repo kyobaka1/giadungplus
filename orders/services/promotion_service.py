@@ -75,7 +75,7 @@ class PromotionService:
             response = self._sapo.promotion.list_programs(
                 statuses="active",
                 page=1,
-                limit=100,
+                limit=250,
             )
 
             programs = response.get("promotion_list", [])

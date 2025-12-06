@@ -30,7 +30,7 @@ def auto_prepare_single_order(order):
     print(f"[AUTO XPRESS] Preparing order #{order.id} - {order.channel_order_number}")
 
 
-def auto_prepare_express_orders(limit=50):
+def auto_prepare_express_orders(limit=250):
     """
     Quét các đơn hoả tốc cần chuẩn bị hàng và xử lý.
     - Chỉ lấy một số lượng giới hạn (limit) để không nặng máy.
@@ -44,7 +44,7 @@ def auto_prepare_express_orders(limit=50):
     core_service = SapoCoreOrderService()
 
     # Filter cho Marketplace orders
-    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 50, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "shippingCarrierIds": "134097,1285481,108346,17426,60176,1283785,1285470,1292451,35696,47741,14895,1272209,176002", "sortBy": "ISSUED_AT", "orderBy": "desc", })
+    mp_filter = BaseFilter(params={ "connectionIds": connection_ids, "page": 1, "limit": 250, "channelOrderStatus": "READY_TO_SHIP,RETRY_SHIP,PROCESSED", "shippingCarrierIds": "134097,1285481,108346,17426,60176,1283785,1285470,1292451,35696,47741,14895,1272209,176002", "sortBy": "ISSUED_AT", "orderBy": "desc", })
     mp_resp = mp_service.list_orders(mp_filter)
     mp_orders = mp_resp.get("orders", [])
 
