@@ -382,9 +382,9 @@ class SupplierDTO(BaseDTO):
     @computed_field
     @property
     def company_name(self) -> Optional[str]:
-        """Lấy tên công ty từ address.label"""
+        """Lấy tên công ty từ address.full_name"""
         if self.addresses and len(self.addresses) > 0:
-            return self.addresses[0].label
+            return self.addresses[0].full_name
         return None
     
     @computed_field

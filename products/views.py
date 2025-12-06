@@ -1282,6 +1282,19 @@ def supplier_list(request: HttpRequest):
                 "status": supplier.status,
             })
 
+        # Sắp xếp: ưu tiên ĐỘC QUYỀN trước PHÂN PHỐI
+        def sort_key(supplier):
+            group_name = supplier.get("group_name", "") or ""
+            # ĐỘC QUYỀN = 0 (ưu tiên cao nhất), PHÂN PHỐI = 1, khác = 2
+            if group_name == "ĐỘC QUYỀN":
+                return (0, supplier.get("name", ""))
+            elif group_name == "PHÂN PHỐI":
+                return (1, supplier.get("name", ""))
+            else:
+                return (2, supplier.get("name", ""))
+        
+        suppliers_data.sort(key=sort_key)
+
         context["suppliers"] = suppliers_data
         context["total"] = len(suppliers_data)
         context["group_names"] = sorted(list(group_names_set))
@@ -1391,8 +1404,8 @@ def upload_supplier_logo(request: HttpRequest, supplier_id: int):
             "email": address.get("email"),
             "first_name": logo_url,  # ⭐ Update logo path vào đây
             "last_name": address.get("last_name"),
-            "full_name": address.get("full_name"),
-            "label": address.get("label"),  # Giữ nguyên tên công ty
+            "full_name": address.get("full_name"),  # Tên công ty
+            "label": address.get("label"),  # Không dùng đến
             "phone_number": address.get("phone_number"),
             "status": address.get("status", "active"),
         }
