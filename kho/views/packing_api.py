@@ -132,7 +132,10 @@ def get_order(request):
                     service_name = str(shipment.get('service_name', '')).lower()
                     
                     # Check keywords for Hoả Tốc
-                    is_hoatoc = 'hỏa tốc' in service_name or 'hoatoc' in service_name or 'now' in service_name or 'grab' in service_name or 'be' in service_name or 'ahamove' in service_name
+                    is_hoatoc = any(keyword in service_name for keyword in [
+                        'hỏa tốc', 'hoatoc', 'now', 'grab', 'be', 'ahamove', 
+                        'instant', 'trong ngày'
+                    ])
                     
                     if not is_hoatoc:
                         debug_print(f"[PackingAPI] Match ref_number but not Hoả Tốc: {service_name}")
@@ -140,10 +143,7 @@ def get_order(request):
                         
                     # Check if tracking_code exists
                     real_tracking_code = shipment.get('tracking_code')
-                    debug_print(f"[PackingAPI] Checking tracking_code for ref_number {ref_number}: {real_tracking_code}")
-                    
-                    if not real_tracking_code or not str(real_tracking_code).strip():
-                        debug_print(f"[PackingAPI] Error: Order has no tracking_code")
+                    if not real_tracking_code:
                         return JsonResponse({
                             'success': False,
                             'error': 'Đơn hàng chưa có mã vận đơn.'
