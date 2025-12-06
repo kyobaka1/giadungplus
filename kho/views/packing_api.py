@@ -100,6 +100,62 @@ def get_order(request):
                 break
         
         if not target_order_raw:
+            # Fallback: Search by reference_number (Shopee ID)
+            # Only for Shopee source_id=1880152 and Hoả Tốc
+            debug_print(f"[PackingAPI] Checking fallback: reference_number match for Shopee Hoả Tốc")
+            
+            for order_raw in orders_raw:
+                # Check if reference_number matches input
+                ref_number = str(order_raw.get('reference_number', '')).strip()
+                if ref_number == tracking_code:
+                    # Check source_id = 1880152 (Shopee)
+                    if order_raw.get('source_id') != 1880152:
+                        debug_print(f"[PackingAPI] Match ref_number but not Shopee source: {order_raw.get('source_id')}")
+                        continue
+                        
+                    # Check fulfillments
+                    fulfillments = order_raw.get('fulfillments', [])
+                    candidate_fulfillment = None
+                    
+                    # Find valid fulfillment (not cancelled)
+                    for fulfillment in fulfillments:
+                        if fulfillment.get('status') != 'cancelled':
+                            candidate_fulfillment = fulfillment
+                            break
+                    
+                    if not candidate_fulfillment:
+                        debug_print(f"[PackingAPI] Match ref_number but no valid fulfillment")
+                        continue
+                        
+                    # Check Hoả Tốc in shipment service_name
+                    shipment = candidate_fulfillment.get('shipment', {})
+                    service_name = str(shipment.get('service_name', '')).lower()
+                    
+                    # Check keywords for Hoả Tốc
+                    is_hoatoc = 'hỏa tốc' in service_name or 'hoatoc' in service_name or 'now' in service_name or 'grab' in service_name or 'be' in service_name or 'ahamove' in service_name
+                    
+                    if not is_hoatoc:
+                        debug_print(f"[PackingAPI] Match ref_number but not Hoả Tốc: {service_name}")
+                        continue
+                        
+                    # Check if tracking_code exists
+                    real_tracking_code = shipment.get('tracking_code')
+                    debug_print(f"[PackingAPI] Checking tracking_code for ref_number {ref_number}: {real_tracking_code}")
+                    
+                    if not real_tracking_code or not str(real_tracking_code).strip():
+                        debug_print(f"[PackingAPI] Error: Order has no tracking_code")
+                        return JsonResponse({
+                            'success': False,
+                            'error': 'Đơn hàng chưa có mã vận đơn.'
+                        })
+                        
+                    # Found valid order
+                    target_order_raw = order_raw
+                    target_fulfillment = candidate_fulfillment
+                    debug_print(f"[PackingAPI] Found order by reference_number: {ref_number}, tracking: {real_tracking_code}")
+                    break
+
+        if not target_order_raw:
             debug_print(f"[PackingAPI] No order found with exact tracking_code match")
             return JsonResponse({
                 'success': False,

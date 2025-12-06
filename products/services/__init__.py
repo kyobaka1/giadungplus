@@ -15,6 +15,8 @@ from .dto import (
     ProductVariantDTO,
     ProductOptionDTO,
     ProductDTO,
+    SupplierAddressDTO,
+    SupplierDTO,
 )
 
 __all__ = [
@@ -29,4 +31,6 @@ __all__ = [
     'ProductVariantDTO',
     'ProductOptionDTO',
     'ProductDTO',
+    'SupplierAddressDTO',
+    'SupplierDTO',
 ]

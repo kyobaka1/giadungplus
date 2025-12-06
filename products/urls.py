@@ -39,5 +39,9 @@ urlpatterns = [
     path("xnk-models/create/", views.api_xnk_create, name="api_xnk_create"),
     path("xnk-models/edit/", views.api_xnk_edit, name="api_xnk_edit"),
     path("xnk-models/delete/", views.api_xnk_delete, name="api_xnk_delete"),
+    
+    # Supplier Management
+    path("suppliers/", views.supplier_list, name="supplier_list"),
+    path("suppliers/<int:supplier_id>/upload-logo/", views.upload_supplier_logo, name="upload_supplier_logo"),
 ]
 

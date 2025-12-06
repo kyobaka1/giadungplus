@@ -1,0 +1,542 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý và xem thông tin tất cả nhà cung cấp</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-100">
+    <div class="max-w-7xl mx-auto">
+
+        <!-- BỘ LỌC VÀ TÌM KIẾM -->
+        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-slate-700">Tìm kiếm & Lọc</h2>
+            </div>
+            
+            <!-- Bộ lọc Nhóm -->
+            <div class="mb-3">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="text-[11px] text-slate-600 font-medium mr-1">Nhóm:</span>
+                    <button id="filter-group-all" 
+                            class="filter-btn filter-group-btn active px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                            data-filter-type="group"
+                            data-filter-value="all">
+                        Tất cả (<span id="filter-group-all-count">0</span>)
+                    </button>
+                    <div id="filter-group-container" class="flex flex-wrap gap-1.5">
+                        {% for group_name in group_names %}
+                        <button class="filter-btn filter-group-btn px-2 py-0.5 rounded-full border border-slate-300 bg-slate-50 text-[11px] text-slate-700 font-medium hover:bg-slate-100 transition"
+                                data-filter-type="group"
+                                data-filter-value="{{ group_name }}">
+                            {{ group_name }} (<span class="filter-group-count" data-group="{{ group_name }}">0</span>)
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            {% csrf_token %}
+            <!-- Tìm kiếm -->
+            <div class="flex items-center gap-4 flex-wrap">
+                <div class="flex-1 min-w-[200px]">
+                    <input type="text" 
+                           id="supplier-search-input"
+                           name="search" 
+                           value=""
+                           placeholder="Tìm kiếm nhà cung cấp..." 
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent">
+                </div>
+
+                <!-- Reset -->
+                <button type="button" 
+                        id="reset-filters-btn"
+                        class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+                    Đặt lại
+                </button>
+            </div>
+        </div>
+
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- DANH SÁCH NHÀ CUNG CẤP -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+                {% if suppliers %}
+                    {% for supplier in suppliers %}
+                    <div class="js-supplier-card border border-slate-200 rounded-lg p-4 hover:shadow-md transition"
+                         data-group="{{ supplier.group_name|default:'' }}"
+                         data-name="{{ supplier.name|upper }}"
+                         data-code="{{ supplier.code|upper }}">
+                        <!-- Header: Logo và Tên -->
+                        <div class="flex items-start gap-3 mb-3">
+                            <!-- Logo -->
+                            <div class="relative flex-shrink-0">
+                                {% if supplier.logo_path %}
+                                    <img id="logo-{{ supplier.id }}" 
+                                         src="{{ supplier.logo_path }}" 
+                                         alt="{{ supplier.name }}"
+                                         class="w-16 h-16 object-contain rounded-md border border-slate-200 bg-white">
+                                {% else %}
+                                    <div id="logo-placeholder-{{ supplier.id }}" class="w-16 h-16 rounded-md border border-slate-200 bg-slate-100 flex items-center justify-center">
+                                        <span class="text-xs text-slate-400">{{ supplier.code|slice:":2" }}</span>
+                                    </div>
+                                {% endif %}
+                                <!-- Button thêm/đổi logo -->
+                                <label class="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-blue-600 transition cursor-pointer"
+                                       title="Thêm/Đổi logo">
+                                    <input type="file" 
+                                           class="hidden" 
+                                           accept="image/jpeg,image/jpg,image/png"
+                                           data-supplier-id="{{ supplier.id }}"
+                                           onchange="uploadSupplierLogo(this, {{ supplier.id }})">
+                                    +
+                                </label>
+                            </div>
+                            
+                            <!-- Tên và Code -->
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-semibold text-sm text-slate-900 truncate" title="{{ supplier.name }}">
+                                    {{ supplier.name }}
+                                </h3>
+                                <p class="text-xs text-slate-500 truncate" title="{{ supplier.code }}">
+                                    {{ supplier.code }}
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <!-- Thông tin chi tiết -->
+                        <div class="space-y-2 text-xs">
+                            <!-- Vùng (Tỉnh) -->
+                            {% if supplier.province %}
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-500">📍</span>
+                                <span class="text-slate-700">{{ supplier.province }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Tên công ty -->
+                            {% if supplier.company_name %}
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-500">🏢</span>
+                                <span class="text-slate-700 truncate" title="{{ supplier.company_name }}">{{ supplier.company_name }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Nhóm (Phân phối/Độc quyền) -->
+                            {% if supplier.group_name %}
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-500">🏷️</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-medium
+                                    {% if supplier.group_name == 'ĐỘC QUYỀN' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                                    {{ supplier.group_name }}
+                                </span>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Tags -->
+                            {% if supplier.tags %}
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-slate-500">#</span>
+                                {% for tag in supplier.tags %}
+                                <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Websites -->
+                            {% if supplier.websites %}
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-slate-500">🌐</span>
+                                {% for site_type, site_url in supplier.websites.items %}
+                                    {% if site_type == '1688' or '1688' in site_url %}
+                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                            <img src="/static/1688_logo.png" alt="1688" class="w-4 h-4" onerror="this.style.display='none'">
+                                        </a>
+                                    {% elif site_type == 'tmall' or 'tmall' in site_url %}
+                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                            <img src="/static/tmall_logo.png" alt="Tmall" class="w-4 h-4" onerror="this.style.display='none'">
+                                        </a>
+                                    {% elif site_type == 'taobao' or 'taobao' in site_url %}
+                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                            <img src="/static/taobao_logo.png" alt="Taobao" class="w-4 h-4" onerror="this.style.display='none'">
+                                        </a>
+                                    {% elif site_type == 'douyin' or 'douyin' in site_url %}
+                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                            <img src="/static/douyin_logo.png" alt="Douyin" class="w-4 h-4" onerror="this.style.display='none'">
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ site_url }}" target="_blank" class="text-blue-600 hover:underline text-[10px]" title="{{ site_url }}">
+                                            {{ site_type|default:"Link" }}
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Mô tả -->
+                            {% if supplier.description %}
+                            <div class="pt-1 border-t border-slate-100">
+                                <p class="text-slate-600 text-[11px] line-clamp-2" title="{{ supplier.description }}">
+                                    {{ supplier.description }}
+                                </p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Số sản phẩm -->
+                            <div class="pt-2 border-t border-slate-200 flex items-center justify-between">
+                                <span class="text-slate-500">Sản phẩm:</span>
+                                <span class="font-semibold text-slate-900">{{ supplier.product_count|intcomma }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-span-full px-4 py-8 text-center text-sm text-slate-500">
+                        Chưa có nhà cung cấp nào
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- SUMMARY -->
+            {% if suppliers %}
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200">
+                <div class="text-sm text-slate-600">
+                    <strong>Tổng số nhà cung cấp:</strong> {{ total|default:suppliers|length }} nhà cung cấp
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<!-- JS: BỘ LỌC NHÀ CUNG CẤP -->
+<script>
+    // State của bộ lọc
+    let activeFilters = {
+        group: null
+    };
+    
+    // Cache DOM elements
+    let allCardsCache = null;
+    let searchInputCache = null;
+
+    // Thu thập số lượng từ TẤT CẢ nhà cung cấp
+    function collectAllData() {
+        if (!allCardsCache) {
+            allCardsCache = Array.from(document.querySelectorAll('.js-supplier-card'));
+        }
+        
+        const groups = new Map(); // {groupName: count}
+        let totalCount = 0;
+
+        // Kiểm tra search query
+        if (!searchInputCache) {
+            searchInputCache = document.getElementById('supplier-search-input');
+        }
+        const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+        allCardsCache.forEach(card => {
+            // Kiểm tra search query với innerHTML
+            const cardHTML = (card.innerHTML || '').toLowerCase();
+            const cardName = (card.dataset.name || '').toLowerCase();
+            const cardCode = (card.dataset.code || '').toLowerCase();
+            const matchesSearch = !searchQuery || 
+                                  cardHTML.includes(searchQuery) || 
+                                  cardName.includes(searchQuery) || 
+                                  cardCode.includes(searchQuery);
+            
+            if (!matchesSearch) return; // Bỏ qua nếu không match search
+
+            // Đếm từ tất cả nhà cung cấp
+            const groupName = card.dataset.group || '';
+
+            if (groupName) {
+                groups.set(groupName, (groups.get(groupName) || 0) + 1);
+            }
+            totalCount++;
+        });
+
+        return { groups, total: totalCount };
+    }
+
+    // Cập nhật số lượng trong các filter buttons (debounced)
+    let updateCountsTimeout = null;
+    function updateFilterCounts() {
+        // Debounce để tránh update quá nhiều lần
+        if (updateCountsTimeout) {
+            clearTimeout(updateCountsTimeout);
+        }
+        updateCountsTimeout = setTimeout(() => {
+            const data = collectAllData();
+            
+            // Update "Tất cả" counts
+            const groupAllCount = document.getElementById('filter-group-all-count');
+            if (groupAllCount) groupAllCount.textContent = data.total;
+            
+            // Update group counts
+            document.querySelectorAll('.filter-group-count').forEach(span => {
+                const group = span.dataset.group;
+                const count = data.groups.get(group) || 0;
+                span.textContent = count;
+            });
+        }, 100);
+    }
+
+    // Toggle filter
+    function toggleFilter(filterType, filterValue) {
+        if (filterValue === 'all') {
+            activeFilters[filterType] = null;
+        } else {
+            // Nếu click vào filter đang active -> bỏ filter
+            if (activeFilters[filterType] === filterValue) {
+                activeFilters[filterType] = null;
+            } else {
+                activeFilters[filterType] = filterValue;
+            }
+        }
+        
+        applyFilters();
+        updateFilterButtons();
+    }
+
+    // Update filter button states
+    function updateFilterButtons() {
+        const groupAllBtn = document.getElementById('filter-group-all');
+        const groupButtons = document.querySelectorAll('.filter-group-btn');
+
+        // Reset group buttons
+        groupButtons.forEach(btn => {
+            btn.classList.remove('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+            btn.classList.add('bg-slate-50', 'text-slate-700', 'border-slate-300');
+        });
+
+        // Activate group "Tất cả" if no group filter
+        if (!activeFilters.group) {
+            if (groupAllBtn) {
+                groupAllBtn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                groupAllBtn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+            }
+        } else {
+            // Activate specific group filter button
+            groupButtons.forEach(btn => {
+                const filterValue = btn.dataset.filterValue;
+                if (filterValue === activeFilters.group) {
+                    btn.classList.add('active', 'bg-orange-500', 'text-white', 'border-orange-500');
+                    btn.classList.remove('bg-slate-50', 'text-slate-700', 'border-slate-300');
+                }
+            });
+        }
+    }
+
+    // Apply filters to cards (tối ưu - đơn giản và nhanh)
+    let filterTimeout = null;
+    function applyFilters() {
+        // Clear timeout nếu có
+        if (filterTimeout) {
+            clearTimeout(filterTimeout);
+        }
+        
+        // Debounce ngắn để tránh lag khi gõ nhiều
+        filterTimeout = setTimeout(() => {
+            if (!allCardsCache) {
+                allCardsCache = Array.from(document.querySelectorAll('.js-supplier-card'));
+            }
+            
+            if (!searchInputCache) {
+                searchInputCache = document.getElementById('supplier-search-input');
+            }
+            const searchQuery = searchInputCache ? (searchInputCache.value || '').trim().toLowerCase() : '';
+
+            let visibleCount = 0;
+            
+            // Lọc nhanh: chỉ duyệt 1 lần, kiểm tra tất cả điều kiện
+            allCardsCache.forEach(card => {
+                const groupName = card.dataset.group || '';
+                const cardHTML = (card.innerHTML || '').toLowerCase();
+                const cardName = (card.dataset.name || '').toLowerCase();
+                const cardCode = (card.dataset.code || '').toLowerCase();
+
+                // Check filter conditions - đơn giản và nhanh
+                const matchesGroup = !activeFilters.group || groupName === activeFilters.group;
+                const matchesSearch = !searchQuery || 
+                                     cardHTML.includes(searchQuery) || 
+                                     cardName.includes(searchQuery) || 
+                                     cardCode.includes(searchQuery);
+
+                // Show/hide card - đơn giản, browser tự tối ưu
+                if (matchesGroup && matchesSearch) {
+                    card.classList.remove('hidden');
+                    visibleCount++;
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+            
+            // Update filter button counts sau khi filter (debounced)
+            updateFilterCounts();
+        }, 50); // Debounce ngắn 50ms để responsive hơn
+    }
+
+    // Initialize filters
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cache cards ngay từ đầu
+        allCardsCache = Array.from(document.querySelectorAll('.js-supplier-card'));
+        searchInputCache = document.getElementById('supplier-search-input');
+        
+        // Update counts lần đầu
+        updateFilterCounts();
+        updateFilterButtons();
+        
+        // Group filter buttons
+        document.querySelectorAll('.filter-group-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const filterValue = btn.dataset.filterValue;
+                toggleFilter('group', filterValue);
+            });
+        });
+        
+        // Search input - filter real-time
+        if (searchInputCache) {
+            searchInputCache.addEventListener('input', () => {
+                // Filter ngay lập tức, không cần enter
+                applyFilters();
+            });
+        }
+        
+        // Reset button
+        const resetBtn = document.getElementById('reset-filters-btn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                activeFilters.group = null;
+                if (searchInputCache) searchInputCache.value = '';
+                applyFilters();
+                updateFilterButtons();
+            });
+        }
+    });
+</script>
+
+<!-- JS: UPLOAD SUPPLIER LOGO -->
+<script>
+    function uploadSupplierLogo(input, supplierId) {
+        const file = input.files[0];
+        if (!file) {
+            return;
+        }
+        
+        // Kiểm tra định dạng file
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Chỉ chấp nhận file JPG hoặc PNG');
+            input.value = ''; // Reset input
+            return;
+        }
+        
+        // Kiểm tra kích thước file (tối đa 5MB)
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
+            alert('File quá lớn. Kích thước tối đa là 5MB');
+            input.value = ''; // Reset input
+            return;
+        }
+        
+        // Hiển thị loading
+        const logoImg = document.getElementById(`logo-${supplierId}`);
+        const logoPlaceholder = document.getElementById(`logo-placeholder-${supplierId}`);
+        const originalSrc = logoImg ? logoImg.src : null;
+        
+        if (logoImg) {
+            logoImg.style.opacity = '0.5';
+        }
+        
+        // Tạo FormData
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Lấy CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+        
+        // Gọi API upload
+        fetch(`{% url 'products:upload_supplier_logo' 0 %}`.replace('0', supplierId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Cập nhật logo hiển thị
+                if (logoImg) {
+                    logoImg.src = data.logo_path;
+                    logoImg.style.opacity = '1';
+                } else if (logoPlaceholder) {
+                    // Tạo img element mới nếu chưa có
+                    const newImg = document.createElement('img');
+                    newImg.id = `logo-${supplierId}`;
+                    newImg.src = data.logo_path;
+                    newImg.alt = 'Logo';
+                    newImg.className = 'w-16 h-16 object-contain rounded-md border border-slate-200 bg-white';
+                    logoPlaceholder.parentNode.replaceChild(newImg, logoPlaceholder);
+                }
+                
+                // Hiển thị thông báo thành công
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+                successMsg.textContent = 'Upload logo thành công!';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                    successMsg.remove();
+                }, 3000);
+            } else {
+                alert('Lỗi: ' + (data.message || 'Không thể upload logo'));
+                if (logoImg && originalSrc) {
+                    logoImg.src = originalSrc;
+                    logoImg.style.opacity = '1';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error uploading logo:', error);
+            alert('Lỗi khi upload logo. Vui lòng thử lại.');
+            if (logoImg && originalSrc) {
+                logoImg.src = originalSrc;
+                logoImg.style.opacity = '1';
+            }
+        })
+        .finally(() => {
+            // Reset input để có thể upload lại file cùng tên
+            input.value = '';
+        });
+    }
+</script>
+{% endblock %}

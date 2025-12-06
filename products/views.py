@@ -1223,3 +1223,207 @@ def api_xnk_delete(request: HttpRequest):
             "status": "error",
             "message": str(e)
         }, status=500)
+
+
+# ========================= SUPPLIER MANAGEMENT =========================
+
+@admin_only
+def supplier_list(request: HttpRequest):
+    """
+    Danh sách nhà cung cấp:
+    - Hiển thị danh sách nhà cung cấp đang hoạt động
+    - Tên - Logo - Vùng (Tỉnh) - Link web
+    - Tags loại phân phối hay độc quyền
+    - Mô tả
+    - Số sản phẩm thuộc nhà cung cấp đó
+    """
+    context = {
+        "title": "Danh sách nhà cung cấp",
+        "suppliers": [],
+        "total": 0,
+    }
+
+    try:
+        from products.services.sapo_supplier_service import SapoSupplierService
+        
+        sapo_client = get_sapo_client()
+        supplier_service = SapoSupplierService(sapo_client)
+
+        # Lấy tất cả suppliers đang hoạt động
+        all_suppliers = supplier_service.get_all_suppliers(status="active")
+        
+        # Bổ sung số lượng sản phẩm
+        all_suppliers = supplier_service.enrich_suppliers_with_product_count(all_suppliers)
+        
+        # Convert to dict for template
+        suppliers_data = []
+        group_names_set = set()
+        
+        for supplier in all_suppliers:
+            if supplier.group_name:
+                group_names_set.add(supplier.group_name)
+            
+            # Parse websites
+            websites_dict = supplier.websites_dict
+            
+            suppliers_data.append({
+                "id": supplier.id,
+                "code": supplier.code,
+                "name": supplier.name,
+                "description": supplier.description,
+                "logo_path": supplier.logo_path,
+                "province": supplier.province,
+                "company_name": supplier.company_name,
+                "group_name": supplier.group_name,
+                "tags": supplier.tags,
+                "websites": websites_dict,
+                "product_count": supplier.product_count,
+                "debt": supplier.debt,
+                "status": supplier.status,
+            })
+
+        context["suppliers"] = suppliers_data
+        context["total"] = len(suppliers_data)
+        context["group_names"] = sorted(list(group_names_set))
+
+    except Exception as e:
+        logger.error(f"Error in supplier_list: {e}", exc_info=True)
+        context["error"] = str(e)
+
+    return render(request, "products/supplier_list.html", context)
+
+
+@admin_only
+@require_POST
+@csrf_exempt
+def upload_supplier_logo(request: HttpRequest, supplier_id: int):
+    """
+    API endpoint để upload logo cho nhà cung cấp.
+    
+    POST data:
+    - file: File ảnh (jpg hoặc png)
+    
+    Returns:
+        JSON với status và logo_path
+    """
+    try:
+        from django.conf import settings
+        import os
+        from pathlib import Path
+        
+        # Kiểm tra file được upload
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không có file được upload"
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Kiểm tra định dạng file
+        allowed_extensions = ['.jpg', '.jpeg', '.png']
+        file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+        if file_ext not in allowed_extensions:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Chỉ chấp nhận file {', '.join(allowed_extensions)}"
+            }, status=400)
+        
+        # Lấy thông tin supplier từ SAPO
+        sapo_client = get_sapo_client()
+        supplier_response = sapo_client.core.get_supplier_raw(supplier_id)
+        supplier_data = supplier_response.get('supplier')
+        
+        if not supplier_data:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không tìm thấy nhà cung cấp với ID {supplier_id}"
+            }, status=404)
+        
+        supplier_code = supplier_data.get('code', '')
+        
+        # Tạo tên file: id_code.jpg hoặc id_code.png
+        file_name = f"{supplier_id}_{supplier_code}{file_ext}"
+        
+        # Tạo đường dẫn thư mục: assets/supplier/logo/
+        logo_dir = Path(settings.BASE_DIR) / 'assets' / 'supplier' / 'logo'
+        logo_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Đường dẫn đầy đủ của file
+        file_path = logo_dir / file_name
+        
+        # Lưu file
+        with open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+        
+        # Đường dẫn URL để hiển thị: /static/supplier/logo/id_code.jpg
+        logo_url = f"/static/supplier/logo/{file_name}"
+        
+        # Update supplier address trong SAPO
+        # Lấy address đầu tiên (hoặc tạo mới nếu chưa có)
+        addresses = supplier_data.get('addresses', [])
+        if not addresses:
+            return JsonResponse({
+                "status": "error",
+                "message": "Nhà cung cấp chưa có địa chỉ. Vui lòng thêm địa chỉ trước."
+            }, status=400)
+        
+        address = addresses[0]
+        address_id = address.get('id')
+        
+        if not address_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Địa chỉ không có ID"
+            }, status=400)
+        
+        # Build address payload với tất cả fields hiện có + update first_name
+        address_payload = {
+            "id": address_id,
+            "country": address.get("country"),
+            "city": address.get("city"),
+            "district": address.get("district"),
+            "ward": address.get("ward"),
+            "address1": address.get("address1"),  # Giữ nguyên tỉnh
+            "address2": address.get("address2"),
+            "zip_code": address.get("zip_code"),
+            "email": address.get("email"),
+            "first_name": logo_url,  # ⭐ Update logo path vào đây
+            "last_name": address.get("last_name"),
+            "full_name": address.get("full_name"),
+            "label": address.get("label"),  # Giữ nguyên tên công ty
+            "phone_number": address.get("phone_number"),
+            "status": address.get("status", "active"),
+        }
+        
+        # Gọi API update address
+        try:
+            sapo_client.core.update_supplier_address(
+                supplier_id=supplier_id,
+                address_id=address_id,
+                address_data=address_payload
+            )
+            logger.info(f"[upload_supplier_logo] ✅ Updated logo for supplier {supplier_id}: {logo_url}")
+        except Exception as e:
+            logger.error(f"[upload_supplier_logo] Failed to update supplier address: {e}", exc_info=True)
+            # Xóa file đã lưu nếu update thất bại
+            if file_path.exists():
+                file_path.unlink()
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không thể cập nhật địa chỉ trên SAPO: {str(e)}"
+            }, status=500)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Upload logo thành công",
+            "logo_path": logo_url
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in upload_supplier_logo: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
