@@ -76,10 +76,27 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
                 {% if suppliers %}
                     {% for supplier in suppliers %}
-                    <div class="js-supplier-card border border-slate-200 rounded-lg p-4 hover:shadow-md transition"
+                    <div class="js-supplier-card border border-slate-100 rounded-lg p-4 hover:shadow-md transition relative overflow-hidden"
                          data-group="{{ supplier.group_name|default:'' }}"
                          data-name="{{ supplier.name|upper }}"
                          data-code="{{ supplier.code|upper }}">
+                        <!-- Tag Độc quyền/Phân phối - Góc trên bên phải, chéo -->
+                        {% if supplier.group_name %}
+                        <div class="absolute top-0 right-0 w-40 h-40 pointer-events-none overflow-hidden z-10">
+                            <div class="absolute top-6 -right-10 transform rotate-45 origin-center
+                                {% if supplier.group_name == 'ĐỘC QUYỀN' %}
+                                    bg-red-600 border-2 border-red-700
+                                {% else %}
+                                    bg-blue-400 border-2 border-blue-500
+                                {% endif %}
+                                px-10 py-1.5 shadow-lg">
+                                <span class="text-white font-bold text-xs whitespace-nowrap block">
+                                    {{ supplier.group_name }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
                         <!-- Header: Logo và Tên -->
                         <div class="flex items-start gap-3 mb-3">
                             <!-- Logo -->
@@ -135,17 +152,6 @@
                             </div>
                             {% endif %}
                             
-                            <!-- Nhóm (Phân phối/Độc quyền) -->
-                            {% if supplier.group_name %}
-                            <div class="flex items-center gap-2">
-                                <span class="text-slate-500">🏷️</span>
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-medium
-                                    {% if supplier.group_name == 'ĐỘC QUYỀN' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
-                                    {{ supplier.group_name }}
-                                </span>
-                            </div>
-                            {% endif %}
-                            
                             <!-- Tags -->
                             {% if supplier.tags %}
                             <div class="flex items-center gap-2 flex-wrap">
@@ -163,19 +169,19 @@
                                     {% for site_type, site_url in supplier.websites.items %}
                                         {% if site_type == '1688' or '1688' in site_url %}
                                             <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                                <img src="/static/1688_logo.png" alt="1688" class="w-4 h-4" onerror="this.style.display='none'">
+                                                <img src="/static/1688-logo.png" alt="1688" class="w-4 h-4" onerror="this.style.display='none'">
                                             </a>
                                         {% elif site_type == 'tmall' or 'tmall' in site_url %}
                                             <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                                <img src="/static/tmall_logo.png" alt="Tmall" class="w-4 h-4" onerror="this.style.display='none'">
+                                                <img src="/static/tmall-logo.png" alt="Tmall" class="w-4 h-4" onerror="this.style.display='none'">
                                             </a>
                                         {% elif site_type == 'taobao' or 'taobao' in site_url %}
                                             <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                                <img src="/static/taobao_logo.png" alt="Taobao" class="w-4 h-4" onerror="this.style.display='none'">
+                                                <img src="/static/taobao-logo.png" alt="Taobao" class="w-4 h-4" onerror="this.style.display='none'">
                                             </a>
                                         {% elif site_type == 'douyin' or 'douyin' in site_url %}
                                             <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                                <img src="/static/douyin_logo.png" alt="Douyin" class="w-4 h-4" onerror="this.style.display='none'">
+                                                <img src="/static/douyin-logo.png" alt="Douyin" class="w-4 h-4" onerror="this.style.display='none'">
                                             </a>
                                         {% else %}
                                             <a href="{{ site_url }}" target="_blank" class="text-blue-600 hover:underline text-[10px]" title="{{ site_url }}">
