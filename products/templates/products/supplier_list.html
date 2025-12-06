@@ -106,14 +106,14 @@
                                 </label>
                             </div>
                             
-                            <!-- Tên và Code -->
+                            <!-- Tên (link đến Sapo, không underline) -->
                             <div class="flex-1 min-w-0">
-                                <h3 class="font-semibold text-sm text-slate-900 truncate" title="{{ supplier.name }}">
+                                <a href="https://sisapsan.mysapogo.com/admin/suppliers/{{ supplier.id }}" 
+                                   target="_blank"
+                                   class="font-semibold text-sm text-slate-900 truncate block hover:text-blue-600 transition no-underline"
+                                   title="{{ supplier.name }}">
                                     {{ supplier.name }}
-                                </h3>
-                                <p class="text-xs text-slate-500 truncate" title="{{ supplier.code }}">
-                                    {{ supplier.code }}
-                                </p>
+                                </a>
                             </div>
                         </div>
                         
@@ -157,34 +157,65 @@
                             {% endif %}
                             
                             <!-- Websites -->
-                            {% if supplier.websites %}
-                            <div class="flex items-center gap-2 flex-wrap">
+                            <div class="flex items-center gap-2 flex-wrap" id="websites-container-{{ supplier.id }}">
                                 <span class="text-slate-500">🌐</span>
-                                {% for site_type, site_url in supplier.websites.items %}
-                                    {% if site_type == '1688' or '1688' in site_url %}
-                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                            <img src="/static/1688_logo.png" alt="1688" class="w-4 h-4" onerror="this.style.display='none'">
-                                        </a>
-                                    {% elif site_type == 'tmall' or 'tmall' in site_url %}
-                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                            <img src="/static/tmall_logo.png" alt="Tmall" class="w-4 h-4" onerror="this.style.display='none'">
-                                        </a>
-                                    {% elif site_type == 'taobao' or 'taobao' in site_url %}
-                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                            <img src="/static/taobao_logo.png" alt="Taobao" class="w-4 h-4" onerror="this.style.display='none'">
-                                        </a>
-                                    {% elif site_type == 'douyin' or 'douyin' in site_url %}
-                                        <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
-                                            <img src="/static/douyin_logo.png" alt="Douyin" class="w-4 h-4" onerror="this.style.display='none'">
-                                        </a>
-                                    {% else %}
-                                        <a href="{{ site_url }}" target="_blank" class="text-blue-600 hover:underline text-[10px]" title="{{ site_url }}">
-                                            {{ site_type|default:"Link" }}
-                                        </a>
-                                    {% endif %}
-                                {% endfor %}
+                                {% if supplier.websites %}
+                                    {% for site_type, site_url in supplier.websites.items %}
+                                        {% if site_type == '1688' or '1688' in site_url %}
+                                            <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                                <img src="/static/1688_logo.png" alt="1688" class="w-4 h-4" onerror="this.style.display='none'">
+                                            </a>
+                                        {% elif site_type == 'tmall' or 'tmall' in site_url %}
+                                            <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                                <img src="/static/tmall_logo.png" alt="Tmall" class="w-4 h-4" onerror="this.style.display='none'">
+                                            </a>
+                                        {% elif site_type == 'taobao' or 'taobao' in site_url %}
+                                            <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                                <img src="/static/taobao_logo.png" alt="Taobao" class="w-4 h-4" onerror="this.style.display='none'">
+                                            </a>
+                                        {% elif site_type == 'douyin' or 'douyin' in site_url %}
+                                            <a href="{{ site_url }}" target="_blank" class="inline-flex items-center gap-1">
+                                                <img src="/static/douyin_logo.png" alt="Douyin" class="w-4 h-4" onerror="this.style.display='none'">
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ site_url }}" target="_blank" class="text-blue-600 hover:underline text-[10px]" title="{{ site_url }}">
+                                                {{ site_type|default:"Link" }}
+                                            </a>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                                <!-- Button thêm website -->
+                                <button class="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-[10px] hover:bg-green-600 transition cursor-pointer"
+                                        onclick="showAddWebsitePanel({{ supplier.id }})"
+                                        title="Thêm website">
+                                    +
+                                </button>
                             </div>
-                            {% endif %}
+                            
+                            <!-- Panel thêm website (ẩn mặc định) -->
+                            <div id="add-website-panel-{{ supplier.id }}" class="hidden mt-2 p-2 bg-slate-50 rounded-md border border-slate-200">
+                                <div class="flex items-center gap-2">
+                                    <select id="website-type-{{ supplier.id }}" class="flex-1 px-2 py-1 text-[10px] border border-slate-300 rounded">
+                                        <option value="1688">1688</option>
+                                        <option value="tmall">Tmall</option>
+                                        <option value="taobao">Taobao</option>
+                                        <option value="douyin">Douyin</option>
+                                        <option value="other">Khác</option>
+                                    </select>
+                                    <input type="text" 
+                                           id="website-url-{{ supplier.id }}" 
+                                           placeholder="URL..."
+                                           class="flex-2 px-2 py-1 text-[10px] border border-slate-300 rounded">
+                                    <button onclick="addSupplierWebsite({{ supplier.id }})"
+                                            class="px-2 py-1 bg-blue-500 text-white text-[10px] rounded hover:bg-blue-600 transition">
+                                        Thêm
+                                    </button>
+                                    <button onclick="hideAddWebsitePanel({{ supplier.id }})"
+                                            class="px-2 py-1 bg-slate-400 text-white text-[10px] rounded hover:bg-slate-500 transition">
+                                        Hủy
+                                    </button>
+                                </div>
+                            </div>
                             
                             <!-- Mô tả -->
                             {% if supplier.description %}
@@ -537,6 +568,186 @@
             // Reset input để có thể upload lại file cùng tên
             input.value = '';
         });
+    }
+    
+    // Functions để thêm website
+    function showAddWebsitePanel(supplierId) {
+        const panel = document.getElementById(`add-website-panel-${supplierId}`);
+        if (panel) {
+            panel.classList.remove('hidden');
+            // Focus vào input URL
+            const urlInput = document.getElementById(`website-url-${supplierId}`);
+            if (urlInput) {
+                setTimeout(() => urlInput.focus(), 100);
+            }
+        }
+    }
+    
+    function hideAddWebsitePanel(supplierId) {
+        const panel = document.getElementById(`add-website-panel-${supplierId}`);
+        if (panel) {
+            panel.classList.add('hidden');
+            // Clear inputs
+            const urlInput = document.getElementById(`website-url-${supplierId}`);
+            const typeSelect = document.getElementById(`website-type-${supplierId}`);
+            if (urlInput) urlInput.value = '';
+            if (typeSelect) typeSelect.value = '1688';
+        }
+    }
+    
+    function addSupplierWebsite(supplierId) {
+        const typeSelect = document.getElementById(`website-type-${supplierId}`);
+        const urlInput = document.getElementById(`website-url-${supplierId}`);
+        
+        if (!typeSelect || !urlInput) {
+            alert('Không tìm thấy form thêm website');
+            return;
+        }
+        
+        const websiteType = typeSelect.value.trim();
+        const websiteUrl = urlInput.value.trim();
+        
+        if (!websiteUrl) {
+            alert('Vui lòng nhập URL');
+            urlInput.focus();
+            return;
+        }
+        
+        // Validate URL format
+        if (!websiteUrl.match(/^https?:\/\//) && !websiteUrl.match(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/)) {
+            alert('URL không hợp lệ. Vui lòng nhập URL đầy đủ (ví dụ: https://example.com)');
+            urlInput.focus();
+            return;
+        }
+        
+        // Disable button và inputs
+        const addBtn = typeSelect.parentElement.querySelector('button[onclick*="addSupplierWebsite"]');
+        if (addBtn) addBtn.disabled = true;
+        typeSelect.disabled = true;
+        urlInput.disabled = true;
+        
+        // Lấy CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+        
+        // Gọi API
+        fetch(`{% url 'products:add_supplier_website' 0 %}`.replace('0', supplierId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                website_type: websiteType,
+                website_url: websiteUrl
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                // Cập nhật UI: thêm website mới vào container
+                const container = document.getElementById(`websites-container-${supplierId}`);
+                if (container && data.websites) {
+                    // Xóa tất cả websites hiện tại (trừ icon và button +)
+                    const existingLinks = container.querySelectorAll('a');
+                    existingLinks.forEach(link => link.remove());
+                    
+                    // Thêm lại tất cả websites (bao gồm website mới)
+                    Object.entries(data.websites).forEach(([siteType, siteUrl]) => {
+                        const link = createWebsiteLink(siteType, siteUrl);
+                        // Insert trước button +
+                        const addBtn = container.querySelector('button[onclick*="showAddWebsitePanel"]');
+                        if (addBtn) {
+                            container.insertBefore(link, addBtn);
+                        } else {
+                            container.appendChild(link);
+                        }
+                    });
+                }
+                
+                // Ẩn panel
+                hideAddWebsitePanel(supplierId);
+                
+                // Hiển thị thông báo thành công
+                const successMsg = document.createElement('div');
+                successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+                successMsg.textContent = 'Thêm website thành công!';
+                document.body.appendChild(successMsg);
+                setTimeout(() => {
+                    successMsg.remove();
+                }, 3000);
+            } else {
+                alert('Lỗi: ' + (data.message || 'Không thể thêm website'));
+            }
+        })
+        .catch(error => {
+            console.error('Error adding website:', error);
+            alert('Lỗi khi thêm website. Vui lòng thử lại.');
+        })
+        .finally(() => {
+            // Enable lại button và inputs
+            if (addBtn) addBtn.disabled = false;
+            typeSelect.disabled = false;
+            urlInput.disabled = false;
+        });
+    }
+    
+    function createWebsiteLink(siteType, siteUrl) {
+        const link = document.createElement('a');
+        link.href = siteUrl;
+        link.target = '_blank';
+        link.className = 'inline-flex items-center gap-1';
+        
+        // Tạo icon/logo tùy theo loại website
+        if (siteType === '1688' || siteUrl.includes('1688')) {
+            const img = document.createElement('img');
+            img.src = '/static/1688_logo.png';
+            img.alt = '1688';
+            img.className = 'w-4 h-4';
+            img.onerror = function() { this.style.display = 'none'; };
+            link.appendChild(img);
+        } else if (siteType === 'tmall' || siteUrl.includes('tmall')) {
+            const img = document.createElement('img');
+            img.src = '/static/tmall_logo.png';
+            img.alt = 'Tmall';
+            img.className = 'w-4 h-4';
+            img.onerror = function() { this.style.display = 'none'; };
+            link.appendChild(img);
+        } else if (siteType === 'taobao' || siteUrl.includes('taobao')) {
+            const img = document.createElement('img');
+            img.src = '/static/taobao_logo.png';
+            img.alt = 'Taobao';
+            img.className = 'w-4 h-4';
+            img.onerror = function() { this.style.display = 'none'; };
+            link.appendChild(img);
+        } else if (siteType === 'douyin' || siteUrl.includes('douyin')) {
+            const img = document.createElement('img');
+            img.src = '/static/douyin_logo.png';
+            img.alt = 'Douyin';
+            img.className = 'w-4 h-4';
+            img.onerror = function() { this.style.display = 'none'; };
+            link.appendChild(img);
+        } else {
+            // Link thông thường
+            link.className = 'text-blue-600 hover:underline text-[10px]';
+            link.textContent = siteType;
+            link.title = siteUrl;
+        }
+        
+        return link;
     }
 </script>
 {% endblock %}

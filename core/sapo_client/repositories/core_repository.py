@@ -519,3 +519,28 @@ class SapoCoreRepository(BaseRepository):
         return self.put(f"suppliers/{supplier_id}/addresses/{address_id}.json", json={
             "address": address_data
         })
+    
+    def update_supplier(
+        self, 
+        supplier_id: int, 
+        supplier_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Update thông tin supplier.
+        
+        Args:
+            supplier_id: Sapo supplier ID
+            supplier_data: Dict chứa fields cần update (name, code, website, description, etc.)
+            
+        Returns:
+            {
+                "supplier": {...}
+            }
+            
+        Note: 
+            Endpoint: PUT /admin/suppliers/{supplier_id}.json
+        """
+        logger.info(f"[SapoCoreRepo] update_supplier: {supplier_id}")
+        return self.put(f"suppliers/{supplier_id}.json", json={
+            "supplier": supplier_data
+        })

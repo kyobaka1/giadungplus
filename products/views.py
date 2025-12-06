@@ -1427,3 +1427,132 @@ def upload_supplier_logo(request: HttpRequest, supplier_id: int):
             "status": "error",
             "message": str(e)
         }, status=500)
+
+
+@admin_only
+@require_POST
+@csrf_exempt
+def add_supplier_website(request: HttpRequest, supplier_id: int):
+    """
+    API endpoint để thêm website cho nhà cung cấp.
+    
+    POST data (JSON):
+    - website_type: Loại website (1688, tmall, taobao, douyin, other)
+    - website_url: URL của website
+    
+    Returns:
+        JSON với status và websites dict
+    """
+    try:
+        import json
+        
+        # Lấy dữ liệu từ request
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+        
+        website_type = data.get('website_type', '').strip()
+        website_url = data.get('website_url', '').strip()
+        
+        if not website_type or not website_url:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thiếu website_type hoặc website_url"
+            }, status=400)
+        
+        # Validate URL
+        if not website_url.startswith(('http://', 'https://')):
+            website_url = 'https://' + website_url
+        
+        # Lấy thông tin supplier từ SAPO
+        sapo_client = get_sapo_client()
+        supplier_response = sapo_client.core.get_supplier_raw(supplier_id)
+        supplier_data = supplier_response.get('supplier')
+        
+        if not supplier_data:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không tìm thấy nhà cung cấp với ID {supplier_id}"
+            }, status=404)
+        
+        # Parse website hiện tại (có thể là JSON string hoặc string đơn giản)
+        current_website = supplier_data.get('website', '')
+        websites_dict = {}
+        
+        if current_website:
+            try:
+                # Thử parse JSON
+                if current_website.startswith('{'):
+                    websites_dict = json.loads(current_website)
+                else:
+                    # Nếu là string đơn giản, lưu vào key "default"
+                    websites_dict = {"default": current_website}
+            except:
+                # Nếu không parse được, coi như string đơn giản
+                websites_dict = {"default": current_website}
+        
+        # Thêm website mới vào dict
+        # Nếu là "other", dùng URL làm key (hoặc tên domain)
+        if website_type == 'other':
+            # Extract domain từ URL để làm key
+            from urllib.parse import urlparse
+            parsed = urlparse(website_url)
+            key = parsed.netloc.replace('www.', '') or 'other'
+            websites_dict[key] = website_url
+        else:
+            websites_dict[website_type] = website_url
+        
+        # Convert dict thành JSON string
+        new_website_json = json.dumps(websites_dict, ensure_ascii=False)
+        
+        # Build supplier update payload với tất cả fields hiện có
+        supplier_payload = {
+            "id": supplier_data.get("id"),
+            "tenant_id": supplier_data.get("tenant_id"),
+            "code": supplier_data.get("code"),
+            "name": supplier_data.get("name"),
+            "description": supplier_data.get("description"),
+            "email": supplier_data.get("email"),
+            "fax": supplier_data.get("fax"),
+            "phone_number": supplier_data.get("phone_number"),
+            "tax_number": supplier_data.get("tax_number"),
+            "website": new_website_json,  # ⭐ Update website field
+            "supplier_group_id": supplier_data.get("supplier_group_id"),
+            "assignee_id": supplier_data.get("assignee_id"),
+            "default_payment_term_id": supplier_data.get("default_payment_term_id"),
+            "default_payment_method_id": supplier_data.get("default_payment_method_id"),
+            "default_tax_type_id": supplier_data.get("default_tax_type_id"),
+            "default_discount_rate": supplier_data.get("default_discount_rate"),
+            "default_price_list_id": supplier_data.get("default_price_list_id"),
+            "tags": supplier_data.get("tags", []),
+            "status": supplier_data.get("status", "active"),
+            "is_default": supplier_data.get("is_default", False),
+        }
+        
+        # Gọi API update supplier
+        try:
+            sapo_client.core.update_supplier(
+                supplier_id=supplier_id,
+                supplier_data=supplier_payload
+            )
+            logger.info(f"[add_supplier_website] ✅ Added website for supplier {supplier_id}: {website_type}={website_url}")
+        except Exception as e:
+            logger.error(f"[add_supplier_website] Failed to update supplier: {e}", exc_info=True)
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không thể cập nhật nhà cung cấp trên SAPO: {str(e)}"
+            }, status=500)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Thêm website thành công",
+            "websites": websites_dict
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_supplier_website: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
