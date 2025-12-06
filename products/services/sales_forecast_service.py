@@ -477,10 +477,11 @@ class SalesForecastService:
         logger.info(f"[SalesForecastService] Loading forecasts from Database for {len(variant_ids)} variants")
         
         # Query database với bulk để tối ưu
+        # Không cần select_for_update vì chỉ đọc, không cần lock
         forecasts_db = VariantSalesForecast.objects.filter(
             variant_id__in=variant_ids,
             period_days=days
-        ).select_for_update()  # Lock để tránh race condition
+        )
         
         # Tạo map variant_id -> forecast_db
         forecast_db_map = {f.variant_id: f for f in forecasts_db}
