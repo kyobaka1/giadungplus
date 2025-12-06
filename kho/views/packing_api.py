@@ -65,7 +65,7 @@ def get_order(request):
         # Search order by tracking code
         # Tracking code is in fulfillment.shipment.tracking_code
         orders_raw = sapo.core.list_orders_raw(
-            limit=50,
+            limit=250,
             query=tracking_code  # Search in multiple fields including tracking_code
         )
         

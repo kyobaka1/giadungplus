@@ -28,7 +28,7 @@ class SapoOrderService:
         service = SapoOrderService(sapo)
         
         # Get orders
-        orders = service.list_orders(location_id=241737, limit=50)
+        orders = service.list_orders(location_id=241737, limit=250)
         
         # Get single order
         order = service.get_order(order_id=123456)

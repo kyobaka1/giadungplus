@@ -48,50 +48,36 @@ def export_variants_excel(request: HttpRequest):
         # Reload settings
         reload_settings()
         
-        # Lấy variants theo brand_id từ Sapo API (giống variant_list)
-        all_variants = []
+        # Lấy products từ Sapo API (đã bao gồm variants và inventories)
+        all_products = []
         page = 1
         limit = 250
-        expected_total = None
         
-        logger.info(f"[export_variants_excel] Starting to fetch variants for brand_id={brand_id}")
+        logger.info(f"[export_variants_excel] Starting to fetch products (with variants) for brand_id={brand_id}")
         
         while True:
-            variants_response = core_repo.list_variants_raw(
-                page=page,
-                limit=limit,
-                brand_ids=brand_id,
-                composite=False,
-                packsize=False
-            )
+            # Thử filter theo brand_id nếu API hỗ trợ
+            filters = {
+                "page": page,
+                "limit": limit,
+                "status": "active"
+            }
+            try:
+                filters["brand_ids"] = brand_id
+            except:
+                pass
             
-            variants_data = variants_response.get("variants", [])
+            products_response = core_repo.list_products_raw(**filters)
+            products_data = products_response.get("products", [])
             
-            metadata = variants_response.get("metadata", {})
-            if page == 1:
-                expected_total = metadata.get("total", 0)
-                logger.info(f"[export_variants_excel] Total variants expected: {expected_total}")
-            
-            if not variants_data:
+            if not products_data:
+                logger.info(f"[export_variants_excel] No more products at page {page}")
                 break
             
-            all_variants.extend(variants_data)
+            all_products.extend(products_data)
+            logger.info(f"[export_variants_excel] Fetched page {page}: {len(products_data)} products (total so far: {len(all_products)})")
             
-            if expected_total and expected_total > 0:
-                if len(all_variants) >= expected_total:
-                    break
-            else:
-                total_pages = metadata.get("total_pages")
-                if total_pages:
-                    if page >= total_pages:
-                        break
-                else:
-                    if expected_total and expected_total > 0:
-                        calculated_pages = (expected_total + limit - 1) // limit
-                        if page >= calculated_pages:
-                            break
-            
-            if len(variants_data) < limit:
+            if len(products_data) < limit:
                 break
             
             page += 1
@@ -99,34 +85,56 @@ def export_variants_excel(request: HttpRequest):
             if page > 100:
                 break
         
-        # Lấy product metadata cho từng variant
+        # Parse products và extract variants
         product_map = {}
-        product_ids = set(v.get("product_id") for v in all_variants if v.get("product_id"))
+        all_variants_from_products = []
         
-        product_ids_list = list(product_ids)
-        batch_size = 50
-        for i in range(0, len(product_ids_list), batch_size):
-            batch_ids = product_ids_list[i:i+batch_size]
-            for product_id in batch_ids:
-                try:
-                    product = product_service.get_product(product_id)
-                    if product:
-                        product_map[product_id] = product
-                except Exception as e:
-                    logger.warning(f"Failed to get product {product_id}: {e}")
+        for product_data in all_products:
+            product_id = product_data.get("id")
+            if not product_id:
+                continue
+            
+            brand_id_from_product = product_data.get("brand_id")
+            
+            # Parse product để có metadata
+            try:
+                product = product_service.get_product(product_id)
+                if product:
+                    product_map[product_id] = product
+            except Exception as e:
+                logger.warning(f"Failed to parse product {product_id}: {e}")
+                product = None
+            
+            # Extract variants từ product (đã có inventories sẵn)
+            variants = product_data.get("variants", [])
+            for variant_data in variants:
+                variant_id = variant_data.get("id")
+                if not variant_id:
                     continue
+                
+                variant_data["_product_id"] = product_id
+                variant_data["_brand_id"] = brand_id_from_product
+                variant_data["_product"] = product
+                all_variants_from_products.append(variant_data)
         
-        # Parse variants và lấy metadata
+        logger.info(f"[export_variants_excel] Extracted {len(all_variants_from_products)} variants from {len(all_products)} products")
+        
+        # Parse variants và lấy metadata, filter theo brand_id
         variants_data = []
         
-        for variant_raw in all_variants:
-            variant_id = variant_raw.get("id")
-            product_id = variant_raw.get("product_id")
+        for variant_data in all_variants_from_products:
+            variant_id = variant_data.get("id")
+            product_id = variant_data.get("_product_id")
+            product = variant_data.get("_product")
             
-            product = product_map.get(product_id)
-            if not product:
-                brand = variant_raw.get("brand") or ""
-            else:
+            # Filter theo brand_id (client-side)
+            variant_brand_id = variant_data.get("_brand_id")
+            if variant_brand_id != brand_id:
+                continue
+            
+            # Lấy brand name
+            brand = ""
+            if product:
                 brand = product.brand or ""
             
             # Chỉ thêm variants nếu nhãn hiệu được bật
@@ -142,14 +150,14 @@ def export_variants_excel(request: HttpRequest):
                         break
             
             # Lấy opt1 (tên phân loại) - kiểm tra cả opt1 và option1
-            opt1_raw = variant_raw.get("opt1")
+            opt1_raw = variant_data.get("opt1")
             if opt1_raw is None:
-                opt1_raw = variant_raw.get("option1")
+                opt1_raw = variant_data.get("option1")
             opt1 = opt1_raw or ""
             
             # Chuẩn bị dữ liệu cho Excel
             row_data = {
-                "sku": variant_raw.get("sku", ""),
+                "sku": variant_data.get("sku", ""),
                 "opt1": opt1,  # Tên phân loại - thêm sau SKU
                 "vari_id": variant_id,
                 "price_tq": variant_meta.price_tq if variant_meta and variant_meta.price_tq else "",

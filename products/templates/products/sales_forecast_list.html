@@ -1,0 +1,512 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Dự báo bán hàng và cảnh báo tồn kho dựa trên tốc độ bán trong {{ days }} ngày gần nhất</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+
+        <!-- CONTROL PANEL -->
+        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-slate-700">Điều khiển</h2>
+            </div>
+            
+            <div class="flex items-center gap-4 flex-wrap mb-4">
+                <!-- Số ngày tính toán -->
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-slate-600 font-medium">Số ngày:</label>
+                    <input type="number" 
+                           id="days-input"
+                           value="{{ days }}"
+                           min="1"
+                           max="30"
+                           class="w-20 px-2 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+                </div>
+                
+                <!-- Button Refresh Data -->
+                <button type="button" 
+                        id="refresh-data-btn"
+                        class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium flex items-center gap-2">
+                    <span>🔄</span>
+                    <span>Refresh Data</span>
+                </button>
+                
+                <!-- Thông tin -->
+                <div class="text-xs text-slate-600">
+                    <span>Dữ liệu được tính từ đơn hàng trạng thái: <strong>Đang giao dịch, Hoàn thành</strong></span>
+                </div>
+            </div>
+            
+            <!-- Tìm kiếm nhanh (bao gồm NSX) -->
+            <div>
+                <label class="text-xs text-slate-600 font-medium mb-1 block">Tìm kiếm:</label>
+                <input type="text" 
+                       id="search-input"
+                       placeholder="Tìm theo SKU, tên sản phẩm, phân loại, NSX..."
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-brand">
+            </div>
+        </div>
+
+        <!-- THÔNG BÁO LỖI -->
+        {% if error %}
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- BẢNG DANH SÁCH -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200" id="forecast-table">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                Ảnh
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="brand">
+                                NSX <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="sku">
+                                SKU <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="name">
+                                Tên sản phẩm <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="total_sold">
+                                Lượt bán ({{ days }} ngày) <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="growth_percentage">
+                                SS % <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="sales_rate">
+                                Tốc độ bán/ngày <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="inventory_hn">
+                                Tồn HN <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="inventory_sg">
+                                Tồn SG <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="total_inventory">
+                                Tổng tồn <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
+                                data-sort="days_remaining">
+                                Số ngày còn <span class="sort-indicator">⇅</span>
+                            </th>
+                            <th class="px-4 py-3 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                Cảnh báo
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        {% if variants %}
+                            {% for variant in variants %}
+                            <tr class="js-variant-row hover:bg-slate-50 transition"
+                                data-sku="{{ variant.sku|upper }}"
+                                data-name="{{ variant.name|upper }}"
+                                data-product-name="{{ variant.product_name|upper }}"
+                                data-opt1="{{ variant.opt1|upper }}"
+                                data-brand="{{ variant.brand|upper }}"
+                                data-total-sold="{{ variant.forecast.total_sold }}"
+                                data-sales-rate="{{ variant.forecast.sales_rate }}"
+                                data-growth-percentage="{{ variant.growth_percentage|default:0 }}"
+                                data-inventory-hn="{{ variant.inventory_hn }}"
+                                data-inventory-sg="{{ variant.inventory_sg }}"
+                                data-total-inventory="{{ variant.total_inventory }}"
+                                data-days-remaining="{{ variant.days_remaining|default:0 }}"
+                                data-is-infinite="{{ variant.is_infinite }}">
+                                <td class="px-4 py-3 text-center">
+                                    {% if variant.image_url %}
+                                        <img src="{{ variant.image_url }}" 
+                                             alt="{{ variant.name }}" 
+                                             class="w-12 h-12 object-cover rounded-md border border-slate-200">
+                                    {% else %}
+                                        <div class="w-12 h-12 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center">
+                                            <span class="text-xs text-slate-400">No img</span>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 font-medium">{{ variant.brand|default:"-" }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600 font-mono">{{ variant.sku }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-700">
+                                    <div class="flex items-center gap-1">
+                                        <span class="max-w-[120px] truncate" title="{{ variant.product_name }}">{{ variant.product_name }}</span>
+                                        {% if variant.opt1 %}
+                                            <span class="text-slate-500">- {{ variant.opt1 }}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-right">
+                                    <div class="flex flex-col items-end">
+                                        <span class="font-medium">{{ variant.forecast.total_sold|intcomma }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-right">
+                                    {% if variant.forecast.growth_percentage is not None %}
+                                        {% if variant.forecast.growth_percentage > 0 %}
+                                            <span class="font-medium text-green-600 flex items-center justify-end gap-1">
+                                                <span>▲</span>
+                                                <span>+{{ variant.forecast.growth_percentage|floatformat:1 }}%</span>
+                                            </span>
+                                        {% elif variant.forecast.growth_percentage < 0 %}
+                                            <span class="font-medium text-red-600 flex items-center justify-end gap-1">
+                                                <span>▼</span>
+                                                <span>{{ variant.forecast.growth_percentage|floatformat:1 }}%</span>
+                                            </span>
+                                        {% else %}
+                                            <span class="font-medium text-slate-500">0%</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-slate-400">-</span>
+                                    {% endif %}
+                                    {% if variant.forecast.total_sold_previous_period > 0 %}
+                                        <span class="text-xs text-slate-400">Kỳ trước: {{ variant.forecast.total_sold_previous_period|intcomma }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-right">
+                                    <span class="font-medium">{{ variant.forecast.sales_rate|floatformat:2 }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-right">
+                                    <span class="font-medium">{{ variant.inventory_hn|intcomma }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-right">
+                                    <span class="font-medium">{{ variant.inventory_sg|intcomma }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600 text-right">
+                                    <span class="font-medium">{{ variant.total_inventory|intcomma }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-right">
+                                    {% if variant.is_infinite %}
+                                        <span class="text-slate-400">∞</span>
+                                    {% else %}
+                                        <span class="font-medium">{{ variant.days_remaining|floatformat:1 }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    {% if variant.warning_color == "red" %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                            &lt; 30 ngày
+                                        </span>
+                                    {% elif variant.warning_color == "yellow" %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                            30-60 ngày
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            &gt; 60 ngày
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="12" class="px-4 py-8 text-center text-sm text-slate-500">
+                                    Chưa có dữ liệu. Vui lòng bấm "Refresh Data" để tính toán.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- SUMMARY -->
+            {% if variants %}
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200">
+                <div class="text-sm text-slate-600">
+                    <strong>Tổng số variants:</strong> {{ total|default:variants|length }} variants
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+</div>
+
+<!-- Progress Modal -->
+<div id="refresh-progress-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold mb-4">Đang tính toán dự báo...</h3>
+        <div class="mb-4">
+            <div class="w-full bg-slate-200 rounded-full h-2.5">
+                <div id="refresh-progress-bar" class="bg-emerald-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="refresh-progress-text" class="text-sm text-slate-600 mt-2">Đang xử lý...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const refreshBtn = document.getElementById('refresh-data-btn');
+    const daysInput = document.getElementById('days-input');
+    const modal = document.getElementById('refresh-progress-modal');
+    const progressBar = document.getElementById('refresh-progress-bar');
+    const progressText = document.getElementById('refresh-progress-text');
+    
+    // Refresh data button
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            const days = parseInt(daysInput.value) || 7;
+            
+            // Hiển thị modal
+            modal.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = 'Đang tính toán dự báo bán hàng...';
+            
+            // Disable button
+            refreshBtn.disabled = true;
+            refreshBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            // Lấy CSRF token
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+            const csrftoken = getCookie('csrftoken');
+            
+            // Gọi API refresh
+            fetch('{% url "products:refresh_sales_forecast" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    days: days
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Update progress
+                progressBar.style.width = '100%';
+                progressText.textContent = 'Hoàn thành!';
+                
+                // Reload page sau 1 giây
+                setTimeout(() => {
+                    window.location.href = `{% url 'products:sales_forecast_list' %}?days=${days}&refresh=true`;
+                }, 1000);
+            })
+            .catch(error => {
+                progressText.textContent = 'Lỗi: ' + error.message;
+                alert('Lỗi khi tính toán dự báo: ' + error.message);
+            })
+            .finally(() => {
+                // Enable button
+                refreshBtn.disabled = false;
+                refreshBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            });
+        });
+    }
+    
+    // ========== TABLE SORTING (Tối ưu - dùng DocumentFragment) ==========
+    let sortColumn = null;
+    let sortDirection = 'asc';
+    
+    // Cache để tối ưu performance
+    let rowsCache = null;
+    let tbodyCache = null;
+    
+    function getRows() {
+        if (!rowsCache) {
+            tbodyCache = document.querySelector('#forecast-table tbody');
+            rowsCache = Array.from(tbodyCache.querySelectorAll('tr.js-variant-row'));
+        }
+        return rowsCache;
+    }
+    
+    function sortTable(column, direction) {
+        const rows = getRows();
+        if (!rows.length || !tbodyCache) return;
+        
+        // Sort rows array (chỉ sort, không modify DOM)
+        rows.sort((a, b) => {
+            let aVal, bVal;
+            
+            switch(column) {
+                case 'brand':
+                    aVal = (a.dataset.brand || '').toLowerCase();
+                    bVal = (b.dataset.brand || '').toLowerCase();
+                    return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                case 'sku':
+                    aVal = (a.dataset.sku || '').toLowerCase();
+                    bVal = (b.dataset.sku || '').toLowerCase();
+                    return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                case 'name':
+                    aVal = ((a.dataset.productName || a.dataset.name || '')).toLowerCase();
+                    bVal = ((b.dataset.productName || b.dataset.name || '')).toLowerCase();
+                    return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                    case 'total_sold':
+                        aVal = parseFloat(a.dataset.totalSold || 0);
+                        bVal = parseFloat(b.dataset.totalSold || 0);
+                        return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                    case 'growth_percentage':
+                        aVal = parseFloat(a.dataset.growthPercentage || 0);
+                        bVal = parseFloat(b.dataset.growthPercentage || 0);
+                        return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                case 'sales_rate':
+                    aVal = parseFloat(a.dataset.salesRate || 0);
+                    bVal = parseFloat(b.dataset.salesRate || 0);
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                case 'inventory_hn':
+                    aVal = parseFloat(a.dataset.inventoryHn || 0);
+                    bVal = parseFloat(b.dataset.inventoryHn || 0);
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                case 'inventory_sg':
+                    aVal = parseFloat(a.dataset.inventorySg || 0);
+                    bVal = parseFloat(b.dataset.inventorySg || 0);
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                case 'total_inventory':
+                    aVal = parseFloat(a.dataset.totalInventory || 0);
+                    bVal = parseFloat(b.dataset.totalInventory || 0);
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                case 'days_remaining':
+                    const aIsInf = a.dataset.isInfinite === 'True';
+                    const bIsInf = b.dataset.isInfinite === 'True';
+                    if (aIsInf && bIsInf) return 0;
+                    if (aIsInf) return 1;
+                    if (bIsInf) return -1;
+                    aVal = parseFloat(a.dataset.daysRemaining || 0);
+                    bVal = parseFloat(b.dataset.daysRemaining || 0);
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                default:
+                    return 0;
+            }
+        });
+        
+        // Tối ưu: Chỉ di chuyển nodes thay vì clear và append lại
+        // Tách rows thành visible và hidden
+        const visibleRows = rows.filter(row => !row.classList.contains('hidden'));
+        const hiddenRows = rows.filter(row => row.classList.contains('hidden'));
+        
+        // Di chuyển visible rows theo thứ tự đã sort
+        visibleRows.forEach(row => {
+            tbodyCache.appendChild(row); // appendChild tự động di chuyển node nếu đã tồn tại
+        });
+        
+        // Di chuyển hidden rows sau
+        hiddenRows.forEach(row => {
+            tbodyCache.appendChild(row);
+        });
+    }
+    
+    const sortableHeaders = document.querySelectorAll('[data-sort]');
+    sortableHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const column = this.dataset.sort;
+            
+            // Toggle direction nếu click vào cùng column
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Update sort indicators
+            sortableHeaders.forEach(h => {
+                const indicator = h.querySelector('.sort-indicator');
+                if (indicator) indicator.textContent = '⇅';
+            });
+            
+            const indicator = this.querySelector('.sort-indicator');
+            if (indicator) {
+                indicator.textContent = sortDirection === 'asc' ? '↑' : '↓';
+            }
+            
+            // Sort table
+            sortTable(column, sortDirection);
+        });
+    });
+    
+    // ========== SEARCH FUNCTIONALITY (Tối ưu - cache rowText) ==========
+    let rowTextCache = new Map(); // Cache rowText để tránh re-compute
+    
+    function cacheRowTexts() {
+        const rows = getRows();
+        rowTextCache.clear();
+        rows.forEach(row => {
+            // Cache rowText một lần
+            rowTextCache.set(row, (row.innerText || row.textContent || '').toLowerCase());
+        });
+    }
+    
+    function applySearch() {
+        const rows = getRows();
+        const searchQuery = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
+        
+        // Nếu cache chưa có, tạo cache
+        if (rowTextCache.size === 0) {
+            cacheRowTexts();
+        }
+        
+        // Tối ưu: Chỉ toggle class hidden, không re-render
+        rows.forEach(row => {
+            const rowText = rowTextCache.get(row) || (row.innerText || row.textContent || '').toLowerCase();
+            
+            if (!searchQuery || rowText.includes(searchQuery)) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+        
+        // Nếu đang sort, re-sort để đảm bảo thứ tự đúng
+        if (sortColumn) {
+            sortTable(sortColumn, sortDirection);
+        }
+    }
+    
+    // Search input handler với debounce
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                applySearch();
+            }, 200); // Giảm debounce xuống 200ms cho responsive hơn
+        });
+        
+        // Clear search khi nhấn Escape
+        searchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                searchInput.value = '';
+                applySearch();
+            }
+        });
+    }
+    
+    // Initialize cache khi DOM ready
+    cacheRowTexts();
+});
+</script>
+{% endblock %}

@@ -28,7 +28,7 @@ class ExpressOrderService:
     def list_express_orders(
         self,
         current_kho: str,
-        limit: int = 50,
+        limit: int = 250,
         connection_ids: str = CONNECTION_IDS,
     ) -> List[Order]:
 

@@ -75,6 +75,17 @@ class WebsiteInfoDTO(BaseDTO):
     web_variant_ids: List[str] = Field(default_factory=list)  # List IDs trên websites
 
 
+class SalesForecastDTO(BaseDTO):
+    """Dữ liệu dự báo bán hàng cho variant"""
+    variant_id: int
+    total_sold: int = 0  # Tổng lượt bán kỳ hiện tại (x ngày gần nhất)
+    total_sold_previous_period: int = 0  # Tổng lượt bán kỳ trước (x ngày cùng kỳ)
+    period_days: int = 7  # Số ngày tính toán
+    calculated_at: Optional[str] = None  # Thời điểm tính toán (ISO format)
+    sales_rate: float = 0.0  # Tốc độ bán (số lượng/ngày)
+    growth_percentage: Optional[float] = None  # % tăng trưởng so với kỳ trước
+
+
 class VariantMetadataDTO(BaseDTO):
     """
     GDP metadata của 1 variant (lưu trong product.description).
@@ -95,6 +106,9 @@ class VariantMetadataDTO(BaseDTO):
     
     # Shopee Marketplace fields
     shopee_connections: List[Dict[str, Any]] = Field(default_factory=list)  # List các connection info: [{"connection_id": 134366, "variation_id": "297209457630", "item_id": "55152258387"}]
+    
+    # Sales forecast data
+    sales_forecast: Optional[SalesForecastDTO] = None
     
     # Legacy fields (giữ để tương thích)
     import_info: Optional[ImportInfoDTO] = None
@@ -433,4 +447,7 @@ __all__ = [
     # Suppliers
     'SupplierAddressDTO',
     'SupplierDTO',
+    
+    # Sales Forecast
+    'SalesForecastDTO',
 ]
