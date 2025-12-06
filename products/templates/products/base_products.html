@@ -211,6 +211,14 @@
                                 <span class="text-xs md:text-[10px] text-gray-500">{{ xnk_model_count|default:0 }}</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="{% url 'products:supplier_list' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Nhà cung cấp</span>
+                                <span class="text-xs md:text-[10px] text-gray-500">{{ supplier_count|default:0 }}</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
 

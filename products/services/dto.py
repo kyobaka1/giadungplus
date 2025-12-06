@@ -304,6 +304,108 @@ class ProductDTO(BaseDTO):
         return sum(v.total_inventory for v in self.variants)
 
 
+# ========================= SUPPLIERS =========================
+
+class SupplierAddressDTO(BaseDTO):
+    """Địa chỉ của nhà cung cấp"""
+    id: int
+    country: Optional[str] = None
+    city: Optional[str] = None
+    district: Optional[str] = None
+    ward: Optional[str] = None
+    address1: Optional[str] = None  # Lưu tỉnh của họ bên Trung Quốc
+    address2: Optional[str] = None
+    zip_code: Optional[str] = None
+    email: Optional[str] = None
+    first_name: Optional[str] = None  # Lưu link logo vào đây (/static/suppliers/)
+    last_name: Optional[str] = None
+    full_name: Optional[str] = None
+    label: Optional[str] = None  # Lưu tên công ty
+    phone_number: Optional[str] = None
+    status: str = "active"
+
+
+class SupplierDTO(BaseDTO):
+    """
+    Supplier (Nhà cung cấp) - Extended with GDP custom fields.
+    
+    Chứa đầy đủ thông tin Sapo supplier + custom fields.
+    """
+    # ===== Standard Sapo fields =====
+    id: int
+    tenant_id: int
+    code: str
+    name: str  # Tên nhà cung cấp
+    description: Optional[str] = None  # Thông tin mô tả
+    email: Optional[str] = None
+    fax: Optional[str] = None
+    phone_number: Optional[str] = None
+    tax_number: Optional[str] = None
+    website: Optional[str] = None  # Lưu thông tin website dưới dạng dict string (có thể có nhiều website)
+    supplier_group_id: Optional[int] = None
+    debt: float = 0.0
+    group_name: Optional[str] = None  # "PHÂN PHỐI" hoặc "ĐỘC QUYỀN"
+    assignee_id: Optional[int] = None
+    default_payment_term_id: Optional[int] = None
+    default_payment_method_id: Optional[int] = None
+    default_tax_type_id: Optional[int] = None
+    default_discount_rate: Optional[float] = None
+    default_price_list_id: Optional[int] = None
+    tags: List[str] = Field(default_factory=list)
+    addresses: List[SupplierAddressDTO] = Field(default_factory=list)
+    contacts: List[Dict[str, Any]] = Field(default_factory=list)
+    notes: List[Dict[str, Any]] = Field(default_factory=list)
+    status: str = "active"
+    is_default: bool = False
+    created_on: Optional[str] = None
+    modified_on: Optional[str] = None
+    
+    # ===== GDP Extended fields =====
+    product_count: int = 0  # Số sản phẩm thuộc nhà cung cấp này
+    
+    @computed_field
+    @property
+    def logo_path(self) -> Optional[str]:
+        """Lấy đường dẫn logo từ address.first_name"""
+        if self.addresses and len(self.addresses) > 0:
+            return self.addresses[0].first_name
+        return None
+    
+    @computed_field
+    @property
+    def province(self) -> Optional[str]:
+        """Lấy tỉnh từ address.address1"""
+        if self.addresses and len(self.addresses) > 0:
+            return self.addresses[0].address1
+        return None
+    
+    @computed_field
+    @property
+    def company_name(self) -> Optional[str]:
+        """Lấy tên công ty từ address.label"""
+        if self.addresses and len(self.addresses) > 0:
+            return self.addresses[0].label
+        return None
+    
+    @computed_field
+    @property
+    def websites_dict(self) -> Dict[str, str]:
+        """Parse website string thành dict {type: url}"""
+        if not self.website:
+            return {}
+        
+        try:
+            import json
+            # Nếu website là JSON string, parse nó
+            if self.website.startswith('{'):
+                return json.loads(self.website)
+            # Nếu là string đơn giản, trả về dict với key mặc định
+            return {"default": self.website}
+        except:
+            # Nếu không parse được, trả về dict với key mặc định
+            return {"default": self.website} if self.website else {}
+
+
 # ========================= EXPORTS =========================
 
 __all__ = [
@@ -327,4 +429,8 @@ __all__ = [
     'ProductVariantDTO',
     'ProductOptionDTO',
     'ProductDTO',
+    
+    # Suppliers
+    'SupplierAddressDTO',
+    'SupplierDTO',
 ]

@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+- Đang chạy song song test / deloy 2 nền tảng.
++ Tôi test trên máy windows 10 - python/django với GIADUNGPLUS/settings
++ Tôi deloy trên Ubuntu tại thư mục /var/www/giadungplus với GIADUNGPLUS/production-settings
+    + Unicorn + Suporvisor

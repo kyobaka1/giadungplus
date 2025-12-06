@@ -454,3 +454,68 @@ class SapoCoreRepository(BaseRepository):
         return self.put(f"fulfillments/{fulfillment_id}.json", json={
             "fulfillment": data
         })
+    
+    # ==================== SUPPLIERS ====================
+    
+    def list_suppliers_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách suppliers (nhà cung cấp).
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int (max 250)
+                
+        Returns:
+            {
+                "suppliers": [...],
+                "metadata": {...}
+            }
+            
+        Example:
+            GET /admin/suppliers.json?page=1&limit=250
+        """
+        logger.debug(f"[SapoCoreRepo] list_suppliers with filters: {filters}")
+        return self.get("suppliers.json", params=filters)
+    
+    def get_supplier_raw(self, supplier_id: int) -> Dict[str, Any]:
+        """
+        Lấy chi tiết 1 supplier.
+        
+        Args:
+            supplier_id: Sapo supplier ID
+            
+        Returns:
+            {
+                "supplier": {...}
+            }
+        """
+        logger.debug(f"[SapoCoreRepo] get_supplier: {supplier_id}")
+        return self.get(f"suppliers/{supplier_id}.json")
+    
+    def update_supplier_address(
+        self, 
+        supplier_id: int, 
+        address_id: int, 
+        address_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Update địa chỉ của supplier.
+        
+        Args:
+            supplier_id: Sapo supplier ID
+            address_id: Sapo address ID
+            address_data: Dict chứa fields cần update (address1, first_name, label, etc.)
+            
+        Returns:
+            {
+                "address": {...}
+            }
+            
+        Note: 
+            Endpoint: PUT /admin/suppliers/{supplier_id}/addresses/{address_id}.json
+        """
+        logger.info(f"[SapoCoreRepo] update_supplier_address: supplier={supplier_id}, address={address_id}")
+        return self.put(f"suppliers/{supplier_id}/addresses/{address_id}.json", json={
+            "address": address_data
+        })
