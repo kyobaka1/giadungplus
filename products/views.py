@@ -2156,6 +2156,7 @@ def sum_purchase_order_list(request: HttpRequest):
         # Get all SPOs
         from django.db.models import Count
         from products.services.spo_po_service import SPOPOService
+        from products.services.sapo_supplier_service import SapoSupplierService
         
         spos = SumPurchaseOrder.objects.select_related('container_template') \
             .prefetch_related('spo_purchase_orders') \
@@ -2166,18 +2167,55 @@ def sum_purchase_order_list(request: HttpRequest):
         # Tính toán động từ Sapo cho mỗi SPO
         sapo_client = get_sapo_client()
         spo_po_service = SPOPOService(sapo_client)
+        supplier_service = SapoSupplierService(sapo_client)
+
+        # Lấy tất cả active suppliers để map tên, logo
+        all_suppliers = supplier_service.get_all_suppliers(status="active")
+        supplier_map = {s.id: s for s in all_suppliers}
         
         for spo in spos:
             po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all()]
+            
+            # Init list supplier để hiển thị
+            spo.suppliers_display_list = []
+            
             if po_ids:
                 try:
                     # Tính tổng amount và quantity từ Sapo
                     total_amount = Decimal('0')
                     total_quantity = 0
+                    
+                    # Aggregate theo supplier
+                    spo_supplier_map = {} # supplier_id -> {'name': '', 'logo': '', 'cbm': 0, 'count': 0}
+                    
                     for po_id in po_ids:
                         po_data = spo_po_service.get_po_from_sapo(po_id)
                         total_amount += po_data.get('total_amount', Decimal('0'))
                         total_quantity += po_data.get('total_quantity', 0)
+                        
+                        # Supplier info
+                        # API PO trả về supplier_id
+                        s_id = po_data.get('supplier_id')
+                        s_cbm = po_data.get('total_cpm', Decimal('0'))
+                        
+                        if s_id:
+                            if s_id not in spo_supplier_map:
+                                # Lookup info từ supplier_map (đã lấy từ trước)
+                                s_info = supplier_map.get(s_id)
+                                spo_supplier_map[s_id] = {
+                                    'id': s_id,
+                                    'name': s_info.name if s_info else po_data.get('supplier_name', f'Supplier {s_id}'),
+                                    'logo_path': s_info.logo_path if s_info else '',
+                                    'cbm': Decimal('0'),
+                                    'count': 0
+                                }
+                            
+                            spo_supplier_map[s_id]['cbm'] += s_cbm
+                            spo_supplier_map[s_id]['count'] += 1
+                    
+                    # Convert map to list & sort by CBM desc
+                    spo.suppliers_display_list = list(spo_supplier_map.values())
+                    spo.suppliers_display_list.sort(key=lambda x: x['cbm'], reverse=True)
                     
                     # Gán vào SPO object (không lưu DB, chỉ để hiển thị)
                     spo.total_po_amount_val = total_amount
