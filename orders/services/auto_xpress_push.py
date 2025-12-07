@@ -256,6 +256,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             "total": 0,
             "prepared": 0,
             "unprepared": 0,
+            "skipped": 0,
             "find_shipper_success": 0,
             "find_shipper_failed": 0,
             "prepare_success": 0,
@@ -267,11 +268,16 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
     # Phân loại đơn
     prepared_orders = []  # Đã chuẩn bị hàng (có tracking code)
     unprepared_orders = []  # Chưa chuẩn bị hàng
+    skipped_orders = []  # Đơn bị bỏ qua (lỗi, filter, etc.)
     
     for order in mp_orders:
+        channel_order_number = order.get("channel_order_number", "N/A")
+        
         # Lọc theo location_id nếu có
         sapo_order_id = order.get("sapo_order_id")
         if not sapo_order_id:
+            skipped_orders.append((order, "Không có sapo_order_id"))
+            logger.debug(f"[AUTO_XPRESS] Bỏ qua đơn {channel_order_number}: không có sapo_order_id")
             continue
         
         try:
@@ -279,13 +285,18 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             
             # Lọc theo location
             if location_id and order_dto.location_id != location_id:
+                skipped_orders.append((order, f"Location không khớp (order.location_id={order_dto.location_id}, filter={location_id})"))
+                logger.debug(f"[AUTO_XPRESS] Bỏ qua đơn {channel_order_number}: location_id không khớp ({order_dto.location_id} != {location_id})")
                 continue
             
             # Kiểm tra đã chuẩn bị hàng chưa
             if has_tracking_code(order_dto):
                 prepared_orders.append((order, order_dto))
             else:
-                # Kiểm tra thời gian tạo đơn
+                # Đơn chưa có tracking code - cần kiểm tra thời gian để chuẩn bị
+                should_prepare = False
+                skip_reason = None
+                
                 if order_dto.created_on:
                     try:
                         created_dt = datetime.fromisoformat(
@@ -296,19 +307,48 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
                         if created_dt.tzinfo != tz_vn:
                             created_dt = created_dt.astimezone(tz_vn)
                         
-                        # Nếu hơn 50 phút thì thêm vào danh sách chuẩn bị
+                        # Tính thời gian chênh lệch
                         time_diff = now_vn - created_dt
+                        minutes_diff = time_diff.total_seconds() / 60
+                        
+                        # Nếu hơn 50 phút thì thêm vào danh sách chuẩn bị
                         if time_diff.total_seconds() > 50 * 60:  # 50 phút
-                            unprepared_orders.append((order, order_dto))
-                    except (ValueError, AttributeError):
-                        # Nếu không parse được thời gian, bỏ qua
-                        pass
+                            should_prepare = True
+                            logger.debug(f"[AUTO_XPRESS] Đơn {channel_order_number} chưa chuẩn bị, đã qua {minutes_diff:.1f} phút (>50 phút)")
+                        else:
+                            skip_reason = f"Chưa đủ 50 phút ({minutes_diff:.1f} phút)"
+                            
+                    except (ValueError, AttributeError) as e:
+                        # Nếu không parse được thời gian, vẫn thêm vào danh sách chuẩn bị để xử lý
+                        # Vì đơn chưa có tracking code nên cần chuẩn bị
+                        logger.warning(f"[AUTO_XPRESS] Không parse được thời gian tạo đơn {channel_order_number}: {e}, vẫn thêm vào danh sách chuẩn bị")
+                        should_prepare = True
+                else:
+                    # Không có created_on, nhưng đơn chưa có tracking code nên vẫn cần chuẩn bị
+                    logger.warning(f"[AUTO_XPRESS] Đơn {channel_order_number} không có created_on, nhưng chưa có tracking code nên vẫn chuẩn bị")
+                    should_prepare = True
+                
+                if should_prepare:
+                    unprepared_orders.append((order, order_dto))
+                elif skip_reason:
+                    skipped_orders.append((order, skip_reason))
                         
         except Exception as e:
-            logger.warning(f"[AUTO_XPRESS] Lỗi khi xử lý đơn {order.get('channel_order_number')}: {e}")
+            error_msg = f"Lỗi khi xử lý: {str(e)}"
+            skipped_orders.append((order, error_msg))
+            logger.warning(f"[AUTO_XPRESS] Lỗi khi xử lý đơn {channel_order_number}: {e}")
             continue
     
-    logger.info(f"[AUTO_XPRESS] Phân loại: {len(prepared_orders)} đơn đã chuẩn bị, {len(unprepared_orders)} đơn chưa chuẩn bị (>50 phút)")
+    # Log thống kê
+    logger.info(f"[AUTO_XPRESS] Phân loại: {len(prepared_orders)} đơn đã chuẩn bị, {len(unprepared_orders)} đơn chưa chuẩn bị (>50 phút), {len(skipped_orders)} đơn bị bỏ qua")
+    
+    # Log chi tiết các đơn bị bỏ qua nếu có
+    if skipped_orders:
+        logger.info(f"[AUTO_XPRESS] Danh sách đơn bị bỏ qua:")
+        for skipped_order, reason in skipped_orders[:10]:  # Chỉ log tối đa 10 đơn đầu
+            logger.info(f"  - {skipped_order.get('channel_order_number', 'N/A')}: {reason}")
+        if len(skipped_orders) > 10:
+            logger.info(f"  ... và {len(skipped_orders) - 10} đơn khác")
     
     # Xử lý đơn đã chuẩn bị: Tìm lại shipper
     find_shipper_success = 0
@@ -367,6 +407,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
         "total": len(mp_orders),
         "prepared": len(prepared_orders),
         "unprepared": len(unprepared_orders),
+        "skipped": len(skipped_orders),
         "find_shipper_success": find_shipper_success,
         "find_shipper_failed": find_shipper_failed,
         "prepare_success": prepare_success,

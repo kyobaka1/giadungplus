@@ -35,6 +35,8 @@ class Command(BaseCommand):
             self.stdout.write(f"  - Tổng đơn: {result['total']}")
             self.stdout.write(f"  - Đã chuẩn bị: {result['prepared']}")
             self.stdout.write(f"  - Chưa chuẩn bị: {result['unprepared']}")
+            if result.get('skipped', 0) > 0:
+                self.stdout.write(self.style.WARNING(f"  - Bị bỏ qua: {result['skipped']}"))
             self.stdout.write(f"  - Tìm lại shipper: ✅ {result['find_shipper_success']} | ❌ {result['find_shipper_failed']}")
             self.stdout.write(f"  - Chuẩn bị hàng: ✅ {result['prepare_success']} | ❌ {result['prepare_failed']}")
             
