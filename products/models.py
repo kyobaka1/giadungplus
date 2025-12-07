@@ -200,17 +200,12 @@ class SumPurchaseOrder(models.Model):
     # Trạng thái
     STATUS_CHOICES = [
         ('draft', 'Nháp'),
-        ('created', 'Đã tạo SPO'),
-        ('supplier_confirmed', 'NSX xác nhận PO'),
-        ('producing', 'Đang sản xuất'),
-        ('waiting_packing', 'Đợi đóng container'),
-        ('packed', 'Đóng xong container'),
-        ('departed_cn', 'Rời cảng Trung Quốc'),
-        ('arrived_vn', 'Về cảng Việt Nam'),
-        ('customs_cleared', 'Thông quan'),
-        ('arrived_warehouse_hn', 'Về kho Hà Nội'),
-        ('arrived_warehouse_hcm', 'Về kho Hồ Chí Minh'),
-        ('completed', 'Hoàn thành'),
+        ('created', 'Tạo SPO'),
+        ('sent_to_supplier', 'Gửi đơn NSX'),
+        ('packed', 'Đóng container'),
+        ('departed_cn', 'Tàu rời cảng'),
+        ('arrived_vn', 'Tàu tới HCM/HN'),
+        ('completed', 'Hoàn tất'),
         ('cancelled', 'Đã hủy'),
     ]
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='draft')
