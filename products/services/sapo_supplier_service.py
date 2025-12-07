@@ -119,6 +119,40 @@ class SapoSupplierService:
         
         return all_suppliers
     
+    def get_supplier(self, supplier_id: int) -> Optional[SupplierDTO]:
+        """
+        Lấy thông tin 1 supplier từ Sapo.
+        
+        Args:
+            supplier_id: Sapo supplier ID
+            
+        Returns:
+            SupplierDTO hoặc None nếu không tìm thấy
+        """
+        try:
+            response = self.core_api.get_supplier_raw(supplier_id)
+            supplier_data = response.get('supplier')
+            
+            if not supplier_data:
+                logger.warning(f"Supplier {supplier_id} not found in Sapo")
+                return None
+            
+            # Parse addresses
+            addresses = []
+            for addr_data in supplier_data.get('addresses', []):
+                addresses.append(SupplierAddressDTO.from_dict(addr_data))
+            
+            # Create supplier DTO
+            supplier_dict = supplier_data.copy()
+            supplier_dict['addresses'] = addresses
+            supplier = SupplierDTO.from_dict(supplier_dict)
+            
+            return supplier
+            
+        except Exception as e:
+            logger.error(f"Error getting supplier {supplier_id}: {e}", exc_info=True)
+            return None
+    
     def count_products_by_supplier(self, supplier_name: str) -> int:
         """
         Đếm số sản phẩm thuộc nhà cung cấp (dựa vào brand name).

@@ -1,0 +1,449 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{{ title }}</h1>
+            <p class="text-sm text-slate-500 mt-1">Quản lý các đợt nhập container (SPO)</p>
+        </div>
+        <div>
+            <button type="button" 
+                    id="create-spo-btn"
+                    class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition shadow-sm font-medium flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                <span>Tạo đợt nhập mới</span>
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <!-- Error Message -->
+    {% if error %}
+    <div class="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <span class="text-sm font-medium">{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- SPO Grid -->
+    {% if spos %}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {% for spo in spos %}
+        <!-- Card Item -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow duration-200 flex flex-col h-full group relative overflow-hidden">
+            <!-- Header Status Color Strip -->
+            <div class="h-1 w-full absolute top-0 left-0 
+                {% if spo.status == 'completed' %}bg-green-500
+                {% elif spo.status == 'cancelled' %}bg-red-500
+                {% elif spo.status == 'draft' %}bg-slate-300
+                {% else %}bg-blue-500{% endif %}">
+            </div>
+
+            <!-- Card Header -->
+            <div class="p-5 border-b border-slate-100 flex items-start justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-lg text-slate-800 leading-tight">
+                            <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" class="hover:text-brand transition-colors">
+                                {{ spo.code }}
+                            </a>
+                        </h3>
+                        {% if spo.name %}
+                        <span class="text-xs text-slate-500 font-normal">({{ spo.name }})</span>
+                        {% endif %}
+                    </div>
+                    <div class="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                        <span class="flex items-center gap-1" title="Ngày tạo">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {{ spo.created_at|date:"d/m/Y" }}
+                        </span>
+                        <span>•</span>
+                        <span title="Container Template" class="font-medium text-slate-600">{{ spo.container_template.code }}</span>
+                    </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap
+                    {% if spo.status == 'completed' %}bg-green-100 text-green-700 border border-green-200
+                    {% elif spo.status == 'cancelled' %}bg-red-100 text-red-700 border border-red-200
+                    {% elif spo.status == 'draft' %}bg-slate-100 text-slate-600 border border-slate-200
+                    {% else %}bg-blue-100 text-blue-700 border border-blue-200{% endif %}">
+                    {{ spo.get_status_display }}
+                </span>
+            </div>
+
+            <!-- Card Body -->
+            <div class="p-5 flex-1 flex flex-col gap-4">
+                <!-- Route Info -->
+                <div class="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-100">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Từ</span>
+                        <span class="font-semibold text-slate-700 text-sm max-w-[80px] text-center truncate" title="{{ spo.container_template.departure_port|default:'Trung Quốc' }}">
+                            {{ spo.container_template.departure_port|default:"Trung Quốc" }}
+                        </span>
+                    </div>
+                    <div class="flex-1 px-4 flex flex-col items-center">
+                        <div class="w-full border-t border-slate-300 border-dashed relative top-2"></div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 bg-slate-50 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider">Đến</span>
+                        <div class="flex items-center gap-1">
+                            {% if spo.destination_port == 'hcm' %}
+                            <span class="font-bold text-red-600 text-sm">HCM</span>
+                            {% elif spo.destination_port == 'haiphong' %}
+                            <span class="font-bold text-blue-600 text-sm">Hải Phòng</span>
+                            {% else %}
+                            <span class="text-slate-400 text-sm">---</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Capacity Progress -->
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-xs font-medium text-slate-600">Dung tích Container</span>
+                        <span class="text-xs font-bold text-slate-800">
+                            {{ spo.total_cbm|floatformat:2 }} / {{ spo.container_template.volume_cbm|floatformat:1 }} CBM
+                        </span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        {% widthratio spo.total_cbm spo.container_template.volume_cbm 100 as percentage %}
+                        <div class="h-full rounded-full transition-all duration-500 
+                            {% if percentage|add:0 > 90 %}bg-red-500
+                            {% elif percentage|add:0 > 70 %}bg-orange-500
+                            {% else %}bg-emerald-500{% endif %}"
+                             style="width: {% if percentage|add:0 > 100 %}100{% else %}{{ percentage }}{% endif %}%">
+                        </div>
+                    </div>
+                    <div class="flex justify-between mt-1">
+                        <span class="text-[10px] text-slate-400">{{ spo.container_template.container_type }}</span>
+                        <span class="text-[10px] text-slate-500 font-medium">{{ percentage }}% đầy</span>
+                    </div>
+                </div>
+
+                <!-- NEW: PO List Preview -->
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-[10px] uppercase text-slate-500 font-bold tracking-wider">Danh sách PO trong Cont</div>
+                        <span class="text-[10px] bg-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold">{{ spo.po_count }} PO</span>
+                    </div>
+                    
+                    {% if spo.spo_purchase_orders.all %}
+                        <div class="max-h-[120px] overflow-y-auto space-y-1.5 scrollbar-thin scrollbar-thumb-slate-300 pr-1">
+                            {% for spo_po in spo.spo_purchase_orders.all %}
+                            <div class="text-xs flex justify-between items-center py-1 border-b border-slate-100 last:border-0 hover:bg-white px-1 -mx-1 rounded transition-colors">
+                                <div class="flex flex-col min-w-0 flex-1 mr-2">
+                                    <span class="font-medium text-slate-700 truncate" title="PO ID: {{ spo_po.sapo_order_supplier_id }}">PO-{{ spo_po.sapo_order_supplier_id }}</span>
+                                    <span class="text-[10px] text-slate-400">ID: {{ spo_po.sapo_order_supplier_id }}</span>
+                                </div>
+                                <div class="text-right whitespace-nowrap">
+                                    <span class="text-[9px] text-slate-400">-</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-3 text-xs text-slate-400 italic">
+                            Chưa có PO nào được thêm vào container
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Stats Footer -->
+                <div class="grid grid-cols-2 gap-3 mt-1 pt-3 border-t border-slate-100">
+                    <div class="">
+                        <div class="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-0.5">Giá trị hàng</div>
+                        <div class="text-sm font-bold text-slate-700 truncate">{{ spo.total_po_amount_val|default:0|floatformat:0|intcomma }} đ</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-0.5">Dự kiến về</div>
+                        <div class="text-sm font-bold text-slate-700">
+                            {% if spo.expected_arrival_date %}
+                                {{ spo.expected_arrival_date|date:"d/m/Y" }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Actions -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" 
+                   class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-brand hover:border-brand transition-colors shadow-sm">
+                    <span>Xem chi tiết & Quản lý</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+        <div class="mx-auto h-24 w-24 text-slate-200 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-full w-full" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+        </div>
+        <h3 class="text-lg font-medium text-slate-900">Chưa có đợt nhập hàng nào</h3>
+        <p class="mt-1 text-slate-500">Bắt đầu bằng cách tạo một SPO mới để quản lý container nhập khẩu.</p>
+        <button type="button" 
+                onclick="document.getElementById('create-spo-btn').click()"
+                class="mt-6 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-emerald-700 bg-emerald-100 hover:bg-emerald-200 focus:outline-none">
+            <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Tạo SPO ngay
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create SPO Modal -->
+<div id="create-spo-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center transition-opacity opacity-0 pointer-events-none p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full transform scale-95 transition-transform duration-200" id="create-spo-content">
+        <div class="p-6 border-b border-slate-100">
+            <h3 class="text-xl font-bold text-slate-800">Tạo đợt nhập container mới</h3>
+            <p class="text-sm text-slate-500 mt-1">Khởi tạo container để gom các đơn đặt hàng (PO)</p>
+        </div>
+        
+        <div class="p-6">
+            <form id="create-spo-form">
+                <div class="space-y-4">
+                    <!-- Container Template -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Mẫu Container <span class="text-red-500">*</span></label>
+                        <select name="container_template_id" required
+                                class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white">
+                            <option value="">-- Chọn loại Container --</option>
+                            {% for template in container_templates %}
+                            <option value="{{ template.id }}">{{ template.code }} - {{ template.name|default:"Container thường" }} ({{ template.get_container_type_display }})</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-500 mt-1">Chọn mẫu container để xác định kích thước và NSX mặc định</p>
+                    </div>
+
+                    <!-- Destination Port -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cảng đến <span class="text-red-500">*</span></label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="destination_port" value="hcm" required class="peer sr-only">
+                                    <div class="p-2 border rounded-lg text-center peer-checked:border-red-500 peer-checked:bg-red-50 peer-checked:text-red-700 hover:bg-slate-50 transition-all">
+                                        <div class="font-bold text-sm">HCM</div>
+                                        <div class="text-[10px] text-slate-500">Cát Lái</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="destination_port" value="haiphong" class="peer sr-only">
+                                    <div class="p-2 border rounded-lg text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:bg-slate-50 transition-all">
+                                        <div class="font-bold text-sm">Hải Phòng</div>
+                                        <div class="text-[10px] text-slate-500">Hải Phòng</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Dự kiến hàng về</label>
+                            <input type="date" name="expected_arrival_date" id="expected_arrival_date"
+                                   class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <!-- Name Preview -->
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mã SPO dự kiến</label>
+                        <div class="flex items-center gap-2">
+                            <input type="text" name="name" id="spo-name-input" readonly
+                                   class="w-full bg-transparent border-none p-0 text-lg font-mono font-bold text-slate-700 focus:ring-0"
+                                   placeholder="...">
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Mã sẽ được hệ thống tự động tạo và đánh số thứ tự</p>
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" id="cancel-create-spo-btn"
+                            class="px-5 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                        Hủy bỏ
+                    </button>
+                    <button type="submit"
+                            class="px-5 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm transition-colors flex items-center gap-2">
+                        <span>Tạo SPO</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const createBtn = document.getElementById('create-spo-btn');
+    const modal = document.getElementById('create-spo-modal');
+    const modalContent = document.getElementById('create-spo-content');
+    const cancelBtn = document.getElementById('cancel-create-spo-btn');
+    const form = document.getElementById('create-spo-form');
+    const expectedArrivalDateInput = document.getElementById('expected_arrival_date');
+    const spoNameInput = document.getElementById('spo-name-input');
+    const containerTemplateSelect = form ? form.querySelector('select[name="container_template_id"]') : null;
+    const destinationPortInputs = form ? form.querySelectorAll('input[name="destination_port"]') : [];
+    
+    // Function to open modal with animation
+    function openModal() {
+        modal.classList.remove('hidden');
+        // Force reflow
+        void modal.offsetWidth;
+        modal.classList.remove('opacity-0', 'pointer-events-none');
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
+    }
+
+    // Function to close modal with animation
+    function closeModal() {
+        modal.classList.add('opacity-0', 'pointer-events-none');
+        modalContent.classList.remove('scale-100');
+        modalContent.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            form.reset();
+            spoNameInput.value = '';
+        }, 200);
+    }
+
+    // Set minimum date (12 days from today)
+    if (expectedArrivalDateInput) {
+        const today = new Date();
+        const minDate = new Date(today);
+        minDate.setDate(today.getDate() + 12);
+        expectedArrivalDateInput.min = minDate.toISOString().split('T')[0];
+    }
+    
+    // Update name preview
+    function updateSpoNamePreview() {
+        if (!spoNameInput || !containerTemplateSelect) return;
+        
+        const templateId = containerTemplateSelect.value;
+        // Get selected radio value
+        let destinationPort = '';
+        destinationPortInputs.forEach(input => {
+            if (input.checked) destinationPort = input.value;
+        });
+        
+        if (!templateId || !destinationPort) {
+            spoNameInput.value = 'Chờ thông tin...';
+            return;
+        }
+        
+        const templateOption = containerTemplateSelect.options[containerTemplateSelect.selectedIndex];
+        const templateText = templateOption.text;
+        const templateCode = templateText.split(' - ')[0] || 'CON-SH';
+        const portCode = destinationPort === 'hcm' ? 'HCM' : 'HN';
+        const year = new Date().getFullYear();
+        
+        // Preview name format
+        const previewName = `${templateCode}-${year}-${portCode}-XXX`;
+        spoNameInput.value = previewName;
+    }
+    
+    if (containerTemplateSelect) {
+        containerTemplateSelect.addEventListener('change', updateSpoNamePreview);
+    }
+    destinationPortInputs.forEach(input => {
+        input.addEventListener('change', updateSpoNamePreview);
+    });
+    
+    if (createBtn) {
+        createBtn.addEventListener('click', openModal);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeModal);
+    }
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnHtml = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="inline-block animate-spin mr-2">⟳</span> Đang tạo...';
+
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            data.container_template_id = parseInt(data.container_template_id);
+            
+            if (!data.destination_port) delete data.destination_port;
+            if (!data.expected_arrival_date) delete data.expected_arrival_date;
+            delete data.name; 
+            
+            fetch('{% url "products:create_sum_purchase_order" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Success feedback
+                    submitBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                    submitBtn.classList.add('bg-green-600');
+                    submitBtn.innerHTML = 'Thành công!';
+                    setTimeout(() => {
+                        window.location.href = '/products/sum-purchase-orders/' + data.spo_id + '/';
+                    }, 500);
+                } else {
+                    alert('Lỗi: ' + data.message);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi tạo SPO');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnHtml;
+            });
+        });
+    }
+    
+    // Close modal when clicking outside
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

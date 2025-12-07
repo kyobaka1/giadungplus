@@ -1305,6 +1305,39 @@ class SapoClient:
             })
             logger.info("[SapoClient] x-sapo-client headers restored ✓")
     
+    def _invalidate_token(self):
+        """
+        Invalidate token hiện tại và reset state để trigger refresh.
+        
+        Method này được gọi khi gặp 401 Unauthorized để force refresh token.
+        """
+        logger.warning("[SapoClient] Invalidating token due to 401 Unauthorized...")
+        
+        # Xóa token khỏi DB
+        try:
+            SapoToken.objects.filter(key="loginss").delete()
+            logger.info("[SapoClient] Core token deleted from DB")
+        except Exception as e:
+            logger.error(f"[SapoClient] Error deleting token: {e}")
+        
+        # Reset state flags
+        self.core_valid = False
+        self.core_initialized = False
+        
+        # Clear session headers và cookies
+        self.core_session.headers.clear()
+        self.core_session.cookies.clear()
+        
+        # Restore default headers
+        self.core_session.headers.update({
+            "x-sapo-client": "sapo-frontend-v3",
+            "x-sapo-serviceid": "sapo-frontend-v3",
+            "accept": "application/json, text/plain, */*",
+            "content-type": "application/json;charset=UTF-8"
+        })
+        
+        logger.info("[SapoClient] Token invalidated, state reset ✓")
+    
     @property
     def core(self) -> SapoCoreRepository:
         """
@@ -1321,7 +1354,8 @@ class SapoClient:
         if not self._core_repo:
             self._core_repo = SapoCoreRepository(
                 session=self.core_session,
-                base_url=SAPO_BASIC.MAIN_URL
+                base_url=SAPO_BASIC.MAIN_URL,
+                client=self  # Pass client reference để xử lý 401
             )
         
         return self._core_repo

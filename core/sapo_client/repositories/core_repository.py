@@ -6,6 +6,7 @@ Handles orders, customers, products, variants, shipments.
 
 from typing import Dict, Any, List, Optional
 import logging
+import requests
 
 from core.base.repository import BaseRepository
 
@@ -25,6 +26,98 @@ class SapoCoreRepository(BaseRepository):
     - /variants/{id}.json - Get variant
     - /shipments.json - List shipments
     """
+    
+    def __init__(self, session: requests.Session, base_url: str, client=None):
+        """
+        Initialize repository.
+        
+        Args:
+            session: requests.Session với headers/cookies đã setup
+            base_url: Base URL của API (không có trailing slash)
+            client: Optional SapoClient instance để xử lý token refresh
+        """
+        super().__init__(session, base_url)
+        self._client = client  # Reference tới SapoClient để invalidate token
+    
+    def _handle_401(self, response, method: str, path: str, **kwargs) -> bool:
+        """
+        Xử lý 401 Unauthorized bằng cách invalidate token và trigger refresh.
+        
+        Args:
+            response: requests.Response với status_code 401
+            method: HTTP method
+            path: API path
+            **kwargs: Request kwargs
+            
+        Returns:
+            True nếu đã xử lý và token được refresh, False nếu không thể xử lý
+        """
+        logger.warning(f"[SapoCoreRepository] Handling 401 for {method} {path}")
+        
+        if self._client is None:
+            # Không có client reference, không thể refresh token
+            logger.error("[SapoCoreRepository] No client reference, cannot refresh token")
+            return False
+        
+        try:
+            # Invalidate token trong client
+            self._client._invalidate_token()
+            
+            # Trigger refresh bằng cách gọi _ensure_logged_in()
+            # Method này sẽ detect token đã bị invalid và trigger login mới
+            logger.info("[SapoCoreRepository] Triggering token refresh...")
+            
+            # Import exception và models để handle
+            from core.sapo_client.exceptions import SeleniumLoginInProgressException
+            from core.models import SapoToken
+            from django.utils import timezone
+            import time
+            
+            try:
+                self._client._ensure_logged_in()
+            except SeleniumLoginInProgressException:
+                # Login đang chạy trong background, đợi cho đến khi hoàn tất
+                logger.info("[SapoCoreRepository] Login in progress, waiting for completion...")
+                
+                # Đợi tối đa 60 giây để login hoàn tất
+                max_wait = 60
+                check_interval = 2
+                elapsed = 0
+                
+                while elapsed < max_wait:
+                    # Kiểm tra xem lock còn active không
+                    if not self._client._check_selenium_lock_status():
+                        # Lock đã được release, đợi thêm một chút để token được commit
+                        time.sleep(2)
+                        
+                        # Thử lại _ensure_logged_in()
+                        try:
+                            self._client._ensure_logged_in()
+                            logger.info("[SapoCoreRepository] Login completed, token ready")
+                            return True
+                        except SeleniumLoginInProgressException:
+                            # Vẫn đang login, tiếp tục đợi
+                            pass
+                    
+                    time.sleep(check_interval)
+                    elapsed += check_interval
+                    
+                    if elapsed % 10 == 0:  # Log mỗi 10 giây
+                        logger.info(f"[SapoCoreRepository] Still waiting for login... ({elapsed}/{max_wait}s)")
+                
+                # Timeout
+                logger.warning(f"[SapoCoreRepository] Timeout waiting for login to complete ({max_wait}s)")
+                return False
+            
+            # Đợi một chút để token được apply vào session
+            time.sleep(2)  # Đợi 2 giây để token được apply
+            
+            logger.info("[SapoCoreRepository] Token refresh completed, ready to retry")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[SapoCoreRepository] Error during token refresh: {e}", exc_info=True)
+            return False
     
     # ==================== ORDERS ====================
     
@@ -544,3 +637,50 @@ class SapoCoreRepository(BaseRepository):
         return self.put(f"suppliers/{supplier_id}.json", json={
             "supplier": supplier_data
         })
+    
+    # ==================== ORDER SUPPLIERS (Purchase Orders) ====================
+    
+    def list_order_suppliers_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách order_suppliers (Purchase Orders) từ Sapo Core.
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int (max 250)
+                - status: str (pending, completed, cancelled)
+                - tags: str (comma-separated)
+                - supplier_id: int
+                - created_on_min: str (ISO datetime)
+                - created_on_max: str (ISO datetime)
+                - etc.
+        
+        Returns:
+            {
+                "order_suppliers": [...],
+                "metadata": {...}
+            }
+            
+        Example:
+            GET /admin/order_suppliers.json?page=1&limit=250&tags=TEMP_HCM
+        """
+        logger.debug(f"[SapoCoreRepo] list_order_suppliers with filters: {filters}")
+        return self.get("order_suppliers.json", params=filters)
+    
+    def get_order_supplier_raw(self, order_supplier_id: int) -> Dict[str, Any]:
+        """
+        Lấy chi tiết 1 order_supplier (Purchase Order).
+        
+        Args:
+            order_supplier_id: Sapo order_supplier ID
+            
+        Returns:
+            {
+                "order_supplier": {...}
+            }
+            
+        Example:
+            GET /admin/order_suppliers/{id}.json
+        """
+        logger.debug(f"[SapoCoreRepo] get_order_supplier: {order_supplier_id}")
+        return self.get(f"order_suppliers/{order_supplier_id}.json")

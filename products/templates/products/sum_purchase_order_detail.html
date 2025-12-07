@@ -1,0 +1,689 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">{{ spo.code }}</h1>
+        <p class="text-sm text-slate-500 mt-1">
+            SPO <span class="mx-1">•</span> {{ spo.container_template.code }} <span class="mx-1">•</span> {{ spo.created_at|date:"d/m/Y" }}
+        </p>
+    </div>
+    <div class="flex items-center gap-3">
+        <span class="px-3 py-1.5 rounded-full text-sm font-semibold shadow-sm border
+            {% if spo.status == 'completed' %}bg-green-100 text-green-700 border-green-200
+            {% elif spo.status == 'cancelled' %}bg-red-100 text-red-700 border-red-200
+            {% elif spo.status == 'draft' %}bg-slate-100 text-slate-700 border-slate-200
+            {% else %}bg-blue-100 text-blue-700 border-blue-200{% endif %}">
+            {{ spo.get_status_display }}
+        </span>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="w-full space-y-6">
+    {% if error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <span class="text-sm font-medium">{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Top Summary Cards -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- 1. Route & Schedule -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+            <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Lộ trình & Thời gian</h3>
+            <div class="flex items-center justify-between mb-4">
+                <div class="text-center">
+                    <div class="text-sm font-semibold text-slate-700">{{ spo.container_template.departure_port|default:"Trung Quốc" }}</div>
+                    <div class="text-[10px] text-slate-400 uppercase">Cảng đi</div>
+                </div>
+                <div class="flex-1 px-4 flex flex-col items-center">
+                    <div class="w-full h-0.5 bg-slate-200 relative top-2">
+                        <div class="absolute -right-1 -top-1 w-2 h-2 bg-slate-200 rounded-full"></div>
+                    </div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm font-bold {% if spo.destination_port == 'hcm' %}text-red-600{% elif spo.destination_port == 'haiphong' %}text-blue-600{% endif %}">
+                        {{ spo.get_destination_port_display|default:"---" }}
+                    </div>
+                    <div class="text-[10px] text-slate-400 uppercase">Cảng đến</div>
+                </div>
+            </div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
+                <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500">Dự kiến hàng về</div>
+                    <div class="font-bold text-slate-800">
+                        {% if warehouse_planned_date %}
+                            {{ warehouse_planned_date|date:"d/m/Y" }}
+                        {% elif spo.expected_arrival_date %}
+                            {{ spo.expected_arrival_date|date:"d/m/Y" }}
+                        {% else %}
+                            <span class="text-slate-400 italic">Chưa xác định</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Capacity & Packing -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+            <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Dung tích & Đóng gói</h3>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-xs font-medium text-slate-600">Dung tích (CBM)</span>
+                        <span class="text-xs font-bold text-slate-800">{{ spo.total_cbm|floatformat:2 }} / {{ spo.container_template.volume_cbm|floatformat:1 }}</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                        {% widthratio spo.total_cbm spo.container_template.volume_cbm 100 as percentage %}
+                        <div class="h-full rounded-full transition-all duration-500 
+                            {% if percentage|add:0 > 90 %}bg-red-500
+                            {% elif percentage|add:0 > 70 %}bg-orange-500
+                            {% else %}bg-emerald-500{% endif %}"
+                             style="width: {% if percentage|add:0 > 100 %}100{% else %}{{ percentage }}{% endif %}%">
+                        </div>
+                    </div>
+                    <div class="mt-1 text-right text-[10px] text-slate-500">{{ percentage }}% đầy</div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                    <div>
+                        <div class="text-2xl font-bold text-slate-800">{{ total_packages|default:0|intcomma }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-medium">Số kiện hàng</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold text-slate-800">{{ total_quantity|default:0|intcomma }}</div>
+                        <div class="text-[10px] text-slate-500 uppercase font-medium">Tổng sản phẩm</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Financials -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col justify-between">
+            <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Tài chính (Ước tính)</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
+                    <div>
+                        <div class="text-[10px] text-indigo-500 uppercase font-bold">Giá trị hàng</div>
+                        <div class="text-lg font-bold text-indigo-700">{{ total_amount|default:0|floatformat:0|intcomma }} đ</div>
+                    </div>
+                    <div class="bg-white p-1.5 rounded-full text-indigo-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
+                    <div>
+                        <div class="text-[10px] text-amber-500 uppercase font-bold">Chi phí nhập</div>
+                        <div class="text-lg font-bold text-amber-700">{{ total_common_costs|default:0|floatformat:0|intcomma }} đ</div>
+                    </div>
+                    <div class="bg-white p-1.5 rounded-full text-amber-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Tracking -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-8">
+            <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+                Tiến độ Container
+            </h2>
+            <button onclick="document.getElementById('update-status-modal').classList.remove('hidden')" 
+                    class="text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:underline">
+                Cập nhật trạng thái thủ công
+            </button>
+        </div>
+
+            <!-- Loading Bar Timeline Container -->
+            <div class="relative w-full px-2 pt-6 pb-8">
+                <div class="w-full relative">
+                    <!-- The Bar (Background) -->
+                    <div class="absolute bottom-2.5 left-0 w-full h-4 bg-slate-800 rounded-full shadow-inner z-0 border border-slate-700"></div>
+                    
+                    <!-- The Bar (Progress Fill) -->
+                    <div class="absolute bottom-2.5 left-0 h-4 bg-gradient-to-r from-emerald-600 to-green-400 rounded-full z-0 shadow-[0_0_10px_rgba(74,222,128,0.5)] transition-all duration-1000" id="progress-bar-fill">
+                        <div class="absolute inset-0 bg-white/20 skew-x-12 w-full animate-shimmer hidden"></div>
+                    </div>
+                    
+                    <!-- Loading Text -->
+                    <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 font-bold text-slate-400 tracking-widest text-[10px] z-10 w-full text-center pointer-events-none">
+                        LOADING... <span id="progress-text-percent">0%</span>
+                    </div>
+
+                    <!-- Steps Container -->
+                    <div class="relative z-10 flex justify-between items-end w-full px-2 h-36">
+                        {% load spo_tags %}
+                        {% for stage in spo.timeline %}
+                        {% if stage.stage == 'arrived_warehouse_hn' and spo.destination_port == 'hcm' %}
+                            {# Skip #}
+                        {% elif stage.stage == 'arrived_warehouse_hcm' and spo.destination_port == 'haiphong' %}
+                            {# Skip #}
+                        {% else %}
+                        
+                        <!-- Timeline Item -->
+                        <div class="timeline-step flex-1 group flex flex-col items-center justify-end h-full relative" 
+                             data-stage="{{ stage.stage }}"
+                             data-status="{% if stage.actual_date %}completed{% elif stage.stage == spo.status %}current{% else %}pending{% endif %}">
+                            
+                            <!-- 1. Content Card (Top) -->
+                            <div class="mb-2 flex flex-col items-center w-full relative transition-transform duration-300 hover:-translate-y-1">
+                                
+                                <!-- Stage Name -->
+                                <div class="text-[10px] font-extrabold uppercase text-slate-500 mb-1 tracking-wider text-center h-6 leading-tight flex items-center justify-center px-1">
+                                    {% if stage.stage == 'created' %}Tạo SPO
+                                    {% elif stage.stage == 'supplier_confirmed' %}NSX xác nhận
+                                    {% elif stage.stage == 'producing' %}Đang SX
+                                    {% elif stage.stage == 'waiting_packing' %}Chờ đóng
+                                    {% elif stage.stage == 'packed' %}Đã đóng
+                                    {% elif stage.stage == 'departed_cn' %}Rời TQ
+                                    {% elif stage.stage == 'arrived_vn' %}Về VN
+                                    {% elif stage.stage == 'customs_cleared' %}Thông quan
+                                    {% elif stage.stage == 'arrived_warehouse_hn' %}Về Kho HN
+                                    {% elif stage.stage == 'arrived_warehouse_hcm' %}Về Kho HCM
+                                    {% else %}{{ stage.stage|title }}{% endif %}
+                                </div>
+                                
+                                <!-- Detailed Info -->
+                                <div class="flex flex-col items-center gap-1 w-full">
+                                    
+                                    <!-- CASE 1: Has ACTUAL DATE -->
+                                    {% if stage.actual_date %}
+                                        <!-- Calculate status -->
+                                        {% if stage.planned_date %}
+                                            {% calculate_date_status stage.planned_date stage.actual_date as status %}
+                                        {% endif %}
+
+                                        <!-- Main Actual Date (Big Green) -->
+                                        <div class="flex flex-col items-center">
+                                            <span class="text-sm font-black text-emerald-600 leading-none">
+                                                {{ stage.actual_date|slice:":10"|date:"d/m" }}
+                                            </span>
+                                            <span class="text-[9px] text-emerald-500 font-bold uppercase mt-0.5">
+                                                {{ stage.actual_date|slice:":10"|date:"d-m-Y" }}
+                                            </span>
+                                        </div>
+
+                                        <!-- Status Tag (Late/Early) -->
+                                        {% if status %}
+                                        <div class="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold border {{ status.color_class }} whitespace-nowrap">
+                                            {{ status.status_label }}
+                                        </div>
+                                        {% endif %}
+
+                                    <!-- CASE 2: No ACTUAL, Only PLANNED -->
+                                    {% elif stage.planned_date %}
+                                        <!-- Calculate Deadline Status -->
+                                        {% calculate_deadline_status stage.planned_date as deadline %}
+                                        
+                                        <!-- Planned Date Display -->
+                                        <div class="flex flex-col items-center group/date-edit cursor-pointer planned-date-display"
+                                             data-stage="{{ stage.stage }}"
+                                             data-date="{{ stage.planned_date|slice:":10" }}">
+                                            <span class="text-sm font-bold {{ deadline.color_class|default:'text-slate-600' }} leading-none">
+                                                {{ stage.planned_date|slice:":10"|date:"d/m" }}
+                                                {% if deadline.is_overdue %}
+                                                <span class="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse ml-0.5" title="Overdue"></span>
+                                                {% endif %}
+                                            </span>
+                                            <span class="text-[9px] text-slate-400 font-bold uppercase mt-0.5 group-hover/date-edit:text-blue-500 transition-colors">Dự kiến</span>
+                                        </div>
+
+                                        <!-- Deadline Tag -->
+                                        {% if deadline %}
+                                        <div class="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold border {{ deadline.bg_class }} {{ deadline.color_class }} whitespace-nowrap">
+                                            {{ deadline.status_label }}
+                                        </div>
+                                        {% endif %}
+                                    
+                                    <!-- CASE 3: No Dates -->
+                                    {% else %}
+                                        <button class="text-slate-300 hover:text-blue-500 text-[20px] leading-none add-planned-date-btn w-full text-center" data-stage="{{ stage.stage }}">+</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- 2. Vertical Connector Line -->
+                            <div class="w-px h-6 bg-slate-300 group-hover:bg-emerald-400 transition-colors mb-1"></div>
+
+                            <!-- 3. Node on Bar (Bottom) -->
+                            <div class="w-3 h-3 rounded-full border-2 border-slate-900 bg-slate-700 z-20 transition-all duration-300
+                                {% if stage.actual_date %}bg-emerald-400 border-slate-800 scale-125 shadow-[0_0_8px_rgba(74,222,128,0.8)]
+                                {% elif stage.stage == spo.status %}bg-white border-emerald-500 scale-150 animate-pulse
+                                {% else %}bg-slate-700{% endif %} relative group/node">
+                                
+                            </div>
+
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <!-- 1. Cost Management (Left Column - Smaller) -->
+        <div class="xl:col-span-1 space-y-6">
+            <!-- Common Costs -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 class="font-bold text-slate-700 text-sm">Chi phí chung container</h3>
+                    <button id="allocate-costs-btn" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-white border border-emerald-200 px-2 py-1 rounded shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        Phân bổ
+                    </button>
+                </div>
+                <div class="divide-y divide-slate-100">
+                    {% with costs="shipping_cn_vn:Vận chuyển TQ-VN,customs_processing_vn:Hải Quan VN,other_costs:Phí phát sinh,port_to_warehouse:Cảng -> Kho,loading_unloading:Bốc xếp" %}
+                    {% for pair in costs.split|slice:"," %}
+                        {% with field=pair.split|first label=pair.split|last %}
+                        <div class="flex justify-between items-center p-3 hover:bg-slate-50">
+                            <span class="text-sm text-slate-600">{{ label }}</span>
+                            <span class="text-sm font-semibold text-slate-800">
+                                {% if field == 'shipping_cn_vn' %}{{ spo.shipping_cn_vn|floatformat:0|intcomma }}
+                                {% elif field == 'customs_processing_vn' %}{{ spo.customs_processing_vn|floatformat:0|intcomma }}
+                                {% elif field == 'other_costs' %}{{ spo.other_costs|floatformat:0|intcomma }}
+                                {% elif field == 'port_to_warehouse' %}{{ spo.port_to_warehouse|floatformat:0|intcomma }}
+                                {% elif field == 'loading_unloading' %}{{ spo.loading_unloading|floatformat:0|intcomma }}
+                                {% endif %} đ
+                            </span>
+                        </div>
+                        {% endwith %}
+                    {% endfor %}
+                    {% endwith %}
+                    <div class="flex justify-between items-center p-3 bg-slate-50 font-bold">
+                        <span class="text-sm text-slate-700">Tổng cộng</span>
+                        <span class="text-sm text-amber-600">{{ total_common_costs|floatformat:0|intcomma }} đ</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <h3 class="font-bold text-slate-700 text-sm mb-3">Ghi chú</h3>
+                <div class="bg-amber-50 rounded border border-amber-100 p-3 text-sm text-slate-700 min-h-[80px]">
+                    {{ spo.note|default:"Chưa có ghi chú."|linebreaksbr }}
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Purchase Orders (Right Column - Larger) -->
+        <div class="xl:col-span-2 space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <div class="flex items-center gap-2">
+                        <h3 class="font-bold text-slate-700 text-sm">Danh sách Đơn hàng (PO)</h3>
+                        <span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold">{{ purchase_orders|length }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="sync-po-btn" class="px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 rounded text-xs font-semibold flex items-center gap-1 transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v3.276a1 1 0 01-2 0V13.107a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
+                            Sync Sapo
+                        </button>
+                        <button id="add-po-btn" class="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded text-xs font-bold shadow-sm transition flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                            Thêm PO
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-100">
+                        <thead class="bg-white">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Thông tin PO</th>
+                                <th class="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Giá trị</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Số khối (CBM)</th>
+                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50 bg-white">
+                            {% for po in purchase_orders %}
+                            <tr class="hover:bg-slate-50 transition-colors group">
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center">
+                                        <div class="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs mr-3">
+                                            {{ forloop.counter }}
+                                        </div>
+                                        <div>
+                                            <div class="font-bold text-slate-800 text-sm">{{ po.supplier_name }}</div>
+                                            <div class="text-xs text-slate-500 font-mono">{{ po.sapo_code }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
+                                        {{ po.status|default:"Draft" }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="text-sm font-semibold text-slate-700">{{ po.total_amount|floatformat:0|intcomma }} đ</div>
+                                    <div class="text-[10px] text-slate-400">{{ po.total_quantity }} sp</div>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <div class="text-sm font-bold text-slate-700">{{ po.total_cbm|floatformat:2 }}</div>
+                                    <div class="text-[10px] text-slate-400">m³</div>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <button class="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition" title="Xóa khỏi SPO">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-4 py-12 text-center">
+                                    <div class="flex flex-col items-center justify-center text-slate-400">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                        <p class="text-sm font-medium">Chưa có PO trong container này</p>
+                                        <p class="text-xs mt-1">Dùng nút "Thêm PO" hoặc "Sync Sapo" để bắt đầu</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Line Items (Collapsible) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <details class="group">
+                    <summary class="flex justify-between items-center font-bold font-sm cursor-pointer list-none p-4 bg-slate-50 border-b border-transparent group-open:border-slate-100 hover:bg-slate-100 transition">
+                        <span class="flex items-center gap-2 text-slate-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                            Chi tiết sản phẩm (Line Items)
+                        </span>
+                        <span class="text-xs text-slate-500 font-normal">({{ line_items|length }} SKUs)</span>
+                    </summary>
+                    <div class="text-neutral-500 text-sm group-open:animate-fadeIn">
+                        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+                            <table class="min-w-full divide-y divide-slate-100">
+                                <thead class="bg-white sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">SKU</th>
+                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Tên sản phẩm</th>
+                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Số lượng</th>
+                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Giá nhập</th>
+                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">CBM</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50 bg-white">
+                                    {% for item in line_items %}
+                                    <tr class="hover:bg-slate-50">
+                                        <td class="px-4 py-2 text-xs font-bold text-slate-700 font-mono">{{ item.sku }}</td>
+                                        <td class="px-4 py-2 text-xs text-slate-600">{{ item.product_name|truncatewords:8 }}</td>
+                                        <td class="px-4 py-2 text-xs text-right text-slate-800">{{ item.quantity }}</td>
+                                        <td class="px-4 py-2 text-xs text-right text-slate-600">{{ item.price|floatformat:0|intcomma }}</td>
+                                        <td class="px-4 py-2 text-xs text-right text-slate-600">{{ item.cbm|floatformat:3 }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals & Scripts (Preserving core logic with better UI) -->
+<!-- Update Status Modal -->
+<div id="update-status-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Cập nhật Trạng thái SPO</h3>
+            <form id="update-status-form">
+                <input type="hidden" name="spo_id" value="{{ spo.id }}">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Trạng thái mới</label>
+                        <select name="status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                             {% for status_code, status_label in spo.STATUS_CHOICES %}
+                             <option value="{{ status_code }}" {% if spo.status == status_code %}selected{% endif %}>{{ status_label }}</option>
+                             {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thực tế</label>
+                        <input type="datetime-local" name="actual_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú</label>
+                        <textarea name="note" rows="3" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('update-status-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Planned Date Modal -->
+<div id="planned-date-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-1">Đặt ngày dự kiến</h3>
+            <p class="text-xs text-slate-500 mb-4 font-mono uppercase bg-slate-100 px-2 py-1 inline-block rounded" id="modal-stage-name"></p>
+            <form id="planned-date-form">
+                <input type="hidden" id="modal-stage" name="stage">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Ngày dự kiến *</label>
+                    <input type="date" name="planned_date" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('planned-date-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add PO Modal -->
+<div id="add-po-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm PO vào Container</h3>
+            <form id="add-po-form">
+                <input type="hidden" name="spo_id" value="{{ spo.id }}">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tag (Sapo)</label>
+                        <input type="text" name="tag" placeholder="Ví dụ: TEMP_HCM" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[10px] text-slate-500 mt-1">Hệ thống sẽ tìm tất cả PO có tag này</p>
+                    </div>
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-slate-200"></div>
+                        </div>
+                        <div class="relative flex justify-center text-xs uppercase">
+                            <span class="bg-white px-2 text-slate-500">Hoặc nhập ID</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">PO IDs</label>
+                        <input type="text" name="po_ids" placeholder="12345, 67890" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[10px] text-slate-500 mt-1">Nhập Sapo Order ID, cách nhau bởi dấu phẩy</p>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('add-po-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Thêm PO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const spoId = parseInt('{{ spo.id|default:0 }}');
+
+    // === TIMELINE LOGIC ===
+    const progressBar = document.getElementById('progress-bar-fill');
+    const progressText = document.getElementById('progress-text-percent');
+    
+    // Status Logic
+    const totalSteps = document.querySelectorAll('.timeline-step').length;
+    const completedSteps = document.querySelectorAll('.timeline-step[data-status="completed"]').length;
+    const currentStepIndex = Array.from(document.querySelectorAll('.timeline-step')).findIndex(el => el.getAttribute('data-status') === 'current');
+    
+    let progressPercent = 0;
+    if(totalSteps > 1) {
+        let activeIndex = completedSteps; // Start with completed count
+        if(currentStepIndex > -1) activeIndex = currentStepIndex; // If there is a current step, use its index (0-based)
+        
+        // Logic: 
+        // If 10 steps, indices 0..9. 
+        // If step 0 is current, progress is 0%.
+        // If step 9 is current, progress is 100%.
+        // But we want "filled" up to the current node.
+        
+        // If pure completed count:
+        // 5 completed out of 10 => 50%?
+        // Let's stick to index-based for smoother alignment with nodes
+        if(currentStepIndex > -1) {
+             progressPercent = (currentStepIndex / (totalSteps - 1)) * 100;
+        } else {
+             // If no current (all completed?), use completed count
+             if(completedSteps === totalSteps) progressPercent = 100;
+             else progressPercent = (completedSteps / totalSteps) * 100;
+        }
+    }
+    
+    if(progressBar) {
+        const pct = Math.max(0, Math.min(100, progressPercent));
+        progressBar.style.width = pct + '%';
+        if(progressText) progressText.innerText = Math.round(pct) + '%';
+        
+        // Show shimmer if in progress
+        if(pct > 0 && pct < 100) {
+            progressBar.querySelector('.animate-shimmer')?.classList.remove('hidden');
+        }
+    }
+
+
+    // === INTERACTIVE HANDLERS ===
+    
+    // 1. Add Planned Date
+    const plannedDateModal = document.getElementById('planned-date-modal');
+    document.querySelectorAll('.add-planned-date-btn, .planned-date-display').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const stage = btn.getAttribute('data-stage');
+            const currentVal = btn.getAttribute('data-date');
+            document.getElementById('modal-stage').value = stage;
+            document.getElementById('modal-stage-name').textContent = stage;
+            if(currentVal) document.querySelector('input[name="planned_date"]').value = currentVal;
+            plannedDateModal.classList.remove('hidden');
+        });
+    });
+
+    // Form: Submit Planned Date
+    document.getElementById('planned-date-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = {
+            spo_id: spoId,
+            stage: document.getElementById('modal-stage').value,
+            planned_date: e.target.planned_date.value
+        };
+        fetch('{% url "products:update_timeline_planned_date" %}', {
+            method: 'POST', body: JSON.stringify(data),
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') window.location.reload();
+            else alert(d.message);
+        });
+    });
+
+    // 2. Next Step Trigger
+    document.querySelectorAll('.next-step-trigger').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent bubbling
+            const statusModal = document.getElementById('update-status-modal');
+            statusModal.classList.remove('hidden');
+        });
+    });
+
+    // 3. Add PO & Sync PO Buttons
+    document.getElementById('add-po-btn')?.addEventListener('click', () => {
+        document.getElementById('add-po-modal').classList.remove('hidden');
+    });
+    
+    document.getElementById('sync-po-btn')?.addEventListener('click', () => {
+        if(!confirm('Bạn có chắc chắn muốn đồng bộ dữ liệu tất cả PO từ Sapo không?')) return;
+        alert('Tính năng đang được cập nhật để sync toàn bộ.'); 
+    });
+
+    // Form: Add PO
+    document.getElementById('add-po-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+        // Handle PO IDs array
+        if(data.po_ids) data.po_ids = data.po_ids.split(',').map(s => s.trim()).filter(s => s);
+        
+        fetch('{% url "products:add_po_to_spo" %}', {
+            method: 'POST', body: JSON.stringify(data),
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') { alert(d.message); window.location.reload(); }
+            else alert(d.message);
+        });
+    });
+
+    // Form: Update Status
+    document.getElementById('update-status-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        fetch('{% url "products:update_spo_status" %}', {
+            method: 'POST', body: JSON.stringify(Object.fromEntries(fd)),
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') window.location.reload();
+            else alert(d.message);
+        });
+    });
+});
+</script>
+
+<style>
+/* Custom animations */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes shimmer {
+    from { transform: translateX(-100%) skewX(-12deg); }
+    to { transform: translateX(200%) skewX(-12deg); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.2s ease-out forwards; }
+.animate-scaleIn { animation: scaleIn 0.2s ease-out forwards; }
+.animate-shimmer { animation: shimmer 2.5s infinite linear; }
+</style>
+{% endblock %}
