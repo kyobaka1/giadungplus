@@ -48,5 +48,25 @@ urlpatterns = [
     # Sales Forecast
     path("sales-forecast/", views.sales_forecast_list, name="sales_forecast_list"),
     path("sales-forecast/refresh/", views.refresh_sales_forecast, name="refresh_sales_forecast"),
+    
+    # Container Template
+    path("container-templates/", views.container_template_list, name="container_template_list"),
+    path("container-templates/<int:template_id>/", views.container_template_detail, name="container_template_detail"),
+    path("container-templates/create/", views.create_container_template, name="create_container_template"),
+    path("container-templates/<int:template_id>/update/", views.update_container_template, name="update_container_template"),
+    path("container-templates/add-supplier/", views.add_supplier_to_container, name="add_supplier_to_container"),
+    path("container-templates/remove-supplier/", views.remove_supplier_from_container, name="remove_supplier_from_container"),
+    path("container-templates/get-suppliers/", views.get_suppliers_for_select, name="get_suppliers_for_select"),
+    path("container-templates/<int:template_id>/set-default-supplier/", views.set_default_supplier, name="set_default_supplier"),
+    
+    # Sum Purchase Order (SPO)
+    path("sum-purchase-orders/", views.sum_purchase_order_list, name="sum_purchase_order_list"),
+    path("sum-purchase-orders/<int:spo_id>/", views.sum_purchase_order_detail, name="sum_purchase_order_detail"),
+    path("sum-purchase-orders/create/", views.create_sum_purchase_order, name="create_sum_purchase_order"),
+    path("sum-purchase-orders/add-po/", views.add_po_to_spo, name="add_po_to_spo"),
+    path("sum-purchase-orders/sync-po/", views.sync_po_from_sapo, name="sync_po_from_sapo"),
+    path("sum-purchase-orders/update-status/", views.update_spo_status, name="update_spo_status"),
+    path("sum-purchase-orders/update-planned-date/", views.update_timeline_planned_date, name="update_timeline_planned_date"),
+    path("sum-purchase-orders/allocate-costs/", views.allocate_costs, name="allocate_costs"),
 ]
 

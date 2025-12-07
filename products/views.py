@@ -4,6 +4,8 @@ from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from typing import List, Dict, Any
+from decimal import Decimal
+from datetime import date
 import logging
 import io
 from openpyxl import Workbook
@@ -12,6 +14,12 @@ from openpyxl.styles import Font, Alignment
 from core.sapo_client import get_sapo_client
 from products.services.sapo_product_service import SapoProductService
 from products.services.dto import ProductDTO, ProductVariantDTO
+from products.models import (
+    ContainerTemplate,
+    ContainerTemplateSupplier,
+    SumPurchaseOrder,
+    SPOPurchaseOrder
+)
 from products.brand_settings import (
     get_disabled_brands,
     is_brand_enabled,
@@ -1603,6 +1611,8 @@ def sales_forecast_list(request: HttpRequest):
         "variants": [],
         "total": 0,
         "days": 7,  # Mặc định 7 ngày
+        "brands_map": {},  # Khởi tạo brands_map để tránh lỗi template
+        "brand_filter": None,  # Khởi tạo brand_filter
     }
     
     try:
@@ -1614,6 +1624,12 @@ def sales_forecast_list(request: HttpRequest):
         # Lấy số ngày từ query param (mặc định 7)
         days = int(request.GET.get('days', 7))
         context["days"] = days
+        
+        # Lấy brand filter từ query param (mặc định None = tất cả)
+        brand_filter = request.GET.get('brand', '').strip()
+        if brand_filter == 'all' or not brand_filter:
+            brand_filter = None
+        context["brand_filter"] = brand_filter
         
         # KHÔNG force refresh mặc định - chỉ load từ metadata
         # Chỉ refresh khi bấm nút "Refresh Data"
@@ -1641,6 +1657,44 @@ def sales_forecast_list(request: HttpRequest):
                 if variant_id:
                     variant_to_product[variant_id] = product
         
+        # Collect brands từ SUPPLIERS ĐANG HOẠT ĐỘNG (nhanh hơn, chỉ lấy active suppliers)
+        # Học từ suppliers page: lấy suppliers active, rồi lấy brands từ đó
+        from products.services.sapo_supplier_service import SapoSupplierService
+        supplier_service = SapoSupplierService(sapo_client)
+        
+        print(f"[DEBUG] [VIEW] Lấy suppliers đang hoạt động...")
+        active_suppliers = supplier_service.get_all_suppliers(status="active")
+        
+        # Tạo set các brand names từ suppliers (code và name, case-insensitive)
+        active_brand_names = set()
+        for supplier in active_suppliers:
+            if supplier.code:
+                active_brand_names.add(supplier.code.upper())
+            if supplier.name:
+                active_brand_names.add(supplier.name.upper())
+        
+        print(f"[DEBUG] [VIEW] Có {len(active_suppliers)} suppliers đang hoạt động, {len(active_brand_names)} brand names")
+        
+        # Collect brands từ variants, nhưng CHỈ giữ lại những brands có trong suppliers active
+        all_brands_map = {}
+        for variant_id, variant_data in all_variants_map.items():
+            # Ưu tiên lấy brand từ product_data, fallback về variant_data
+            product_data = variant_to_product.get(variant_id)
+            brand = ""
+            if product_data:
+                brand = product_data.get("brand") or ""
+            if not brand:
+                brand = variant_data.get("brand") or ""
+            brand = brand.strip()
+            
+            # CHỈ đếm nếu brand có trong suppliers active (case-insensitive)
+            if brand and brand.upper() in active_brand_names:
+                all_brands_map[brand] = all_brands_map.get(brand, 0) + 1
+        
+        print(f"[DEBUG] [VIEW] ✅ Đã collect {len(all_brands_map)} brands (chỉ từ suppliers active) từ {len(all_variants_map)} variants")
+        if all_brands_map:
+            print(f"[DEBUG] [VIEW] Brands: {list(all_brands_map.keys())[:10]}")
+        
         variants_data = []
         processed = 0
         for variant_id, forecast in forecast_map.items():
@@ -1662,6 +1716,13 @@ def sales_forecast_list(request: HttpRequest):
         
         print(f"[DEBUG] [VIEW] ✅ Đã lấy thông tin cho {len(variants_data)} variants ({time.time() - view_start:.2f}s)")
         
+        # Filter theo brand (server-side)
+        total_before_filter = len(variants_data)
+        if brand_filter:
+            print(f"[DEBUG] [VIEW] Filter theo brand: {brand_filter}")
+            variants_data = [v for v in variants_data if v.get("brand", "").strip() == brand_filter]
+            print(f"[DEBUG] [VIEW] Sau khi filter: {len(variants_data)}/{total_before_filter} variants")
+        
         # Sắp xếp mặc định: theo days_remaining (tăng dần - nguy hiểm nhất trước)
         print(f"[DEBUG] [VIEW] Sắp xếp danh sách...")
         sort_start = time.time()
@@ -1673,12 +1734,993 @@ def sales_forecast_list(request: HttpRequest):
         
         context["variants"] = variants_data
         context["total"] = len(variants_data)
+        context["brands_map"] = all_brands_map  # Tất cả brands để hiển thị filter buttons
+        # Convert dict thành sorted list để dễ iterate trong template
+        context["brands_list"] = sorted(all_brands_map.items(), key=lambda x: x[0])  # Sort theo tên brand
+        
+        # Debug: Log brands_map để kiểm tra
+        print(f"[DEBUG] [VIEW] brands_map có {len(all_brands_map)} brands: {list(all_brands_map.keys())[:10]}...")
+        print(f"[DEBUG] [VIEW] Context brands_map type: {type(context.get('brands_map'))}, size: {len(context.get('brands_map', {}))}")
+        print(f"[DEBUG] [VIEW] brands_list có {len(context['brands_list'])} items")
         
     except Exception as e:
         logger.error(f"Error in sales_forecast_list: {e}", exc_info=True)
         context["error"] = str(e)
+        # Đảm bảo brands_map luôn có trong context (ngay cả khi lỗi)
+        if "brands_map" not in context:
+            context["brands_map"] = {}
     
     return render(request, "products/sales_forecast_list.html", context)
+
+
+# ========================= CONTAINER TEMPLATE =========================
+
+@admin_only
+def container_template_list(request: HttpRequest):
+    """
+    Danh sách INIT CONTAINER.
+    """
+    context = {
+        "title": "Quản lý Container Template",
+        "templates": [],
+        "total": 0,
+    }
+
+    try:
+        templates = ContainerTemplate.objects.filter(is_active=True).order_by('code')
+        # Preload suppliers và format money cho mỗi template
+        for template in templates:
+            template.suppliers_list = list(template.suppliers.all().order_by('supplier_name'))
+            
+            # Format avg_total_amount (e.g. 1.200.000.000 -> 1B2, 300.000.000 -> 300M)
+            val = template.avg_total_amount or 0
+            if val >= 1_000_000_000:
+                billions = int(val // 1_000_000_000)
+                remainder = int((val % 1_000_000_000) // 100_000_000)
+                if remainder > 0:
+                    template.formatted_avg_total = f"{billions}B{remainder}"
+                else:
+                    template.formatted_avg_total = f"{billions}B"
+            elif val >= 1_000_000:
+                millions = int(val // 1_000_000)
+                template.formatted_avg_total = f"{millions}M"
+            else:
+                template.formatted_avg_total = f"{int(val):,}"
+
+        context["templates"] = templates
+        context["total"] = templates.count()
+    except Exception as e:
+        logger.error(f"Error in container_template_list: {e}", exc_info=True)
+        context["error"] = str(e)
+
+    return render(request, "products/container_template_list.html", context)
+
+
+@admin_only
+def container_template_detail(request: HttpRequest, template_id: int):
+    """
+    Chi tiết INIT CONTAINER.
+    """
+    context = {
+        "title": "Chi tiết Container Template",
+        "template": None,
+        "suppliers": [],
+    }
+    
+    try:
+        from products.services.container_template_service import ContainerTemplateService
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        template_data = template_service.get_template_with_suppliers(template_id)
+        context["template"] = template_data["template"]
+        context["suppliers"] = template_data["suppliers"]
+    except ContainerTemplate.DoesNotExist:
+        context["error"] = "Container template không tồn tại"
+    except Exception as e:
+        logger.error(f"Error in container_template_detail: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/container_template_detail.html", context)
+
+
+@admin_only
+@require_POST
+def create_container_template(request: HttpRequest):
+    """
+    API endpoint để tạo container template mới.
+    
+    POST data:
+    - code: str (required)
+    - name: str (optional)
+    - container_type: str (default: "40ft")
+    - volume_cbm: float (default: 65.0)
+    - default_supplier_id: int (optional)
+    - ship_time_avg_hn: int (default: 0)
+    - ship_time_avg_hcm: int (default: 0)
+    - departure_port: str (optional)
+    
+    Returns:
+        JSON: {status, message, template_id, template_code}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        from products.services.container_template_service import ContainerTemplateService
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        # Thêm created_by
+        data['created_by'] = request.user
+        
+        template = template_service.create_template(data)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã tạo container template {template.code}",
+            "template_id": template.id,
+            "template_code": template.code
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in create_container_template: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def update_container_template(request: HttpRequest, template_id: int):
+    """
+    API endpoint để cập nhật container template.
+    
+    POST data:
+    - name, container_type, volume_cbm, etc.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        from products.services.container_template_service import ContainerTemplateService
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        template = template_service.update_template(template_id, data)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã cập nhật container template {template.code}"
+        })
+        
+    except ContainerTemplate.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "Container template không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in update_container_template: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def add_supplier_to_container(request: HttpRequest):
+    """
+    API endpoint để thêm supplier vào container template.
+    
+    POST data:
+    - container_template_id: int
+    - supplier_id: int (Sapo supplier_id)
+    
+    Returns:
+        JSON: {status, message, supplier_data}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        template_id = int(data.get('container_template_id'))
+        supplier_id = int(data.get('supplier_id'))
+        
+        from products.services.container_template_service import ContainerTemplateService
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        template_supplier = template_service.add_supplier(template_id, supplier_id)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã thêm supplier {template_supplier.supplier_name} vào container template",
+            "container_template_id": template_id,
+            "supplier": {
+                "id": template_supplier.supplier_id,
+                "code": template_supplier.supplier_code,
+                "name": template_supplier.supplier_name,
+                "logo_path": template_supplier.supplier_logo_path
+            },
+            "supplier_data": {
+                "id": template_supplier.supplier_id,
+                "code": template_supplier.supplier_code,
+                "name": template_supplier.supplier_name,
+                "logo_path": template_supplier.supplier_logo_path
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_supplier_to_container: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def set_default_supplier(request: HttpRequest, template_id: int):
+    """
+    API endpoint để đặt NSX mặc định cho container template.
+    
+    POST data:
+    - supplier_id: int (Sapo supplier_id, có thể null để xóa)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        supplier_id = data.get('supplier_id')
+        if supplier_id:
+            supplier_id = int(supplier_id)
+        else:
+            supplier_id = None
+        
+        template = ContainerTemplate.objects.get(id=template_id)
+        
+        # Kiểm tra supplier có trong danh sách suppliers của template không
+        if supplier_id:
+            supplier_exists = template.suppliers.filter(supplier_id=supplier_id).exists()
+            if not supplier_exists:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Supplier này chưa được thêm vào container template"
+                }, status=400)
+            
+            # Lấy thông tin supplier từ ContainerTemplateSupplier
+            template_supplier = template.suppliers.get(supplier_id=supplier_id)
+            template.default_supplier_id = supplier_id
+            template.default_supplier_code = template_supplier.supplier_code
+            template.default_supplier_name = template_supplier.supplier_name
+        else:
+            # Xóa default supplier
+            template.default_supplier_id = None
+            template.default_supplier_code = ''
+            template.default_supplier_name = ''
+        
+        template.save()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã {'đặt' if supplier_id else 'xóa'} NSX mặc định cho container template {template.code}"
+        })
+        
+    except ContainerTemplate.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "Container template không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in set_default_supplier: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+def get_suppliers_for_select(request: HttpRequest):
+    """
+    API endpoint để lấy danh sách suppliers với logo (cho select dropdown).
+    
+    Returns:
+        JSON: {status, suppliers: [{id, code, name, logo_path}, ...]}
+    """
+    try:
+        from products.services.sapo_supplier_service import SapoSupplierService
+        
+        sapo_client = get_sapo_client()
+        supplier_service = SapoSupplierService(sapo_client)
+        
+        # Lấy tất cả suppliers đang hoạt động
+        all_suppliers = supplier_service.get_all_suppliers(status="active")
+        
+        # Convert to simple dict
+        suppliers_data = []
+        for supplier in all_suppliers:
+            suppliers_data.append({
+                "id": supplier.id,
+                "code": supplier.code,
+                "name": supplier.name,
+                "logo_path": supplier.logo_path or "",
+            })
+        
+        # Sort by name
+        suppliers_data.sort(key=lambda x: x["name"])
+        
+        return JsonResponse({
+            "status": "success",
+            "suppliers": suppliers_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_suppliers_for_select: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def remove_supplier_from_container(request: HttpRequest):
+    """
+    API endpoint để xóa supplier khỏi container template.
+    
+    POST data:
+    - container_template_id: int
+    - supplier_id: int
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        template_id = int(data.get('container_template_id'))
+        supplier_id = int(data.get('supplier_id'))
+        
+        from products.services.container_template_service import ContainerTemplateService
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        template_service.remove_supplier(template_id, supplier_id)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Đã xóa supplier khỏi container template"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in remove_supplier_from_container: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+# ========================= SUM PURCHASE ORDER (SPO) =========================
+
+@admin_only
+def sum_purchase_order_list(request: HttpRequest):
+    """
+    Danh sách SPO.
+    """
+    context = {
+        "title": "Quản lý Đợt Nhập Container (SPO)",
+        "spos": [],
+        "total": 0,
+        "container_templates": [],
+        "status_choices": SumPurchaseOrder.STATUS_CHOICES,
+    }
+    
+    try:
+        # Lấy container templates để hiển thị trong form tạo SPO
+        context["container_templates"] = ContainerTemplate.objects.filter(is_active=True).order_by('code')
+        
+        # Get all SPOs
+        from django.db.models import Count
+        from products.services.spo_po_service import SPOPOService
+        
+        spos = SumPurchaseOrder.objects.select_related('container_template') \
+            .prefetch_related('spo_purchase_orders') \
+            .annotate(
+                po_count=Count('spo_purchase_orders', distinct=True)
+            ).order_by('-created_at')
+        
+        # Tính toán động từ Sapo cho mỗi SPO
+        sapo_client = get_sapo_client()
+        spo_po_service = SPOPOService(sapo_client)
+        
+        for spo in spos:
+            po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all()]
+            if po_ids:
+                try:
+                    # Tính tổng amount và quantity từ Sapo
+                    total_amount = Decimal('0')
+                    total_quantity = 0
+                    for po_id in po_ids:
+                        po_data = spo_po_service.get_po_from_sapo(po_id)
+                        total_amount += po_data.get('total_amount', Decimal('0'))
+                        total_quantity += po_data.get('total_quantity', 0)
+                    
+                    # Gán vào SPO object (không lưu DB, chỉ để hiển thị)
+                    spo.total_po_amount_val = total_amount
+                    spo.total_po_quantity_val = total_quantity
+                except Exception as e:
+                    logger.warning(f"Error calculating totals for SPO {spo.id}: {e}")
+                    spo.total_po_amount_val = Decimal('0')
+                    spo.total_po_quantity_val = 0
+            else:
+                spo.total_po_amount_val = Decimal('0')
+                spo.total_po_quantity_val = 0
+        
+        context["spos"] = spos
+        context["total"] = spos.count()
+    except Exception as e:
+        logger.error(f"Error in sum_purchase_order_list: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/sum_purchase_order_list.html", context)
+
+
+@admin_only
+def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
+    """
+    Chi tiết SPO.
+    """
+    context = {
+        "title": "Chi tiết Đợt Nhập Container",
+        "spo": None,
+        "purchase_orders": [],
+        "line_items": [],
+    }
+    
+    try:
+        from products.services.sum_purchase_order_service import SumPurchaseOrderService
+        from products.services.spo_po_service import SPOPOService
+        
+        spo = SumPurchaseOrder.objects.select_related('container_template').get(id=spo_id)
+        context["spo"] = spo
+        
+        # Lấy danh sách PO IDs từ SPOPurchaseOrder
+        spo_po_relations = spo.spo_purchase_orders.all()
+        po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo_po_relations]
+        
+        # Lấy thông tin PO từ Sapo API (mỗi lần load)
+        sapo_client = get_sapo_client()
+        spo_po_service = SPOPOService(sapo_client)
+        
+        purchase_orders_data = []
+        all_line_items = []
+        total_quantity = 0
+        total_amount = Decimal('0')
+        total_packages = 0
+        
+        for po_id in po_ids:
+            try:
+                po_data = spo_po_service.get_po_from_sapo(po_id)
+                # Lấy thông tin từ SPOPurchaseOrder relation
+                spo_po_rel = spo_po_relations.get(sapo_order_supplier_id=po_id)
+                
+                po_data['domestic_shipping_cn'] = spo_po_rel.domestic_shipping_cn
+                po_data['expected_production_date'] = spo_po_rel.expected_production_date
+                po_data['expected_delivery_date'] = spo_po_rel.expected_delivery_date
+                
+                purchase_orders_data.append(po_data)
+                all_line_items.extend(po_data.get('line_items', []))
+                total_quantity += po_data.get('total_quantity', 0)
+                total_amount += po_data.get('total_amount', Decimal('0'))
+                total_packages += po_data.get('total_quantity', 0)  # Giả định 1 item = 1 package
+            except Exception as e:
+                logger.warning(f"Error getting PO {po_id}: {e}")
+        
+        context["purchase_orders"] = purchase_orders_data
+        context["line_items"] = all_line_items
+        context["total_packages"] = total_packages
+        context["total_quantity"] = total_quantity
+        context["total_amount"] = total_amount
+        
+        # Tính lại total_cbm của SPO
+        spo_service = SumPurchaseOrderService(sapo_client)
+        spo_service._recalculate_spo_cbm(spo)
+        spo.refresh_from_db()
+        
+        # Lấy ngày dự kiến từ warehouse stage trong timeline
+        warehouse_planned_date = None
+        if spo.timeline:
+            warehouse_stage_name = None
+            if spo.destination_port == 'hcm':
+                warehouse_stage_name = 'arrived_warehouse_hcm'
+            elif spo.destination_port == 'haiphong':
+                warehouse_stage_name = 'arrived_warehouse_hn'
+            
+            if warehouse_stage_name:
+                for stage in spo.timeline:
+                    if stage.get('stage') == warehouse_stage_name and stage.get('planned_date'):
+                        from datetime import datetime
+                        try:
+                            # Parse date string YYYY-MM-DD
+                            d_str = stage['planned_date']
+                            if 'T' in d_str:
+                                warehouse_planned_date = datetime.fromisoformat(d_str.replace('Z', '+00:00'))
+                            else:
+                                warehouse_planned_date = datetime.strptime(d_str, '%Y-%m-%d')
+                        except:
+                            pass
+                        break
+        
+        context["warehouse_planned_date"] = warehouse_planned_date
+        
+        # Tính tổng chi phí chung
+        total_common_costs = (
+            spo.shipping_cn_vn +
+            spo.customs_processing_vn +
+            spo.other_costs +
+            spo.port_to_warehouse +
+            spo.loading_unloading
+        )
+        context["total_common_costs"] = total_common_costs
+    except SumPurchaseOrder.DoesNotExist:
+        context["error"] = "SPO không tồn tại"
+    except Exception as e:
+        logger.error(f"Error in sum_purchase_order_detail: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/sum_purchase_order_detail.html", context)
+
+
+@admin_only
+@require_POST
+def create_sum_purchase_order(request: HttpRequest):
+    """
+    API endpoint để tạo SPO mới.
+    
+    POST data:
+    - container_template_id: int (required)
+    - name: str (optional)
+    - destination_port: str ('hcm' hoặc 'haiphong', optional)
+    - expected_arrival_date: str (YYYY-MM-DD format, optional)
+    
+    Returns:
+        JSON: {status, message, spo_id, spo_code}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        container_template_id = int(data.get('container_template_id'))
+        name = data.get('name', '').strip() or None
+        destination_port = data.get('destination_port', '').strip() or None
+        expected_arrival_date = data.get('expected_arrival_date', '').strip() or None
+        
+        from products.services.sum_purchase_order_service import SumPurchaseOrderService
+        
+        sapo_client = get_sapo_client()
+        spo_service = SumPurchaseOrderService(sapo_client)
+        
+        spo = spo_service.create_spo(
+            container_template_id, 
+            name=name,
+            destination_port=destination_port,
+            expected_arrival_date=expected_arrival_date
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã tạo SPO {spo.code}",
+            "spo_id": spo.id,
+            "spo_code": spo.code
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in create_sum_purchase_order: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def add_po_to_spo(request: HttpRequest):
+    """
+    API endpoint để thêm PO vào SPO.
+    
+    POST data:
+    - spo_id: int (required)
+    - po_ids: List[int] (optional) - Sapo order_supplier IDs
+    - tag: str (optional) - Tag để tìm PO
+    
+    Returns:
+        JSON: {status, message, added_count}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo_id = int(data.get('spo_id'))
+        po_ids = data.get('po_ids', [])
+        tag = data.get('tag', '').strip() or None
+        domestic_shipping_cn = data.get('domestic_shipping_cn')
+        expected_production_date = data.get('expected_production_date')
+        expected_delivery_date = data.get('expected_delivery_date')
+        
+        # Convert po_ids to list of ints
+        if po_ids and isinstance(po_ids, str):
+            import ast
+            po_ids = ast.literal_eval(po_ids)
+        if po_ids:
+            po_ids = [int(pid) for pid in po_ids]
+        
+        # Parse dates
+        prod_date = None
+        deliv_date = None
+        if expected_production_date:
+            try:
+                prod_date = date.fromisoformat(expected_production_date)
+            except:
+                pass
+        if expected_delivery_date:
+            try:
+                deliv_date = date.fromisoformat(expected_delivery_date)
+            except:
+                pass
+        
+        # Parse domestic_shipping_cn
+        shipping_cn = Decimal('0')
+        if domestic_shipping_cn:
+            try:
+                shipping_cn = Decimal(str(domestic_shipping_cn))
+            except:
+                pass
+        
+        from products.services.sum_purchase_order_service import SumPurchaseOrderService
+        
+        sapo_client = get_sapo_client()
+        spo_service = SumPurchaseOrderService(sapo_client)
+        
+        spo = spo_service.add_po_to_spo(
+            spo_id, 
+            po_ids=po_ids, 
+            tag=tag,
+            domestic_shipping_cn=shipping_cn,
+            expected_production_date=prod_date,
+            expected_delivery_date=deliv_date
+        )
+        
+        added_count = spo.spo_purchase_orders.count()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã thêm {added_count} PO vào SPO {spo.code}",
+            "added_count": added_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_po_to_spo: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def sync_po_from_sapo(request: HttpRequest):
+    """
+    API endpoint để lấy thông tin PO từ Sapo API (không lưu DB).
+    
+    POST data:
+    - po_id: int (Sapo order_supplier_id) hoặc
+    - tag: str (lấy tất cả PO có tag)
+    
+    Returns:
+        JSON: {status, message, po_data hoặc po_list}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        po_id = data.get('po_id')
+        tag = data.get('tag', '').strip() or None
+        
+        from products.services.sum_purchase_order_service import SumPurchaseOrderService
+        
+        sapo_client = get_sapo_client()
+        spo_service = SumPurchaseOrderService(sapo_client)
+        
+        from products.services.spo_po_service import SPOPOService
+        spo_po_service = SPOPOService(sapo_client)
+        
+        synced_count = 0
+        
+        if po_id:
+            # Lấy 1 PO từ Sapo
+            po_id = int(po_id)
+            try:
+                po_data = spo_po_service.get_po_from_sapo(po_id)
+                return JsonResponse({
+                    "status": "success",
+                    "message": f"Đã lấy thông tin PO {po_data.get('code')}",
+                    "po_data": po_data
+                })
+            except Exception as e:
+                return JsonResponse({
+                    "status": "error",
+                    "message": str(e)
+                }, status=400)
+        elif tag:
+            # Lấy tất cả PO có tag từ Sapo
+            response = sapo_client.core.list_order_suppliers_raw(tags=tag, limit=250)
+            order_suppliers = response.get('order_suppliers', [])
+            po_ids = [os.get('id') for os in order_suppliers if os.get('id')]
+            
+            po_list = []
+            for po_id in po_ids:
+                try:
+                    po_data = spo_po_service.get_po_from_sapo(po_id)
+                    po_list.append(po_data)
+                    synced_count += 1
+                except Exception as e:
+                    logger.warning(f"Error getting PO {po_id}: {e}")
+            
+            return JsonResponse({
+                "status": "success",
+                "message": f"Đã lấy {synced_count} PO từ Sapo",
+                "po_list": po_list,
+                "synced_count": synced_count
+            })
+        else:
+            return JsonResponse({
+                "status": "error",
+                "message": "Phải cung cấp po_id hoặc tag"
+            }, status=400)
+        
+    except Exception as e:
+        logger.error(f"Error in sync_po_from_sapo: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def update_spo_status(request: HttpRequest):
+    """
+    API endpoint để cập nhật trạng thái SPO.
+    
+    POST data:
+    - spo_id: int
+    - status: str
+    - actual_date: str (ISO datetime, optional)
+    - note: str (optional)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        from datetime import datetime
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo_id = int(data.get('spo_id'))
+        new_status = data.get('status')
+        actual_date_str = data.get('actual_date', '').strip()
+        note = data.get('note', '').strip()
+        
+        spo = SumPurchaseOrder.objects.get(id=spo_id)
+        
+        # Validate status
+        valid_statuses = [choice[0] for choice in SumPurchaseOrder.STATUS_CHOICES]
+        if new_status not in valid_statuses:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Status không hợp lệ. Phải là một trong: {', '.join(valid_statuses)}"
+            }, status=400)
+        
+        # Parse actual_date nếu có
+        actual_date = None
+        if actual_date_str:
+            try:
+                actual_date = datetime.fromisoformat(actual_date_str.replace('Z', '+00:00'))
+            except ValueError:
+                actual_date = None
+        
+        # Update status
+        spo.update_status(new_status, actual_date=actual_date, note=note)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã cập nhật trạng thái SPO {spo.code} thành {spo.get_status_display()}"
+        })
+        
+    except SumPurchaseOrder.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "SPO không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in update_spo_status: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def update_timeline_planned_date(request: HttpRequest):
+    """
+    API endpoint để cập nhật planned_date cho một stage trong timeline.
+    
+    POST data:
+    - spo_id: int
+    - stage: str (stage name)
+    - planned_date: str (YYYY-MM-DD format)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        from datetime import date
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo_id = int(data.get('spo_id'))
+        stage_name = data.get('stage')
+        planned_date_str = data.get('planned_date', '').strip()
+        
+        if not stage_name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Stage name là bắt buộc"
+            }, status=400)
+        
+        if not planned_date_str:
+            return JsonResponse({
+                "status": "error",
+                "message": "Planned date là bắt buộc"
+            }, status=400)
+        
+        spo = SumPurchaseOrder.objects.get(id=spo_id)
+        
+        # Parse planned_date
+        try:
+            planned_date = date.fromisoformat(planned_date_str)
+        except ValueError:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Ngày không hợp lệ: {planned_date_str}. Vui lòng dùng format YYYY-MM-DD"
+            }, status=400)
+        
+        # Tìm và cập nhật stage trong timeline
+        stage_found = False
+        for stage in spo.timeline:
+            if stage.get('stage') == stage_name:
+                stage['planned_date'] = planned_date.isoformat()
+                stage_found = True
+                break
+        
+        if not stage_found:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Stage '{stage_name}' không tồn tại trong timeline"
+            }, status=400)
+        
+        spo.save()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã cập nhật ngày dự kiến cho stage {stage_name}"
+        })
+        
+    except SumPurchaseOrder.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "SPO không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in update_timeline_planned_date: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def allocate_costs(request: HttpRequest):
+    """
+    API endpoint để phân bổ chi phí chung của SPO.
+    
+    POST data:
+    - spo_id: int
+    
+    Returns:
+        JSON: {status, message, allocation_details}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo_id = int(data.get('spo_id'))
+        
+        from products.services.sum_purchase_order_service import SumPurchaseOrderService
+        
+        sapo_client = get_sapo_client()
+        spo_service = SumPurchaseOrderService(sapo_client)
+        
+        result = spo_service.calculate_cost_allocation(spo_id)
+        
+        return JsonResponse(result)
+        
+    except Exception as e:
+        logger.error(f"Error in allocate_costs: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
 
 
 @admin_only

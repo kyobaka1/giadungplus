@@ -106,6 +106,35 @@ class BaseRepository(ABC):
                 if path.startswith("orders") or path.startswith("variants"):
                     logger.info(f"[PERF] API {method} {path}: {response.status_code} in {request_time:.2f}s")
                 
+                # Xử lý 401 Unauthorized - token có thể đã hết hạn
+                if response.status_code == 401:
+                    logger.warning(f"[BaseRepository] Got 401 Unauthorized for {method} {path} (attempt {attempt + 1}/{retry})")
+                    
+                    # Chỉ xử lý 401 ở lần attempt đầu tiên để tránh vòng lặp vô hạn
+                    if attempt == 0:
+                        # Gọi handler nếu có (subclass có thể override _handle_401)
+                        if hasattr(self, '_handle_401') and callable(getattr(self, '_handle_401')):
+                            logger.info(f"[BaseRepository] Calling _handle_401() to refresh token...")
+                            handled = self._handle_401(response, method, path, **kwargs)
+                            
+                            if handled:
+                                # Token đã được refresh, retry request
+                                logger.info(f"[BaseRepository] Token refreshed, retrying request (attempt {attempt + 2}/{retry})...")
+                                time.sleep(2)  # Đợi một chút để token được apply
+                                continue  # Retry request
+                            else:
+                                # Handler không xử lý được, raise error
+                                logger.error(f"[BaseRepository] _handle_401() returned False, raising HTTPError")
+                                response.raise_for_status()
+                        else:
+                            # Không có handler, raise error như bình thường
+                            logger.error(f"[BaseRepository] No _handle_401() handler, raising HTTPError")
+                            response.raise_for_status()
+                    else:
+                        # Đã retry rồi mà vẫn 401, raise error
+                        logger.error(f"[BaseRepository] Still getting 401 after token refresh attempt, raising HTTPError")
+                        response.raise_for_status()
+                
                 return response
                 
             except requests.Timeout as e:
@@ -160,7 +189,9 @@ class BaseRepository(ABC):
             Response JSON as dict
         """
         response = self._request('GET', path, **kwargs)
-        response.raise_for_status()
+        # Chỉ raise nếu không phải 401 (401 đã được xử lý trong _request)
+        if response.status_code != 401:
+            response.raise_for_status()
         
         try:
             return response.json()
@@ -181,7 +212,9 @@ class BaseRepository(ABC):
             Response JSON as dict
         """
         response = self._request('POST', path, **kwargs)
-        response.raise_for_status()
+        # Chỉ raise nếu không phải 401 (401 đã được xử lý trong _request)
+        if response.status_code != 401:
+            response.raise_for_status()
         
         try:
             return response.json()
@@ -200,7 +233,9 @@ class BaseRepository(ABC):
             Response JSON as dict
         """
         response = self._request('PUT', path, **kwargs)
-        response.raise_for_status()
+        # Chỉ raise nếu không phải 401 (401 đã được xử lý trong _request)
+        if response.status_code != 401:
+            response.raise_for_status()
         
         try:
             return response.json()
@@ -219,7 +254,9 @@ class BaseRepository(ABC):
             Response JSON as dict
         """
         response = self._request('DELETE', path, **kwargs)
-        response.raise_for_status()
+        # Chỉ raise nếu không phải 401 (401 đã được xử lý trong _request)
+        if response.status_code != 401:
+            response.raise_for_status()
         
         try:
             return response.json()
@@ -239,5 +276,7 @@ class BaseRepository(ABC):
             requests.Response object
         """
         response = self._request('GET', path, **kwargs)
-        response.raise_for_status()
+        # Chỉ raise nếu không phải 401 (401 đã được xử lý trong _request)
+        if response.status_code != 401:
+            response.raise_for_status()
         return response

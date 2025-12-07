@@ -219,6 +219,13 @@
                                 <span class="text-xs md:text-[10px] text-gray-500">{{ supplier_count|default:0 }}</span>
                             </a>
                         </li>
+                        <li>
+                            <a href="{% url 'products:container_template_list' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Container INIT</span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
 
@@ -240,6 +247,14 @@
                                class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
                                 <span class="truncate">Dự báo: Sản phẩm</span>
+                            </a>
+                        </li>
+                        
+                        <li>
+                            <a href="{% url 'products:sum_purchase_order_list' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Đợt Nhập (SPO)</span>
                             </a>
                         </li>
                     </ul>

@@ -46,7 +46,41 @@
                 </div>
             </div>
             
-            <!-- Tìm kiếm nhanh (bao gồm NSX) -->
+            <!-- Bộ lọc Nhà sản xuất (Server-side) -->
+            <div class="mb-3">
+                <div class="flex items-center justify-between mb-1">
+                    <label class="text-xs text-slate-600 font-medium">Nhà sản xuất:</label>
+                    {% if brand_filter %}
+                        <a href="?days={{ days }}" 
+                           class="text-[11px] text-red-600 hover:text-red-700 font-medium underline">
+                            ✕ Xóa bộ lọc
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                    <div id="filter-brand-container" class="flex flex-wrap gap-1.5">
+                        {% if brands_list %}
+                            {% for brand, count in brands_list %}
+                                <a href="?days={{ days }}&brand={{ brand|urlencode }}" 
+                                   class="filter-btn filter-brand-btn px-2 py-0.5 rounded-full border text-[13px] text-slate-700 font-medium hover:bg-slate-100 transition {% if brand_filter == brand %}active bg-brandlight text-brand border-brand{% else %}bg-slate-50 border-slate-300{% endif %}">
+                                    {{ brand }} ({{ count }})
+                                </a>
+                            {% endfor %}
+                        {% elif brands_map %}
+                            {% for brand, count in brands_map.items %}
+                                <a href="?days={{ days }}&brand={{ brand|urlencode }}" 
+                                   class="filter-btn filter-brand-btn px-2 py-0.5 rounded-full border text-[13px] text-slate-700 font-medium hover:bg-slate-100 transition {% if brand_filter == brand %}active bg-brandlight text-brand border-brand{% else %}bg-slate-50 border-slate-300{% endif %}">
+                                    {{ brand }} ({{ count }})
+                                </a>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-xs text-slate-400">Không có nhà sản xuất</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tìm kiếm nhanh -->
             <div>
                 <label class="text-xs text-slate-600 font-medium mb-1 block">Tìm kiếm:</label>
                 <input type="text" 
@@ -447,7 +481,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // ========== SEARCH FUNCTIONALITY (Tối ưu - cache rowText) ==========
+    // ========== SEARCH FUNCTIONALITY (Client-side - chỉ filter trong danh sách đã load) ==========
     let rowTextCache = new Map(); // Cache rowText để tránh re-compute
     
     function cacheRowTexts() {

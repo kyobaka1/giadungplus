@@ -107,11 +107,11 @@ class SalesForecastService:
         print(f"[DEBUG] [BƯỚC 3] Khởi tạo forecast map...")
         forecast_map: Dict[int, SalesForecastDTO] = {}
         for variant_id in all_variants_map.keys():
-            forecast_map[variant_id] = SalesForecastDTO(
-                variant_id=variant_id,
-                period_days=days,
-                calculated_at=now.isoformat()
-            )
+                forecast_map[variant_id] = SalesForecastDTO(
+                    variant_id=variant_id,
+                    period_days=days,
+                    calculated_at=now.isoformat()
+                )
         print(f"[DEBUG] [BƯỚC 3] ✅ Hoàn thành ({time.time() - step_start:.2f}s)")
         print(f"[DEBUG]        Đã khởi tạo {len(forecast_map)} forecast entries\n")
         
@@ -185,7 +185,8 @@ class SalesForecastService:
             response = self.sapo_client.core.list_products_raw(
                 page=page,
                 limit=limit,
-                status="active"
+                status="active",
+                product_types="normal"  # Chỉ lấy products có type = normal (loại bỏ packed, combo)
             )
             
             products_data = response.get("products", [])
@@ -498,7 +499,7 @@ class SalesForecastService:
                 forecast_dto.growth_percentage = forecast_db.growth_percentage
                 if forecast_db.calculated_at:
                     forecast_dto.calculated_at = forecast_db.calculated_at.isoformat()
-                loaded_count += 1
+                            loaded_count += 1
         
         print(f"[DEBUG]        └─ ✅ Tổng cộng load {loaded_count} forecasts từ Database ({time.time() - step_start:.2f}s)")
         logger.info(f"[SalesForecastService] Loaded {loaded_count} forecasts from Database")
@@ -641,8 +642,8 @@ class SalesForecastService:
         try:
             # Nếu không có variant_data, fetch từ API (fallback)
             if not variant_data:
-                variant_response = self.sapo_client.core.get_variant_raw(variant_id)
-                variant_data = variant_response.get("variant", {})
+            variant_response = self.sapo_client.core.get_variant_raw(variant_id)
+            variant_data = variant_response.get("variant", {})
             
             # Lấy tồn kho từ 2 kho (dùng available - có thể bán, không phải on_hand)
             inventories = variant_data.get("inventories", [])

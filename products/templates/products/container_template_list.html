@@ -1,0 +1,472 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{{ title }}</h1>
+            <p class="text-sm text-slate-500 mt-1">Quản lý các mẫu container (Init Container) để tái sử dụng</p>
+        </div>
+        <div>
+            <button type="button" 
+                    id="create-template-btn"
+                    class="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition shadow-sm font-medium flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                <span>Tạo Mẫu Container</span>
+            </button>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    {% if error %}
+    <div class="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <span class="text-sm font-medium">{{ error }}</span>
+    </div>
+    {% endif %}
+
+    <!-- Templates Grid -->
+    {% if templates %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for template in templates %}
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200 group relative flex flex-col h-full" data-template-id="{{ template.id }}">
+            <!-- Header Color Strip -->
+            <div class="h-1 w-full absolute top-0 left-0 rounded-t-xl
+                {% if template.container_type == '40ft' %}bg-blue-500{% else %}bg-emerald-500{% endif %}">
+            </div>
+
+            <!-- Header -->
+            <div class="p-5 border-b border-slate-100 flex items-start justify-between">
+                <div>
+                    <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                        <a href="{% url 'products:container_template_detail' template.id %}" class="hover:text-brand transition-colors">
+                            {{ template.code }}
+                        </a>
+                    </h3>
+                    {% if template.name %}
+                    <p class="text-sm text-slate-500 mt-0.5">{{ template.name }}</p>
+                    {% else %}
+                    <p class="text-sm text-slate-400 italic mt-0.5">Chưa đặt tên</p>
+                    {% endif %}
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border
+                    {% if template.container_type == '40ft' %}bg-blue-50 text-blue-700 border-blue-100{% else %}bg-emerald-50 text-emerald-700 border-emerald-100{% endif %}">
+                    {{ template.get_container_type_display }}
+                </span>
+            </div>
+
+            <!-- Body -->
+            <div class="p-5 flex-1 flex flex-col gap-4">
+                <!-- Basic Specs & Financials -->
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider block mb-1">Thể tích</span>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xl font-bold text-slate-700">{{ template.volume_cbm|floatformat:1 }}</span>
+                            <span class="text-[10px] text-slate-500 font-bold">CBM</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider block mb-1">Giá trị</span>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xl font-bold text-amber-600">{{ template.formatted_avg_total|default:"0" }}</span>
+                            <span class="text-[10px] text-slate-500 font-bold">VNĐ</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider block mb-1">Chu kỳ</span>
+                        <div class="flex items-baseline gap-1">
+                            <span class="text-xl font-bold text-indigo-600">{{ template.avg_import_cycle_days|default:"--" }}</span>
+                            <span class="text-[10px] text-slate-500 font-bold">ngày</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Route Visual -->
+                <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 relative overflow-hidden">
+                    <div class="flex items-center justify-between relative z-10">
+                        <!-- Departure -->
+                        <div class="flex flex-col items-center min-w-[60px]">
+                            <span class="text-[10px] text-slate-400 font-bold uppercase mb-1">Cảng đi</span>
+                            <span class="text-xs font-bold text-slate-700 truncate max-w-[80px]" title="{{ template.departure_port }}">
+                                {{ template.departure_port|default:"TQ" }}
+                            </span>
+                        </div>
+                        
+                        <!-- Path -->
+                        <div class="flex-1 px-2 flex flex-col items-center">
+                            <!-- Visual Line -->
+                            <div class="w-full border-t border-dashed border-slate-300 relative top-2.5"></div>
+                            
+                            <!-- Ship Time Info -->
+                            <div class="relative bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-sm z-20 mt-1 flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                </svg>
+                                <span class="text-[9px] font-bold text-slate-600 whitespace-nowrap">Đường biển</span>
+                            </div>
+                        </div>
+
+                        <!-- Arrival -->
+                        <div class="flex flex-col items-start gap-1 min-w-[70px]">
+                            <div class="flex items-center justify-between w-full">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">HN</span>
+                                <span class="text-xs font-bold text-slate-700">{{ template.ship_time_avg_hn }}d</span>
+                            </div>
+                            <div class="flex items-center justify-between w-full">
+                                <span class="text-[10px] text-slate-400 font-bold uppercase">HCM</span>
+                                <span class="text-xs font-bold text-slate-700">{{ template.ship_time_avg_hcm }}d</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Suppliers / Packer -->
+                <div class="mt-1">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider">NSX đóng container</span>
+                        <button type="button" class="add-supplier-btn text-[10px] text-emerald-600 font-bold hover:underline"
+                                data-template-id="{{ template.id }}"
+                                data-template-code="{{ template.code }}">
+                            + Thêm
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        {% if template.suppliers_list %}
+                            <!-- Primary Supplier (Packed By) -->
+                            {% if template.default_supplier_id %}
+                                {% for supplier in template.suppliers_list %}
+                                    {% if supplier.supplier_id == template.default_supplier_id %}
+                                    <div class="flex items-center gap-3 p-2 bg-emerald-50 border border-emerald-100 rounded-lg group/sup relative">
+                                        <!-- Logo -->
+                                        <div class="w-8 h-8 rounded bg-white flex items-center justify-center overflow-hidden border border-emerald-100 shrink-0">
+                                            {% if supplier.supplier_logo_path %}
+                                                <img src="{{ supplier.supplier_logo_path }}" alt="{{ supplier.supplier_name }}" class="w-full h-full object-contain">
+                                            {% else %}
+                                                <span class="text-xs font-bold text-emerald-600">{{ supplier.supplier_name|slice:":1" }}</span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-bold text-emerald-800 truncate">{{ supplier.supplier_name }}</div>
+                                            <div class="text-[9px] text-emerald-600 font-medium">MAIN SUPPLIER</div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="p-2 border border-dashed border-red-300 bg-red-50 rounded-lg text-center cursor-pointer hover:bg-red-100 transition" 
+                                     onclick="alert('Vui lòng chọn NSX đóng container từ danh sách bên dưới hoặc thêm mới')">
+                                    <span class="text-xs text-red-500 font-medium">Chưa chọn NSX đóng cont</span>
+                                </div>
+                            {% endif %}
+
+                            <!-- Other Suppliers -->
+                            {% if template.suppliers_list|length > 1 or not template.default_supplier_id %}
+                            <div class="pl-2 pt-1 border-l-2 border-slate-100 ml-1 space-y-1">
+                                {% for supplier in template.suppliers_list %}
+                                    {% if supplier.supplier_id != template.default_supplier_id %}
+                                    <div class="flex items-center justify-between group/item">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xs text-slate-600 truncate max-w-[140px]" title="{{ supplier.supplier_name }}">{{ supplier.supplier_name }}</span>
+                                        </div>
+                                        <button class="text-[10px] text-slate-400 hover:text-emerald-600 opacity-0 group-hover/item:opacity-100 transition set-default-btn"
+                                                data-template-id="{{ template.id }}"
+                                                data-supplier-id="{{ supplier.supplier_id }}"
+                                                title="Đặt làm NSX đóng container">
+                                            Đặt chính
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="text-center py-3 text-xs text-slate-400 italic bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                                Chưa có NSX nào liên kết
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="p-4 bg-slate-50 border-t border-slate-100 rounded-b-xl flex justify-between items-center text-xs">
+                <span class="text-slate-500">
+                    Cycle: <span class="font-bold text-slate-700">{{ template.avg_import_cycle_days|default:"--" }}</span> days
+                </span>
+                <a href="{% url 'products:container_template_detail' template.id %}" class="font-bold text-indigo-600 hover:text-indigo-700 hover:underline">
+                    Quản lý chi tiết →
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
+        <div class="mx-auto h-20 w-20 text-slate-200 mb-4 bg-slate-50 rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+        </div>
+        <h3 class="text-lg font-medium text-slate-900">Chưa có mẫu container nào</h3>
+        <p class="mt-1 text-slate-500 text-sm">Tạo mẫu container để chuẩn hóa quy trình nhập hàng và tính toán chi phí.</p>
+        <button type="button" 
+                onclick="document.getElementById('create-template-btn').click()"
+                class="mt-6 inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none">
+            <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Tạo ngay
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Supplier Modal -->
+<div id="add-supplier-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-2">Thêm Nhà Sản Xuất vào Template</h3>
+            <p class="text-xs text-slate-500 mb-4 bg-slate-100 px-2 py-1 rounded inline-block">Container: <span id="modal-template-code" class="font-bold text-slate-700"></span></p>
+            <form id="add-supplier-form">
+                <input type="hidden" name="container_template_id" id="modal-template-id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Chọn Nhà Sản Xuất</label>
+                        <select name="supplier_id" id="supplier-select" required
+                                class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <option value="">-- Đang tải danh sách... --</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400 mt-1">Chọn NSX để liên kết với mẫu container này.</p>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" id="cancel-add-supplier-btn"
+                            class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg">
+                        Hủy
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm">
+                        Thêm Liên Kết
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Create Template Modal -->
+<div id="create-template-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-xl font-bold text-slate-800 mb-1">Tạo Container Template mới</h3>
+            <p class="text-sm text-slate-500 mb-6">Thiết lập thông số chuẩn cho container</p>
+            
+            <form id="create-template-form">
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Mã Container <span class="text-red-500">*</span></label>
+                            <input type="text" name="code" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 font-mono placeholder:text-slate-300" placeholder="VD: CONT-NINGBO-40">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Tên mô tả</label>
+                            <input type="text" name="name" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500" placeholder="VD: Container Ningbo Thường">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Loại Container</label>
+                            <select name="container_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                                <option value="40ft">40 feet (Tiêu chuẩn)</option>
+                                <option value="20ft">20 feet</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">Thể tích (CBM)</label>
+                            <input type="number" name="volume_cbm" step="0.1" value="65.0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Cảng xuất phát</label>
+                        <input type="text" name="departure_port" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500" placeholder="VD: Ningbo, Shanghai, Guangzhou...">
+                    </div>
+
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Thời gian vận chuyển TB (Ngày)</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Về Hà Nội (HN)</label>
+                                <input type="number" name="ship_time_avg_hn" value="7" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1">Về Hồ Chí Minh (HCM)</label>
+                                <input type="number" name="ship_time_avg_hcm" value="9" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 flex justify-end gap-3">
+                    <button type="button" id="cancel-create-btn"
+                            class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg">
+                        Hủy bỏ
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm">
+                        Tạo Template
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ========== 1. CREATE MODAL LOGIC ==========
+    const createBtn = document.getElementById('create-template-btn');
+    const createModal = document.getElementById('create-template-modal');
+    const createForm = document.getElementById('create-template-form');
+    
+    if (createBtn) createBtn.addEventListener('click', () => createModal.classList.remove('hidden'));
+    document.getElementById('cancel-create-btn')?.addEventListener('click', () => {
+        createModal.classList.add('hidden');
+        createForm.reset();
+    });
+
+    if (createForm) {
+        createForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(createForm));
+            
+            // Simple loading state
+            const btn = createForm.querySelector('button[type="submit"]');
+            const originalText = btn.innerText;
+            btn.innerText = 'Đang tạo...';
+            btn.disabled = true;
+
+            fetch('{% url "products:create_container_template" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') window.location.reload();
+                else { alert('Lỗi: ' + data.message); btn.innerText = originalText; btn.disabled = false; }
+            });
+        });
+    }
+
+    // ========== 2. ADD SUPPLIER MODAL LOGIC ==========
+    const addSupModal = document.getElementById('add-supplier-modal');
+    const addSupForm = document.getElementById('add-supplier-form');
+    let suppliersLoaded = false;
+
+    // Load suppliers once
+    function ensureSuppliersLoaded() {
+        if(suppliersLoaded) return;
+        const select = document.getElementById('supplier-select');
+        fetch('{% url "products:get_suppliers_for_select" %}')
+            .then(r => r.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    select.innerHTML = '<option value="">-- Chọn Nhà Sản Xuất --</option>';
+                    data.suppliers.forEach(s => {
+                        const opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.textContent = `${s.name} (${s.code})`;
+                        select.appendChild(opt);
+                    });
+                    suppliersLoaded = true;
+                }
+            });
+    }
+
+    document.querySelectorAll('.add-supplier-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tId = btn.getAttribute('data-template-id');
+            const tCode = btn.getAttribute('data-template-code');
+            document.getElementById('modal-template-id').value = tId;
+            document.getElementById('modal-template-code').innerText = tCode;
+            ensureSuppliersLoaded();
+            addSupModal.classList.remove('hidden');
+        });
+    });
+
+    document.getElementById('cancel-add-supplier-btn')?.addEventListener('click', () => {
+        addSupModal.classList.add('hidden');
+        addSupForm.reset();
+    });
+
+    if (addSupForm) {
+        addSupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const data = Object.fromEntries(new FormData(addSupForm));
+            data.supplier_id = parseInt(data.supplier_id);
+            data.container_template_id = parseInt(data.container_template_id);
+            
+            fetch('{% url "products:add_supplier_to_container" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') { 
+                    window.location.reload(); 
+                } else alert(d.message);
+            });
+        });
+    }
+
+    // ========== 3. SET DEFAULT SUPPLIER LOGIC ==========
+    document.querySelectorAll('.set-default-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if(!confirm('Đặt nhà sản xuất này làm "NSX Đóng Container" (Default)?')) return;
+            
+            const tId = this.getAttribute('data-template-id');
+            const sId = this.getAttribute('data-supplier-id');
+            
+            fetch(`/products/container-templates/${tId}/set-default-supplier/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({ supplier_id: parseInt(sId) })
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') window.location.reload();
+                else alert(d.message);
+            });
+        });
+    });
+
+    // Close modals on click outside
+    [createModal, addSupModal].forEach(m => {
+        if(m) m.addEventListener('click', (e) => { if(e.target === m) m.classList.add('hidden'); });
+    });
+});
+</script>
+
+<style>
+/* Custom animations */
+@keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.animate-scaleIn { animation: scaleIn 0.2s ease-out forwards; }
+</style>
+{% endblock %}
