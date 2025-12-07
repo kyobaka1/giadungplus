@@ -141,7 +141,7 @@
         </div>
     </div>
 
-    <!-- Timeline Tracking -->
+    <!-- Timeline Tracking (Redesigned) -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <div class="flex items-center justify-between mb-8">
             <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
@@ -154,131 +154,55 @@
             </button>
         </div>
 
-            <!-- Loading Bar Timeline Container -->
-            <div class="relative w-full px-2 pt-6 pb-8">
-                <div class="w-full relative">
-                    <!-- The Bar (Background) -->
-                    <div class="absolute bottom-2.5 left-0 w-full h-4 bg-slate-800 rounded-full shadow-inner z-0 border border-slate-700"></div>
+        <!-- Clean Step Progress -->
+        <div class="relative w-full px-4 pt-4 pb-2">
+            <!-- Fixed Phases: Created -> Sent to Supplier -> Packed -> Departed CN -> Arrived VN -> Completed -->
+            {% with steps="created:Tạo SPO,sent_to_supplier:Gửi NSX,packed:Đóng Cont,departed_cn:Rời Cảng,arrived_vn:Về VN,completed:Hoàn Tất" %}
+            <div class="relative flex justify-between items-center w-full z-10">
+                <!-- Background Line -->
+                <div class="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
+                
+                <!-- Active Line (Calculated in JS or simple CSS based on active index) -->
+                <div id="active-line" class="absolute top-1/2 left-0 h-1 bg-blue-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-700" style="width: 0%;"></div>
+
+                {% for pair in steps.split|slice:"," %}
+                {% with code=pair.split|first label=pair.split|last %}
+                
+                <!-- Step Item -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300 transform hover:-translate-y-1"
+                     data-stage="{{ code }}"
+                     data-label="{{ label }}">
                     
-                    <!-- The Bar (Progress Fill) -->
-                    <div class="absolute bottom-2.5 left-0 h-4 bg-gradient-to-r from-emerald-600 to-green-400 rounded-full z-0 shadow-[0_0_10px_rgba(74,222,128,0.5)] transition-all duration-1000" id="progress-bar-fill">
-                        <div class="absolute inset-0 bg-white/20 skew-x-12 w-full animate-shimmer hidden"></div>
-                    </div>
-                    
-                    <!-- Loading Text -->
-                    <div class="absolute -bottom-5 left-1/2 -translate-x-1/2 font-bold text-slate-400 tracking-widest text-[10px] z-10 w-full text-center pointer-events-none">
-                        LOADING... <span id="progress-text-percent">0%</span>
+                    <!-- Circle Node -->
+                    <div class="w-8 h-8 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm
+                        node-circle
+                        border-slate-300 text-slate-300">
+                        <!-- Icon Placeholder (Check or Dot) -->
+                        <svg class="w-4 h-4 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="w-2 h-2 rounded-full bg-current icon-dot"></span>
                     </div>
 
-                    <!-- Steps Container -->
-                    <div class="relative z-10 flex justify-between items-end w-full px-2 h-36">
-                        {% load spo_tags %}
-                        {% for stage in spo.timeline %}
-                        {% if stage.stage == 'arrived_warehouse_hn' and spo.destination_port == 'hcm' %}
-                            {# Skip #}
-                        {% elif stage.stage == 'arrived_warehouse_hcm' and spo.destination_port == 'haiphong' %}
-                            {# Skip #}
-                        {% else %}
+                    <!-- Label -->
+                    <div class="absolute top-10 text-center w-32 flex flex-col items-center">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label">{{ label }}</span>
                         
-                        <!-- Timeline Item -->
-                        <div class="timeline-step flex-1 group flex flex-col items-center justify-end h-full relative" 
-                             data-stage="{{ stage.stage }}"
-                             data-status="{% if stage.actual_date %}completed{% elif stage.stage == spo.status %}current{% else %}pending{% endif %}">
-                            
-                            <!-- 1. Content Card (Top) -->
-                            <div class="mb-2 flex flex-col items-center w-full relative transition-transform duration-300 hover:-translate-y-1">
-                                
-                                <!-- Stage Name -->
-                                <div class="text-[10px] font-extrabold uppercase text-slate-500 mb-1 tracking-wider text-center h-6 leading-tight flex items-center justify-center px-1">
-                                    {% if stage.stage == 'created' %}Tạo SPO
-                                    {% elif stage.stage == 'supplier_confirmed' %}NSX xác nhận
-                                    {% elif stage.stage == 'producing' %}Đang SX
-                                    {% elif stage.stage == 'waiting_packing' %}Chờ đóng
-                                    {% elif stage.stage == 'packed' %}Đã đóng
-                                    {% elif stage.stage == 'departed_cn' %}Rời TQ
-                                    {% elif stage.stage == 'arrived_vn' %}Về VN
-                                    {% elif stage.stage == 'customs_cleared' %}Thông quan
-                                    {% elif stage.stage == 'arrived_warehouse_hn' %}Về Kho HN
-                                    {% elif stage.stage == 'arrived_warehouse_hcm' %}Về Kho HCM
-                                    {% else %}{{ stage.stage|title }}{% endif %}
-                                </div>
-                                
-                                <!-- Detailed Info -->
-                                <div class="flex flex-col items-center gap-1 w-full">
-                                    
-                                    <!-- CASE 1: Has ACTUAL DATE -->
-                                    {% if stage.actual_date %}
-                                        <!-- Calculate status -->
-                                        {% if stage.planned_date %}
-                                            {% calculate_date_status stage.planned_date stage.actual_date as status %}
-                                        {% endif %}
-
-                                        <!-- Main Actual Date (Big Green) -->
-                                        <div class="flex flex-col items-center">
-                                            <span class="text-sm font-black text-emerald-600 leading-none">
-                                                {{ stage.actual_date|slice:":10"|date:"d/m" }}
-                                            </span>
-                                            <span class="text-[9px] text-emerald-500 font-bold uppercase mt-0.5">
-                                                {{ stage.actual_date|slice:":10"|date:"d-m-Y" }}
-                                            </span>
-                                        </div>
-
-                                        <!-- Status Tag (Late/Early) -->
-                                        {% if status %}
-                                        <div class="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold border {{ status.color_class }} whitespace-nowrap">
-                                            {{ status.status_label }}
-                                        </div>
-                                        {% endif %}
-
-                                    <!-- CASE 2: No ACTUAL, Only PLANNED -->
-                                    {% elif stage.planned_date %}
-                                        <!-- Calculate Deadline Status -->
-                                        {% calculate_deadline_status stage.planned_date as deadline %}
-                                        
-                                        <!-- Planned Date Display -->
-                                        <div class="flex flex-col items-center group/date-edit cursor-pointer planned-date-display"
-                                             data-stage="{{ stage.stage }}"
-                                             data-date="{{ stage.planned_date|slice:":10" }}">
-                                            <span class="text-sm font-bold {{ deadline.color_class|default:'text-slate-600' }} leading-none">
-                                                {{ stage.planned_date|slice:":10"|date:"d/m" }}
-                                                {% if deadline.is_overdue %}
-                                                <span class="inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse ml-0.5" title="Overdue"></span>
-                                                {% endif %}
-                                            </span>
-                                            <span class="text-[9px] text-slate-400 font-bold uppercase mt-0.5 group-hover/date-edit:text-blue-500 transition-colors">Dự kiến</span>
-                                        </div>
-
-                                        <!-- Deadline Tag -->
-                                        {% if deadline %}
-                                        <div class="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold border {{ deadline.bg_class }} {{ deadline.color_class }} whitespace-nowrap">
-                                            {{ deadline.status_label }}
-                                        </div>
-                                        {% endif %}
-                                    
-                                    <!-- CASE 3: No Dates -->
-                                    {% else %}
-                                        <button class="text-slate-300 hover:text-blue-500 text-[20px] leading-none add-planned-date-btn w-full text-center" data-stage="{{ stage.stage }}">+</button>
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <!-- 2. Vertical Connector Line -->
-                            <div class="w-px h-6 bg-slate-300 group-hover:bg-emerald-400 transition-colors mb-1"></div>
-
-                            <!-- 3. Node on Bar (Bottom) -->
-                            <div class="w-3 h-3 rounded-full border-2 border-slate-900 bg-slate-700 z-20 transition-all duration-300
-                                {% if stage.actual_date %}bg-emerald-400 border-slate-800 scale-125 shadow-[0_0_8px_rgba(74,222,128,0.8)]
-                                {% elif stage.stage == spo.status %}bg-white border-emerald-500 scale-150 animate-pulse
-                                {% else %}bg-slate-700{% endif %} relative group/node">
-                                
-                            </div>
-
+                        <!-- Dates Display -->
+                        <div class="mt-1 flex flex-col items-center gap-0.5 min-h-[30px] node-date-container">
+                            <!-- JS will inject dates here -->
                         </div>
-                        {% endif %}
-                        {% endfor %}
                     </div>
                 </div>
+
+                {% endwith %}
+                {% endfor %}
             </div>
+            {% endwith %}
+        </div>
+        
+        <!-- Spacing for labels -->
+        <div class="h-16"></div>
     </div>
 
     <!-- Main Content Grid -->
@@ -546,63 +470,124 @@
 document.addEventListener('DOMContentLoaded', function() {
     const spoId = parseInt('{{ spo.id|default:0 }}');
 
-    // === TIMELINE LOGIC ===
-    const progressBar = document.getElementById('progress-bar-fill');
-    const progressText = document.getElementById('progress-text-percent');
+    // === TIMELINE LOGIC (Redesigned) ===
+    const activeLine = document.getElementById('active-line');
+    const nodes = document.querySelectorAll('.timeline-node');
     
-    // Status Logic
-    const totalSteps = document.querySelectorAll('.timeline-step').length;
-    const completedSteps = document.querySelectorAll('.timeline-step[data-status="completed"]').length;
-    const currentStepIndex = Array.from(document.querySelectorAll('.timeline-step')).findIndex(el => el.getAttribute('data-status') === 'current');
+    // Config: Fixed Order
+    const stagesOrder = ['created', 'sent_to_supplier', 'packed', 'departed_cn', 'arrived_vn', 'completed'];
     
-    let progressPercent = 0;
-    if(totalSteps > 1) {
-        let activeIndex = completedSteps; // Start with completed count
-        if(currentStepIndex > -1) activeIndex = currentStepIndex; // If there is a current step, use its index (0-based)
-        
-        // Logic: 
-        // If 10 steps, indices 0..9. 
-        // If step 0 is current, progress is 0%.
-        // If step 9 is current, progress is 100%.
-        // But we want "filled" up to the current node.
-        
-        // If pure completed count:
-        // 5 completed out of 10 => 50%?
-        // Let's stick to index-based for smoother alignment with nodes
-        if(currentStepIndex > -1) {
-             progressPercent = (currentStepIndex / (totalSteps - 1)) * 100;
-        } else {
-             // If no current (all completed?), use completed count
-             if(completedSteps === totalSteps) progressPercent = 100;
-             else progressPercent = (completedSteps / totalSteps) * 100;
-        }
-    }
+    // Current Status from DB (injected via template)
+    const currentStatus = '{{ spo.status }}';
     
-    if(progressBar) {
-        const pct = Math.max(0, Math.min(100, progressPercent));
-        progressBar.style.width = pct + '%';
-        if(progressText) progressText.innerText = Math.round(pct) + '%';
-        
-        // Show shimmer if in progress
-        if(pct > 0 && pct < 100) {
-            progressBar.querySelector('.animate-shimmer')?.classList.remove('hidden');
-        }
+    // Mapping Timeline Data
+    // We need to map actual/planned dates from spo.timeline (JSON) to our fixed nodes
+    const timelineData = {};
+    {% for stage in spo.timeline %}
+        timelineData['{{ stage.stage }}'] = {
+            planned: '{{ stage.planned_date|default:"" }}',
+            actual: '{{ stage.actual_date|default:"" }}',
+            note: `{{ stage.note|escapejs }}`
+        };
+    {% endfor %}
+
+    // Determine Active Index based on Status
+    let activeIndex = stagesOrder.indexOf(currentStatus);
+    if(activeIndex === -1) {
+        if(currentStatus === 'draft') activeIndex = -1;
+        else activeIndex = 0; // Default or fallback
     }
 
+    // Render Nodes
+    nodes.forEach((node, index) => {
+        const stageCode = node.dataset.stage;
+        const circle = node.querySelector('.node-circle');
+        const iconCheck = node.querySelector('.icon-check');
+        const iconDot = node.querySelector('.icon-dot');
+        const label = node.querySelector('.node-label');
+        const dateContainer = node.querySelector('.node-date-container');
+        
+        // Data for this stage
+        const stageData = timelineData[stageCode] || {};
+        const isCompleted = index <= activeIndex;
+        const isFuture = index > activeIndex;
+        
+        // 1. Style Node
+        if (index < activeIndex) {
+            // Completed Past
+            circle.classList.add('bg-blue-500', 'border-blue-500', 'text-white');
+            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-300');
+            iconCheck.classList.remove('hidden');
+            iconDot.classList.add('hidden');
+            label.classList.add('text-blue-600');
+            label.classList.remove('text-slate-400');
+        } else if (index === activeIndex) {
+            // Current Active
+            circle.classList.add('bg-white', 'border-blue-500', 'text-blue-500', 'ring-4', 'ring-blue-100');
+            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-300');
+            iconCheck.classList.add('hidden');
+            iconDot.classList.remove('hidden', 'bg-slate-300');
+            iconDot.classList.add('bg-blue-500', 'w-3', 'h-3'); // Larger dot
+            label.classList.add('text-blue-600', 'font-extrabold');
+            label.classList.remove('text-slate-400');
+        } else {
+            // Future
+            // Default styles are fine
+        }
+        
+        // 2. Render Dates
+        let dateHtml = '';
+        
+        // ACTUAL DATE
+        if (stageData.actual) {
+            const dateObj = new Date(stageData.actual);
+            const dateStr = dateObj.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'});
+            dateHtml += `<span class="text-[10px] font-bold text-slate-700">${dateStr}</span>`;
+        } 
+        // PLANNED DATE (Show if no actual)
+        else if (stageData.planned) {
+            const dateObj = new Date(stageData.planned);
+            const dateStr = dateObj.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'});
+            // Check deadline
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const isLate = dateObj < today;
+            
+            const colorClass = isLate ? 'text-red-500' : 'text-slate-500';
+            dateHtml += `<span class="text-[10px] font-medium ${colorClass} cursor-pointer hover:text-blue-600 border-b border-dashed border-slate-300 hover:border-blue-500 transition-colors update-date-btn" data-stage="${stageCode}" data-date="${stageData.planned.split('T')[0]}" title="Dự kiến">${dateStr}</span>`;
+        } 
+        // NO DATE -> Add Button
+        else {
+             dateHtml += `<button class="text-slate-300 hover:text-blue-500 text-lg leading-none transition-colors update-date-btn" data-stage="${stageCode}" title="Đặt ngày dự kiến">+</button>`;
+        }
+        
+        dateContainer.innerHTML = dateHtml;
+    });
+
+    // 3. Update Line Progress
+    // We want the line to go up to the active step.
+    if (activeLine && nodes.length > 1) {
+        const progress = (activeIndex / (nodes.length - 1)) * 100;
+        activeLine.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    }
 
     // === INTERACTIVE HANDLERS ===
     
     // 1. Add Planned Date
     const plannedDateModal = document.getElementById('planned-date-modal');
-    document.querySelectorAll('.add-planned-date-btn, .planned-date-display').forEach(btn => {
-        btn.addEventListener('click', () => {
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.update-date-btn')) {
+            const btn = e.target.closest('.update-date-btn');
             const stage = btn.getAttribute('data-stage');
             const currentVal = btn.getAttribute('data-date');
+            
             document.getElementById('modal-stage').value = stage;
-            document.getElementById('modal-stage-name').textContent = stage;
+            document.getElementById('modal-stage-name').textContent = stage; // Could map to Label if needed
             if(currentVal) document.querySelector('input[name="planned_date"]').value = currentVal;
+            else document.querySelector('input[name="planned_date"]').value = ''; // Reset
+            
             plannedDateModal.classList.remove('hidden');
-        });
+        }
     });
 
     // Form: Submit Planned Date

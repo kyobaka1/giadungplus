@@ -2688,6 +2688,16 @@ def update_timeline_planned_date(request: HttpRequest):
                 "message": f"Ngày không hợp lệ: {planned_date_str}. Vui lòng dùng format YYYY-MM-DD"
             }, status=400)
         
+        # Custom Logic: Sync Expected Arrival Date
+        # Nếu stage là 'arrived_vn' hoặc 'completed', cập nhật luôn vào model field
+        if stage_name in ['arrived_vn', 'completed']:
+             spo.expected_arrival_date = planned_date
+             # Không cần lưu vào timeline JSON để tránh duplicate dữ liệu
+             # Nhưng để đảm bảo hiển thị đúng ở các chỗ khác, ta vẫn có thể lưu hoặc chỉ lưu model field.
+             # Theo yêu cầu "Bỏ 1 trong 2", ta sẽ ưu tiên lưu vào model field.
+             # Tuy nhiên, timeline cần record để hiển thị trên UI nếu UI loop qua timeline.
+             # Giải pháp: UI sẽ check model field cho stage này. Timeline chỉ lưu record để biết là đã có plan.
+             
         # Tìm và cập nhật stage trong timeline
         stage_found = False
         for stage in spo.timeline:
@@ -2696,11 +2706,14 @@ def update_timeline_planned_date(request: HttpRequest):
                 stage_found = True
                 break
         
+        # Nếu chưa có trong timeline, thêm mới (để đảm bảo hiển thị trên UI)
         if not stage_found:
-            return JsonResponse({
-                "status": "error",
-                "message": f"Stage '{stage_name}' không tồn tại trong timeline"
-            }, status=400)
+             spo.timeline.append({
+                'stage': stage_name,
+                'planned_date': planned_date.isoformat(),
+                'actual_date': None,
+                'note': ""
+            })
         
         spo.save()
         

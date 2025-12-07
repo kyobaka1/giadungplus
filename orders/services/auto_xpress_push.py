@@ -221,16 +221,10 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
     tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
     now_vn = datetime.now(tz_vn)
     
-    # Xác định location_id dựa trên HOME_PARAM
-    if HOME_PARAM == "HN":
-        location_id = KHO_GELEXIMCO
-    elif HOME_PARAM == "HCM":
-        location_id = KHO_TOKY
-    else:
-        # Nếu không xác định được, xử lý cả 2 kho
-        location_id = None
+    # Xử lý cho cả 2 location (HN và HCM) - bỏ qua filter location_id
+    location_id = None  # None = xử lý tất cả location
     
-    logger.info(f"[AUTO_XPRESS] Bắt đầu xử lý đơn hoả tốc (HOME_PARAM={HOME_PARAM}, location_id={location_id})")
+    logger.info(f"[AUTO_XPRESS] Bắt đầu xử lý đơn hoả tốc (limit={limit})...")
     
     # Service layer
     mp_service = SapoMarketplaceService()
@@ -251,8 +245,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
     mp_orders = mp_resp.get("orders", [])
     
     if not mp_orders:
-        logger.info("[AUTO_XPRESS] Không có đơn hoả tốc nào cần xử lý")
-        return {
+        summary = {
             "total": 0,
             "prepared": 0,
             "unprepared": 0,
@@ -262,8 +255,8 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             "prepare_success": 0,
             "prepare_failed": 0,
         }
-    
-    logger.info(f"[AUTO_XPRESS] Tìm thấy {len(mp_orders)} đơn hoả tốc")
+        logger.info(f"[AUTO_XPRESS] Hoàn tất:\n  - Tổng đơn: {summary['total']}\n  - Đã chuẩn bị: {summary['prepared']}\n  - Chưa chuẩn bị: {summary['unprepared']}\n  - Bị bỏ qua: {summary['skipped']}\n  - Tìm lại shipper: ✅ {summary['find_shipper_success']} | ❌ {summary['find_shipper_failed']}\n  - Chuẩn bị hàng: ✅ {summary['prepare_success']} | ❌ {summary['prepare_failed']}")
+        return summary
     
     # Phân loại đơn
     prepared_orders = []  # Đã chuẩn bị hàng (có tracking code)
@@ -277,17 +270,12 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
         sapo_order_id = order.get("sapo_order_id")
         if not sapo_order_id:
             skipped_orders.append((order, "Không có sapo_order_id"))
-            logger.debug(f"[AUTO_XPRESS] Bỏ qua đơn {channel_order_number}: không có sapo_order_id")
             continue
         
         try:
             order_dto = core_service.get_order_dto(sapo_order_id)
             
-            # Lọc theo location
-            if location_id and order_dto.location_id != location_id:
-                skipped_orders.append((order, f"Location không khớp (order.location_id={order_dto.location_id}, filter={location_id})"))
-                logger.debug(f"[AUTO_XPRESS] Bỏ qua đơn {channel_order_number}: location_id không khớp ({order_dto.location_id} != {location_id})")
-                continue
+            # Bỏ qua filter location_id - xử lý cho cả 2 location (HN và HCM)
             
             # Kiểm tra đã chuẩn bị hàng chưa
             if has_tracking_code(order_dto):
@@ -314,18 +302,15 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
                         # Nếu hơn 50 phút thì thêm vào danh sách chuẩn bị
                         if time_diff.total_seconds() > 50 * 60:  # 50 phút
                             should_prepare = True
-                            logger.debug(f"[AUTO_XPRESS] Đơn {channel_order_number} chưa chuẩn bị, đã qua {minutes_diff:.1f} phút (>50 phút)")
                         else:
                             skip_reason = f"Chưa đủ 50 phút ({minutes_diff:.1f} phút)"
                             
                     except (ValueError, AttributeError) as e:
                         # Nếu không parse được thời gian, vẫn thêm vào danh sách chuẩn bị để xử lý
                         # Vì đơn chưa có tracking code nên cần chuẩn bị
-                        logger.warning(f"[AUTO_XPRESS] Không parse được thời gian tạo đơn {channel_order_number}: {e}, vẫn thêm vào danh sách chuẩn bị")
                         should_prepare = True
                 else:
                     # Không có created_on, nhưng đơn chưa có tracking code nên vẫn cần chuẩn bị
-                    logger.warning(f"[AUTO_XPRESS] Đơn {channel_order_number} không có created_on, nhưng chưa có tracking code nên vẫn chuẩn bị")
                     should_prepare = True
                 
                 if should_prepare:
@@ -336,19 +321,8 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
         except Exception as e:
             error_msg = f"Lỗi khi xử lý: {str(e)}"
             skipped_orders.append((order, error_msg))
-            logger.warning(f"[AUTO_XPRESS] Lỗi khi xử lý đơn {channel_order_number}: {e}")
+            logger.error(f"[AUTO_XPRESS] Lỗi khi xử lý đơn {channel_order_number}: {e}", exc_info=True)
             continue
-    
-    # Log thống kê
-    logger.info(f"[AUTO_XPRESS] Phân loại: {len(prepared_orders)} đơn đã chuẩn bị, {len(unprepared_orders)} đơn chưa chuẩn bị (>50 phút), {len(skipped_orders)} đơn bị bỏ qua")
-    
-    # Log chi tiết các đơn bị bỏ qua nếu có
-    if skipped_orders:
-        logger.info(f"[AUTO_XPRESS] Danh sách đơn bị bỏ qua:")
-        for skipped_order, reason in skipped_orders[:10]:  # Chỉ log tối đa 10 đơn đầu
-            logger.info(f"  - {skipped_order.get('channel_order_number', 'N/A')}: {reason}")
-        if len(skipped_orders) > 10:
-            logger.info(f"  ... và {len(skipped_orders) - 10} đơn khác")
     
     # Xử lý đơn đã chuẩn bị: Tìm lại shipper
     find_shipper_success = 0
@@ -367,10 +341,9 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             
             if result["success"]:
                 find_shipper_success += 1
-                logger.info(f"[AUTO_XPRESS] ✅ Tìm lại shipper thành công: {order.get('channel_order_number')}")
             else:
                 find_shipper_failed += 1
-                logger.warning(f"[AUTO_XPRESS] ❌ Tìm lại shipper thất bại: {order.get('channel_order_number')} - {result['message']}")
+                logger.error(f"[AUTO_XPRESS] Tìm lại shipper thất bại cho đơn {order.get('channel_order_number')}: {result['message']}")
             
             # Delay giữa các request
             import time
@@ -378,7 +351,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             
         except Exception as e:
             find_shipper_failed += 1
-            logger.error(f"[AUTO_XPRESS] Lỗi khi tìm lại shipper: {e}", exc_info=True)
+            logger.error(f"[AUTO_XPRESS] Lỗi khi tìm lại shipper cho đơn {order.get('channel_order_number', 'N/A')}: {e}", exc_info=True)
     
     # Xử lý đơn chưa chuẩn bị: Chuẩn bị hàng
     prepare_success = 0
@@ -390,10 +363,9 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             
             if result["success"]:
                 prepare_success += 1
-                logger.info(f"[AUTO_XPRESS] ✅ Chuẩn bị hàng thành công: {order.get('channel_order_number')}")
             else:
                 prepare_failed += 1
-                logger.warning(f"[AUTO_XPRESS] ❌ Chuẩn bị hàng thất bại: {order.get('channel_order_number')} - {result['message']}")
+                logger.error(f"[AUTO_XPRESS] Chuẩn bị hàng thất bại cho đơn {order.get('channel_order_number')}: {result['message']}")
             
             # Delay giữa các request
             import time
@@ -401,7 +373,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             
         except Exception as e:
             prepare_failed += 1
-            logger.error(f"[AUTO_XPRESS] Lỗi khi chuẩn bị hàng: {e}", exc_info=True)
+            logger.error(f"[AUTO_XPRESS] Lỗi khi chuẩn bị hàng cho đơn {order.get('channel_order_number', 'N/A')}: {e}", exc_info=True)
     
     summary = {
         "total": len(mp_orders),
@@ -414,5 +386,5 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
         "prepare_failed": prepare_failed,
     }
     
-    logger.info(f"[AUTO_XPRESS] Hoàn tất: {summary}")
+    logger.info(f"[AUTO_XPRESS] Hoàn tất:\n  - Tổng đơn: {summary['total']}\n  - Đã chuẩn bị: {summary['prepared']}\n  - Chưa chuẩn bị: {summary['unprepared']}\n  - Bị bỏ qua: {summary['skipped']}\n  - Tìm lại shipper: ✅ {summary['find_shipper_success']} | ❌ {summary['find_shipper_failed']}\n  - Chuẩn bị hàng: ✅ {summary['prepare_success']} | ❌ {summary['prepare_failed']}")
     return summary
