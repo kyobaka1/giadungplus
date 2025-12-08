@@ -2290,11 +2290,22 @@ def sum_purchase_order_list(request: HttpRequest):
         from products.services.spo_po_service import SPOPOService
         from products.services.sapo_supplier_service import SapoSupplierService
         
-        spos = SumPurchaseOrder.objects.select_related('container_template') \
-            .prefetch_related('spo_purchase_orders') \
-            .annotate(
-                po_count=Count('spo_purchase_orders', distinct=True)
-            ).order_by('created_date', 'created_at')
+        # Order by created_date (nếu có) hoặc created_at (fallback)
+        # Lưu ý: Cần chạy migration 0013_sumpurchaseorder_created_date.py trên server Ubuntu
+        try:
+            spos = SumPurchaseOrder.objects.select_related('container_template') \
+                .prefetch_related('spo_purchase_orders') \
+                .annotate(
+                    po_count=Count('spo_purchase_orders', distinct=True)
+                ).order_by('created_date', 'created_at')
+        except Exception as e:
+            # Fallback nếu migration chưa chạy (created_date chưa có trong DB)
+            logger.warning(f"Ordering by created_date failed, using created_at only: {e}")
+            spos = SumPurchaseOrder.objects.select_related('container_template') \
+                .prefetch_related('spo_purchase_orders') \
+                .annotate(
+                    po_count=Count('spo_purchase_orders', distinct=True)
+                ).order_by('created_at')
         
         # Tính toán động từ Sapo cho mỗi SPO
         sapo_client = get_sapo_client()
