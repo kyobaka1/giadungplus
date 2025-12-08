@@ -36,7 +36,7 @@ class SumPurchaseOrderService:
         self.core_api = sapo_client.core
         self.spo_po_service = SPOPOService(sapo_client)
     
-    def create_spo(self, container_template_id: int, name: str = None, destination_port: str = None, expected_arrival_date: str = None) -> SumPurchaseOrder:
+    def create_spo(self, container_template_id: int, name: str = None, destination_port: str = None, expected_arrival_date: str = None, created_date: str = None) -> SumPurchaseOrder:
         """
         Tạo SPO mới với code tự động.
         
@@ -45,6 +45,7 @@ class SumPurchaseOrderService:
             name: Tên đợt nhập (optional)
             destination_port: Cảng đến ('hcm' hoặc 'haiphong')
             expected_arrival_date: Ngày dự kiến hàng về (YYYY-MM-DD format)
+            created_date: Ngày tạo SPO (YYYY-MM-DD format, optional)
         
         Returns:
             SumPurchaseOrder instance
@@ -65,6 +66,14 @@ class SumPurchaseOrderService:
                 if "phải cách" in str(e):
                     raise
                 raise ValueError(f"Ngày không hợp lệ: {expected_arrival_date}. Vui lòng dùng format YYYY-MM-DD")
+        
+        # Validate created_date
+        created_date_obj = None
+        if created_date:
+            try:
+                created_date_obj = date.fromisoformat(created_date)
+            except ValueError:
+                raise ValueError(f"Ngày tạo không hợp lệ: {created_date}. Vui lòng dùng format YYYY-MM-DD")
         
         container_template = ContainerTemplate.objects.get(id=container_template_id)
         
@@ -131,13 +140,14 @@ class SumPurchaseOrderService:
             container_template=container_template,
             status='draft',
             destination_port=destination_port or None,
-            expected_arrival_date=arrival_date
+            expected_arrival_date=arrival_date,
+            created_date=created_date_obj
         )
         
         # Initialize timeline với planned dates
         self._initialize_timeline(spo)
         
-        logger.info(f"[SumPurchaseOrderService] Created SPO: {code}, destination_port={destination_port}, expected_arrival_date={arrival_date}")
+        logger.info(f"[SumPurchaseOrderService] Created SPO: {code}, destination_port={destination_port}, expected_arrival_date={arrival_date}, created_date={created_date_obj}")
         return spo
     
     def get_po_from_sapo(self, sapo_order_supplier_id: int) -> Dict[str, Any]:

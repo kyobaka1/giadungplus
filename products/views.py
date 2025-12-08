@@ -2294,7 +2294,7 @@ def sum_purchase_order_list(request: HttpRequest):
             .prefetch_related('spo_purchase_orders') \
             .annotate(
                 po_count=Count('spo_purchase_orders', distinct=True)
-            ).order_by('-created_at')
+            ).order_by('created_date', 'created_at')
         
         # Tính toán động từ Sapo cho mỗi SPO
         sapo_client = get_sapo_client()
@@ -2683,6 +2683,7 @@ def create_sum_purchase_order(request: HttpRequest):
     - name: str (optional)
     - destination_port: str ('hcm' hoặc 'haiphong', optional)
     - expected_arrival_date: str (YYYY-MM-DD format, optional)
+    - created_date: str (YYYY-MM-DD format, optional)
     
     Returns:
         JSON: {status, message, spo_id, spo_code}
@@ -2699,6 +2700,7 @@ def create_sum_purchase_order(request: HttpRequest):
         name = data.get('name', '').strip() or None
         destination_port = data.get('destination_port', '').strip() or None
         expected_arrival_date = data.get('expected_arrival_date', '').strip() or None
+        created_date = data.get('created_date', '').strip() or None
         
         from products.services.sum_purchase_order_service import SumPurchaseOrderService
         
@@ -2709,7 +2711,8 @@ def create_sum_purchase_order(request: HttpRequest):
             container_template_id, 
             name=name,
             destination_port=destination_port,
-            expected_arrival_date=expected_arrival_date
+            expected_arrival_date=expected_arrival_date,
+            created_date=created_date
         )
         
         return JsonResponse({
