@@ -168,7 +168,7 @@ class SumPurchaseOrderService:
         po_ids: List[int] = None, 
         tag: str = None,
         domestic_shipping_cn: Decimal = None,
-        expected_production_date: date = None,
+        expected_production_date: date = None,  # Deprecated: không còn sử dụng, giữ lại để tương thích
         expected_delivery_date: date = None
     ) -> SumPurchaseOrder:
         """
@@ -178,9 +178,9 @@ class SumPurchaseOrderService:
             spo_id: SumPurchaseOrder ID
             po_ids: List Sapo order_supplier IDs (optional)
             tag: Tag để tìm PO (optional)
-            domestic_shipping_cn: Vận chuyển nội địa TQ (optional)
-            expected_production_date: Thời gian dự kiến sản xuất xong (optional)
-            expected_delivery_date: Thời gian dự kiến ship đến nơi nhận (optional)
+            domestic_shipping_cn: Vận chuyển nội địa TQ (optional) - sẽ tạo PurchaseOrderCost
+            expected_production_date: Deprecated - không còn sử dụng
+            expected_delivery_date: Thời gian dự kiến ship đến nơi nhận (optional) - lưu vào PurchaseOrder
         
         Returns:
             SumPurchaseOrder instance
@@ -196,13 +196,13 @@ class SumPurchaseOrderService:
         if not po_ids:
             raise ValueError("Must provide either po_ids or tag")
         
-        # Import PurchaseOrder model
-        from products.models import PurchaseOrder
+        # Import models
+        from products.models import PurchaseOrder, PurchaseOrderCost
         
         # Tạo SPOPurchaseOrder cho mỗi PO
         for po_id in po_ids:
             # Tìm hoặc tạo PurchaseOrder trước
-            purchase_order, _ = PurchaseOrder.objects.get_or_create(
+            purchase_order, po_created = PurchaseOrder.objects.get_or_create(
                 sapo_order_supplier_id=po_id,
                 defaults={
                     'supplier_id': 0,  # Sẽ cập nhật sau từ Sapo API
@@ -213,15 +213,27 @@ class SumPurchaseOrderService:
                 }
             )
             
+            # Cập nhật expected_delivery_date nếu có
+            if expected_delivery_date:
+                purchase_order.expected_delivery_date = expected_delivery_date
+                purchase_order.save()
+            
+            # Tạo hoặc cập nhật PurchaseOrderCost cho domestic_shipping_cn nếu có
+            if domestic_shipping_cn and domestic_shipping_cn > 0:
+                PurchaseOrderCost.objects.update_or_create(
+                    purchase_order=purchase_order,
+                    cost_type='domestic_shipping_cn',
+                    defaults={
+                        'amount_cny': domestic_shipping_cn,
+                        'description': 'Vận chuyển nội địa TQ'
+                    }
+                )
+            
             # Tạo SPOPurchaseOrder với purchase_order (ForeignKey)
+            # Lưu ý: SPOPurchaseOrder không có các trường domestic_shipping_cn, expected_production_date, expected_delivery_date
             SPOPurchaseOrder.objects.update_or_create(
                 sum_purchase_order=spo,
-                purchase_order=purchase_order,
-                defaults={
-                    'domestic_shipping_cn': domestic_shipping_cn or Decimal('0'),
-                    'expected_production_date': expected_production_date,
-                    'expected_delivery_date': expected_delivery_date,
-                }
+                purchase_order=purchase_order
             )
         
         # Tính lại total_cbm của SPO
