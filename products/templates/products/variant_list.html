@@ -133,7 +133,7 @@
                     <tbody class="bg-white divide-y divide-slate-200" id="variants-tbody">
                         {% if variants %}
                             {% for variant in variants %}
-                            <tr class="js-variant-row hover:bg-slate-50 transition"
+                            <tr class="js-variant-row hover:bg-slate-50 transition {% if variant.status != 'active' %}opacity-50{% endif %}"
                                 data-brand="{{ variant.brand|default:'' }}"
                                 data-status="{{ variant.status|default:'' }}"
                                 data-variant-id="{{ variant.id }}">
@@ -222,11 +222,11 @@
                                 <td class="px-2 py-2">
                                     {% if variant.status == "active" %}
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-green-100 text-green-800">
-                                            Hoạt động
+                                            ✓ Hoạt động
                                         </span>
                                     {% else %}
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-red-100 text-red-800">
-                                            Ngừng
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-500">
+                                            ⊗ Ngừng
                                         </span>
                                     {% endif %}
                                 </td>

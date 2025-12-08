@@ -8,8 +8,15 @@ from decimal import Decimal
 from datetime import date
 import logging
 import io
+import os
+import requests
+from PIL import Image
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
+try:
+    import xlsxwriter
+except ImportError:
+    xlsxwriter = None
 
 from core.sapo_client import get_sapo_client
 from products.services.sapo_product_service import SapoProductService
@@ -18,7 +25,12 @@ from products.models import (
     ContainerTemplate,
     ContainerTemplateSupplier,
     SumPurchaseOrder,
-    SPOPurchaseOrder
+    SPOPurchaseOrder,
+    SPOCost,
+    SPODocument,
+    PurchaseOrder,
+    PurchaseOrderCost,
+    PurchaseOrderPayment
 )
 from products.brand_settings import (
     get_disabled_brands,
@@ -111,6 +123,22 @@ def product_list(request: HttpRequest):
             if product_status:
                 statuses_set.add(product_status)
             
+            # Lấy ảnh default
+            default_image = None
+            if product.images:
+                for img in product.images:
+                    if img.is_default:
+                        default_image = img.full_path
+                        break
+                # Nếu không có ảnh default, lấy ảnh đầu tiên
+                if not default_image and len(product.images) > 0:
+                    default_image = product.images[0].full_path
+            
+            # Parse tags
+            tags_list = []
+            if product.tags:
+                tags_list = [tag.strip() for tag in product.tags.split(',') if tag.strip()]
+            
             products_data.append({
                 "id": product.id,
                 "name": product.name,
@@ -122,6 +150,8 @@ def product_list(request: HttpRequest):
                 "created_on": product.created_on,
                 "modified_on": product.modified_on,
                 "gdp_metadata": product.gdp_metadata,
+                "image_url": default_image,
+                "tags": tags_list,
             })
 
         context["products"] = products_data
@@ -1610,7 +1640,6 @@ def sales_forecast_list(request: HttpRequest):
         "title": "Dự báo bán hàng & Cảnh báo tồn kho",
         "variants": [],
         "total": 0,
-        "days": 7,  # Mặc định 7 ngày
         "brands_map": {},  # Khởi tạo brands_map để tránh lỗi template
         "brand_filter": None,  # Khởi tạo brand_filter
     }
@@ -1621,29 +1650,34 @@ def sales_forecast_list(request: HttpRequest):
         sapo_client = get_sapo_client()
         forecast_service = SalesForecastService(sapo_client)
         
-        # Lấy số ngày từ query param (mặc định 7)
-        days = int(request.GET.get('days', 7))
-        context["days"] = days
-        
         # Lấy brand filter từ query param (mặc định None = tất cả)
         brand_filter = request.GET.get('brand', '').strip()
         if brand_filter == 'all' or not brand_filter:
             brand_filter = None
         context["brand_filter"] = brand_filter
         
-        # KHÔNG force refresh mặc định - chỉ load từ metadata
-        # Chỉ refresh khi bấm nút "Refresh Data"
+        # KHÔNG force refresh mặc định - chỉ load từ database
+        # Chỉ refresh khi bấm nút "Sync Data"
         force_refresh = False
         
-        # Load dữ liệu từ GDP_META (không tính toán lại)
-        logger.info(f"[sales_forecast_list] Loading forecast data from GDP_META for {days} days")
-        forecast_map, all_products, all_variants_map = forecast_service.calculate_sales_forecast(
-            days=days,
+        # Load dữ liệu cho cả 30 ngày và 10 ngày
+        logger.info(f"[sales_forecast_list] Loading forecast data for 30 days and 10 days")
+        forecast_map_30, all_products_30, all_variants_map_30 = forecast_service.calculate_sales_forecast(
+            days=30,
+            force_refresh=force_refresh
+        )
+        forecast_map_10, all_products_10, all_variants_map_10 = forecast_service.calculate_sales_forecast(
+            days=10,
             force_refresh=force_refresh
         )
         
+        # Dùng all_products và all_variants_map từ 30 ngày (giống nhau)
+        all_products = all_products_30
+        all_variants_map = all_variants_map_30
+        
         # Lấy thông tin đầy đủ cho từng variant (dùng variant_data đã có sẵn)
-        print(f"[DEBUG] [VIEW] Lấy thông tin tồn kho cho {len(forecast_map)} variants...")
+        all_variant_ids = set(forecast_map_30.keys()) | set(forecast_map_10.keys())
+        print(f"[DEBUG] [VIEW] Lấy thông tin tồn kho cho {len(all_variant_ids)} variants...")
         import time
         view_start = time.time()
         
@@ -1697,22 +1731,67 @@ def sales_forecast_list(request: HttpRequest):
         
         variants_data = []
         processed = 0
-        for variant_id, forecast in forecast_map.items():
+        
+        for variant_id in all_variant_ids:
+            # Lấy forecast cho 30 ngày và 10 ngày
+            forecast_30 = forecast_map_30.get(variant_id)
+            forecast_10 = forecast_map_10.get(variant_id)
+            
             # Lấy variant_data từ map (đã có sẵn inventories)
             variant_data = all_variants_map.get(variant_id)
             product_data = variant_to_product.get(variant_id)
+            
+            # Dùng forecast_30 làm chính (hoặc forecast_10 nếu không có 30)
+            main_forecast = forecast_30 or forecast_10
+            if not main_forecast:
+                continue
+                
             variant_info = forecast_service.get_variant_forecast_with_inventory(
                 variant_id,
-                forecast_map,
+                {variant_id: main_forecast},  # Truyền map với 1 item
                 variant_data=variant_data,  # Truyền variant_data đã có sẵn
                 product_data=product_data  # Truyền product_data để lấy brand
             )
+            
+            # Tính tỉ lệ % cho 30 ngày và 10 ngày
+            if forecast_30:
+                variant_info["forecast_30"] = {
+                    "total_sold": forecast_30.total_sold,
+                    "total_sold_previous_period": forecast_30.total_sold_previous_period,
+                    "growth_percentage": forecast_30.growth_percentage,
+                    "sales_rate": forecast_30.sales_rate
+                }
+                # Tính tỉ lệ %: (hiện tại - cùng kỳ) / cùng kỳ * 100
+                if forecast_30.total_sold_previous_period > 0:
+                    variant_info["growth_percentage_30"] = ((forecast_30.total_sold - forecast_30.total_sold_previous_period) / forecast_30.total_sold_previous_period) * 100
+                else:
+                    variant_info["growth_percentage_30"] = None
+            else:
+                variant_info["forecast_30"] = None
+                variant_info["growth_percentage_30"] = None
+                
+            if forecast_10:
+                variant_info["forecast_10"] = {
+                    "total_sold": forecast_10.total_sold,
+                    "total_sold_previous_period": forecast_10.total_sold_previous_period,
+                    "growth_percentage": forecast_10.growth_percentage,
+                    "sales_rate": forecast_10.sales_rate
+                }
+                # Tính tỉ lệ %: (hiện tại - cùng kỳ) / cùng kỳ * 100
+                if forecast_10.total_sold_previous_period > 0:
+                    variant_info["growth_percentage_10"] = ((forecast_10.total_sold - forecast_10.total_sold_previous_period) / forecast_10.total_sold_previous_period) * 100
+                else:
+                    variant_info["growth_percentage_10"] = None
+            else:
+                variant_info["forecast_10"] = None
+                variant_info["growth_percentage_10"] = None
+            
             variants_data.append(variant_info)
             processed += 1
             
             # Log progress mỗi 100 variants
             if processed % 100 == 0:
-                print(f"[DEBUG] [VIEW] Đã xử lý {processed}/{len(forecast_map)} variants...")
+                print(f"[DEBUG] [VIEW] Đã xử lý {processed}/{len(all_variant_ids)} variants...")
         
         print(f"[DEBUG] [VIEW] ✅ Đã lấy thông tin cho {len(variants_data)} variants ({time.time() - view_start:.2f}s)")
         
@@ -1771,6 +1850,9 @@ def container_template_list(request: HttpRequest):
         # Preload suppliers và format money cho mỗi template
         for template in templates:
             template.suppliers_list = list(template.suppliers.all().order_by('supplier_name'))
+            
+            # Lấy danh sách SPOs sử dụng container template này
+            template.spos_list = list(template.sum_purchase_orders.all().order_by('-created_at'))
             
             # Format avg_total_amount (e.g. 1.200.000.000 -> 1B2, 300.000.000 -> 300M)
             val = template.avg_total_amount or 0
@@ -2048,6 +2130,56 @@ def set_default_supplier(request: HttpRequest, template_id: int):
 
 
 @admin_only
+@require_POST
+def resync_container_template_stats(request: HttpRequest, template_id: int):
+    """
+    API endpoint để tính toán lại avg_total_amount và avg_import_cycle_days từ các SPO completed.
+    
+    POST /products/container-templates/{template_id}/resync-stats/
+    
+    Returns:
+        JSON: {status, message, avg_total_amount, avg_import_cycle_days, spo_count}
+    """
+    try:
+        from products.services.container_template_service import ContainerTemplateService
+        from products.models import ContainerTemplate
+        
+        template = ContainerTemplate.objects.get(id=template_id)
+        
+        sapo_client = get_sapo_client()
+        template_service = ContainerTemplateService(sapo_client)
+        
+        result = template_service.resync_template_stats(template_id)
+        
+        if result['status'] == 'success':
+            return JsonResponse({
+                "status": "success",
+                "message": result['message'],
+                "avg_total_amount": result['avg_total_amount'],
+                "avg_import_cycle_days": result['avg_import_cycle_days'],
+                "spo_count": result['spo_count']
+            })
+        else:
+            return JsonResponse({
+                "status": "warning",
+                "message": result['message'],
+                "spo_count": result['spo_count']
+            })
+            
+    except ContainerTemplate.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "Container template không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in resync_container_template_stats: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
 def get_suppliers_for_select(request: HttpRequest):
     """
     API endpoint để lấy danh sách suppliers với logo (cho select dropdown).
@@ -2174,7 +2306,7 @@ def sum_purchase_order_list(request: HttpRequest):
         supplier_map = {s.id: s for s in all_suppliers}
         
         for spo in spos:
-            po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all()]
+            po_ids = [spo_po.purchase_order.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all() if spo_po.purchase_order]
             
             # Init list supplier để hiển thị
             spo.suppliers_display_list = []
@@ -2253,14 +2385,19 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         from products.services.sum_purchase_order_service import SumPurchaseOrderService
         from products.services.spo_po_service import SPOPOService
         
-        spo = SumPurchaseOrder.objects.select_related('container_template').get(id=spo_id)
+        spo = SumPurchaseOrder.objects.select_related('container_template').prefetch_related(
+            'costs',
+            'documents'
+        ).get(id=spo_id)
         context["spo"] = spo
         
-        # Lấy danh sách PO IDs từ SPOPurchaseOrder
-        spo_po_relations = spo.spo_purchase_orders.all()
-        po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo_po_relations]
+        # Lấy danh sách PO từ SPOPurchaseOrder với đầy đủ thông tin từ PurchaseOrder model
+        spo_po_relations = spo.spo_purchase_orders.select_related('purchase_order').prefetch_related(
+            'purchase_order__costs',
+            'purchase_order__payments'
+        ).all()
         
-        # Lấy thông tin PO từ Sapo API (mỗi lần load)
+        # Lấy thông tin PO từ Sapo API và kết hợp với PurchaseOrder model
         sapo_client = get_sapo_client()
         spo_po_service = SPOPOService(sapo_client)
         
@@ -2270,15 +2407,117 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         total_amount = Decimal('0')
         total_packages = 0
         
-        for po_id in po_ids:
-            try:
-                po_data = spo_po_service.get_po_from_sapo(po_id)
-                # Lấy thông tin từ SPOPurchaseOrder relation
-                spo_po_rel = spo_po_relations.get(sapo_order_supplier_id=po_id)
+        for spo_po_rel in spo_po_relations:
+            if not spo_po_rel.purchase_order:
+                continue
                 
-                po_data['domestic_shipping_cn'] = spo_po_rel.domestic_shipping_cn
-                po_data['expected_production_date'] = spo_po_rel.expected_production_date
-                po_data['expected_delivery_date'] = spo_po_rel.expected_delivery_date
+            po = spo_po_rel.purchase_order
+            po_id = po.sapo_order_supplier_id
+            
+            try:
+                # Lấy thông tin từ Sapo API
+                po_data = spo_po_service.get_po_from_sapo(po_id)
+                
+                # Cập nhật product_amount_cny từ Sapo API (tính từ price_tq trong metadata)
+                product_amount_cny_from_api = float(po_data.get('product_amount_cny', 0))
+                if product_amount_cny_from_api > 0:
+                    # Cập nhật vào DB nếu khác với giá trị hiện tại
+                    if po.product_amount_cny != Decimal(str(product_amount_cny_from_api)):
+                        po.product_amount_cny = Decimal(str(product_amount_cny_from_api))
+                        po.calculate_total_amount()  # Tính lại total_amount_cny
+                        po.save()
+                
+                # Bổ sung thông tin từ PurchaseOrder model
+                po_data['po_id'] = po.id
+                po_data['delivery_status'] = po.delivery_status
+                po_data['delivery_status_display'] = po.get_delivery_status_display()
+                po_data['delivery_timeline'] = po.delivery_timeline
+                po_data['expected_delivery_date'] = po.expected_delivery_date
+                # Sử dụng giá trị từ API nếu có, nếu không thì dùng từ DB
+                po_data['product_amount_cny'] = product_amount_cny_from_api if product_amount_cny_from_api > 0 else float(po.product_amount_cny)
+                po_data['total_amount_cny'] = float(po.total_amount_cny)
+                po_data['paid_amount_cny'] = float(po.paid_amount_cny)
+                po_data['remaining_amount_cny'] = float(po.total_amount_cny - po.paid_amount_cny)
+                
+                # Lấy costs và gộp theo cost_type (mỗi loại chỉ 1 dòng)
+                # Lấy total_cbm từ po_data (đã tính từ Sapo API)
+                po_total_cbm = float(po_data.get('total_cbm', 0) or 0)
+                
+                # Gộp costs theo cost_type
+                costs_by_type = {}
+                for cost in po.costs.all():
+                    cost_type = cost.cost_type
+                    if cost_type not in costs_by_type:
+                        costs_by_type[cost_type] = {
+                            'id': cost.id,  # Giữ ID đầu tiên để delete
+                            'cost_type': cost_type,
+                            'cost_type_display': cost.get_cost_type_display(),
+                            'amount_cny': Decimal('0'),
+                            'cbm': None,
+                            'description': '',  # Gộp descriptions nếu cần
+                            'cost_ids': [],  # Lưu tất cả IDs để delete
+                        }
+                    
+                    costs_by_type[cost_type]['amount_cny'] += cost.amount_cny
+                    costs_by_type[cost_type]['cost_ids'].append(cost.id)
+                    # Lấy CBM từ cost đầu tiên có CBM
+                    if not costs_by_type[cost_type]['cbm'] and cost.cbm:
+                        costs_by_type[cost_type]['cbm'] = float(cost.cbm)
+                    # Gộp description (nếu có)
+                    if cost.description:
+                        if costs_by_type[cost_type]['description']:
+                            costs_by_type[cost_type]['description'] += '; ' + cost.description
+                        else:
+                            costs_by_type[cost_type]['description'] = cost.description
+                
+                # Chuyển sang list và tính giá/m³
+                import json
+                po_data['costs'] = []
+                for cost_type, cost_data in costs_by_type.items():
+                    amount_cny = float(cost_data['amount_cny'])
+                    
+                    # Tính giá/m³: ưu tiên dùng CBM của cost, nếu không có thì dùng total_cbm của PO
+                    cbm_for_calc = None
+                    if cost_data['cbm'] and cost_data['cbm'] > 0:
+                        cbm_for_calc = cost_data['cbm']
+                    elif po_total_cbm > 0:
+                        cbm_for_calc = po_total_cbm
+                    
+                    final_cost_data = {
+                        'id': cost_data['id'],  # ID đầu tiên (để tương thích với delete)
+                        'cost_ids': cost_data['cost_ids'],  # Tất cả IDs để delete (list)
+                        'cost_ids_json': json.dumps(cost_data['cost_ids']),  # JSON string cho template
+                        'cost_type': cost_type,
+                        'cost_type_display': cost_data['cost_type_display'],
+                        'amount_cny': amount_cny,
+                        'cbm': cost_data['cbm'],
+                        'description': cost_data['description'],
+                    }
+                    
+                    if cbm_for_calc and cbm_for_calc > 0:
+                        final_cost_data['price_per_cbm'] = round(amount_cny / cbm_for_calc, 2)
+                    else:
+                        final_cost_data['price_per_cbm'] = None
+                    
+                    po_data['costs'].append(final_cost_data)
+                # Tính tổng phí từ costs
+                total_costs_cny = sum(float(cost.amount_cny) for cost in po.costs.all())
+                po_data['total_costs_cny'] = total_costs_cny
+                
+                # Lấy payments
+                po_data['payments'] = [
+                    {
+                        'id': payment.id,
+                        'payment_type': payment.payment_type,
+                        'payment_type_display': payment.get_payment_type_display(),
+                        'amount_cny': float(payment.amount_cny),
+                        'amount_vnd': float(payment.amount_vnd) if payment.amount_vnd else None,
+                        'exchange_rate': float(payment.exchange_rate) if payment.exchange_rate else None,
+                        'payment_date': payment.payment_date,
+                        'description': payment.description,
+                    }
+                    for payment in po.payments.all().order_by('-payment_date')
+                ]
                 
                 purchase_orders_data.append(po_data)
                 all_line_items.extend(po_data.get('line_items', []))
@@ -2325,15 +2564,105 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         
         context["warehouse_planned_date"] = warehouse_planned_date
         
-        # Tính tổng chi phí chung
-        total_common_costs = (
-            spo.shipping_cn_vn +
-            spo.customs_processing_vn +
-            spo.other_costs +
-            spo.port_to_warehouse +
-            spo.loading_unloading
-        )
-        context["total_common_costs"] = total_common_costs
+        # Analyze timeline stages for display
+        from datetime import datetime, timedelta
+        today = datetime.now().date()
+        stage_analysis = {}
+        
+        for stage_data in spo.timeline:
+            stage_code = stage_data.get('stage')
+            planned_date = stage_data.get('planned_date')
+            actual_date = stage_data.get('actual_date')
+            
+            analysis = {
+                'has_actual': bool(actual_date),
+                'has_planned': bool(planned_date),
+                'tag': None,
+                'tag_color': None,
+                'days_diff': None
+            }
+            
+            # Parse dates
+            planned_dt = None
+            actual_dt = None
+            
+            if planned_date:
+                try:
+                    if 'T' in planned_date:
+                        planned_dt = datetime.fromisoformat(planned_date.replace('Z', '+00:00')).date()
+                    else:
+                        planned_dt = datetime.strptime(planned_date, '%Y-%m-%d').date()
+                except: 
+                    pass
+            
+            if actual_date:
+                try:
+                    if 'T' in actual_date:
+                        actual_dt = datetime.fromisoformat(actual_date.replace('Z', '+00:00')).date()
+                    else:
+                        actual_dt = datetime.strptime(actual_date, '%Y-%m-%d').date()
+                except: 
+                    pass
+            
+            # Generate tags
+            if actual_dt:
+                # Case A: Completed
+                if planned_dt:
+                    days_diff = (actual_dt - planned_dt).days
+                    if days_diff <= 0:
+                        analysis['tag'] = 'Đúng hẹn'
+                        analysis['tag_color'] = 'emerald'
+                    else:
+                        analysis['tag'] = f'Trễ {days_diff} ngày'
+                        analysis['tag_color'] = 'red'
+                    analysis['days_diff'] = days_diff
+            elif planned_dt:
+                # Case B: Planned but not completed
+                days_diff = (planned_dt - today).days
+                if days_diff > 0:
+                    analysis['tag'] = f'Còn {days_diff} ngày'
+                    analysis['tag_color'] = 'blue'
+                elif days_diff < 0:
+                    analysis['tag'] = f'Trễ deadline {abs(days_diff)} ngày'
+                    analysis['tag_color'] = 'red'
+                else:
+                    analysis['tag'] = 'Hôm nay'
+                    analysis['tag_color'] = 'amber'
+                analysis['days_diff'] = days_diff
+            
+            stage_analysis[stage_code] = analysis
+        
+        context['stage_analysis'] = stage_analysis
+        context['today'] = today
+        
+        # Lấy SPO Costs (dynamic costs)
+        spo_costs = spo.costs.all().order_by('-created_at')
+        context["spo_costs"] = [
+            {
+                'id': cost.id,
+                'name': cost.name,
+                'amount_vnd': float(cost.amount_vnd),
+                'note': cost.note,
+                'created_at': cost.created_at,
+            }
+            for cost in spo_costs
+        ]
+        total_spo_costs = sum(float(cost.amount_vnd) for cost in spo_costs)
+        context["total_spo_costs"] = total_spo_costs
+        
+        # Lấy SPO Documents
+        spo_documents = spo.documents.all().order_by('-uploaded_at')
+        context["spo_documents"] = [
+            {
+                'id': doc.id,
+                'name': doc.name or doc.file.name.split('/')[-1],
+                'file': doc.file,
+                'file_url': doc.file.url if doc.file else None,
+                'uploaded_at': doc.uploaded_at,
+                'uploaded_by': doc.uploaded_by.username if doc.uploaded_by else None,
+            }
+            for doc in spo_documents
+        ]
     except SumPurchaseOrder.DoesNotExist:
         context["error"] = "SPO không tồn tại"
     except Exception as e:
@@ -2776,42 +3105,934 @@ def allocate_costs(request: HttpRequest):
 
 @admin_only
 @require_POST
+def add_spo_cost(request: HttpRequest):
+    """
+    API endpoint để thêm chi phí SPO.
+    
+    POST data:
+    - spo_id: int
+    - name: str
+    - amount_vnd: float
+    - note: str (optional)
+    
+    Returns:
+        JSON: {status, message, cost_id}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo_id = int(data.get('spo_id'))
+        name = data.get('name', '').strip()
+        amount_vnd = Decimal(str(data.get('amount_vnd', 0)))
+        note = data.get('note', '').strip()
+        
+        if not name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Tên chi phí không được để trống"
+            }, status=400)
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        cost = SPOCost.objects.create(
+            sum_purchase_order=spo,
+            name=name,
+            amount_vnd=amount_vnd,
+            note=note,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Thêm chi phí thành công",
+            "cost_id": cost.id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_spo_cost: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["DELETE"])
+def delete_spo_cost(request: HttpRequest, cost_id: int):
+    """
+    API endpoint để xóa chi phí SPO.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        cost = get_object_or_404(SPOCost, id=cost_id)
+        cost.delete()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Xóa chi phí thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in delete_spo_cost: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def upload_spo_document(request: HttpRequest):
+    """
+    API endpoint để upload chứng từ SPO.
+    
+    POST data (multipart/form-data):
+    - spo_id: int
+    - file: File
+    - name: str (optional)
+    
+    Returns:
+        JSON: {status, message, document_id}
+    """
+    try:
+        spo_id = int(request.POST.get('spo_id'))
+        file = request.FILES.get('file')
+        name = request.POST.get('name', '').strip()
+        
+        if not file:
+            return JsonResponse({
+                "status": "error",
+                "message": "Vui lòng chọn file"
+            }, status=400)
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        document = SPODocument.objects.create(
+            sum_purchase_order=spo,
+            file=file,
+            name=name or file.name,
+            uploaded_by=request.user if request.user.is_authenticated else None
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Upload chứng từ thành công",
+            "document_id": document.id,
+            "document_name": document.name,
+            "document_url": document.file.url if document.file else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in upload_spo_document: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["DELETE"])
+def delete_spo_document(request: HttpRequest, document_id: int):
+    """
+    API endpoint để xóa chứng từ SPO.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        document = get_object_or_404(SPODocument, id=document_id)
+        document.delete()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Xóa chứng từ thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in delete_spo_document: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def update_po_delivery_status(request: HttpRequest, po_id: int):
+    """
+    API endpoint để cập nhật trạng thái giao hàng của PO.
+    
+    POST data:
+    - delivery_status: str (ordered, sent_label, production, delivered)
+    - date: str (YYYY-MM-DD format, optional)
+    - note: str (optional)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        from datetime import datetime
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        delivery_status = data.get('delivery_status', '').strip()
+        date_str = data.get('date', '').strip()
+        note = data.get('note', '').strip()
+        
+        if not delivery_status:
+            return JsonResponse({
+                "status": "error",
+                "message": "Trạng thái không được để trống"
+            }, status=400)
+        
+        # Validate delivery_status
+        valid_statuses = ['ordered', 'sent_label', 'production', 'delivered']
+        if delivery_status not in valid_statuses:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Trạng thái không hợp lệ. Phải là một trong: {', '.join(valid_statuses)}"
+            }, status=400)
+        
+        # Parse date
+        date_obj = None
+        if date_str:
+            try:
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Định dạng ngày không hợp lệ. Phải là YYYY-MM-DD"
+                }, status=400)
+        
+        # Get PO
+        po = get_object_or_404(PurchaseOrder, id=po_id)
+        
+        # Update delivery status
+        po.update_delivery_status(delivery_status, date_obj, note)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Cập nhật trạng thái thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in update_po_delivery_status: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def add_po_cost(request: HttpRequest, po_id: int):
+    """
+    API endpoint để thêm chi phí cho PO.
+    Chi phí tự động phân bổ theo CBM của PO (không cần nhập CBM thủ công).
+    
+    POST data:
+    - cost_type: str
+    - amount_cny: float
+    - description: str (optional)
+    
+    Returns:
+        JSON: {status, message, cost_id, price_per_cbm}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        cost_type = data.get('cost_type', '').strip()
+        amount_cny = Decimal(str(data.get('amount_cny', 0)))
+        description = data.get('description', '').strip()
+        
+        if not cost_type:
+            return JsonResponse({
+                "status": "error",
+                "message": "Loại chi phí không được để trống"
+            }, status=400)
+        
+        if amount_cny <= 0:
+            return JsonResponse({
+                "status": "error",
+                "message": "Số tiền phải lớn hơn 0"
+            }, status=400)
+        
+        # Get PO
+        po = get_object_or_404(PurchaseOrder, id=po_id)
+        
+        # Lấy total_cbm của PO từ Sapo API
+        from products.services.spo_po_service import SPOPOService
+        sapo_client = get_sapo_client()
+        spo_po_service = SPOPOService(sapo_client)
+        
+        try:
+            po_data = spo_po_service.get_po_from_sapo(po.sapo_order_supplier_id)
+            total_cbm = float(po_data.get('total_cbm', 0))
+        except Exception as e:
+            logger.warning(f"Error getting PO CBM: {e}")
+            total_cbm = 0
+        
+        # Tính CBM tự động (toàn bộ CBM của PO)
+        cbm_value = Decimal(str(total_cbm)) if total_cbm > 0 else None
+        
+        # Tính giá/m³
+        price_per_cbm = None
+        if cbm_value and cbm_value > 0:
+            price_per_cbm = float(amount_cny / cbm_value)
+        
+        # Create cost
+        cost = PurchaseOrderCost.objects.create(
+            purchase_order=po,
+            cost_type=cost_type,
+            amount_cny=amount_cny,
+            cbm=cbm_value,
+            description=description,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        
+        # Update PO total_amount
+        po.calculate_total_amount()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Thêm chi phí thành công",
+            "cost_id": cost.id,
+            "price_per_cbm": round(price_per_cbm, 2) if price_per_cbm else None,
+            "cbm": float(cbm_value) if cbm_value else None
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_po_cost: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["DELETE"])
+def delete_po_cost(request: HttpRequest, po_id: int, cost_id: int):
+    """
+    API endpoint để xóa chi phí PO.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        cost = get_object_or_404(PurchaseOrderCost, id=cost_id, purchase_order_id=po_id)
+        po = cost.purchase_order
+        cost.delete()
+        
+        # Update PO total_amount
+        po.calculate_total_amount()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Xóa chi phí thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in delete_po_cost: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def add_po_payment(request: HttpRequest, po_id: int):
+    """
+    API endpoint để thêm thanh toán cho PO.
+    
+    POST data:
+    - payment_type: str
+    - amount_cny: float
+    - amount_vnd: float (optional)
+    - payment_date: str (YYYY-MM-DD, optional)
+    - description: str (optional)
+    
+    Returns:
+        JSON: {status, message, payment_id}
+    """
+    try:
+        import json
+        from datetime import datetime
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        payment_type = data.get('payment_type', '').strip()
+        amount_cny = Decimal(str(data.get('amount_cny', 0)))
+        amount_vnd = data.get('amount_vnd')
+        payment_date_str = data.get('payment_date', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not payment_type:
+            return JsonResponse({
+                "status": "error",
+                "message": "Loại thanh toán không được để trống"
+            }, status=400)
+        
+        if amount_cny <= 0:
+            return JsonResponse({
+                "status": "error",
+                "message": "Số tiền phải lớn hơn 0"
+            }, status=400)
+        
+        # Parse date
+        payment_date = None
+        if payment_date_str:
+            try:
+                payment_date = datetime.strptime(payment_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Định dạng ngày không hợp lệ. Phải là YYYY-MM-DD"
+                }, status=400)
+        
+        # Get PO
+        po = get_object_or_404(PurchaseOrder, id=po_id)
+        
+        # Parse amount_vnd
+        amount_vnd_decimal = None
+        if amount_vnd:
+            amount_vnd_decimal = Decimal(str(amount_vnd))
+        
+        # Create payment
+        payment = PurchaseOrderPayment.objects.create(
+            purchase_order=po,
+            payment_type=payment_type,
+            amount_cny=amount_cny,
+            amount_vnd=amount_vnd_decimal,
+            payment_date=payment_date or timezone.now().date(),
+            description=description,
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        
+        # Update PO paid_amount
+        po.calculate_paid_amount()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Thêm thanh toán thành công",
+            "payment_id": payment.id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in add_po_payment: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["DELETE"])
+def delete_po_payment(request: HttpRequest, po_id: int, payment_id: int):
+    """
+    API endpoint để xóa thanh toán PO.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        payment = get_object_or_404(PurchaseOrderPayment, id=payment_id, purchase_order_id=po_id)
+        po = payment.purchase_order
+        payment.delete()
+        
+        # Update PO paid_amount
+        po.calculate_paid_amount()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Xóa thanh toán thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in delete_po_payment: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["GET"])
+def export_po_excel(request: HttpRequest, po_id: int):
+    """
+    Xuất Excel PO để gửi cho NSX.
+    Bao gồm: Ảnh, SKU, Tên VN, Tên TQ, Giá, Số lượng, Số thùng, Kích thước thùng, CBM, Tổng tiền.
+    """
+    try:
+        if not xlsxwriter:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thư viện xlsxwriter chưa được cài đặt"
+            }, status=500)
+        
+        # Get PO
+        po = get_object_or_404(PurchaseOrder, id=po_id)
+        
+        # Lấy thông tin PO từ Sapo API
+        from products.services.spo_po_service import SPOPOService
+        sapo_client = get_sapo_client()
+        spo_po_service = SPOPOService(sapo_client)
+        
+        po_data = spo_po_service.get_po_from_sapo(po.sapo_order_supplier_id)
+        line_items = po_data.get('line_items', [])
+        
+        if not line_items:
+            return JsonResponse({
+                "status": "error",
+                "message": "PO không có line items"
+            }, status=400)
+        
+        # Tạo thư mục nếu chưa có
+        excel_dir = "assets/excel_po"
+        os.makedirs(excel_dir, exist_ok=True)
+        os.makedirs("assets/saveimage", exist_ok=True)
+        
+        # Tên file
+        supplier_name = po_data.get('supplier_name', 'Supplier').replace('/', '_').replace('\\', '_')
+        po_code = po_data.get('code', f'PO-{po_id}').replace('/', '_').replace('\\', '_')
+        filename = f"{supplier_name}-{po_code}.xlsx"
+        filepath = os.path.join(excel_dir, filename)
+        
+        # Tạo workbook
+        workbook = xlsxwriter.Workbook(filepath)
+        worksheet = workbook.add_worksheet()
+        worksheet.set_default_row(60)
+        worksheet.set_row(0, 20)
+        worksheet.set_column('A:A', 5)
+        worksheet.set_column('B:B', 40)
+        worksheet.set_column('C:C', 15)
+        worksheet.set_column('D:D', 20)
+        worksheet.set_column('E:E', 20)
+        worksheet.set_column('F:F', 12)
+        worksheet.set_column('G:G', 12)
+        worksheet.set_column('H:H', 12)
+        worksheet.set_column('I:I', 20)
+        worksheet.set_column('J:J', 12)
+        worksheet.set_column('K:K', 15)
+        
+        # Formats
+        cell_text_wrap = workbook.add_format({'text_wrap': True, 'align': 'center', 'valign': 'vcenter'})
+        cell_align = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
+        cell_first = workbook.add_format({'bold': True, 'bg_color': "#D8E4BC"})
+        
+        # Headers
+        row = 0
+        col = 0
+        headers = ["#", "Image", "SKU", "VN_Variant", "名称", "单价", "数量", "箱数", "装箱数", "外箱尺寸", "总体积", "总价"]
+        for i, header in enumerate(headers):
+            worksheet.write(row, col + i, header, cell_first)
+        
+        # Process line items
+        row = 1
+        count = 0
+        
+        for item in line_items:
+            variant_id = item.get('variant_id')
+            quantity = item.get('quantity', 0)
+            sku = item.get('sku', '')
+            
+            if quantity <= 0:
+                continue
+            
+            # Lấy thông tin variant từ Sapo để có ảnh và metadata
+            try:
+                variant_data = sapo_client.core.get_variant_raw(variant_id)
+                if not variant_data:
+                    logger.warning(f"Variant {variant_id} not found")
+                    continue
+                
+                # Lấy product để có metadata
+                product_id = variant_data.get('product_id')
+                product_dto = None
+                variant_meta = None
+                
+                if product_id:
+                    product_dto = SapoProductService(sapo_client).get_product(product_id)
+                    if product_dto and product_dto.gdp_metadata:
+                        # Tìm variant metadata
+                        for v_meta in product_dto.gdp_metadata.variants:
+                            if v_meta.id == variant_id:
+                                variant_meta = v_meta
+                                break
+                
+                # Lấy ảnh
+                images = variant_data.get('images', [])
+                image_url = images[0].get('full_path') if images else None
+                
+                # Tính toán thông tin
+                price_cny = item.get('price_cny', 0)
+                box_info = variant_meta.box_info if variant_meta else None
+                
+                # Tính số thùng và CBM
+                full_box = box_info.full_box if box_info and box_info.full_box else 1
+                num_boxes = round(float(quantity) / full_box, 1) if full_box > 0 else quantity
+                
+                box_size_str = ""
+                total_cbm = 0.0
+                if box_info and box_info.length_cm and box_info.width_cm and box_info.height_cm:
+                    box_size_str = f"{box_info.height_cm} * {box_info.length_cm} * {box_info.width_cm} cm"
+                    # CBM = (dài * rộng * cao * quantity) / 1,000,000 / full_box
+                    total_cbm = (box_info.length_cm * box_info.width_cm * box_info.height_cm * quantity) / 1000000 / full_box
+                
+                # Tên TQ
+                name_tq = variant_meta.name_tq if variant_meta and variant_meta.name_tq else ""
+                
+                # Tên VN variant
+                variant_name = item.get('variant_name', '')
+                opt1 = variant_data.get('opt1', '')
+                
+                # Download và lưu ảnh
+                image_path = None
+                if image_url:
+                    try:
+                        image_path = f"assets/saveimage/{variant_id}.jpg"
+                        if not os.path.exists(image_path):
+                            r = requests.get(image_url, allow_redirects=True, timeout=10)
+                            if r.status_code == 200:
+                                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                                with open(image_path, 'wb') as f:
+                                    f.write(r.content)
+                    except Exception as e:
+                        logger.warning(f"Error downloading image for variant {variant_id}: {e}")
+                
+                # Write row
+                worksheet.write(row, col, count, cell_align)
+                
+                # Insert image nếu có
+                if image_path and os.path.exists(image_path):
+                    try:
+                        with Image.open(image_path) as img:
+                            img_width, img_height = img.size
+                            cell_width = 75
+                            cell_height = 75
+                            x_scale = float(cell_width) / float(img_width)
+                            y_scale = float(cell_height) / float(img_height)
+                            
+                            image_options = {
+                                'x_offset': 5,
+                                'y_offset': 5,
+                                'x_scale': x_scale,
+                                'y_scale': y_scale,
+                            }
+                            worksheet.insert_image(row, col + 1, image_path, image_options)
+                    except Exception as e:
+                        logger.warning(f"Error inserting image: {e}")
+                
+                worksheet.write(row, col + 2, sku, cell_align)
+                worksheet.write(row, col + 3, opt1 or variant_name, cell_align)
+                worksheet.write(row, col + 4, name_tq, cell_text_wrap)
+                worksheet.write(row, col + 5, price_cny, cell_align)
+                worksheet.write(row, col + 6, quantity, cell_align)
+                worksheet.write(row, col + 7, num_boxes, cell_align)
+                worksheet.write(row, col + 8, f"{full_box} pcs/box", cell_align)
+                worksheet.write(row, col + 9, box_size_str, cell_align)
+                worksheet.write(row, col + 10, round(total_cbm * 1.05, 2), cell_align)  # Thêm 5% buffer
+                worksheet.write(row, col + 11, float(quantity * price_cny), cell_align)
+                
+                row += 1
+                count += 1
+                
+            except Exception as e:
+                logger.error(f"Error processing line item {variant_id}: {e}", exc_info=True)
+                continue
+        
+        workbook.close()
+        
+        # Return file
+        with open(filepath, 'rb') as f:
+            response = HttpResponse(f.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        
+    except Exception as e:
+        logger.error(f"Error in export_po_excel: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@admin_only
+@require_http_methods(["GET"])
+def export_po_labels(request: HttpRequest, po_id: int):
+    """
+    Xuất nhãn phụ (HTML) cho PO - nhãn xuất nhập khẩu 10x15 (A6).
+    Mỗi SKU có 1 nhãn, kết hợp thông tin sản phẩm và model XNK.
+    """
+    try:
+        # Get PO
+        po = get_object_or_404(PurchaseOrder, id=po_id)
+        
+        # Lấy thông tin PO từ Sapo API
+        from products.services.spo_po_service import SPOPOService
+        from products.services.xnk_model_service import XNKModelService
+        
+        sapo_client = get_sapo_client()
+        spo_po_service = SPOPOService(sapo_client)
+        xnk_service = XNKModelService(sapo_client.core_session)
+        
+        po_data = spo_po_service.get_po_from_sapo(po.sapo_order_supplier_id)
+        line_items = po_data.get('line_items', [])
+        
+        if not line_items:
+            return JsonResponse({
+                "status": "error",
+                "message": "PO không có line items"
+            }, status=400)
+        
+        # Lấy tất cả XNK models
+        all_xnk_models = xnk_service.get_all_models()
+        xnk_model_map = {model.get('sku', '').strip(): model for model in all_xnk_models}
+        
+        # Lấy thông tin supplier
+        supplier_name = po_data.get('supplier_name', '')
+        supplier_code = po_data.get('supplier_code', '')
+        
+        # Lấy supplier address từ Sapo
+        supplier_address = ""
+        try:
+            supplier_id = po_data.get('supplier_id')
+            if supplier_id:
+                supplier_data = sapo_client.core.get_supplier_raw(supplier_id)
+                if supplier_data and supplier_data.get('addresses'):
+                    addr = supplier_data['addresses'][0]
+                    supplier_address = addr.get('address1', '')
+        except Exception as e:
+            logger.warning(f"Error getting supplier address: {e}")
+        
+        # Process line items để tạo labels
+        label_items = []
+        
+        for item in line_items:
+            variant_id = item.get('variant_id')
+            quantity = item.get('quantity', 0)
+            sku = item.get('sku', '')
+            
+            if quantity <= 0:
+                continue
+            
+            try:
+                # Lấy variant từ Sapo
+                variant_data = sapo_client.core.get_variant_raw(variant_id)
+                if not variant_data:
+                    continue
+                
+                # Lấy product để có metadata
+                product_id = variant_data.get('product_id')
+                product_dto = None
+                variant_meta = None
+                nhanphu_info = None
+                
+                if product_id:
+                    product_dto = SapoProductService(sapo_client).get_product(product_id)
+                    if product_dto:
+                        if product_dto.gdp_metadata:
+                            # Tìm variant metadata
+                            for v_meta in product_dto.gdp_metadata.variants:
+                                if v_meta.id == variant_id:
+                                    variant_meta = v_meta
+                                    break
+                        
+                        # Lấy nhanphu_info từ product metadata
+                        if product_dto.gdp_metadata and product_dto.gdp_metadata.nhanphu_info:
+                            nhanphu_info = product_dto.gdp_metadata.nhanphu_info
+                
+                # Lấy XNK model theo sku_model_xnk
+                xnk_model = None
+                if variant_meta and variant_meta.sku_model_xnk:
+                    xnk_model = xnk_model_map.get(variant_meta.sku_model_xnk.strip())
+                
+                # Tạo label data cho mỗi sản phẩm (1 label = 1 SKU)
+                label_data = {
+                    'sku': sku,
+                    'barcode': variant_data.get('barcode', ''),
+                    'opt1': variant_data.get('opt1', ''),
+                    'product_name': item.get('product_name', ''),
+                    'variant_name': item.get('variant_name', ''),
+                    'quantity': quantity,
+                    'supplier_name': supplier_name,
+                    'supplier_address': supplier_address,
+                    # Nhanphu info
+                    'vi_name': nhanphu_info.vi_name if nhanphu_info and nhanphu_info.vi_name else product_dto.name if product_dto else '',
+                    'en_name': nhanphu_info.en_name if nhanphu_info and nhanphu_info.en_name else '',
+                    'description': nhanphu_info.description if nhanphu_info and nhanphu_info.description else '',
+                    'material': nhanphu_info.material if nhanphu_info and nhanphu_info.material else '',
+                    # XNK Model info
+                    'hs_code': xnk_model.get('hs_code', '') if xnk_model else '',
+                    'vn_name_xnk': xnk_model.get('vn_name', '') if xnk_model else '',
+                    'en_name_xnk': xnk_model.get('en_name', '') if xnk_model else '',
+                    'china_name': xnk_model.get('china_name', '') if xnk_model else '',
+                    'nsx_name': xnk_model.get('nsx_name', '') if xnk_model else supplier_name,
+                    'unit': xnk_model.get('unit', '') if xnk_model else '',
+                }
+                
+                # Tạo 1 label cho mỗi SKU (không phải mỗi quantity)
+                label_items.append(label_data)
+                
+            except Exception as e:
+                logger.error(f"Error processing label for variant {variant_id}: {e}", exc_info=True)
+                continue
+        
+        # Render template
+        context = {
+            'po': po,
+            'po_data': po_data,
+            'label_items': label_items,
+        }
+        
+        return render(request, 'products/po_labels.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in export_po_labels: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@admin_only
+@require_POST
+def delete_container_template(request: HttpRequest, template_id: int):
+    """
+    API endpoint để xóa container template.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        template = get_object_or_404(ContainerTemplate, id=template_id)
+        
+        # Kiểm tra xem template có đang được sử dụng bởi SPO nào không
+        spo_count = template.sum_purchase_orders.count()
+        if spo_count > 0:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không thể xóa template này vì đang được sử dụng bởi {spo_count} SPO. Vui lòng xóa các SPO liên quan trước."
+            }, status=400)
+        
+        # Xóa template (sẽ tự động xóa các suppliers liên quan do CASCADE)
+        template_code = template.code
+        template.delete()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã xóa container template {template_code}"
+        })
+        
+    except ContainerTemplate.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "Container template không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in delete_container_template: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def delete_sum_purchase_order(request: HttpRequest, spo_id: int):
+    """
+    API endpoint để xóa Sum Purchase Order (SPO).
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        # Kiểm tra trạng thái - chỉ cho phép xóa nếu ở trạng thái draft hoặc cancelled
+        if spo.status not in ['draft', 'cancelled']:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không thể xóa SPO ở trạng thái '{spo.get_status_display()}'. Chỉ có thể xóa SPO ở trạng thái 'Nháp' hoặc 'Đã hủy'."
+            }, status=400)
+        
+        # Xóa SPO (sẽ tự động xóa các SPOPurchaseOrder liên quan do CASCADE)
+        spo_code = spo.code
+        spo.delete()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã xóa SPO {spo_code}"
+        })
+        
+    except SumPurchaseOrder.DoesNotExist:
+        return JsonResponse({
+            "status": "error",
+            "message": "SPO không tồn tại"
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error in delete_sum_purchase_order: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
 def refresh_sales_forecast(request: HttpRequest):
     """
     API endpoint để refresh dữ liệu dự báo bán hàng.
-    
-    POST data:
-    - days: Số ngày để tính toán (mặc định 7)
+    Tự động tính cả 30 ngày và 10 ngày.
     
     Returns:
         JSON với status và message
     """
     try:
-        import json
-        
-        # Lấy days từ request
-        if request.content_type == 'application/json':
-            data = json.loads(request.body)
-            days = int(data.get('days', 7))
-        else:
-            days = int(request.POST.get('days', 7))
-        
         from products.services.sales_forecast_service import SalesForecastService
         
         sapo_client = get_sapo_client()
         forecast_service = SalesForecastService(sapo_client)
         
-        # Tính toán lại với force_refresh=True
-        logger.info(f"[refresh_sales_forecast] Refreshing forecast for {days} days")
-        forecast_map, all_products, all_variants_map = forecast_service.calculate_sales_forecast(
-            days=days,
+        # Tính toán lại với force_refresh=True cho cả 30 và 10 ngày
+        logger.info(f"[refresh_sales_forecast] Refreshing forecast for 30 days and 10 days")
+        
+        # Tính 30 ngày
+        forecast_map_30, all_products_30, all_variants_map_30 = forecast_service.calculate_sales_forecast(
+            days=30,
+            force_refresh=True
+        )
+        
+        # Tính 10 ngày
+        forecast_map_10, all_products_10, all_variants_map_10 = forecast_service.calculate_sales_forecast(
+            days=10,
             force_refresh=True
         )
         
         return JsonResponse({
             "status": "success",
-            "message": f"Đã tính toán lại dự báo cho {len(forecast_map)} variants",
-            "count": len(forecast_map)
+            "message": f"Đã tính toán lại dự báo cho {len(forecast_map_30)} variants (30 ngày) và {len(forecast_map_10)} variants (10 ngày)",
+            "count_30": len(forecast_map_30),
+            "count_10": len(forecast_map_10)
         })
         
     except Exception as e:

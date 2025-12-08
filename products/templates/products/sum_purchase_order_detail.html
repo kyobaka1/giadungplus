@@ -129,7 +129,7 @@
                 <div class="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
                     <div>
                         <div class="text-[10px] text-amber-500 uppercase font-bold">Chi phí nhập</div>
-                        <div class="text-lg font-bold text-amber-700">{{ total_common_costs|default:0|floatformat:0|intcomma }} đ</div>
+                        <div class="text-lg font-bold text-amber-700">{{ total_spo_costs|default:0|floatformat:0|intcomma }} đ</div>
                     </div>
                     <div class="bg-white p-1.5 rounded-full text-amber-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -154,106 +154,97 @@
             </button>
         </div>
 
-        <!-- Clean Step Progress -->
-        <div class="relative w-full px-4 pt-4 pb-2">
-            <!-- Fixed Phases: Created -> Sent to Supplier -> Packed -> Departed CN -> Arrived VN -> Completed -->
-            {% with steps="created:Tạo SPO,sent_to_supplier:Gửi NSX,packed:Đóng Cont,departed_cn:Rời Cảng,arrived_vn:Về VN,completed:Hoàn Tất" %}
+        <!-- Compact Timeline Progress (Vietnamese) -->
+        <div class="relative w-full px-2 pt-2 pb-2">
             <div class="relative flex justify-between items-center w-full z-10">
                 <!-- Background Line -->
                 <div class="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
                 
-                <!-- Active Line (Calculated in JS or simple CSS based on active index) -->
-                <div id="active-line" class="absolute top-1/2 left-0 h-1 bg-blue-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-700" style="width: 0%;"></div>
+                <!-- Active Line (Green theme) -->
+                <div id="active-line" class="absolute top-1/2 left-0 h-1 bg-emerald-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-700" style="width: 0%;"></div>
 
-                {% for pair in steps.split|slice:"," %}
-                {% with code=pair.split|first label=pair.split|last %}
-                
-                <!-- Step Item -->
-                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300 transform hover:-translate-y-1"
-                     data-stage="{{ code }}"
-                     data-label="{{ label }}">
-                    
-                    <!-- Circle Node -->
-                    <div class="w-8 h-8 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm
-                        node-circle
-                        border-slate-300 text-slate-300">
-                        <!-- Icon Placeholder (Check or Dot) -->
-                        <svg class="w-4 h-4 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
-                        </svg>
-                        <span class="w-2 h-2 rounded-full bg-current icon-dot"></span>
+                <!-- Tạo SPO -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="created" data-label="Tạo SPO">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
                     </div>
-
-                    <!-- Label -->
-                    <div class="absolute top-10 text-center w-32 flex flex-col items-center">
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label">{{ label }}</span>
-                        
-                        <!-- Dates Display -->
-                        <div class="mt-1 flex flex-col items-center gap-0.5 min-h-[30px] node-date-container">
-                            <!-- JS will inject dates here -->
-                        </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Tạo SPO</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
                     </div>
                 </div>
 
-                {% endwith %}
-                {% endfor %}
+                <!-- Gửi NSX -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="sent_to_supplier" data-label="Gửi NSX">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
+                    </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Gửi NSX</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
+                    </div>
+                </div>
+
+                <!-- Đóng cont -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="packed" data-label="Đóng cont">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
+                    </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Đóng cont</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
+                    </div>
+                </div>
+
+                <!-- Rời cảng TQ -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="departed_cn" data-label="Rời cảng TQ">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
+                    </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Rời cảng TQ</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
+                    </div>
+                </div>
+
+                <!-- Tới VN -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="arrived_vn" data-label="Tới VN">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
+                    </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Tới VN</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
+                    </div>
+                </div>
+
+                <!-- Hoàn tất -->
+                <div class="timeline-node group relative flex flex-col items-center justify-center cursor-default transition-all duration-300" data-stage="completed" data-label="Hoàn tất">
+                    <div class="w-6 h-6 rounded-full border-2 bg-white z-20 flex items-center justify-center transition-colors duration-300 shadow-sm node-circle border-slate-300 text-slate-400">
+                        <svg class="w-3 h-3 icon-check hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                        <span class="w-1.5 h-1.5 rounded-full bg-current icon-dot"></span>
+                    </div>
+                    <div class="absolute top-8 text-center w-20 flex flex-col items-center gap-0.5">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide transition-colors duration-300 node-label leading-tight">Hoàn tất</span>
+                        <div class="mt-0.5 flex flex-col items-center gap-0.5 min-h-[32px] node-date-container"></div>
+                    </div>
+                </div>
             </div>
-            {% endwith %}
         </div>
         
-        <!-- Spacing for labels -->
-        <div class="h-16"></div>
+        <!-- Spacing for labels and tags -->
+        <div class="h-14"></div>
     </div>
 
-    <!-- Main Content Grid -->
-    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <!-- 1. Cost Management (Left Column - Smaller) -->
-        <div class="xl:col-span-1 space-y-6">
-            <!-- Common Costs -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                    <h3 class="font-bold text-slate-700 text-sm">Chi phí chung container</h3>
-                    <button id="allocate-costs-btn" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 bg-white border border-emerald-200 px-2 py-1 rounded shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                        Phân bổ
-                    </button>
-                </div>
-                <div class="divide-y divide-slate-100">
-                    {% with costs="shipping_cn_vn:Vận chuyển TQ-VN,customs_processing_vn:Hải Quan VN,other_costs:Phí phát sinh,port_to_warehouse:Cảng -> Kho,loading_unloading:Bốc xếp" %}
-                    {% for pair in costs.split|slice:"," %}
-                        {% with field=pair.split|first label=pair.split|last %}
-                        <div class="flex justify-between items-center p-3 hover:bg-slate-50">
-                            <span class="text-sm text-slate-600">{{ label }}</span>
-                            <span class="text-sm font-semibold text-slate-800">
-                                {% if field == 'shipping_cn_vn' %}{{ spo.shipping_cn_vn|floatformat:0|intcomma }}
-                                {% elif field == 'customs_processing_vn' %}{{ spo.customs_processing_vn|floatformat:0|intcomma }}
-                                {% elif field == 'other_costs' %}{{ spo.other_costs|floatformat:0|intcomma }}
-                                {% elif field == 'port_to_warehouse' %}{{ spo.port_to_warehouse|floatformat:0|intcomma }}
-                                {% elif field == 'loading_unloading' %}{{ spo.loading_unloading|floatformat:0|intcomma }}
-                                {% endif %} đ
-                            </span>
-                        </div>
-                        {% endwith %}
-                    {% endfor %}
-                    {% endwith %}
-                    <div class="flex justify-between items-center p-3 bg-slate-50 font-bold">
-                        <span class="text-sm text-slate-700">Tổng cộng</span>
-                        <span class="text-sm text-amber-600">{{ total_common_costs|floatformat:0|intcomma }} đ</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Notes -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                <h3 class="font-bold text-slate-700 text-sm mb-3">Ghi chú</h3>
-                <div class="bg-amber-50 rounded border border-amber-100 p-3 text-sm text-slate-700 min-h-[80px]">
-                    {{ spo.note|default:"Chưa có ghi chú."|linebreaksbr }}
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. Purchase Orders (Right Column - Larger) -->
-        <div class="xl:col-span-2 space-y-6">
+    <!-- Main Content Grid - Restructured -->
+    <div class="grid grid-cols-1 xl:grid-cols-10 gap-6">
+        <!-- Column 1: Container Progress + Purchase Orders (7/10) -->
+        <div class="xl:col-span-7 space-y-6">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                     <div class="flex items-center gap-2">
@@ -272,63 +263,221 @@
                     </div>
                 </div>
                 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-100">
-                        <thead class="bg-white">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Thông tin PO</th>
-                                <th class="px-4 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">Trạng thái</th>
-                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Giá trị</th>
-                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Số khối (CBM)</th>
-                                <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-50 bg-white">
-                            {% for po in purchase_orders %}
-                            <tr class="hover:bg-slate-50 transition-colors group">
-                                <td class="px-4 py-3">
-                                    <div class="flex items-center">
-                                        <div class="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs mr-3">
-                                            {{ forloop.counter }}
-                                        </div>
-                                        <div>
+                <div class="space-y-4">
+                    {% for po in purchase_orders %}
+                    <!-- PO Card (Expandable) -->
+                    <div class="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-md transition-shadow" data-po-id="{{ po.po_id }}" data-po-total-cbm="{{ po.total_cbm|default:0 }}">
+                        <!-- PO Header Row -->
+                        <div class="p-4 border-b border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <!-- Left: PO Info -->
+                                <div class="flex items-center gap-4 flex-1">
+                                    <div class="h-10 w-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                                        {{ forloop.counter }}
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-3">
                                             <div class="font-bold text-slate-800 text-sm">{{ po.supplier_name }}</div>
-                                            <div class="text-xs text-slate-500 font-mono">{{ po.sapo_code }}</div>
+                                            <span class="text-xs text-slate-500 font-mono bg-slate-50 px-2 py-0.5 rounded">{{ po.sapo_code }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 mt-1">
+                                            <!-- Delivery Status Badge -->
+                                            <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold
+                                                {% if po.delivery_status == 'delivered' %}bg-green-100 text-green-700
+                                                {% elif po.delivery_status == 'production' %}bg-blue-100 text-blue-700
+                                                {% elif po.delivery_status == 'sent_label' %}bg-amber-100 text-amber-700
+                                                {% else %}bg-slate-100 text-slate-600{% endif %}">
+                                                {{ po.delivery_status_display|default:"Lên đơn" }}
+                                            </span>
+                                            <!-- Expected Delivery Date -->
+                                            {% if po.expected_delivery_date %}
+                                            <span class="text-xs text-slate-500 flex items-center gap-1">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                Dự kiến: {{ po.expected_delivery_date|date:"d/m/Y" }}
+                                            </span>
+                                            {% endif %}
                                         </div>
                                     </div>
-                                </td>
-                                <td class="px-4 py-3 text-center">
-                                    <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
-                                        {{ po.status|default:"Draft" }}
-                                    </span>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <div class="text-sm font-semibold text-slate-700">{{ po.total_amount|floatformat:0|intcomma }} đ</div>
-                                    <div class="text-[10px] text-slate-400">{{ po.total_quantity }} sp</div>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <div class="text-sm font-bold text-slate-700">{{ po.total_cbm|floatformat:2 }}</div>
-                                    <div class="text-[10px] text-slate-400">m³</div>
-                                </td>
-                                <td class="px-4 py-3 text-right">
-                                    <button class="text-slate-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50 transition" title="Xóa khỏi SPO">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% empty %}
-                            <tr>
-                                <td colspan="5" class="px-4 py-12 text-center">
-                                    <div class="flex flex-col items-center justify-center text-slate-400">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                                        <p class="text-sm font-medium">Chưa có PO trong container này</p>
-                                        <p class="text-xs mt-1">Dùng nút "Thêm PO" hoặc "Sync Sapo" để bắt đầu</p>
+                                </div>
+                                
+                                <!-- Right: Financial Summary - Redesigned -->
+                                <div class="flex items-center gap-8 text-right">
+                                    <!-- Cột 1: Tổng + Tiền hàng & Phí -->
+                                    <div class="flex flex-col items-end">
+                                        <div class="text-lg font-bold text-indigo-600 mb-1">{{ po.total_amount_cny|floatformat:0|intcomma }} CNY</div>
+                                        <div class="flex items-center gap-3 text-xs text-slate-500">
+                                            <span>Tiền hàng: <span class="font-semibold text-slate-700">{{ po.product_amount_cny|floatformat:0|intcomma }}</span></span>
+                                            <span>•</span>
+                                            <span>Phí: <span class="font-semibold text-slate-700">{{ po.total_costs_cny|default:0|floatformat:0|intcomma }}</span></span>
+                                        </div>
                                     </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                                    
+                                    <!-- Cột 2: Đã thanh toán + Còn -->
+                                    <div class="flex flex-col items-end">
+                                        <div class="text-sm font-bold {% if po.paid_amount_cny >= po.total_amount_cny %}text-green-600{% else %}text-amber-600{% endif %}">
+                                            {{ po.paid_amount_cny|floatformat:0|intcomma }} CNY
+                                        </div>
+                                        {% if po.remaining_amount_cny > 0 %}
+                                        <div class="text-xs text-red-500 mt-0.5">Còn: {{ po.remaining_amount_cny|floatformat:0|intcomma }} CNY</div>
+                                        {% else %}
+                                        <div class="text-xs text-green-600 mt-0.5">Đã thanh toán đủ</div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- CBM -->
+                                    <div>
+                                        <div class="text-xs text-slate-500 mb-0.5">CBM</div>
+                                        <div class="text-sm font-bold text-slate-700">{{ po.total_cbm|floatformat:2 }}</div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Actions -->
+                                <div class="flex items-center gap-2 ml-4">
+                                    <button class="update-delivery-status-btn text-blue-600 hover:text-blue-700 p-1.5 rounded transition hover:bg-blue-50"
+                                            data-po-id="{{ po.po_id }}"
+                                            data-current-status="{{ po.delivery_status }}"
+                                            title="Cập nhật trạng thái">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    </button>
+                                    <a href="{% url 'products:export_po_excel' po.po_id %}" 
+                                       class="text-emerald-600 hover:text-emerald-700 p-1.5 rounded transition hover:bg-emerald-50"
+                                       title="Xuất Excel">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    </a>
+                                    <a href="{% url 'products:export_po_labels' po.po_id %}" 
+                                       target="_blank"
+                                       class="text-purple-600 hover:text-purple-700 p-1.5 rounded transition hover:bg-purple-50"
+                                       title="Xuất nhãn phụ">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    </a>
+                                    <button class="expand-po-btn text-slate-400 hover:text-slate-600 p-1.5 rounded transition" title="Xem chi tiết">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    <button class="remove-po-btn text-slate-400 hover:text-red-600 p-1.5 rounded transition" title="Xóa khỏi SPO" data-po-id="{{ po.po_id }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- PO Details (Collapsible) -->
+                        <div class="po-details hidden border-t border-slate-100 bg-slate-50">
+                            <div class="p-4 space-y-4">
+                                <!-- Costs & Payments Grid -->
+                                <div class="grid grid-cols-2 gap-4">
+                                    <!-- Costs Section -->
+                                    <div>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Chi Phí (CNY)</h4>
+                                            <button class="add-cost-btn text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                                                    data-po-id="{{ po.po_id }}">
+                                                + Thêm chi phí
+                                            </button>
+                                        </div>
+                                        <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+                                            {% for cost in po.costs %}
+                                            <div class="p-2 flex items-center justify-between hover:bg-slate-50 group/item">
+                                                <div class="flex-1">
+                                                    <div class="text-xs font-medium text-slate-700">{{ cost.cost_type_display }}</div>
+                                                    {% if cost.description %}
+                                                    <div class="text-[10px] text-slate-400">{{ cost.description }}</div>
+                                                    {% endif %}
+                                                    {% if cost.cbm %}
+                                                    <div class="text-[10px] text-slate-400">CBM: {{ cost.cbm|floatformat:3 }}</div>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="text-right">
+                                                        <span class="text-xs font-bold text-slate-700">
+                                                            {{ cost.amount_cny|floatformat:0|intcomma }} CNY
+                                                            {% if cost.price_per_cbm %}
+                                                            <span class="text-[10px] font-normal text-slate-500">({{ cost.price_per_cbm|floatformat:0|intcomma }} CNY/m³)</span>
+                                                            {% endif %}
+                                                        </span>
+                                                    </div>
+                                                    <button class="delete-cost-btn text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition"
+                                                            data-cost-ids='{{ cost.cost_ids_json }}'>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {% empty %}
+                                            <div class="p-3 text-center text-xs text-slate-400 italic">Chưa có chi phí</div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Payments Section -->
+                                    <div>
+                                        <div class="flex items-center justify-between mb-2">
+                                            <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Thanh Toán (CNY)</h4>
+                                            <button class="add-payment-btn text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                                                    data-po-id="{{ po.po_id }}">
+                                                + Thêm thanh toán
+                                            </button>
+                                        </div>
+                                        <div class="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+                                            {% for payment in po.payments %}
+                                            <div class="p-2 flex items-center justify-between hover:bg-slate-50 group/item">
+                                                <div class="flex-1">
+                                                    <div class="text-xs font-medium text-slate-700">{{ payment.payment_type_display }}</div>
+                                                    <div class="text-[10px] text-slate-400">{{ payment.payment_date|date:"d/m/Y" }}</div>
+                                                    {% if payment.description %}
+                                                    <div class="text-[10px] text-slate-400">{{ payment.description }}</div>
+                                                    {% endif %}
+                                                    {% if payment.exchange_rate %}
+                                                    <div class="text-[10px] text-slate-400">Tỷ giá: {{ payment.exchange_rate|floatformat:0|intcomma }}</div>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="flex items-center gap-2">
+                                                    <div class="text-right">
+                                                        <div class="text-xs font-bold text-slate-700">{{ payment.amount_cny|floatformat:0|intcomma }} CNY</div>
+                                                        {% if payment.amount_vnd %}
+                                                        <div class="text-[10px] text-slate-500">{{ payment.amount_vnd|floatformat:0|intcomma }} VNĐ</div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <button class="delete-payment-btn text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition"
+                                                            data-payment-id="{{ payment.id }}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {% empty %}
+                                            <div class="p-3 text-center text-xs text-slate-400 italic">Chưa có thanh toán</div>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="bg-white rounded-lg border border-dashed border-slate-300 p-12 text-center">
+                        <div class="flex flex-col items-center justify-center text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                            </svg>
+                            <p class="text-sm font-medium">Chưa có PO trong container này</p>
+                            <p class="text-xs mt-1">Dùng nút "Thêm PO" hoặc "Sync Sapo" để bắt đầu</p>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </div>
 
@@ -369,6 +518,129 @@
                         </div>
                     </div>
                 </details>
+            </div>
+        </div>
+
+        <!-- Column 2: Costs + Documents (3/10) -->
+        <div class="xl:col-span-3 space-y-6">
+            <!-- SPO Costs -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-indigo-50 to-white">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Chi phí SPO
+                    </h3>
+                    <button id="add-spo-cost-btn" class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 flex items-center gap-1 px-2.5 py-1 rounded shadow-sm transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        Thêm
+                    </button>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-[300px] overflow-y-auto">
+                    {% for cost in spo_costs %}
+                    <div class="p-3 hover:bg-slate-50/50 transition-colors group/item">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-xs font-semibold text-slate-800 mb-0.5">{{ cost.name }}</div>
+                                {% if cost.note %}
+                                <div class="text-[10px] text-slate-500 line-clamp-1">{{ cost.note }}</div>
+                                {% endif %}
+                                <div class="text-[10px] text-slate-400 mt-1">{{ cost.created_at|date:"d/m/Y" }}</div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <span class="text-xs font-bold text-indigo-600">{{ cost.amount_vnd|floatformat:0|intcomma }} đ</span>
+                                <button class="delete-spo-cost-btn text-slate-300 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition"
+                                        data-cost-id="{{ cost.id }}"
+                                        title="Xóa">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-6 text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-xs text-slate-400">Chưa có chi phí</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if spo_costs %}
+                <div class="flex justify-between items-center p-3.5 bg-gradient-to-r from-indigo-50 to-indigo-100/50 border-t-2 border-indigo-200 font-bold">
+                    <span class="text-xs text-slate-700 uppercase tracking-wide">Tổng</span>
+                    <span class="text-sm text-indigo-700">{{ total_spo_costs|floatformat:0|intcomma }} đ</span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Documents -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-white">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Chứng từ
+                    </h3>
+                </div>
+                <div class="p-4 space-y-3">
+                    <!-- Upload Area -->
+                    <div id="document-upload-area" class="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-emerald-400 hover:bg-emerald-50/30 transition cursor-pointer">
+                        <input type="file" id="document-file-input" class="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" multiple>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto text-slate-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p class="text-xs text-slate-600 font-medium mb-1">Kéo thả file hoặc click để upload</p>
+                        <p class="text-[10px] text-slate-400">PDF, DOC, XLS, JPG, PNG</p>
+                    </div>
+
+                    <!-- Documents List -->
+                    <div class="space-y-2 max-h-[300px] overflow-y-auto">
+                        {% for doc in spo_documents %}
+                        <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg hover:bg-slate-100 transition group/item">
+                            <div class="flex items-center gap-2 flex-1 min-w-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <div class="flex-1 min-w-0">
+                                    <a href="{{ doc.file_url }}" target="_blank" class="text-xs font-medium text-slate-700 hover:text-emerald-600 truncate block">
+                                        {{ doc.name }}
+                                    </a>
+                                    <div class="text-[10px] text-slate-400">{{ doc.uploaded_at|date:"d/m/Y H:i" }}</div>
+                                </div>
+                            </div>
+                            <button class="delete-spo-document-btn text-slate-300 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition flex-shrink-0 ml-2"
+                                    data-document-id="{{ doc.id }}"
+                                    title="Xóa">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
+                        {% empty %}
+                        <div class="text-center py-4">
+                            <p class="text-xs text-slate-400">Chưa có chứng từ</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Ghi chú
+                </h3>
+                <div class="bg-amber-50 rounded-lg border border-amber-100 p-3 text-xs text-slate-700 min-h-[80px]">
+                    {{ spo.note|default:"Chưa có ghi chú."|linebreaksbr }}
+                </div>
             </div>
         </div>
     </div>
@@ -466,6 +738,151 @@
     </div>
 </div>
 
+<!-- Modals for PO Management -->
+<!-- Update Delivery Status Modal -->
+<div id="update-delivery-status-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Cập nhật Trạng thái Giao Hàng</h3>
+            <form id="update-delivery-status-form">
+                <input type="hidden" name="po_id" id="modal-po-id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Trạng thái mới</label>
+                        <select name="delivery_status" id="modal-delivery-status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                            <option value="ordered">Lên đơn</option>
+                            <option value="sent_label">Gửi đơn & Label</option>
+                            <option value="production">Sản xuất</option>
+                            <option value="delivered">Giao hàng</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ngày</label>
+                        <input type="date" name="date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú</label>
+                        <textarea name="note" rows="3" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('update-delivery-status-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Cập nhật</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Cost Modal -->
+<div id="add-cost-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm Chi Phí</h3>
+            <form id="add-cost-form">
+                <input type="hidden" name="po_id" id="modal-cost-po-id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Loại chi phí</label>
+                        <select name="cost_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                            <option value="domestic_shipping_cn">Giao hàng nội địa TQ</option>
+                            <option value="packing_fee">Phí đóng hàng</option>
+                            <option value="other">Chi phí khác</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (CNY) *</label>
+                        <input type="number" id="cost-amount-cny" name="amount_cny" step="0.01" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <div id="cost-price-per-cbm" class="mt-2 text-xs text-emerald-600 font-medium hidden">
+                            Chi phí trên mỗi m³ là: <span class="font-bold" id="cost-price-value">0</span> CNY/m³
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Mô tả</label>
+                        <textarea name="description" rows="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('add-cost-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Thêm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Payment Modal -->
+<div id="add-payment-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm Thanh Toán</h3>
+            <form id="add-payment-form">
+                <input type="hidden" name="po_id" id="modal-payment-po-id">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Loại thanh toán</label>
+                        <select name="payment_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                            <option value="deposit">Cọc sản xuất</option>
+                            <option value="payment">Thanh toán đơn hàng</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (CNY)</label>
+                        <input type="number" name="amount_cny" step="0.01" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền VNĐ (tùy chọn)</label>
+                        <input type="number" name="amount_vnd" step="0.01" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[10px] text-slate-400 mt-1">Tỷ giá sẽ được tự động tính</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thanh toán</label>
+                        <input type="date" name="payment_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Mô tả</label>
+                        <textarea name="description" rows="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('add-payment-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm">Thêm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add SPO Cost Modal -->
+<div id="add-spo-cost-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm Chi Phí SPO</h3>
+            <form id="add-spo-cost-form">
+                <input type="hidden" name="spo_id" value="{{ spo.id }}">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tên chi phí *</label>
+                        <input type="text" name="name" required placeholder="Ví dụ: Phí vận chuyển, Phí bảo hiểm..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (VNĐ) *</label>
+                        <input type="number" name="amount_vnd" step="0.01" required placeholder="0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú</label>
+                        <textarea name="note" rows="3" placeholder="Mô tả chi tiết..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('add-spo-cost-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm">Thêm</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const spoId = parseInt('{{ spo.id|default:0 }}');
@@ -512,30 +929,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const isCompleted = index <= activeIndex;
         const isFuture = index > activeIndex;
         
-        // 1. Style Node
+        // 1. Style Node (Green theme)
         if (index < activeIndex) {
-            // Completed Past
-            circle.classList.add('bg-blue-500', 'border-blue-500', 'text-white');
-            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-300');
+            // Completed Past (Green)
+            circle.classList.add('bg-emerald-500', 'border-emerald-500', 'text-white');
+            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-400');
             iconCheck.classList.remove('hidden');
             iconDot.classList.add('hidden');
-            label.classList.add('text-blue-600');
+            label.classList.add('text-emerald-600');
             label.classList.remove('text-slate-400');
         } else if (index === activeIndex) {
-            // Current Active
-            circle.classList.add('bg-white', 'border-blue-500', 'text-blue-500', 'ring-4', 'ring-blue-100');
-            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-300');
+            // Current Active (Green ring)
+            circle.classList.add('bg-white', 'border-emerald-500', 'text-emerald-500', 'ring-4', 'ring-emerald-100');
+            circle.classList.remove('bg-white', 'border-slate-300', 'text-slate-400');
             iconCheck.classList.add('hidden');
-            iconDot.classList.remove('hidden', 'bg-slate-300');
-            iconDot.classList.add('bg-blue-500', 'w-3', 'h-3'); // Larger dot
-            label.classList.add('text-blue-600', 'font-extrabold');
+            iconDot.classList.remove('hidden');
+            iconDot.classList.add('bg-emerald-500', 'w-2', 'h-2');
+            label.classList.add('text-emerald-600', 'font-extrabold');
             label.classList.remove('text-slate-400');
         } else {
             // Future
             // Default styles are fine
         }
         
-        // 2. Render Dates
+        // 2. Render Dates & Tags
         let dateHtml = '';
         
         // ACTUAL DATE
@@ -543,22 +960,49 @@ document.addEventListener('DOMContentLoaded', function() {
             const dateObj = new Date(stageData.actual);
             const dateStr = dateObj.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'});
             dateHtml += `<span class="text-[10px] font-bold text-slate-700">${dateStr}</span>`;
+            
+            // Tag: Compare actual vs planned
+            if (stageData.planned) {
+                const plannedObj = new Date(stageData.planned);
+                const daysDiff = Math.floor((dateObj - plannedObj) / (1000 * 60 * 60 * 24));
+                if (daysDiff <= 0) {
+                    dateHtml += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold">Đúng hẹn</span>`;
+                } else {
+                    dateHtml += `<span class="text-[9px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">Trễ ${daysDiff} ngày</span>`;
+                }
+            }
         } 
         // PLANNED DATE (Show if no actual)
         else if (stageData.planned) {
             const dateObj = new Date(stageData.planned);
             const dateStr = dateObj.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'});
-            // Check deadline
+            
+            // Check deadline vs today
             const today = new Date();
             today.setHours(0,0,0,0);
-            const isLate = dateObj < today;
+            dateObj.setHours(0,0,0,0);
+            const daysDiff = Math.floor((dateObj - today) / (1000 * 60 * 60 * 24));
             
-            const colorClass = isLate ? 'text-red-500' : 'text-slate-500';
-            dateHtml += `<span class="text-[10px] font-medium ${colorClass} cursor-pointer hover:text-blue-600 border-b border-dashed border-slate-300 hover:border-blue-500 transition-colors update-date-btn" data-stage="${stageCode}" data-date="${stageData.planned.split('T')[0]}" title="Dự kiến">${dateStr}</span>`;
+            let colorClass = 'text-slate-500';
+            let tagHtml = '';
+            
+            if (daysDiff > 0) {
+                colorClass = 'text-blue-600';
+                tagHtml = `<span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold">Còn ${daysDiff} ngày</span>`;
+            } else if (daysDiff < 0) {
+                colorClass = 'text-red-600';
+                tagHtml = `<span class="text-[9px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-bold">Trễ deadline ${Math.abs(daysDiff)} ngày</span>`;
+            } else {
+                colorClass = 'text-amber-600';
+                tagHtml = `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">Hôm nay</span>`;
+            }
+            
+            dateHtml += `<span class="text-[10px] font-medium ${colorClass} cursor-pointer hover:text-emerald-600 border-b border-dashed border-slate-300 hover:border-emerald-500 transition-colors update-date-btn" data-stage="${stageCode}" data-date="${stageData.planned.split('T')[0]}" title="Dự kiến">${dateStr}</span>`;
+            dateHtml += tagHtml;
         } 
         // NO DATE -> Add Button
         else {
-             dateHtml += `<button class="text-slate-300 hover:text-blue-500 text-lg leading-none transition-colors update-date-btn" data-stage="${stageCode}" title="Đặt ngày dự kiến">+</button>`;
+             dateHtml += `<button class="text-slate-300 hover:text-emerald-500 text-lg leading-none transition-colors update-date-btn" data-stage="${stageCode}" title="Đặt ngày dự kiến">+</button>`;
         }
         
         dateContainer.innerHTML = dateHtml;
@@ -653,6 +1097,315 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(r => r.json()).then(d => {
             if(d.status === 'success') window.location.reload();
             else alert(d.message);
+        });
+    });
+    
+    // ========== PO MANAGEMENT ==========
+    
+    // Expand/Collapse PO Details
+    document.querySelectorAll('.expand-po-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const card = this.closest('[data-po-id]');
+            const details = card.querySelector('.po-details');
+            const icon = this.querySelector('svg');
+            
+            if(details.classList.contains('hidden')) {
+                details.classList.remove('hidden');
+                icon.style.transform = 'rotate(180deg)';
+            } else {
+                details.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        });
+    });
+    
+    // Update Delivery Status
+    document.querySelectorAll('.update-delivery-status-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const poId = this.getAttribute('data-po-id');
+            const currentStatus = this.getAttribute('data-current-status');
+            
+            document.getElementById('modal-po-id').value = poId;
+            document.getElementById('modal-delivery-status').value = currentStatus;
+            document.getElementById('update-delivery-status-modal').classList.remove('hidden');
+        });
+    });
+    
+    document.getElementById('update-delivery-status-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.date = data.date || new Date().toISOString().split('T')[0];
+        
+        fetch(`/products/purchase-orders/${data.po_id}/update-delivery-status/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') window.location.reload();
+            else alert(d.message);
+        });
+    });
+    
+    // Add Cost
+    document.querySelectorAll('.add-cost-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const poId = this.getAttribute('data-po-id');
+            const poCard = this.closest('[data-po-id]');
+            const totalCbm = parseFloat(poCard.getAttribute('data-po-total-cbm')) || 0;
+            
+            document.getElementById('modal-cost-po-id').value = poId;
+            document.getElementById('cost-total-cbm').textContent = totalCbm.toFixed(3);
+            document.getElementById('cost-amount-cny').value = '';
+            document.getElementById('cost-price-value').textContent = '0';
+            document.getElementById('cost-price-per-cbm').classList.add('hidden');
+            document.getElementById('add-cost-modal').classList.remove('hidden');
+        });
+    });
+    
+    // Tính giá/m³ khi nhập số tiền
+    document.getElementById('cost-amount-cny')?.addEventListener('input', function() {
+        const amount = parseFloat(this.value) || 0;
+        const totalCbm = parseFloat(document.getElementById('cost-total-cbm').textContent) || 0;
+        const pricePerCbmDiv = document.getElementById('cost-price-per-cbm');
+        const priceValue = document.getElementById('cost-price-value');
+        
+        if (amount > 0 && totalCbm > 0) {
+            const pricePerCbm = (amount / totalCbm).toFixed(2);
+            priceValue.textContent = pricePerCbm;
+            pricePerCbmDiv.classList.remove('hidden');
+        } else {
+            pricePerCbmDiv.classList.add('hidden');
+        }
+    });
+    
+    document.getElementById('add-cost-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.amount_cny = parseFloat(data.amount_cny);
+        // Không gửi cbm, server sẽ tự động tính từ total_cbm của PO
+        
+        fetch(`/products/purchase-orders/${data.po_id}/costs/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(d.message);
+            }
+        });
+    });
+    
+    // Delete Cost (xóa tất cả costs cùng loại)
+    document.querySelectorAll('.delete-cost-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if(!confirm('Bạn có chắc muốn xóa tất cả chi phí cùng loại này?')) return;
+            const costIds = JSON.parse(this.getAttribute('data-cost-ids') || '[]');
+            const poId = this.closest('[data-po-id]').getAttribute('data-po-id');
+            
+            // Xóa từng cost (có thể có nhiều costs cùng loại)
+            const deletePromises = costIds.map(costId => 
+                fetch(`/products/purchase-orders/${poId}/costs/${costId}/`, {
+                    method: 'DELETE',
+                    headers: {'X-CSRFToken': '{{ csrf_token }}'}
+                }).then(r => r.json())
+            );
+            
+            Promise.all(deletePromises).then(results => {
+                const allSuccess = results.every(r => r.status === 'success');
+                if(allSuccess) {
+                    window.location.reload();
+                } else {
+                    alert('Có lỗi xảy ra khi xóa một số chi phí');
+                }
+            });
+        });
+    });
+    
+    // Add Payment
+    document.querySelectorAll('.add-payment-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const poId = this.getAttribute('data-po-id');
+            document.getElementById('modal-payment-po-id').value = poId;
+            document.getElementById('add-payment-modal').classList.remove('hidden');
+        });
+    });
+    
+    document.getElementById('add-payment-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.amount_cny = parseFloat(data.amount_cny);
+        if(data.amount_vnd) data.amount_vnd = parseFloat(data.amount_vnd);
+        if(!data.payment_date) data.payment_date = new Date().toISOString().split('T')[0];
+        
+        fetch(`/products/purchase-orders/${data.po_id}/payments/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') window.location.reload();
+            else alert(d.message);
+        });
+    });
+    
+    // Delete Payment
+    document.querySelectorAll('.delete-payment-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if(!confirm('Bạn có chắc muốn xóa thanh toán này?')) return;
+            const paymentId = this.getAttribute('data-payment-id');
+            const poId = this.closest('[data-po-id]').getAttribute('data-po-id');
+            
+            fetch(`/products/purchase-orders/${poId}/payments/${paymentId}/`, {
+                method: 'DELETE',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') window.location.reload();
+                else alert(d.message);
+            });
+        });
+    });
+    
+    // Remove PO from SPO
+    document.querySelectorAll('.remove-po-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if(!confirm('Bạn có chắc muốn xóa PO này khỏi SPO? (PO sẽ không bị xóa, chỉ xóa khỏi container này)')) return;
+            const poId = this.getAttribute('data-po-id');
+            
+            fetch(`/products/sum-purchase-orders/${spoId}/remove-po/${poId}/`, {
+                method: 'DELETE',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') window.location.reload();
+                else alert(d.message);
+            });
+        });
+    });
+    
+    // Close modals on click outside
+    ['update-delivery-status-modal', 'add-cost-modal', 'add-payment-modal', 'add-spo-cost-modal'].forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if(modal) {
+            modal.addEventListener('click', (e) => {
+                if(e.target === modal) modal.classList.add('hidden');
+            });
+        }
+    });
+    
+    // ========== SPO COSTS MANAGEMENT ==========
+    
+    // Add SPO Cost Button
+    document.getElementById('add-spo-cost-btn')?.addEventListener('click', () => {
+        document.getElementById('add-spo-cost-modal').classList.remove('hidden');
+    });
+    
+    // Form: Add SPO Cost
+    document.getElementById('add-spo-cost-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        data.amount_vnd = parseFloat(data.amount_vnd);
+        
+        fetch('{% url "products:add_spo_cost" %}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(d.message);
+            }
+        });
+    });
+    
+    // Delete SPO Cost
+    document.querySelectorAll('.delete-spo-cost-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if(!confirm('Bạn có chắc muốn xóa chi phí này?')) return;
+            const costId = this.getAttribute('data-cost-id');
+            
+            fetch(`/products/sum-purchase-orders/costs/${costId}/delete/`, {
+                method: 'DELETE',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') window.location.reload();
+                else alert(d.message);
+            });
+        });
+    });
+    
+    // ========== SPO DOCUMENTS MANAGEMENT ==========
+    
+    // Document Upload Area
+    const uploadArea = document.getElementById('document-upload-area');
+    const fileInput = document.getElementById('document-file-input');
+    
+    uploadArea?.addEventListener('click', () => {
+        fileInput?.click();
+    });
+    
+    uploadArea?.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('border-emerald-500', 'bg-emerald-50');
+    });
+    
+    uploadArea?.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('border-emerald-500', 'bg-emerald-50');
+    });
+    
+    uploadArea?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('border-emerald-500', 'bg-emerald-50');
+        const files = e.dataTransfer.files;
+        if(files.length > 0) {
+            handleFileUpload(files);
+        }
+    });
+    
+    fileInput?.addEventListener('change', (e) => {
+        if(e.target.files.length > 0) {
+            handleFileUpload(e.target.files);
+        }
+    });
+    
+    function handleFileUpload(files) {
+        const spoId = parseInt('{{ spo.id }}');
+        
+        Array.from(files).forEach(file => {
+            const formData = new FormData();
+            formData.append('spo_id', spoId);
+            formData.append('file', file);
+            formData.append('name', file.name);
+            
+            fetch('{% url "products:upload_spo_document" %}', {
+                method: 'POST',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'},
+                body: formData
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert(d.message);
+                }
+            }).catch(err => {
+                alert('Lỗi khi upload file: ' + err.message);
+            });
+        });
+    }
+    
+    // Delete SPO Document
+    document.querySelectorAll('.delete-spo-document-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            if(!confirm('Bạn có chắc muốn xóa chứng từ này?')) return;
+            const docId = this.getAttribute('data-document-id');
+            
+            fetch(`/products/sum-purchase-orders/documents/${docId}/delete/`, {
+                method: 'DELETE',
+                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+            }).then(r => r.json()).then(d => {
+                if(d.status === 'success') window.location.reload();
+                else alert(d.message);
+            });
         });
     });
 });

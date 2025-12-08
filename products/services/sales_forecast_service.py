@@ -163,17 +163,19 @@ class SalesForecastService:
     def _get_all_products(self) -> tuple[List[Dict[str, Any]], Dict[int, Dict[str, Any]]]:
         """
         Lấy tất cả products từ Sapo (đã bao gồm variants và inventories).
+        CHỈ lấy variants có packsize = false (1 pcs), loại bỏ packsize = true (combo).
         
         Returns:
             Tuple (all_products, all_variants_map)
             - all_products: List products với variants và inventories
-            - all_variants_map: Dict {variant_id: variant_data} để truy cập nhanh
+            - all_variants_map: Dict {variant_id: variant_data} để truy cập nhanh (chỉ variants 1 pcs)
         """
         import time
         step_start = time.time()
         
         all_products = []
         all_variants_map: Dict[int, Dict[str, Any]] = {}
+        skipped_packsize_count = 0  # Đếm số variants packsize bị bỏ qua
         page = 1
         limit = 250  # Tăng limit lên 250
         
@@ -196,11 +198,17 @@ class SalesForecastService:
             all_products.extend(products_data)
             
             # Extract variants từ products và tạo map
+            # CHỈ lấy variants có packsize = false (1 pcs), loại bỏ packsize = true (combo)
             for product in products_data:
                 variants = product.get("variants", [])
                 for variant in variants:
                     variant_id = variant.get("id")
                     if variant_id:
+                        # Bỏ qua variant có packsize = true (combo)
+                        packsize = variant.get("packsize", False)
+                        if packsize is True:
+                            skipped_packsize_count += 1
+                            continue
                         # Lưu variant với inventories đã có sẵn
                         all_variants_map[variant_id] = variant
             
@@ -217,7 +225,9 @@ class SalesForecastService:
                 logger.warning("[SalesForecastService] Reached max pages limit (100)")
                 break
         
-        print(f"[DEBUG]        └─ ✅ Tổng cộng {len(all_products)} products, {len(all_variants_map)} variants ({time.time() - step_start:.2f}s)")
+        print(f"[DEBUG]        └─ ✅ Tổng cộng {len(all_products)} products, {len(all_variants_map)} variants (1 pcs), đã bỏ qua {skipped_packsize_count} variants packsize (combo) ({time.time() - step_start:.2f}s)")
+        if skipped_packsize_count > 0:
+            logger.info(f"[SalesForecastService] Skipped {skipped_packsize_count} packsize variants (combo)")
         return all_products, all_variants_map
     
     def _calculate_from_orders(
@@ -311,9 +321,17 @@ class SalesForecastService:
             else:
                 forecast.growth_percentage = 0.0
         
+        # Debug: Log một vài variants có bán để kiểm tra
+        sample_variants = []
+        for variant_id, forecast in list(forecast_map.items())[:5]:
+            if forecast.total_sold > 0:
+                sample_variants.append(f"V{variant_id}: {forecast.total_sold} (kỳ trước: {forecast.total_sold_previous_period})")
+        if sample_variants:
+            print(f"[DEBUG]        └─ Mẫu variants có bán: {', '.join(sample_variants)}")
+        
         print(f"[DEBUG]        └─ ✅ {variants_with_sales} variants có lượt bán ({time.time() - calc_start:.2f}s)")
         print(f"[DEBUG]        └─ ✅ Đã tính toán xong trong {time.time() - step_start:.2f}s")
-        logger.info(f"[SalesForecastService] Calculated sales for {variants_with_sales} variants")
+        logger.info(f"[SalesForecastService] Calculated sales for {variants_with_sales} variants (period_days={days})")
     
     def _calculate_period(
         self,
@@ -499,7 +517,7 @@ class SalesForecastService:
                 forecast_dto.growth_percentage = forecast_db.growth_percentage
                 if forecast_db.calculated_at:
                     forecast_dto.calculated_at = forecast_db.calculated_at.isoformat()
-                            loaded_count += 1
+                loaded_count += 1
         
         print(f"[DEBUG]        └─ ✅ Tổng cộng load {loaded_count} forecasts từ Database ({time.time() - step_start:.2f}s)")
         logger.info(f"[SalesForecastService] Loaded {loaded_count} forecasts from Database")
@@ -516,18 +534,18 @@ class SalesForecastService:
         
         step_start = time.time()
         
-        # Lọc chỉ những variants có dữ liệu
-        forecasts_to_save = []
-        for variant_id, forecast in forecast_map.items():
-            if forecast.total_sold > 0 or forecast.total_sold_previous_period > 0:
-                forecasts_to_save.append((variant_id, forecast))
+        # Lưu tất cả variants (kể cả những variants có total_sold = 0)
+        # Để khi load lại có dữ liệu đầy đủ
+        forecasts_to_save = list(forecast_map.items())
         
         if not forecasts_to_save:
             print(f"[DEBUG]        └─ Không có dữ liệu để lưu")
             return
         
-        print(f"[DEBUG]        └─ Lưu {len(forecasts_to_save)} forecasts vào Database (period_days={days})...")
-        logger.info(f"[SalesForecastService] Saving {len(forecasts_to_save)} forecasts to Database")
+        # Debug: Đếm số variants có bán
+        variants_with_sales = sum(1 for _, f in forecasts_to_save if f.total_sold > 0 or f.total_sold_previous_period > 0)
+        print(f"[DEBUG]        └─ Lưu {len(forecasts_to_save)} forecasts vào Database (period_days={days}), trong đó {variants_with_sales} có lượt bán...")
+        logger.info(f"[SalesForecastService] Saving {len(forecasts_to_save)} forecasts to Database (period_days={days}), {variants_with_sales} with sales")
         
         # Dùng bulk_update để tối ưu performance
         now = timezone.now()
@@ -642,8 +660,8 @@ class SalesForecastService:
         try:
             # Nếu không có variant_data, fetch từ API (fallback)
             if not variant_data:
-            variant_response = self.sapo_client.core.get_variant_raw(variant_id)
-            variant_data = variant_response.get("variant", {})
+                variant_response = self.sapo_client.core.get_variant_raw(variant_id)
+                variant_data = variant_response.get("variant", {})
             
             # Lấy tồn kho từ 2 kho (dùng available - có thể bán, không phải on_hand)
             inventories = variant_data.get("inventories", [])

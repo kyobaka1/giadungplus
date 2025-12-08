@@ -131,11 +131,12 @@ class SPOPOService:
             
             self.debug_print(f"Products metadata loaded: {len(products_metadata_map)}/{len(product_ids)}")
             
-            # Bước 3: Tính CPM cho từng line item và tổng CPM
+            # Bước 3: Tính CPM và product_amount_cny cho từng line item
             total_cpm = Decimal('0')
+            total_product_amount_cny = Decimal('0')
             processed_line_items = []
             
-            self.debug_print(f"=== Calculating CPM for {len(line_items_data)} line items ===")
+            self.debug_print(f"=== Calculating CPM and product_amount_cny for {len(line_items_data)} line items ===")
             for item_data in line_items_data:
                 variant_id = item_data.get('variant_id')
                 quantity = item_data.get('quantity', 0)
@@ -155,6 +156,16 @@ class SPOPOService:
                 total_cpm += item_cpm
                 self.debug_print(f"    Result CPM: {item_cpm}")
                 
+                # Tính product_amount_cny từ price_tq trong metadata
+                item_price_cny = self._get_variant_price_cny(
+                    variant_id,
+                    product_id,
+                    product_metadata
+                )
+                item_amount_cny = Decimal(str(item_price_cny)) * Decimal(str(quantity))
+                total_product_amount_cny += item_amount_cny
+                self.debug_print(f"    Price CNY: {item_price_cny}, Amount CNY: {item_amount_cny}")
+                
                 processed_line_items.append({
                     'sapo_line_item_id': item_data.get('id'),
                     'variant_id': variant_id,
@@ -164,6 +175,8 @@ class SPOPOService:
                     'variant_name': item_data.get('variant_name', ''),
                     'quantity': quantity,
                     'price': Decimal(str(item_data.get('price', 0))),
+                    'price_cny': item_price_cny,  # Giá nhập CNY từ metadata
+                    'amount_cny': item_amount_cny,  # Tiền hàng = price_cny * quantity
                     'total_amount': Decimal(str(item_data.get('total_line_amount_after_tax', 0))),
                     'cpm': item_cpm,  # CPM tính theo công thức mới
                     'cbm': item_cpm,  # Giữ cbm để tương thích với code cũ
@@ -171,7 +184,7 @@ class SPOPOService:
                     'variant_options': item_data.get('variant_options', ''),
                 })
             
-            self.debug_print(f"=== Final result: total_cpm={total_cpm} ===")
+            self.debug_print(f"=== Final result: total_cpm={total_cpm}, total_product_amount_cny={total_product_amount_cny} ===")
             
             return {
                 'sapo_order_supplier_id': sapo_order_supplier_id,
@@ -183,6 +196,7 @@ class SPOPOService:
                 'tags': order_supplier_data.get('tags', []),
                 'total_amount': Decimal(str(order_supplier_data.get('total_price', 0))),
                 'total_quantity': order_supplier_data.get('total_quantity', 0),
+                'product_amount_cny': total_product_amount_cny,  # Tổng tiền hàng (CNY) từ price_tq
                 'line_items': processed_line_items,
                 'total_cpm': total_cpm,  # CPM tính theo công thức mới
                 'total_cbm': total_cpm,  # Giữ total_cbm để tương thích với code cũ
@@ -296,6 +310,91 @@ class SPOPOService:
             import traceback
             self.debug_print(f"      Traceback: {traceback.format_exc()}")
             return Decimal('0')
+    
+    def _get_variant_price_cny(
+        self,
+        variant_id: int,
+        product_id: Optional[int] = None,
+        product_metadata: Optional[Any] = None
+    ) -> float:
+        """
+        Lấy giá nhập CNY (price_tq) của variant từ product metadata.
+        
+        Ưu tiên: price_tq > import_info.china_price_cny
+        
+        Args:
+            variant_id: Sapo variant ID
+            product_id: Product ID (optional, nếu đã có product_metadata)
+            product_metadata: ProductMetadataDTO (optional, nếu đã load sẵn)
+            
+        Returns:
+            Giá nhập CNY (float), mặc định 0.0 nếu không tìm thấy
+        """
+        try:
+            self.debug_print(f"    _get_variant_price_cny: variant_id={variant_id}, product_id={product_id}")
+            
+            # Nếu chưa có product_metadata, load từ product_id
+            if not product_metadata and product_id:
+                self.debug_print(f"      Loading product_metadata for product_id={product_id}")
+                try:
+                    product_data = self.core_api.get_product_raw(product_id)
+                    if product_data:
+                        description = product_data.get('description', '')
+                        product_metadata, _ = extract_gdp_metadata(description)
+                        self.debug_print(f"      Loaded metadata: {product_metadata is not None}")
+                    else:
+                        self.debug_print(f"      Product data is None")
+                except Exception as e:
+                    logger.warning(f"[SPOPOService] Error loading product {product_id}: {e}")
+                    self.debug_print(f"      ERROR loading product: {e}")
+            
+            if not product_metadata:
+                self.debug_print(f"      No product_metadata")
+                logger.warning(f"[SPOPOService] No metadata for variant {variant_id}")
+                return 0.0
+            
+            if not product_metadata.variants:
+                self.debug_print(f"      product_metadata.variants is empty")
+                logger.warning(f"[SPOPOService] No variants in metadata for variant {variant_id}")
+                return 0.0
+            
+            self.debug_print(f"      Found {len(product_metadata.variants)} variants in metadata")
+            
+            # Tìm variant metadata
+            variant_meta = None
+            for v_meta in product_metadata.variants:
+                if v_meta.id == variant_id:
+                    variant_meta = v_meta
+                    break
+            
+            if not variant_meta:
+                self.debug_print(f"      Variant {variant_id} not found in metadata variants")
+                logger.warning(f"[SPOPOService] Variant {variant_id} not found in metadata")
+                return 0.0
+            
+            self.debug_print(f"      Found variant_meta for variant_id={variant_id}")
+            
+            # Ưu tiên: price_tq > import_info.china_price_cny
+            price_cny = 0.0
+            
+            if variant_meta.price_tq and variant_meta.price_tq > 0:
+                price_cny = float(variant_meta.price_tq)
+                self.debug_print(f"      Using price_tq: {price_cny}")
+            elif variant_meta.import_info and variant_meta.import_info.china_price_cny:
+                price_cny = float(variant_meta.import_info.china_price_cny)
+                self.debug_print(f"      Using import_info.china_price_cny: {price_cny}")
+            else:
+                self.debug_print(f"      No price found in metadata")
+                logger.warning(f"[SPOPOService] No price_tq or china_price_cny for variant {variant_id}")
+            
+            return price_cny
+            
+        except Exception as e:
+            logger.error(f"[SPOPOService] Error getting price CNY for variant {variant_id}: {e}", exc_info=True)
+            self.debug_print(f"      EXCEPTION: {e}")
+            import traceback
+            self.debug_print(f"      Traceback: {traceback.format_exc()}")
+            return 0.0
     
     def get_pos_for_spo(self, spo_purchase_order_ids: List[int]) -> List[Dict[str, Any]]:
         """

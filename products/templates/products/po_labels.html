@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi-VN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nhãn phụ xuất nhập khẩu - PO {{ po.sapo_code }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style type="text/css">
+        @page {
+            size: 100mm 150mm;  /* 10cm x 15cm */
+            margin: 0;
+        }
+        
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .label-page {
+                page-break-after: always;
+            }
+            .label-container {
+                border: none;
+                margin: 0;
+            }
+        }
+        
+        body {
+            margin: 0;
+            padding: 5px;
+            font-family: 'Arial', sans-serif;
+            background: #f5f5f5;
+        }
+        
+        .label-container {
+            width: 100mm;  /* 10cm */
+            height: 150mm; /* 15cm */
+            border: 1px solid #ccc;
+            background: white;
+            padding: 6px;
+            margin: 0 auto 5px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .label-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 2px solid #000;
+        }
+        
+        .label-logo {
+            height: 30px;
+        }
+        
+        .label-company {
+            font-size: 9px;
+            text-align: right;
+            font-weight: bold;
+        }
+        
+        .label-title {
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 8px 0 4px 0;
+            text-align: center;
+        }
+        
+        .label-content {
+            font-size: 10px;
+            line-height: 12px;
+            margin: 6px 0;
+        }
+        
+        .label-field {
+            margin: 4px 0;
+        }
+        
+        .label-field-label {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 80px;
+        }
+        
+        .label-field-value {
+            display: inline-block;
+        }
+        
+        .label-barcode-section {
+            margin-top: 10px;
+            text-align: center;
+            border-top: 2px solid #000;
+            padding-top: 8px;
+        }
+        
+        .label-sku {
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .label-opt {
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .label-footer {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            right: 8px;
+            font-size: 8px;
+            border-top: 1px dashed #888;
+            padding-top: 4px;
+        }
+        
+        .label-footer-line {
+            margin: 2px 0;
+        }
+        
+        .label-import-info {
+            font-size: 9px;
+            margin-top: 8px;
+            padding: 6px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+        }
+        
+        .label-import-info-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-decoration: underline;
+        }
+        
+        .label-import-field {
+            margin: 2px 0;
+            font-size: 8px;
+        }
+    </style>
+</head>
+<body>
+    {% for label in label_items %}
+    <div class="label-page">
+        <div class="label-container">
+            <!-- Header -->
+            <div class="label-header">
+                <img src="/static/giaodiensang.png" alt="Logo" class="label-logo" />
+                <div class="label-company">
+                    GIA DỤNG PLUS +<br>
+                    www.giadungplus.com
+                </div>
+            </div>
+            
+            <!-- Title -->
+            <div class="label-title">NHÃN XUẤT NHẬP KHẨU</div>
+            
+            <!-- Product Info -->
+            <div class="label-content">
+                <div class="label-field">
+                    <span class="label-field-label">Tên VN:</span>
+                    <span class="label-field-value">{{ label.vi_name|default:label.product_name }}</span>
+                </div>
+                {% if label.en_name %}
+                <div class="label-field">
+                    <span class="label-field-label">Tên EN:</span>
+                    <span class="label-field-value">{{ label.en_name }}</span>
+                </div>
+                {% endif %}
+                {% if label.description %}
+                <div class="label-field">
+                    <span class="label-field-label">Mô tả:</span>
+                    <span class="label-field-value">{{ label.description }}</span>
+                </div>
+                {% endif %}
+                {% if label.material %}
+                <div class="label-field">
+                    <span class="label-field-label">Chất liệu:</span>
+                    <span class="label-field-value">{{ label.material }}</span>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Import Info (XNK Model) -->
+            {% if label.hs_code or label.vn_name_xnk or label.en_name_xnk %}
+            <div class="label-import-info">
+                <div class="label-import-info-title">THÔNG TIN XUẤT NHẬP KHẨU:</div>
+                {% if label.hs_code %}
+                <div class="label-import-field">
+                    <strong>Mã HS:</strong> {{ label.hs_code }}
+                </div>
+                {% endif %}
+                {% if label.vn_name_xnk %}
+                <div class="label-import-field">
+                    <strong>Tên VN (XNK):</strong> {{ label.vn_name_xnk }}
+                </div>
+                {% endif %}
+                {% if label.en_name_xnk %}
+                <div class="label-import-field">
+                    <strong>Tên EN (XNK):</strong> {{ label.en_name_xnk }}
+                </div>
+                {% endif %}
+                {% if label.china_name %}
+                <div class="label-import-field">
+                    <strong>Tên TQ:</strong> {{ label.china_name }}
+                </div>
+                {% endif %}
+                {% if label.unit %}
+                <div class="label-import-field">
+                    <strong>Đơn vị:</strong> {{ label.unit }}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- SKU & Barcode -->
+            <div class="label-barcode-section">
+                <div class="label-sku">{{ label.sku }}</div>
+                {% if label.opt1 %}
+                <div class="label-opt">【{{ label.opt1 }}】</div>
+                {% endif %}
+                {% if label.barcode %}
+                <div style="text-align: center; margin-top: 8px;">
+                    <svg id="barcode-{{ label.barcode }}-{{ forloop.counter }}"></svg>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Footer -->
+            <div class="label-footer">
+                <div class="label-footer-line">
+                    - Nhập khẩu bởi: <strong>Công ty cổ phần TMDV Gia Dụng Plus</strong> - MST: 0109514772
+                </div>
+                <div class="label-footer-line">
+                    - Địa chỉ: C21-02 KĐT Geleximco, Dương Nội, Hà Đông, Hà Nội
+                </div>
+                {% if label.nsx_name %}
+                <div class="label-footer-line">
+                    - NSX: {{ label.nsx_name }}{% if label.supplier_address %} - {{ label.supplier_address }}{% endif %}
+                </div>
+                {% endif %}
+                <div class="label-footer-line">
+                    - HDSD: Xem chi tiết tài liệu gửi kèm.
+                </div>
+                <div class="label-footer-line" style="text-align: center; font-weight: bold; margin-top: 4px;">
+                    <i>SẢN XUẤT TẠI TRUNG QUỐC</i>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for label in label_items %}
+            {% if label.barcode %}
+            JsBarcode("#barcode-{{ label.barcode }}-{{ forloop.counter }}", "{{ label.barcode }}", {
+                format: "CODE128",
+                lineColor: "#000",
+                width: 1,
+                height: 40,
+                displayValue: true,
+                fontSize: 12,
+                textMargin: 2,
+                margin: 0
+            });
+            {% endif %}
+            {% endfor %}
+        });
+    </script>
+</body>
+</html>

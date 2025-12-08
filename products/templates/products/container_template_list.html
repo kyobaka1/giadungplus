@@ -60,10 +60,20 @@
                     <p class="text-sm text-slate-400 italic mt-0.5">Chưa đặt tên</p>
                     {% endif %}
                 </div>
-                <span class="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border
-                    {% if template.container_type == '40ft' %}bg-blue-50 text-blue-700 border-blue-100{% else %}bg-emerald-50 text-emerald-700 border-emerald-100{% endif %}">
-                    {{ template.get_container_type_display }}
-                </span>
+                <div class="flex flex-col items-end gap-1">
+                    <button type="button" 
+                            class="resync-template-btn text-[9px] text-slate-400 hover:text-emerald-600 transition-colors px-1.5 py-0.5 rounded hover:bg-emerald-50"
+                            data-template-id="{{ template.id }}"
+                            title="Tính toán lại từ SPO thành công">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </button>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap border
+                        {% if template.container_type == '40ft' %}bg-blue-50 text-blue-700 border-blue-100{% else %}bg-emerald-50 text-emerald-700 border-emerald-100{% endif %}">
+                        {{ template.get_container_type_display }}
+                    </span>
+                </div>
             </div>
 
             <!-- Body -->
@@ -175,22 +185,47 @@
 
                             <!-- Other Suppliers -->
                             {% if template.suppliers_list|length > 1 or not template.default_supplier_id %}
-                            <div class="pl-2 pt-1 border-l-2 border-slate-100 ml-1 space-y-1">
-                                {% for supplier in template.suppliers_list %}
-                                    {% if supplier.supplier_id != template.default_supplier_id %}
-                                    <div class="flex items-center justify-between group/item">
-                                        <div class="flex items-center gap-2">
-                                            <span class="text-xs text-slate-600 truncate max-w-[140px]" title="{{ supplier.supplier_name }}">{{ supplier.supplier_name }}</span>
+                            <div class="pl-1.5 pt-1.5 border-l-2 border-slate-100 ml-1">
+                                <div class="flex flex-wrap gap-1.5">
+                                    {% for supplier in template.suppliers_list %}
+                                        {% if supplier.supplier_id != template.default_supplier_id %}
+                                        <div class="flex items-center gap-1.5 p-1.5 bg-slate-50 border border-slate-200 rounded-md group/item relative">
+                                            <!-- Logo -->
+                                            <div class="w-4 h-4 rounded bg-white flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                                                {% if supplier.supplier_logo_path %}
+                                                    <img src="{{ supplier.supplier_logo_path }}" alt="{{ supplier.supplier_name }}" class="w-full h-full object-contain">
+                                                {% else %}
+                                                    <span class="text-[7px] font-bold text-slate-400">{{ supplier.supplier_name|slice:":1"|upper }}</span>
+                                                {% endif %}
+                                            </div>
+                                            
+                                            <!-- Name -->
+                                            <span class="text-[10px] text-slate-700 font-medium truncate max-w-[90px]" title="{{ supplier.supplier_name }}">
+                                                {{ supplier.supplier_name }}
+                                            </span>
+                                            
+                                            <!-- Actions -->
+                                            <div class="flex items-center gap-0.5">
+                                                <button class="set-default-btn text-[8px] text-slate-400 hover:text-emerald-600 opacity-0 group-hover/item:opacity-100 transition px-1 py-0.5 rounded hover:bg-emerald-50"
+                                                        data-template-id="{{ template.id }}"
+                                                        data-supplier-id="{{ supplier.supplier_id }}"
+                                                        title="Đặt làm NSX đóng container">
+                                                    Đặt chính
+                                                </button>
+                                                <button class="remove-supplier-btn text-red-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition p-0.5 rounded hover:bg-red-50"
+                                                        data-template-id="{{ template.id }}"
+                                                        data-supplier-id="{{ supplier.supplier_id }}"
+                                                        data-supplier-name="{{ supplier.supplier_name }}"
+                                                        title="Xóa NSX khỏi template">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
-                                        <button class="text-[10px] text-slate-400 hover:text-emerald-600 opacity-0 group-hover/item:opacity-100 transition set-default-btn"
-                                                data-template-id="{{ template.id }}"
-                                                data-supplier-id="{{ supplier.supplier_id }}"
-                                                title="Đặt làm NSX đóng container">
-                                            Đặt chính
-                                        </button>
-                                    </div>
-                                    {% endif %}
-                                {% endfor %}
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
                             </div>
                             {% endif %}
                         {% else %}
@@ -200,13 +235,43 @@
                         {% endif %}
                     </div>
                 </div>
+
+                <!-- SPOs List -->
+                {% if template.spos_list %}
+                <div class="mt-4 pt-3 border-t border-slate-100">
+                    <span class="text-[10px] uppercase text-slate-400 font-bold tracking-wider block mb-2">SPO sử dụng template</span>
+                    <div class="space-y-1.5">
+                        {% for spo in template.spos_list %}
+                        <div class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition">
+                            <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" class="text-xs font-semibold text-slate-700 hover:text-indigo-600">
+                                {{ spo.code }}
+                            </a>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-medium
+                                {% if spo.status == 'completed' %}bg-green-100 text-green-700 border border-green-200
+                                {% elif spo.status == 'cancelled' %}bg-red-100 text-red-700 border border-red-200
+                                {% elif spo.status == 'draft' %}bg-slate-100 text-slate-600 border border-slate-200
+                                {% elif spo.status == 'packed' or spo.status == 'departed_cn' or spo.status == 'arrived_vn' %}bg-blue-100 text-blue-700 border border-blue-200
+                                {% else %}bg-amber-100 text-amber-700 border border-amber-200{% endif %}">
+                                {{ spo.get_status_display }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             <!-- Footer -->
             <div class="p-4 bg-slate-50 border-t border-slate-100 rounded-b-xl flex justify-between items-center text-xs">
-                <span class="text-slate-500">
-                    Cycle: <span class="font-bold text-slate-700">{{ template.avg_import_cycle_days|default:"--" }}</span> days
-                </span>
+                <button type="button" 
+                        class="delete-template-btn px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 transition-colors font-medium flex items-center gap-1.5"
+                        data-template-id="{{ template.id }}"
+                        data-template-code="{{ template.code }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Xóa</span>
+                </button>
                 <a href="{% url 'products:container_template_detail' template.id %}" class="font-bold text-indigo-600 hover:text-indigo-700 hover:underline">
                     Quản lý chi tiết →
                 </a>
@@ -453,6 +518,145 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then(r => r.json()).then(d => {
                 if(d.status === 'success') window.location.reload();
                 else alert(d.message);
+            });
+        });
+    });
+
+    // ========== 3.5. REMOVE SUPPLIER LOGIC ==========
+    document.querySelectorAll('.remove-supplier-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const templateId = this.getAttribute('data-template-id');
+            const supplierId = this.getAttribute('data-supplier-id');
+            const supplierName = this.getAttribute('data-supplier-name');
+            
+            if(!confirm(`Bạn có chắc chắn muốn xóa "${supplierName}" khỏi template này?`)) {
+                return;
+            }
+            
+            const supplierCard = this.closest('.group\\/item');
+            const originalHTML = supplierCard.innerHTML;
+            supplierCard.style.opacity = '0.5';
+            supplierCard.style.pointerEvents = 'none';
+            
+            fetch('{% url "products:remove_supplier_from_container" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({
+                    container_template_id: parseInt(templateId),
+                    supplier_id: parseInt(supplierId)
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') {
+                    // Remove card with animation
+                    supplierCard.style.transition = 'opacity 0.3s, transform 0.3s';
+                    supplierCard.style.opacity = '0';
+                    supplierCard.style.transform = 'scale(0.9)';
+                    setTimeout(() => {
+                        supplierCard.remove();
+                    }, 300);
+                } else {
+                    alert(`❌ Lỗi: ${d.message}`);
+                    supplierCard.style.opacity = '1';
+                    supplierCard.style.pointerEvents = 'auto';
+                }
+            })
+            .catch(err => {
+                alert(`❌ Lỗi: ${err.message}`);
+                supplierCard.style.opacity = '1';
+                supplierCard.style.pointerEvents = 'auto';
+            });
+        });
+    });
+
+    // ========== 4. DELETE TEMPLATE LOGIC ==========
+    document.querySelectorAll('.delete-template-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const templateId = this.getAttribute('data-template-id');
+            const templateCode = this.getAttribute('data-template-code');
+            
+            if(!confirm(`Bạn có chắc chắn muốn xóa container template "${templateCode}"?\n\nLưu ý: Chỉ có thể xóa template khi không có SPO nào đang sử dụng.`)) {
+                return;
+            }
+            
+            const originalHTML = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            
+            fetch(`/products/container-templates/${templateId}/delete/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') {
+                    // Remove card with animation
+                    const card = btn.closest('[data-template-id]');
+                    if(card) {
+                        card.style.transition = 'opacity 0.3s, transform 0.3s';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            card.remove();
+                            // Reload if no cards left
+                            if(document.querySelectorAll('[data-template-id]').length === 0) {
+                                window.location.reload();
+                            }
+                        }, 300);
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert(`❌ Lỗi: ${d.message}`);
+                    this.disabled = false;
+                    this.innerHTML = originalHTML;
+                }
+            })
+            .catch(err => {
+                alert(`❌ Lỗi: ${err.message}`);
+                this.disabled = false;
+                this.innerHTML = originalHTML;
+            });
+        });
+    });
+
+    // ========== 5. RESYNC TEMPLATE STATS LOGIC ==========
+    document.querySelectorAll('.resync-template-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const tId = this.getAttribute('data-template-id');
+            const originalHTML = this.innerHTML;
+            
+            // Show loading state
+            this.innerHTML = '<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            this.disabled = true;
+            
+            fetch(`/products/container-templates/${tId}/resync-stats/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') {
+                    alert(`✅ ${d.message}\n- Giá trị TB: ${d.avg_total_amount ? d.avg_total_amount.toLocaleString('vi-VN') : 'N/A'} VNĐ\n- Chu kỳ TB: ${d.avg_import_cycle_days || 'N/A'} ngày\n- Từ ${d.spo_count} SPO completed`);
+                    window.location.reload();
+                } else if(d.status === 'warning') {
+                    alert(`⚠️ ${d.message}`);
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                } else {
+                    alert(`❌ Lỗi: ${d.message}`);
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                }
+            })
+            .catch(err => {
+                alert(`❌ Lỗi: ${err.message}`);
+                this.innerHTML = originalHTML;
+                this.disabled = false;
             });
         });
     });

@@ -215,7 +215,7 @@ class SumPurchaseOrderService:
             Dict với allocation details cho từng PO và line item
         """
         spo = SumPurchaseOrder.objects.get(id=spo_id)
-        spo_po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all()]
+        spo_po_ids = [spo_po.purchase_order.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.select_related('purchase_order').all() if spo_po.purchase_order]
         
         if not spo_po_ids:
             return {
@@ -337,7 +337,7 @@ class SumPurchaseOrderService:
     
     def _recalculate_spo_cbm(self, spo: SumPurchaseOrder):
         """Tính lại total_cbm của SPO từ các PO (lấy từ Sapo)"""
-        spo_po_ids = [spo_po.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.all()]
+        spo_po_ids = [spo_po.purchase_order.sapo_order_supplier_id for spo_po in spo.spo_purchase_orders.select_related('purchase_order').all() if spo_po.purchase_order]
         total_cbm = self.spo_po_service.calculate_spo_total_cbm(spo_po_ids)
         spo.total_cbm = total_cbm
         spo.save()
