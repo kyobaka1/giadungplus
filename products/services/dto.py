@@ -84,6 +84,7 @@ class SalesForecastDTO(BaseDTO):
     calculated_at: Optional[str] = None  # Thời điểm tính toán (ISO format)
     sales_rate: float = 0.0  # Tốc độ bán (số lượng/ngày)
     growth_percentage: Optional[float] = None  # % tăng trưởng so với kỳ trước
+    suggested_purchase_qty: Optional[float] = None  # Gợi ý số lượng nhập cho 60 ngày
 
 
 class VariantMetadataDTO(BaseDTO):

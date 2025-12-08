@@ -1309,6 +1309,19 @@ def supplier_list(request: HttpRequest):
         # Bổ sung số lượng sản phẩm
         all_suppliers = supplier_service.enrich_suppliers_with_product_count(all_suppliers)
         
+        # Tính gợi ý nhập hàng theo NSX (chỉ từ database, không tính toán lại)
+        supplier_purchase_suggestions = {}
+        try:
+            from products.services.sales_forecast_service import SalesForecastService
+            forecast_service = SalesForecastService(sapo_client)
+            
+            # Chỉ load từ database và tính gợi ý nhập (không tính toán lại forecast)
+            supplier_purchase_suggestions = forecast_service.calculate_supplier_purchase_suggestions_from_db(
+                days=30
+            )
+        except Exception as e:
+            logger.warning(f"Error calculating supplier purchase suggestions: {e}", exc_info=True)
+        
         # Convert to dict for template
         suppliers_data = []
         group_names_set = set()
@@ -1319,6 +1332,18 @@ def supplier_list(request: HttpRequest):
             
             # Parse websites
             websites_dict = supplier.websites_dict
+            
+            # Tìm gợi ý nhập hàng cho NSX này (match theo code hoặc name)
+            purchase_suggestion = None
+            supplier_code_upper = (supplier.code or "").upper()
+            supplier_name_upper = (supplier.name or "").upper()
+            
+            # Tìm match trong supplier_purchase_suggestions
+            for brand_name, suggestion_data in supplier_purchase_suggestions.items():
+                brand_upper = brand_name.upper()
+                if brand_upper == supplier_code_upper or brand_upper == supplier_name_upper:
+                    purchase_suggestion = suggestion_data
+                    break
             
             suppliers_data.append({
                 "id": supplier.id,
@@ -1334,6 +1359,7 @@ def supplier_list(request: HttpRequest):
                 "product_count": supplier.product_count,
                 "debt": supplier.debt,
                 "status": supplier.status,
+                "purchase_suggestion": purchase_suggestion,  # Thêm gợi ý nhập hàng
             })
 
         # Sắp xếp: ưu tiên ĐỘC QUYỀN trước PHÂN PHỐI
@@ -1750,7 +1776,8 @@ def sales_forecast_list(request: HttpRequest):
                 variant_id,
                 {variant_id: main_forecast},  # Truyền map với 1 item
                 variant_data=variant_data,  # Truyền variant_data đã có sẵn
-                product_data=product_data  # Truyền product_data để lấy brand
+                product_data=product_data,  # Truyền product_data để lấy brand
+                forecast_30=forecast_30  # Truyền forecast_30 để tính gợi ý nhập hàng
             )
             
             # Tính tỉ lệ % cho 30 ngày và 10 ngày
@@ -1846,6 +1873,11 @@ def container_template_list(request: HttpRequest):
     }
 
     try:
+        from products.services.sales_forecast_service import SalesForecastService
+        
+        sapo_client = get_sapo_client()
+        forecast_service = SalesForecastService(sapo_client)
+        
         templates = ContainerTemplate.objects.filter(is_active=True).order_by('code')
         # Preload suppliers và format money cho mỗi template
         for template in templates:
@@ -1868,6 +1900,30 @@ def container_template_list(request: HttpRequest):
                 template.formatted_avg_total = f"{millions}M"
             else:
                 template.formatted_avg_total = f"{int(val):,}"
+            
+            # Tính gợi ý nhập hàng cho container template
+            try:
+                suppliers_data = [
+                    {
+                        "supplier_code": s.supplier_code,
+                        "supplier_name": s.supplier_name
+                    }
+                    for s in template.suppliers_list
+                ]
+                
+                template.purchase_suggestion = forecast_service.calculate_container_template_suggestions(
+                    suppliers_data,
+                    float(template.volume_cbm)
+                )
+            except Exception as e:
+                logger.warning(f"Error calculating purchase suggestion for template {template.code}: {e}", exc_info=True)
+                template.purchase_suggestion = {
+                    "current_cbm": 0.0,
+                    "percentage": 0.0,
+                    "daily_cbm_growth": 0.0,
+                    "days_to_full": None,
+                    "estimated_date": None,
+                }
 
         context["templates"] = templates
         context["total"] = templates.count()
