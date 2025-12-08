@@ -3804,25 +3804,114 @@ def export_po_labels(request: HttpRequest, po_id: int):
                 "message": "PO không có line items"
             }, status=400)
         
-        # Lấy tất cả XNK models
+        # ===== BƯỚC 1: Load toàn bộ XNK models =====
+        logger.info(f"[export_po_labels] [BƯỚC 1] Loading all XNK models...")
         all_xnk_models = xnk_service.get_all_models()
-        xnk_model_map = {model.get('sku', '').strip(): model for model in all_xnk_models}
+        # Tạo map với key là SKU (trimmed, normalized)
+        xnk_model_map = {}
+        for model in all_xnk_models:
+            sku = model.get('sku', '').strip()
+            if sku:
+                # Lưu với key là SKU đã trim (case-sensitive để chính xác)
+                xnk_model_map[sku] = model
         
-        # Lấy thông tin supplier
+        logger.info(f"[export_po_labels] [BƯỚC 1] ✅ Loaded {len(all_xnk_models)} XNK models. Map has {len(xnk_model_map)} unique SKUs")
+        
+        # ===== BƯỚC 2: Lấy thông tin supplier và brand =====
         supplier_name = po_data.get('supplier_name', '')
         supplier_code = po_data.get('supplier_code', '')
+        supplier_id = po_data.get('supplier_id')
         
-        # Lấy supplier address từ Sapo
+        # Lấy supplier address và brand_id từ Sapo
         supplier_address = ""
+        brand_id = None
+        
         try:
-            supplier_id = po_data.get('supplier_id')
             if supplier_id:
                 supplier_data = sapo_client.core.get_supplier_raw(supplier_id)
-                if supplier_data and supplier_data.get('addresses'):
-                    addr = supplier_data['addresses'][0]
-                    supplier_address = addr.get('address1', '')
+                if supplier_data:
+                    # Lấy address
+                    if supplier_data.get('addresses'):
+                        addr = supplier_data['addresses'][0]
+                        supplier_address = addr.get('address1', '')
+                    
+                    # Lấy brand_id từ supplier code
+                    supplier_code_from_api = supplier_data.get('code', '') or supplier_code
+                    if supplier_code_from_api:
+                        logger.info(f"[export_po_labels] [BƯỚC 2] Looking for brand with code/name: {supplier_code_from_api}")
+                        # Tìm brand theo code hoặc name
+                        brands_response = sapo_client.core.list_brands_search_raw(page=1, limit=250, query=supplier_code_from_api)
+                        brands = brands_response.get("brands", [])
+                        for brand in brands:
+                            if brand.get('code', '').upper() == supplier_code_from_api.upper() or brand.get('name', '').upper() == supplier_code_from_api.upper():
+                                brand_id = brand.get('id')
+                                logger.info(f"[export_po_labels] [BƯỚC 2] ✅ Found brand_id: {brand_id} for supplier {supplier_code_from_api}")
+                                break
         except Exception as e:
-            logger.warning(f"Error getting supplier address: {e}")
+            logger.warning(f"[export_po_labels] Error getting supplier/brand info: {e}")
+        
+        # ===== BƯỚC 3: Load toàn bộ variants của NSX (theo brand_id) =====
+        variant_sku_xnk_map = {}  # Map: variant_id -> sku_model_xnk
+        
+        if brand_id:
+            logger.info(f"[export_po_labels] [BƯỚC 3] Loading all variants for brand_id={brand_id}...")
+            product_service = SapoProductService(sapo_client)
+            core_repo = sapo_client.core
+            
+            # Load tất cả products của brand này (giống variant_list)
+            all_products = []
+            page = 1
+            limit = 250
+            
+            while True:
+                filters = {
+                    "page": page,
+                    "limit": limit,
+                    "status": "active"
+                }
+                
+                products_response = core_repo.list_products_raw(**filters)
+                products_data = products_response.get("products", [])
+                
+                if not products_data:
+                    break
+                
+                # Filter theo brand_id (client-side)
+                for product_data in products_data:
+                    if product_data.get("brand_id") == brand_id:
+                        all_products.append(product_data)
+                
+                if len(products_data) < limit:
+                    break
+                
+                page += 1
+                if page > 100:  # Safety limit
+                    break
+            
+            logger.info(f"[export_po_labels] [BƯỚC 3] Found {len(all_products)} products for brand_id={brand_id}")
+            
+            # Parse variants và lấy sku_model_xnk từ metadata
+            for product_data in all_products:
+                product_id = product_data.get("id")
+                if not product_id:
+                    continue
+                
+                try:
+                    product_dto = product_service.get_product(product_id)
+                    if product_dto and product_dto.gdp_metadata:
+                        # Lấy sku_model_xnk từ tất cả variants
+                        for v_meta in product_dto.gdp_metadata.variants:
+                            variant_id = v_meta.id
+                            sku_model_xnk = v_meta.sku_model_xnk
+                            if sku_model_xnk:
+                                variant_sku_xnk_map[variant_id] = sku_model_xnk.strip()
+                except Exception as e:
+                    logger.warning(f"[export_po_labels] Error parsing product {product_id}: {e}")
+                    continue
+            
+            logger.info(f"[export_po_labels] [BƯỚC 3] ✅ Loaded {len(variant_sku_xnk_map)} variants with sku_model_xnk")
+        else:
+            logger.warning(f"[export_po_labels] [BƯỚC 3] ⚠️ No brand_id found, skipping variant loading")
         
         # Process line items để tạo labels
         label_items = []
@@ -3836,58 +3925,94 @@ def export_po_labels(request: HttpRequest, po_id: int):
                 continue
             
             try:
-                # Lấy variant từ Sapo
+                # Lấy variant từ Sapo (chỉ cần basic info)
                 variant_data = sapo_client.core.get_variant_raw(variant_id)
                 if not variant_data:
                     continue
                 
-                # Lấy product để có metadata
-                product_id = variant_data.get('product_id')
-                product_dto = None
-                variant_meta = None
-                nhanphu_info = None
-                
-                if product_id:
-                    product_dto = SapoProductService(sapo_client).get_product(product_id)
-                    if product_dto:
-                        if product_dto.gdp_metadata:
-                            # Tìm variant metadata
-                            for v_meta in product_dto.gdp_metadata.variants:
-                                if v_meta.id == variant_id:
-                                    variant_meta = v_meta
-                                    break
-                        
-                        # Lấy nhanphu_info từ product metadata
-                        if product_dto.gdp_metadata and product_dto.gdp_metadata.nhanphu_info:
-                            nhanphu_info = product_dto.gdp_metadata.nhanphu_info
-                
-                # Lấy XNK model theo sku_model_xnk
+                # ===== BƯỚC 4: So trùng SKU nhập khẩu với XNK models =====
                 xnk_model = None
-                if variant_meta and variant_meta.sku_model_xnk:
-                    xnk_model = xnk_model_map.get(variant_meta.sku_model_xnk.strip())
+                nsx_address = supplier_address  # Mặc định dùng supplier address
+                sku_model_xnk_value = variant_sku_xnk_map.get(variant_id)  # Lấy từ map đã load
+                
+                if sku_model_xnk_value:
+                    logger.info(f"[export_po_labels] [BƯỚC 4] Variant {variant_id} (SKU: {sku}) - sku_model_xnk: {sku_model_xnk_value}")
+                    
+                    # Tìm trong XNK model map (exact match)
+                    xnk_model = xnk_model_map.get(sku_model_xnk_value)
+                    
+                    # Nếu không tìm thấy, thử case-insensitive search
+                    if not xnk_model:
+                        for map_sku, map_model in xnk_model_map.items():
+                            if map_sku.upper() == sku_model_xnk_value.upper():
+                                xnk_model = map_model
+                                break
+                    
+                    if xnk_model:
+                        logger.info(f"[export_po_labels] [BƯỚC 4] ✅ Found XNK model for SKU: '{sku_model_xnk_value}' -> Model SKU: '{xnk_model.get('sku', '')}'")
+                        
+                        # Lấy NSX address từ XNK model nếu có
+                        nsx_address = (
+                            xnk_model.get('nsx_address', '') or 
+                            xnk_model.get('supplier_address', '') or 
+                            xnk_model.get('address', '') or 
+                            supplier_address
+                        )
+                    else:
+                        # Log để debug - chỉ lấy 10 SKUs đầu tiên
+                        available_skus = list(xnk_model_map.keys())[:10]
+                        logger.warning(f"[export_po_labels] [BƯỚC 4] ⚠️ XNK model NOT found for SKU: '{sku_model_xnk_value}'. Available SKUs sample: {available_skus}")
+                else:
+                    logger.warning(f"[export_po_labels] [BƯỚC 4] ⚠️ Variant {variant_id} (SKU: {sku}) - No sku_model_xnk in variant map")
+                
+                # Lấy các field từ XNK model (xử lý cả en_name và name_en)
+                hs_code = ''
+                en_name = ''
+                vn_name = ''
+                nsx_name = supplier_name
+                unit = ''
+                
+                if xnk_model:
+                    hs_code = xnk_model.get('hs_code', '') or ''
+                    # Xử lý cả en_name và name_en
+                    en_name = xnk_model.get('en_name', '') or xnk_model.get('name_en', '') or ''
+                    vn_name = xnk_model.get('vn_name', '') or xnk_model.get('name_vn', '') or ''
+                    nsx_name = xnk_model.get('nsx_name', '') or supplier_name
+                    unit = xnk_model.get('unit', '') or ''
+                
+                # Lấy opt1 từ nhiều nguồn (variant_data, item, hoặc parse từ variant_name)
+                opt1 = (
+                    variant_data.get('opt1', '') or 
+                    item.get('opt1', '') or 
+                    item.get('variant_options', '') or
+                    ''
+                )
+                
+                # Nếu vẫn không có, thử parse từ variant_name (format: "Product Name - opt1")
+                if not opt1 and item.get('variant_name'):
+                    variant_name = item.get('variant_name', '')
+                    if ' - ' in variant_name:
+                        parts = variant_name.split(' - ', 1)
+                        if len(parts) > 1:
+                            opt1 = parts[1].strip()
                 
                 # Tạo label data cho mỗi sản phẩm (1 label = 1 SKU)
                 label_data = {
                     'sku': sku,
                     'barcode': variant_data.get('barcode', ''),
-                    'opt1': variant_data.get('opt1', ''),
+                    'opt1': opt1,
                     'product_name': item.get('product_name', ''),
                     'variant_name': item.get('variant_name', ''),
                     'quantity': quantity,
-                    'supplier_name': supplier_name,
-                    'supplier_address': supplier_address,
-                    # Nhanphu info
-                    'vi_name': nhanphu_info.vi_name if nhanphu_info and nhanphu_info.vi_name else product_dto.name if product_dto else '',
-                    'en_name': nhanphu_info.en_name if nhanphu_info and nhanphu_info.en_name else '',
-                    'description': nhanphu_info.description if nhanphu_info and nhanphu_info.description else '',
-                    'material': nhanphu_info.material if nhanphu_info and nhanphu_info.material else '',
-                    # XNK Model info
-                    'hs_code': xnk_model.get('hs_code', '') if xnk_model else '',
-                    'vn_name_xnk': xnk_model.get('vn_name', '') if xnk_model else '',
-                    'en_name_xnk': xnk_model.get('en_name', '') if xnk_model else '',
-                    'china_name': xnk_model.get('china_name', '') if xnk_model else '',
-                    'nsx_name': xnk_model.get('nsx_name', '') if xnk_model else supplier_name,
-                    'unit': xnk_model.get('unit', '') if xnk_model else '',
+                    # XNK Model info (từ SKU nhập khẩu)
+                    'hs_code': hs_code,
+                    'en_name_xnk': en_name,
+                    'vn_name_xnk': vn_name,
+                    'nsx_name': nsx_name,
+                    'nsx_address': nsx_address,
+                    'unit': unit,
+                    # Debug info
+                    'sku_model_xnk': sku_model_xnk_value or '',
                 }
                 
                 # Tạo 1 label cho mỗi SKU (không phải mỗi quantity)

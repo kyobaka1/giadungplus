@@ -48,32 +48,23 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             padding-bottom: 4px;
-            border-bottom: 2px solid #000;
         }
         
         .label-logo {
-            height: 30px;
+            height: 50px;
         }
         
         .label-company {
-            font-size: 9px;
+            font-size: 13px;
             text-align: right;
             font-weight: bold;
         }
         
-        .label-title {
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin: 8px 0 4px 0;
-            text-align: center;
-        }
-        
         .label-content {
-            font-size: 10px;
-            line-height: 12px;
+            font-size: 13px;
+            line-height: 14px;
             margin: 6px 0;
         }
         
@@ -91,19 +82,27 @@
             display: inline-block;
         }
         
+        .label-field-inline {
+            margin: 4px 0;
+            font-size: 13px;
+            line-height: 14px;
+        }
+        
         .label-barcode-section {
-            margin-top: 10px;
+            margin-top: 5px;
+            margin-bottom: 5px;
             text-align: center;
             border-top: 2px solid #000;
-            padding-top: 8px;
+            border-bottom: 2px solid #000;
+            padding: 6px 0;
         }
         
         .label-sku {
             font-size: 28px;
-            font-weight: bold;
+            font-weight: 900;
             text-align: center;
-            margin: 8px 0;
-            font-family: 'Courier New', monospace;
+            margin: 4px 0;
+            font-family: Arial, Helvetica, sans-serif;
         }
         
         .label-opt {
@@ -113,12 +112,11 @@
         }
         
         .label-footer {
-            position: absolute;
             bottom: 8px;
             left: 8px;
             right: 8px;
-            font-size: 8px;
-            border-top: 1px dashed #888;
+            font-size: 12px;
+            border-top: 2px solid #000;
             padding-top: 4px;
         }
         
@@ -127,7 +125,7 @@
         }
         
         .label-import-info {
-            font-size: 9px;
+            font-size: 12px;
             margin-top: 8px;
             padding: 6px;
             background: #f9f9f9;
@@ -138,19 +136,20 @@
             font-weight: bold;
             margin-bottom: 4px;
             text-decoration: underline;
+            font-size: 12px;
         }
         
         .label-import-field {
             margin: 2px 0;
-            font-size: 8px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
     {% for label in label_items %}
-    <div class="label-page">
-        <div class="label-container">
-            <!-- Header -->
+    <div class="label-page" style="padding: 6px;">
+        <div class="label-container" style="padding: 10px;">
+            <!-- LOGO -->
             <div class="label-header">
                 <img src="/static/giaodiensang.png" alt="Logo" class="label-logo" />
                 <div class="label-company">
@@ -159,68 +158,7 @@
                 </div>
             </div>
             
-            <!-- Title -->
-            <div class="label-title">NHÃN XUẤT NHẬP KHẨU</div>
-            
-            <!-- Product Info -->
-            <div class="label-content">
-                <div class="label-field">
-                    <span class="label-field-label">Tên VN:</span>
-                    <span class="label-field-value">{{ label.vi_name|default:label.product_name }}</span>
-                </div>
-                {% if label.en_name %}
-                <div class="label-field">
-                    <span class="label-field-label">Tên EN:</span>
-                    <span class="label-field-value">{{ label.en_name }}</span>
-                </div>
-                {% endif %}
-                {% if label.description %}
-                <div class="label-field">
-                    <span class="label-field-label">Mô tả:</span>
-                    <span class="label-field-value">{{ label.description }}</span>
-                </div>
-                {% endif %}
-                {% if label.material %}
-                <div class="label-field">
-                    <span class="label-field-label">Chất liệu:</span>
-                    <span class="label-field-value">{{ label.material }}</span>
-                </div>
-                {% endif %}
-            </div>
-            
-            <!-- Import Info (XNK Model) -->
-            {% if label.hs_code or label.vn_name_xnk or label.en_name_xnk %}
-            <div class="label-import-info">
-                <div class="label-import-info-title">THÔNG TIN XUẤT NHẬP KHẨU:</div>
-                {% if label.hs_code %}
-                <div class="label-import-field">
-                    <strong>Mã HS:</strong> {{ label.hs_code }}
-                </div>
-                {% endif %}
-                {% if label.vn_name_xnk %}
-                <div class="label-import-field">
-                    <strong>Tên VN (XNK):</strong> {{ label.vn_name_xnk }}
-                </div>
-                {% endif %}
-                {% if label.en_name_xnk %}
-                <div class="label-import-field">
-                    <strong>Tên EN (XNK):</strong> {{ label.en_name_xnk }}
-                </div>
-                {% endif %}
-                {% if label.china_name %}
-                <div class="label-import-field">
-                    <strong>Tên TQ:</strong> {{ label.china_name }}
-                </div>
-                {% endif %}
-                {% if label.unit %}
-                <div class="label-import-field">
-                    <strong>Đơn vị:</strong> {{ label.unit }}
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-            
-            <!-- SKU & Barcode -->
+            <!-- SKU (TO ĐẬM) -->
             <div class="label-barcode-section">
                 <div class="label-sku">{{ label.sku }}</div>
                 {% if label.opt1 %}
@@ -233,26 +171,84 @@
                 {% endif %}
             </div>
             
-            <!-- Footer -->
-            <div class="label-footer">
-                <div class="label-footer-line">
-                    - Nhập khẩu bởi: <strong>Công ty cổ phần TMDV Gia Dụng Plus</strong> - MST: 0109514772
+            <!-- Thông tin nhập khẩu (từ SKU nhập khẩu) -->
+            <div class="label-content">
+                {% if label.hs_code %}
+                <div class="label-field-inline">
+                    <span class="label-field-label">HS CODE:</span>
+                    <span class="label-field-value">{{ label.hs_code }}</span>
                 </div>
-                <div class="label-footer-line">
-                    - Địa chỉ: C21-02 KĐT Geleximco, Dương Nội, Hà Đông, Hà Nội
-                </div>
-                {% if label.nsx_name %}
-                <div class="label-footer-line">
-                    - NSX: {{ label.nsx_name }}{% if label.supplier_address %} - {{ label.supplier_address }}{% endif %}
+                {% else %}
+                <div class="label-field" style="font-size: 10px; color: #999;">
+                    (Error HS CODE)
                 </div>
                 {% endif %}
-                <div class="label-footer-line">
-                    - HDSD: Xem chi tiết tài liệu gửi kèm.
+                {% if label.en_name_xnk %}
+                <div class="label-field">
+                    <span class="label-field-label">EN NAME:</span>
+                    <span class="label-field-value">{{ label.en_name_xnk }}</span>
                 </div>
-                <div class="label-footer-line" style="text-align: center; font-weight: bold; margin-top: 4px;">
-                    <i>SẢN XUẤT TẠI TRUNG QUỐC</i>
+                {% endif %}
+                {% if label.vn_name_xnk %}
+                <div class="label-field">
+                    <span class="label-field-label">VI NAME:</span>
+                    <span class="label-field-value">{{ label.vn_name_xnk }}</span>
+                </div>
+                {% endif %}
+                {% if label.nsx_name %}
+                <div class="label-field-inline">
+                    <span class="label-field-label">Factory:</span>
+                    <span class="label-field-value">{{ label.nsx_name }}</span>
+                </div>
+                {% endif %}
+                {% if label.nsx_address %}
+                <div class="label-field">
+                    <span class="label-field-label">Factory Address:</span>
+                    <span class="label-field-value">{{ label.nsx_address }}</span>
+                </div>
+                {% endif %}
+                {% if label.unit %}
+                <div class="label-field-inline">
+                    <span class="label-field-label">Unit:</span>
+                    <span class="label-field-value">Box</span>
+                </div>
+                {% endif %}
+                {% if label.material %}
+                <div class="label-field-inline">
+                    <span class="label-field-label">Material:</span>
+                    <span class="label-field-value">{{ label.material }}</span>
+                </div>
+                {% endif %}
+                <div class="label-field-inline">
+                    <span class="label-field-label">Country of Origin:</span>
+                    <span class="label-field-value">China</span>
                 </div>
             </div>
+            
+            <!-- Footer -->
+            <div class="label-footer">
+                <div class="label-field-inline">
+                    <span class="label-field-label">Nhập khẩu bởi:</span>
+                    <span class="label-field-value">Công ty cổ phần TMDV Gia Dụng Plus - MST: 0109514772</span>
+                </div>
+                <div class="label-field-inline">
+                    <span class="label-field-label">Địa chỉ:</span>
+                    <span class="label-field-value">C21-02 KĐT Geleximco, Dương Nội, Hà Đông, Hà Nội / SĐT: 0988.700.162</span>
+                </div>
+                <div class="label-field-inline">
+                    <span class="label-field-label">Hướng dẫn sử dụng:</span>
+                    <span class="label-field-value">Xem chi tiết tài liệu đính kèm</span>
+                </div>
+                <div class="label-field-inline">
+                    <span class="label-field-label">Xuất xứ:</span>
+                    <span class="label-field-value">Trung Quốc</span>
+                </div>
+            </div>
+
+            <div style="position: absolute; bottom: 10px; width: 100%; text-align: center; border-top: 1px dashed #000;">
+                <div style="font-size: 13px; font-weight: bold; margin-top: 4px;"> - {{ label.sku }} - {{label.opt1}} - </div>
+            </div>
+
         </div>
     </div>
     {% endfor %}
@@ -267,7 +263,7 @@
                 width: 1,
                 height: 40,
                 displayValue: true,
-                fontSize: 12,
+                fontSize: 14,
                 textMargin: 2,
                 margin: 0
             });
