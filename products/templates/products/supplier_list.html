@@ -121,6 +121,15 @@
                                            onchange="uploadSupplierLogo(this, {{ supplier.id }})">
                                     +
                                 </label>
+                                <!-- Nút Tạo PO bên dưới logo -->
+                                <a href="{% url 'products:create_purchase_order_from_supplier' supplier.id %}" 
+                                   class="absolute -bottom-1 -right-1 w-6 h-6 border border-slate-300 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 hover:border-slate-400 transition cursor-pointer bg-white"
+                                   title="Tạo đơn nhập hàng">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    
+                                </a>
                             </div>
                             
                             <!-- Tên (link đến Sapo, không underline) -->
@@ -132,6 +141,11 @@
                                     {{ supplier.name }}
                                 </a>
                             </div>
+
+
+
+                            
+
                         </div>
                         
                         <!-- Thông tin chi tiết -->
@@ -237,25 +251,58 @@
                                 <span class="text-slate-500">Sản phẩm:</span>
                                 <span class="font-semibold text-slate-900">{{ supplier.product_count|intcomma }}</span>
                             </div>
-                        </div>
-                        
-                        <!-- Gợi ý nhập hàng - Đặt ở đáy -->
-                        {% if supplier.purchase_suggestion %}
-                        <div class="pt-2 border-t border-slate-200 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-md p-2 mt-auto">
-                            <div class="text-[10px] text-indigo-600 font-semibold mb-1 uppercase">Gợi ý nhập (60N)</div>
-                            <div class="text-sm font-bold text-indigo-700">
-                                {{ supplier.purchase_suggestion.total_pcs|intcomma }} pcs ({{ supplier.purchase_suggestion.total_cbm|floatformat:1 }} m³)
+                            
+                            <!-- Gợi ý nhập hàng chi tiết -->
+                            {% if supplier.purchase_suggestion %}
+                            <div class="pt-2 border-t border-slate-200 space-y-1.5">
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-600">
+                                        <span class="text-xs">📦</span>
+                                        <span>Gợi ý nhập:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-900">{{ supplier.purchase_suggestion.total_pcs|intcomma }} pcs</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-600">
+                                        <span class="text-xs">📦</span>
+                                        <span>Số thùng:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-900">{{ supplier.purchase_suggestion.total_boxes|intcomma }} box</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-600">
+                                        <span class="text-xs">📐</span>
+                                        <span>CPM:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-900">{{ supplier.purchase_suggestion.total_cbm|floatformat:1 }} m³</span>
+                                </div>
                             </div>
-                        </div>
-                        {% else %}
-                        <!-- Placeholder để giữ chiều cao đồng đều -->
-                        <div class="pt-2 border-t border-slate-200 mt-auto">
-                            <div class="text-[10px] text-slate-400 font-semibold mb-1 uppercase">Gợi ý nhập (60N)</div>
-                            <div class="text-sm font-bold text-slate-300">
-                                - pcs (- m³)
+                            {% else %}
+                            <div class="pt-2 border-t border-slate-200 space-y-1.5">
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-400">
+                                        <span class="text-xs">📦</span>
+                                        <span>Gợi ý nhập:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-300">- pcs</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-400">
+                                        <span class="text-xs">📦</span>
+                                        <span>Số thùng:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-300">- box</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <div class="flex items-center gap-1.5 text-slate-400">
+                                        <span class="text-xs">📐</span>
+                                        <span>CPM:</span>
+                                    </div>
+                                    <span class="font-semibold text-slate-300">- m³</span>
+                                </div>
                             </div>
+                            {% endif %}
                         </div>
-                        {% endif %}
                     </div>
                     {% endfor %}
                 {% else %}

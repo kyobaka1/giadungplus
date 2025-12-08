@@ -6,6 +6,7 @@ Service để tính toán dự báo bán hàng và cảnh báo tồn kho.
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from decimal import Decimal
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -130,12 +131,20 @@ class SalesForecastService:
             )
             print(f"[DEBUG] [BƯỚC 4] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
             
+            # Tính ABC analysis nếu days=30
+            if days == 30:
+                print(f"[DEBUG] [BƯỚC 5] Tính toán phân loại ABC/Pareto...")
+                logger.info("[SalesForecastService] Calculating ABC analysis...")
+                step_start = time.time()
+                self._calculate_abc_analysis(forecast_map)
+                print(f"[DEBUG] [BƯỚC 5] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
+            
             # Lưu vào Database
-            print(f"[DEBUG] [BƯỚC 5] Lưu dữ liệu vào Database...")
+            print(f"[DEBUG] [BƯỚC 6] Lưu dữ liệu vào Database...")
             logger.info("[SalesForecastService] Saving to Database...")
             step_start = time.time()
             self._save_to_database(forecast_map, days)
-            print(f"[DEBUG] [BƯỚC 5] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
+            print(f"[DEBUG] [BƯỚC 6] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
         else:
             # Chỉ load từ Database, không tính toán lại
             print(f"[DEBUG] [BƯỚC 4] 📥 Load dữ liệu từ Database...")
@@ -403,12 +412,14 @@ class SalesForecastService:
         Xử lý một page orders (dùng trong thread).
         
         Returns:
-            Dict với keys: orders_count, items_count, accumulator
+            Dict với keys: orders_count, items_count, accumulator, revenue_accumulator (nếu days=30)
         """
         from datetime import datetime
         from zoneinfo import ZoneInfo
+        from decimal import Decimal
         
         local_accumulator: Dict[int, int] = {}
+        local_revenue_accumulator: Dict[int, Decimal] = {}  # Chỉ dùng khi days=30
         orders_count = 0
         items_count = 0
         
@@ -438,6 +449,13 @@ class SalesForecastService:
                 if not order.real_items:
                     continue
                 
+                # Tạo set các variant_ids có trong real_items để chỉ tính revenue cho những variant này
+                real_variant_ids = set()
+                for real_item in order.real_items:
+                    if real_item.variant_id:
+                        real_variant_ids.add(real_item.variant_id)
+                
+                # Xử lý quantity từ real_items (đã qui đổi)
                 for real_item in order.real_items:
                     variant_id = real_item.variant_id
                     if not variant_id:
@@ -461,11 +479,28 @@ class SalesForecastService:
                                     calculated_at=now_iso if is_current_period else None
                                 )
                     
-                    # Accumulate
+                    # Accumulate quantity
                     if variant_id not in local_accumulator:
                         local_accumulator[variant_id] = 0
                     local_accumulator[variant_id] += int(real_item.quantity)
                     items_count += 1
+                
+                # Tính revenue từ order_line_items (chỉ cho period_days=30 và is_current_period)
+                if days == 30 and is_current_period:
+                    for line_item in order.order_line_items:
+                        variant_id = line_item.variant_id
+                        if not variant_id or variant_id not in real_variant_ids:
+                            continue
+                        
+                        # Bỏ qua các line items không phải sản phẩm
+                        if not line_item.product_id or not line_item.variant_id:
+                            continue
+                        
+                        line_amount = float(line_item.line_amount or 0)
+                        if line_amount > 0:
+                            if variant_id not in local_revenue_accumulator:
+                                local_revenue_accumulator[variant_id] = Decimal("0")
+                            local_revenue_accumulator[variant_id] += Decimal(str(line_amount))
                 
                 orders_count += 1
             except Exception as e:
@@ -476,6 +511,7 @@ class SalesForecastService:
             "orders_count": orders_count,
             "items_count": items_count,
             "accumulator": local_accumulator,
+            "revenue_accumulator": local_revenue_accumulator if days == 30 else {},
             "has_more": len(orders_data) >= limit
         }
     
@@ -536,6 +572,14 @@ class SalesForecastService:
                             forecast_map[variant_id].total_sold += quantity
                         else:
                             forecast_map[variant_id].total_sold_previous_period += quantity
+                
+                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
+                if days == 30 and is_current_period and "revenue_accumulator" in first_page_result:
+                    for variant_id, revenue in first_page_result["revenue_accumulator"].items():
+                        if variant_id in forecast_map:
+                            if forecast_map[variant_id].revenue is None:
+                                forecast_map[variant_id].revenue = 0.0
+                            forecast_map[variant_id].revenue += float(revenue)
         else:
             # Có nhiều pages, xử lý song song
             # Sử dụng ThreadPoolExecutor với 4-8 workers để fetch pages song song
@@ -553,6 +597,14 @@ class SalesForecastService:
                             forecast_map[variant_id].total_sold += quantity
                         else:
                             forecast_map[variant_id].total_sold_previous_period += quantity
+                
+                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
+                if days == 30 and is_current_period and "revenue_accumulator" in first_page_result:
+                    for variant_id, revenue in first_page_result["revenue_accumulator"].items():
+                        if variant_id in forecast_map:
+                            if forecast_map[variant_id].revenue is None:
+                                forecast_map[variant_id].revenue = 0.0
+                            forecast_map[variant_id].revenue += float(revenue)
             
             # Xử lý các pages còn lại song song
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -593,6 +645,14 @@ class SalesForecastService:
                                             forecast_map[variant_id].total_sold += quantity
                                         else:
                                             forecast_map[variant_id].total_sold_previous_period += quantity
+                                
+                                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
+                                if days == 30 and is_current_period and "revenue_accumulator" in result:
+                                    for variant_id, revenue in result["revenue_accumulator"].items():
+                                        if variant_id in forecast_map:
+                                            if forecast_map[variant_id].revenue is None:
+                                                forecast_map[variant_id].revenue = 0.0
+                                            forecast_map[variant_id].revenue += float(revenue)
                             
                             # Kiểm tra xem còn pages không
                             if not result.get("has_more", False):
@@ -656,6 +716,13 @@ class SalesForecastService:
                 forecast_dto.growth_percentage = forecast_db.growth_percentage
                 if forecast_db.calculated_at:
                     forecast_dto.calculated_at = forecast_db.calculated_at.isoformat()
+                # ABC fields (chỉ cho period_days=30)
+                if days == 30:
+                    forecast_dto.revenue = float(forecast_db.revenue) if forecast_db.revenue else None
+                    forecast_dto.revenue_percentage = forecast_db.revenue_percentage
+                    forecast_dto.cumulative_percentage = forecast_db.cumulative_percentage
+                    forecast_dto.abc_category = forecast_db.abc_category
+                    forecast_dto.abc_rank = forecast_db.abc_rank
                 loaded_count += 1
         
         print(f"[DEBUG]        └─ ✅ Tổng cộng load {loaded_count} forecasts từ Database ({time.time() - step_start:.2f}s)")
@@ -719,6 +786,16 @@ class SalesForecastService:
                         forecast_db.sales_rate = forecast_dto.sales_rate
                         forecast_db.growth_percentage = forecast_dto.growth_percentage
                         forecast_db.calculated_at = now
+                        # ABC fields (chỉ cho period_days=30)
+                        if days == 30:
+                            if forecast_dto.revenue is not None:
+                                forecast_db.revenue = Decimal(str(forecast_dto.revenue))
+                            else:
+                                forecast_db.revenue = None
+                            forecast_db.revenue_percentage = forecast_dto.revenue_percentage
+                            forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
+                            forecast_db.abc_category = forecast_dto.abc_category
+                            forecast_db.abc_rank = forecast_dto.abc_rank
                         to_update.append(forecast_db)
                     else:
                         # Create new
@@ -731,6 +808,16 @@ class SalesForecastService:
                             growth_percentage=forecast_dto.growth_percentage,
                             calculated_at=now
                         )
+                        # ABC fields (chỉ cho period_days=30)
+                        if days == 30:
+                            if forecast_dto.revenue is not None:
+                                forecast_db.revenue = Decimal(str(forecast_dto.revenue))
+                            else:
+                                forecast_db.revenue = None
+                            forecast_db.revenue_percentage = forecast_dto.revenue_percentage
+                            forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
+                            forecast_db.abc_category = forecast_dto.abc_category
+                            forecast_db.abc_rank = forecast_dto.abc_rank
                         to_create.append(forecast_db)
                 
                 # Bulk create và update
@@ -739,9 +826,13 @@ class SalesForecastService:
                     created_count += len(to_create)
                 
                 if to_update:
+                    # Fields cần update (thêm ABC fields nếu days=30)
+                    update_fields = ['total_sold', 'total_sold_previous_period', 'sales_rate', 'growth_percentage', 'calculated_at']
+                    if days == 30:
+                        update_fields.extend(['revenue', 'revenue_percentage', 'cumulative_percentage', 'abc_category', 'abc_rank'])
                     VariantSalesForecast.objects.bulk_update(
                         to_update,
-                        fields=['total_sold', 'total_sold_previous_period', 'sales_rate', 'growth_percentage', 'calculated_at']
+                        fields=update_fields
                     )
                     updated_count += len(to_update)
             
@@ -751,6 +842,74 @@ class SalesForecastService:
         
         print(f"[DEBUG]        └─ ✅ Tổng cộng: {created_count} created, {updated_count} updated ({time.time() - step_start:.2f}s)")
         logger.info(f"[SalesForecastService] Saved {created_count} created, {updated_count} updated forecasts to Database")
+    
+    def _calculate_abc_analysis(
+        self,
+        forecast_map: Dict[int, SalesForecastDTO]
+    ):
+        """
+        Tính toán phân loại ABC/Pareto cho variants (chỉ cho period_days=30).
+        Phân loại: A (70-80%), B (15-25%), C (5-10%).
+        """
+        from decimal import Decimal
+        
+        # Lọc variants có revenue > 0
+        variants_with_revenue = [
+            (variant_id, forecast) 
+            for variant_id, forecast in forecast_map.items()
+            if forecast.revenue and forecast.revenue > 0
+        ]
+        
+        if not variants_with_revenue:
+            print(f"[DEBUG]        └─ Không có variants có doanh thu để phân loại ABC")
+            return
+        
+        # Tính tổng doanh thu
+        total_revenue = sum(f.revenue for _, f in variants_with_revenue)
+        print(f"[DEBUG]        └─ Tổng doanh thu: {total_revenue:,.0f} VNĐ từ {len(variants_with_revenue)} variants")
+        
+        # Sắp xếp theo revenue từ cao xuống thấp
+        variants_with_revenue.sort(key=lambda x: x[1].revenue, reverse=True)
+        
+        # Tính % và % tích lũy, phân loại ABC
+        cumulative_revenue = 0.0
+        for rank, (variant_id, forecast) in enumerate(variants_with_revenue, start=1):
+            revenue = forecast.revenue
+            
+            # % doanh thu
+            if total_revenue > 0:
+                revenue_percentage = (revenue / total_revenue) * 100
+            else:
+                revenue_percentage = 0.0
+            
+            # % tích lũy
+            cumulative_revenue += revenue
+            if total_revenue > 0:
+                cumulative_percentage = (cumulative_revenue / total_revenue) * 100
+            else:
+                cumulative_percentage = 0.0
+            
+            # Phân loại ABC
+            if cumulative_percentage <= 80.0:
+                abc_category = "A"
+            elif cumulative_percentage <= 95.0:
+                abc_category = "B"
+            else:
+                abc_category = "C"
+            
+            # Cập nhật forecast
+            forecast.revenue_percentage = revenue_percentage
+            forecast.cumulative_percentage = cumulative_percentage
+            forecast.abc_category = abc_category
+            forecast.abc_rank = rank
+        
+        # Đếm theo category
+        category_a_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "A")
+        category_b_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "B")
+        category_c_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "C")
+        
+        print(f"[DEBUG]        └─ Nhóm A: {category_a_count}, B: {category_b_count}, C: {category_c_count}")
+        logger.info(f"[SalesForecastService] ABC Analysis: A={category_a_count}, B={category_b_count}, C={category_c_count}")
     
     def _recalculate_from_saved_data(
         self,
