@@ -196,11 +196,27 @@ class SumPurchaseOrderService:
         if not po_ids:
             raise ValueError("Must provide either po_ids or tag")
         
+        # Import PurchaseOrder model
+        from products.models import PurchaseOrder
+        
         # Tạo SPOPurchaseOrder cho mỗi PO
         for po_id in po_ids:
+            # Tìm hoặc tạo PurchaseOrder trước
+            purchase_order, _ = PurchaseOrder.objects.get_or_create(
+                sapo_order_supplier_id=po_id,
+                defaults={
+                    'supplier_id': 0,  # Sẽ cập nhật sau từ Sapo API
+                    'delivery_status': 'ordered',
+                    'product_amount_cny': Decimal('0'),
+                    'total_amount_cny': Decimal('0'),
+                    'paid_amount_cny': Decimal('0'),
+                }
+            )
+            
+            # Tạo SPOPurchaseOrder với purchase_order (ForeignKey)
             SPOPurchaseOrder.objects.update_or_create(
                 sum_purchase_order=spo,
-                sapo_order_supplier_id=po_id,
+                purchase_order=purchase_order,
                 defaults={
                     'domestic_shipping_cn': domestic_shipping_cn or Decimal('0'),
                     'expected_production_date': expected_production_date,
