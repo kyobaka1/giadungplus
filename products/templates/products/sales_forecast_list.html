@@ -112,7 +112,7 @@
                         <div class="flex gap-4">
                             <!-- Hình ảnh -->
                             <div class="flex-shrink-0">
-                                {% if variant.image_url %}<img src="{{ variant.image_url }}" alt="{{ variant.name }}" class="w-28 h-28 object-cover rounded-xl border-2 border-slate-200">{% else %}<div class="w-28 h-28 bg-slate-100 rounded-xl border-2 border-slate-200 flex items-center justify-center"><span class="text-xs text-slate-400">No img</span></div>{% endif %}
+                                {% if variant.image_url %}<img src="{{ variant.image_url }}" alt="{{ variant.name }}" class="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 object-cover rounded-xl border-2 border-slate-200">{% else %}<div class="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 bg-slate-100 rounded-xl border-2 border-slate-200 flex items-center justify-center"><span class="text-[10px] sm:text-xs text-slate-400">No img</span></div>{% endif %}
                             </div>
                             <!-- Thông tin chính -->
                             <div class="flex-1 min-w-0">
