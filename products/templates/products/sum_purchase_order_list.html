@@ -181,7 +181,7 @@
                             {% for spo_po in spo.spo_purchase_orders.all %}
                             <div class="text-xs flex justify-between items-center py-1 border-b border-slate-100 last:border-0 hover:bg-white px-1 -mx-1 rounded transition-colors">
                                 <div class="flex flex-col min-w-0 flex-1 mr-2">
-                                    <span class="font-medium text-slate-700 truncate">PO-{{ spo_po.sapo_order_supplier_id }}</span>
+                                    <span class="font-medium text-slate-700 truncate">PO-{{ spo_po.purchase_order.sapo_order_supplier_id }}</span>
                                 </div>
                             </div>
                             {% endfor %}
@@ -213,9 +213,22 @@
             </div>
 
             <!-- Card Actions -->
-            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+            <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center gap-2">
+                {% if spo.status == 'draft' or spo.status == 'cancelled' %}
+                <button type="button" 
+                        class="delete-spo-btn px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-red-200 transition-colors font-medium flex items-center gap-1.5 text-xs"
+                        data-spo-id="{{ spo.id }}"
+                        data-spo-code="{{ spo.code }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Xóa</span>
+                </button>
+                {% else %}
+                <div class="text-xs text-slate-400 italic">Chỉ có thể xóa khi ở trạng thái Nháp hoặc Đã hủy</div>
+                {% endif %}
                 <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" 
-                   class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-brand hover:border-brand transition-colors shadow-sm">
+                   class="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-brand hover:border-brand transition-colors shadow-sm {% if spo.status == 'draft' or spo.status == 'cancelled' %}{% else %}ml-auto{% endif %}">
                     <span>Xem chi tiết & Quản lý</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
@@ -472,6 +485,58 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // ========== DELETE SPO LOGIC ==========
+    document.querySelectorAll('.delete-spo-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const spoId = this.getAttribute('data-spo-id');
+            const spoCode = this.getAttribute('data-spo-code');
+            
+            if(!confirm(`Bạn có chắc chắn muốn xóa SPO "${spoCode}"?\n\nLưu ý: Hành động này không thể hoàn tác.`)) {
+                return;
+            }
+            
+            const originalHTML = this.innerHTML;
+            this.disabled = true;
+            this.innerHTML = '<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            
+            fetch(`/products/sum-purchase-orders/${spoId}/delete/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'}
+            })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') {
+                    // Remove card with animation
+                    const card = btn.closest('.bg-white.rounded-xl');
+                    if(card) {
+                        card.style.transition = 'opacity 0.3s, transform 0.3s';
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            card.remove();
+                            // Reload if no cards left
+                            if(document.querySelectorAll('.bg-white.rounded-xl').length === 0) {
+                                window.location.reload();
+                            }
+                        }, 300);
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert(`❌ Lỗi: ${d.message}`);
+                    this.disabled = false;
+                    this.innerHTML = originalHTML;
+                }
+            })
+            .catch(err => {
+                alert(`❌ Lỗi: ${err.message}`);
+                this.disabled = false;
+                this.innerHTML = originalHTML;
+            });
+        });
+    });
 });
 </script>
 {% endblock %}

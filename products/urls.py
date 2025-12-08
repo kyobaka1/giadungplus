@@ -58,6 +58,8 @@ urlpatterns = [
     path("container-templates/remove-supplier/", views.remove_supplier_from_container, name="remove_supplier_from_container"),
     path("container-templates/get-suppliers/", views.get_suppliers_for_select, name="get_suppliers_for_select"),
     path("container-templates/<int:template_id>/set-default-supplier/", views.set_default_supplier, name="set_default_supplier"),
+    path("container-templates/<int:template_id>/resync-stats/", views.resync_container_template_stats, name="resync_container_template_stats"),
+    path("container-templates/<int:template_id>/delete/", views.delete_container_template, name="delete_container_template"),
     
     # Sum Purchase Order (SPO)
     path("sum-purchase-orders/", views.sum_purchase_order_list, name="sum_purchase_order_list"),
@@ -68,5 +70,23 @@ urlpatterns = [
     path("sum-purchase-orders/update-status/", views.update_spo_status, name="update_spo_status"),
     path("sum-purchase-orders/update-planned-date/", views.update_timeline_planned_date, name="update_timeline_planned_date"),
     path("sum-purchase-orders/allocate-costs/", views.allocate_costs, name="allocate_costs"),
+    path("sum-purchase-orders/<int:spo_id>/delete/", views.delete_sum_purchase_order, name="delete_sum_purchase_order"),
+    
+    # SPO Costs
+    path("sum-purchase-orders/costs/add/", views.add_spo_cost, name="add_spo_cost"),
+    path("sum-purchase-orders/costs/<int:cost_id>/delete/", views.delete_spo_cost, name="delete_spo_cost"),
+    
+    # SPO Documents
+    path("sum-purchase-orders/documents/upload/", views.upload_spo_document, name="upload_spo_document"),
+    path("sum-purchase-orders/documents/<int:document_id>/delete/", views.delete_spo_document, name="delete_spo_document"),
+    
+    # Purchase Order Management
+    path("purchase-orders/<int:po_id>/update-delivery-status/", views.update_po_delivery_status, name="update_po_delivery_status"),
+    path("purchase-orders/<int:po_id>/costs/", views.add_po_cost, name="add_po_cost"),
+    path("purchase-orders/<int:po_id>/costs/<int:cost_id>/", views.delete_po_cost, name="delete_po_cost"),
+    path("purchase-orders/<int:po_id>/payments/", views.add_po_payment, name="add_po_payment"),
+    path("purchase-orders/<int:po_id>/payments/<int:payment_id>/", views.delete_po_payment, name="delete_po_payment"),
+    path("purchase-orders/<int:po_id>/export-excel/", views.export_po_excel, name="export_po_excel"),
+    path("purchase-orders/<int:po_id>/export-labels/", views.export_po_labels, name="export_po_labels"),
 ]
 

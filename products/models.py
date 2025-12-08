@@ -291,10 +291,134 @@ class SumPurchaseOrder(models.Model):
         self.save()
 
 
+class PurchaseOrder(models.Model):
+    """
+    Purchase Order (PO) - Độc lập, không phụ thuộc vào SPO.
+    Mỗi PO có thể được chuyển giữa các SPO mà vẫn giữ nguyên thông tin.
+    """
+    # Liên kết với Sapo
+    sapo_order_supplier_id = models.BigIntegerField(
+        unique=True,
+        db_index=True,
+        help_text="Sapo order_supplier.id (unique để đảm bảo mỗi PO chỉ có 1 record)"
+    )
+    
+    # Thông tin cơ bản từ Sapo (snapshot)
+    sapo_code = models.CharField(max_length=100, blank=True, help_text="Mã PO từ Sapo")
+    supplier_id = models.BigIntegerField(db_index=True, help_text="Sapo supplier_id")
+    supplier_name = models.CharField(max_length=200, blank=True)
+    supplier_code = models.CharField(max_length=100, blank=True)
+    
+    # Trạng thái giao hàng
+    DELIVERY_STATUS_CHOICES = [
+        ('ordered', 'Lên đơn'),
+        ('sent_label', 'Gửi đơn & Label'),
+        ('production', 'Sản xuất'),
+        ('delivered', 'Giao hàng'),
+    ]
+    delivery_status = models.CharField(
+        max_length=50,
+        choices=DELIVERY_STATUS_CHOICES,
+        default='ordered',
+        help_text="Trạng thái giao hàng của PO"
+    )
+    
+    # Dự kiến giao hàng (để sắp xếp với lịch đóng container)
+    expected_delivery_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Dự kiến giao hàng (để sắp xếp với lịch đóng container)"
+    )
+    
+    # Timeline giao hàng (JSON)
+    # Format: [{"status": "ordered", "date": "2025-01-01", "note": "..."}, ...]
+    delivery_timeline = models.JSONField(default=list, blank=True)
+    
+    # Tiền hàng (CNY) - Match với giá mua trung quốc từ variants
+    product_amount_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Tiền hàng (CNY) - tính từ giá mua trung quốc của variants"
+    )
+    
+    # Tổng cần thanh toán (CNY) = product_amount + costs
+    total_amount_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Tổng cần thanh toán (CNY) = tiền hàng + chi phí"
+    )
+    
+    # Số tiền đã thanh toán (CNY) - tính từ các payment records
+    paid_amount_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Số tiền đã thanh toán (CNY) - tự động tính từ payments"
+    )
+    
+    # Metadata
+    note = models.TextField(blank=True, help_text="Ghi chú cho PO")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_purchase_order'
+        verbose_name = 'Purchase Order'
+        verbose_name_plural = 'Purchase Orders'
+        indexes = [
+            models.Index(fields=['sapo_order_supplier_id']),
+            models.Index(fields=['supplier_id']),
+            models.Index(fields=['delivery_status']),
+            models.Index(fields=['expected_delivery_date']),
+            models.Index(fields=['-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"PO-{self.sapo_order_supplier_id} ({self.sapo_code or 'N/A'})"
+    
+    def update_delivery_status(self, new_status: str, date=None, note: str = ""):
+        """Cập nhật trạng thái giao hàng và log vào timeline"""
+        if date is None:
+            date = timezone.now().date()
+        
+        # Thêm vào timeline
+        self.delivery_timeline.append({
+            'status': new_status,
+            'date': date.isoformat(),
+            'note': note
+        })
+        
+        self.delivery_status = new_status
+        if new_status == 'delivered' and not self.expected_delivery_date:
+            self.expected_delivery_date = date
+        self.save()
+    
+    def calculate_total_amount(self):
+        """Tính tổng cần thanh toán = tiền hàng + tổng chi phí"""
+        total_costs = sum(
+            cost.amount_cny for cost in self.costs.all()
+        )
+        self.total_amount_cny = self.product_amount_cny + Decimal(str(total_costs))
+        self.save()
+        return self.total_amount_cny
+    
+    def calculate_paid_amount(self):
+        """Tính tổng đã thanh toán từ các payment records"""
+        total_paid = sum(
+            payment.amount_cny for payment in self.payments.all()
+        )
+        self.paid_amount_cny = Decimal(str(total_paid))
+        self.save()
+        return self.paid_amount_cny
+
+
 class SPOPurchaseOrder(models.Model):
     """
-    Quan hệ giữa SPO và PO - Chỉ lưu thông tin cơ bản.
-    PO được lưu trữ trên Sapo, chỉ lấy qua API khi cần.
+    Quan hệ many-to-many giữa SPO và PO.
+    Cho phép chuyển PO giữa các SPO mà vẫn giữ nguyên thông tin PO.
     """
     # Liên kết với SPO
     sum_purchase_order = models.ForeignKey(
@@ -303,27 +427,11 @@ class SPOPurchaseOrder(models.Model):
         related_name='spo_purchase_orders'
     )
     
-    # Liên kết với Sapo (chỉ lưu ID, không lưu toàn bộ data)
-    sapo_order_supplier_id = models.BigIntegerField(db_index=True, help_text="Sapo order_supplier.id")
-    
-    # Thông tin cơ bản của PO (chỉ lưu những gì cần thiết)
-    domestic_shipping_cn = models.DecimalField(
-        max_digits=15, 
-        decimal_places=2, 
-        default=0, 
-        help_text="Vận chuyển nội địa TQ (ship nội địa của PO)"
-    )
-    
-    # Thời gian dự kiến
-    expected_production_date = models.DateField(
-        null=True, 
-        blank=True,
-        help_text="Thời gian dự kiến PO sản xuất xong"
-    )
-    expected_delivery_date = models.DateField(
-        null=True, 
-        blank=True,
-        help_text="Thời gian dự kiến ship đến nơi nhận"
+    # Liên kết với PO (độc lập)
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='spo_relations'
     )
     
     # Metadata
@@ -334,11 +442,223 @@ class SPOPurchaseOrder(models.Model):
         db_table = 'products_spo_purchase_order'
         verbose_name = 'SPO Purchase Order'
         verbose_name_plural = 'SPO Purchase Orders'
-        unique_together = [['sum_purchase_order', 'sapo_order_supplier_id']]
+        unique_together = [['sum_purchase_order', 'purchase_order']]
         indexes = [
-            models.Index(fields=['sum_purchase_order', 'sapo_order_supplier_id']),
-            models.Index(fields=['sapo_order_supplier_id']),
+            models.Index(fields=['sum_purchase_order', 'purchase_order']),
+            models.Index(fields=['purchase_order']),
         ]
     
     def __str__(self):
-        return f"SPO-{self.sum_purchase_order_id} - PO-{self.sapo_order_supplier_id}"
+        return f"SPO-{self.sum_purchase_order_id} - PO-{self.purchase_order.sapo_order_supplier_id}"
+
+
+class PurchaseOrderCost(models.Model):
+    """
+    Chi phí cho PO (nhân dân tệ).
+    Các loại: Giao hàng nội địa TQ, phí đóng hàng, chi phí khác.
+    Phân bổ theo mét khối (CBM).
+    """
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='costs'
+    )
+    
+    # Loại chi phí
+    COST_TYPE_CHOICES = [
+        ('domestic_shipping_cn', 'Giao hàng nội địa TQ'),
+        ('packing_fee', 'Phí đóng hàng'),
+        ('other', 'Chi phí khác'),
+    ]
+    cost_type = models.CharField(
+        max_length=50,
+        choices=COST_TYPE_CHOICES,
+        default='other'
+    )
+    
+    # Số tiền (CNY)
+    amount_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0
+    )
+    
+    # Phân bổ theo CBM (nếu có)
+    cbm = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        null=True,
+        blank=True,
+        help_text="Mét khối (CBM) để phân bổ chi phí"
+    )
+    
+    # Mô tả
+    description = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Mô tả chi phí"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_purchase_order_cost'
+        verbose_name = 'Purchase Order Cost'
+        verbose_name_plural = 'Purchase Order Costs'
+        indexes = [
+            models.Index(fields=['purchase_order']),
+            models.Index(fields=['cost_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_cost_type_display()} - {self.amount_cny} CNY (PO-{self.purchase_order.sapo_order_supplier_id})"
+
+
+class PurchaseOrderPayment(models.Model):
+    """
+    Thanh toán cho PO (NSX).
+    Lưu thông tin thanh toán: loại, số tiền (CNY), số tiền VNĐ, tỷ giá.
+    """
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='payments'
+    )
+    
+    # Loại thanh toán
+    PAYMENT_TYPE_CHOICES = [
+        ('deposit', 'Cọc sản xuất'),
+        ('payment', 'Thanh toán đơn hàng'),
+    ]
+    payment_type = models.CharField(
+        max_length=50,
+        choices=PAYMENT_TYPE_CHOICES,
+        default='payment'
+    )
+    
+    # Số tiền (CNY)
+    amount_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0
+    )
+    
+    # Số tiền VNĐ đã bỏ
+    amount_vnd = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Số tiền VNĐ đã bỏ để thanh toán"
+    )
+    
+    # Tỷ giá CNY/VNĐ (tự động tính nếu có amount_vnd)
+    exchange_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        null=True,
+        blank=True,
+        help_text="Tỷ giá CNY/VNĐ (tự động tính = amount_vnd / amount_cny)"
+    )
+    
+    # Ngày thanh toán
+    payment_date = models.DateField(
+        default=timezone.now,
+        help_text="Ngày thanh toán"
+    )
+    
+    # Mô tả
+    description = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Mô tả thanh toán"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_purchase_order_payment'
+        verbose_name = 'Purchase Order Payment'
+        verbose_name_plural = 'Purchase Order Payments'
+        indexes = [
+            models.Index(fields=['purchase_order']),
+            models.Index(fields=['payment_type']),
+            models.Index(fields=['payment_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.get_payment_type_display()} - {self.amount_cny} CNY (PO-{self.purchase_order.sapo_order_supplier_id})"
+    
+    def save(self, *args, **kwargs):
+        """Tự động tính tỷ giá khi có amount_vnd và amount_cny"""
+        if self.amount_vnd and self.amount_cny and self.amount_cny > 0:
+            self.exchange_rate = self.amount_vnd / self.amount_cny
+        super().save(*args, **kwargs)
+        
+        # Cập nhật paid_amount của PO
+        self.purchase_order.calculate_paid_amount()
+
+
+class SPOCost(models.Model):
+    """
+    Chi phí cho Container (SPO) - Dynamic list.
+    Thay thế dần cho các fixed fields trong SumPurchaseOrder.
+    """
+    sum_purchase_order = models.ForeignKey(
+        SumPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='costs'
+    )
+    name = models.CharField(max_length=200, help_text="Tên chi phí (ví dụ: Vận chuyển, Hải quan...)")
+    amount_vnd = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Số tiền (VNĐ)")
+    note = models.TextField(blank=True, help_text="Ghi chú chi tiết")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_spo_cost'
+        verbose_name = 'SPO Cost'
+        verbose_name_plural = 'SPO Costs'
+        indexes = [
+            models.Index(fields=['sum_purchase_order']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.amount_vnd}"
+
+
+class SPODocument(models.Model):
+    """
+    Tài liệu/Chứng từ cho SPO.
+    """
+    sum_purchase_order = models.ForeignKey(
+        SumPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    file = models.FileField(upload_to='spo_documents/%Y/%m/', help_text="File chứng từ")
+    name = models.CharField(max_length=200, blank=True, help_text="Tên tài liệu (nếu để trống sẽ lấy tên file)")
+    
+    # Metadata
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_spo_document'
+        verbose_name = 'SPO Document'
+        verbose_name_plural = 'SPO Documents'
+        indexes = [
+            models.Index(fields=['sum_purchase_order']),
+        ]
+    
+    def __str__(self):
+        return self.name or self.file.name
+
