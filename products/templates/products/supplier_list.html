@@ -73,10 +73,10 @@
 
         <!-- DANH SÁCH NHÀ CUNG CẤP -->
         <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 items-stretch">
                 {% if suppliers %}
                     {% for supplier in suppliers %}
-                    <div class="js-supplier-card border border-slate-100 rounded-lg p-4 hover:shadow-md transition relative overflow-hidden"
+                    <div class="js-supplier-card border border-slate-100 rounded-lg p-4 hover:shadow-md transition relative overflow-hidden flex flex-col h-full"
                          data-group="{{ supplier.group_name|default:'' }}"
                          data-name="{{ supplier.name|upper }}"
                          data-code="{{ supplier.code|upper }}">
@@ -135,7 +135,7 @@
                         </div>
                         
                         <!-- Thông tin chi tiết -->
-                        <div class="space-y-2 text-xs">
+                        <div class="space-y-2 text-xs flex-grow">
                             <!-- Vùng (Tỉnh) -->
                             {% if supplier.province %}
                             <div class="flex items-center gap-2">
@@ -238,6 +238,24 @@
                                 <span class="font-semibold text-slate-900">{{ supplier.product_count|intcomma }}</span>
                             </div>
                         </div>
+                        
+                        <!-- Gợi ý nhập hàng - Đặt ở đáy -->
+                        {% if supplier.purchase_suggestion %}
+                        <div class="pt-2 border-t border-slate-200 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-md p-2 mt-auto">
+                            <div class="text-[10px] text-indigo-600 font-semibold mb-1 uppercase">Gợi ý nhập (60N)</div>
+                            <div class="text-sm font-bold text-indigo-700">
+                                {{ supplier.purchase_suggestion.total_pcs|intcomma }} pcs ({{ supplier.purchase_suggestion.total_cbm|floatformat:1 }} m³)
+                            </div>
+                        </div>
+                        {% else %}
+                        <!-- Placeholder để giữ chiều cao đồng đều -->
+                        <div class="pt-2 border-t border-slate-200 mt-auto">
+                            <div class="text-[10px] text-slate-400 font-semibold mb-1 uppercase">Gợi ý nhập (60N)</div>
+                            <div class="text-sm font-bold text-slate-300">
+                                - pcs (- m³)
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 {% else %}

@@ -638,12 +638,48 @@ class SalesForecastService:
         
         print(f"[DEBUG]        └─ ✅ Tính lại tốc độ bán và % tăng trưởng cho {variants_with_sales} variants có lượt bán ({time.time() - step_start:.2f}s)")
     
+    def calculate_suggested_purchase_qty(
+        self,
+        forecast_30: Optional[SalesForecastDTO],
+        total_inventory: int
+    ) -> Optional[float]:
+        """
+        Tính gợi ý số lượng nhập cho 60 ngày.
+        
+        Công thức:
+        - Tỉ lệ tăng trưởng: 1.2 nếu tăng trưởng (growth_percentage > 0), else 1.0
+        - Tồn kho dự kiến (15 ngày sau) = tồn kho - tốc độ bán * 15 (min = 0)
+        - Gợi ý SL NHẬP = Tỉ lệ tăng trưởng * 60 * tốc độ bán - tồn kho dự kiến
+        
+        Args:
+            forecast_30: Forecast data 30 ngày
+            total_inventory: Tổng tồn kho hiện tại
+            
+        Returns:
+            Suggested purchase quantity hoặc None nếu không thể tính
+        """
+        if not forecast_30 or forecast_30.sales_rate <= 0:
+            return None
+        
+        # Tỉ lệ tăng trưởng: 1.2 nếu có tăng trưởng, else 1.0
+        growth_rate = 1.2 if (forecast_30.growth_percentage is not None and forecast_30.growth_percentage > 0) else 1.0
+        
+        # Tồn kho dự kiến (15 ngày sau) = tồn kho - tốc độ bán * 15 (min = 0)
+        expected_inventory = max(0, total_inventory - forecast_30.sales_rate * 15)
+        
+        # Gợi ý SL NHẬP = Tỉ lệ tăng trưởng * 60 * tốc độ bán - tồn kho dự kiến
+        suggested_qty = growth_rate * 60 * forecast_30.sales_rate - expected_inventory
+        
+        # Đảm bảo không âm
+        return max(0, suggested_qty)
+    
     def get_variant_forecast_with_inventory(
         self,
         variant_id: int,
         forecast_map: Dict[int, SalesForecastDTO],
         variant_data: Optional[Dict[str, Any]] = None,
-        product_data: Optional[Dict[str, Any]] = None
+        product_data: Optional[Dict[str, Any]] = None,
+        forecast_30: Optional[SalesForecastDTO] = None
     ) -> Dict[str, Any]:
         """
         Lấy dự báo kèm thông tin tồn kho và số ngày còn bán được.
@@ -721,6 +757,10 @@ class SalesForecastService:
             opt1 = variant_data.get("opt1") or ""  # Tên phân loại
             product_name = variant_data.get("product_name") or variant_data.get("name", "")  # Tên sản phẩm
             
+            # Tính gợi ý nhập hàng (dùng forecast_30 nếu có, nếu không dùng forecast hiện tại)
+            forecast_for_calc = forecast_30 if forecast_30 else forecast
+            suggested_purchase_qty = self.calculate_suggested_purchase_qty(forecast_for_calc, total_inventory)
+            
             return {
                 "variant_id": variant_id,
                 "sku": variant_data.get("sku", ""),
@@ -738,6 +778,7 @@ class SalesForecastService:
                 "is_infinite": days_remaining == float('inf'),  # Flag để template kiểm tra
                 "warning_color": warning_color,
                 "growth_percentage": forecast.growth_percentage,  # % tăng trưởng
+                "suggested_purchase_qty": suggested_purchase_qty,  # Gợi ý số lượng nhập
             }
         except Exception as e:
             logger.error(f"[SalesForecastService] Error getting variant {variant_id}: {e}", exc_info=True)
@@ -757,4 +798,457 @@ class SalesForecastService:
                 "days_remaining_display": 0.0,
                 "is_infinite": False,
                 "warning_color": "gray",
+                "suggested_purchase_qty": None,
             }
+    
+    def calculate_supplier_purchase_suggestions_from_db(
+        self,
+        days: int = 30
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Tính gợi ý nhập hàng theo NSX chỉ từ database (không tính toán lại).
+        Chỉ load forecast từ DB và lấy products để lấy brand + box_info.
+        
+        Args:
+            days: Số ngày (mặc định 30)
+            
+        Returns:
+            Dict {brand_name: {
+                "total_pcs": int,
+                "total_boxes": int,
+                "total_cbm": float,
+                "variants": List[Dict]
+            }}
+        """
+        from products.models import VariantSalesForecast
+        from products.services.metadata_helper import extract_gdp_metadata
+        import math
+        
+        logger.info(f"[SalesForecastService] Calculating supplier purchase suggestions from DB only (days={days})")
+        
+        # Load forecast từ database
+        forecasts_db = VariantSalesForecast.objects.filter(period_days=days)
+        
+        # Tạo forecast_map và lấy danh sách variant_ids
+        forecast_map: Dict[int, SalesForecastDTO] = {}
+        variant_ids = []
+        
+        for forecast_db in forecasts_db:
+            forecast_dto = SalesForecastDTO(
+                variant_id=forecast_db.variant_id,
+                total_sold=forecast_db.total_sold,
+                total_sold_previous_period=forecast_db.total_sold_previous_period,
+                period_days=forecast_db.period_days,
+                sales_rate=forecast_db.sales_rate,
+                growth_percentage=forecast_db.growth_percentage,
+                calculated_at=forecast_db.calculated_at.isoformat() if forecast_db.calculated_at else None
+            )
+            forecast_map[forecast_db.variant_id] = forecast_dto
+            variant_ids.append(forecast_db.variant_id)
+        
+        if not variant_ids:
+            logger.info(f"[SalesForecastService] No forecast data found in database")
+            return {}
+        
+        logger.info(f"[SalesForecastService] Loaded {len(forecast_map)} forecasts from database")
+        
+        # Lấy products chỉ cho các variants có trong forecast (tối ưu)
+        # Fetch products theo batch để lấy brand và box_info
+        all_products = []
+        all_variants_map: Dict[int, Dict[str, Any]] = {}
+        page = 1
+        limit = 250
+        
+        # Fetch products để lấy brand và metadata
+        while True:
+            response = self.sapo_client.core.list_products_raw(
+                page=page,
+                limit=limit,
+                status="active",
+                product_types="normal"
+            )
+            
+            products_data = response.get("products", [])
+            if not products_data:
+                break
+            
+            all_products.extend(products_data)
+            
+            # Extract variants
+            for product in products_data:
+                variants = product.get("variants", [])
+                for variant in variants:
+                    variant_id = variant.get("id")
+                    if variant_id and variant_id in variant_ids:  # Chỉ lấy variants có trong forecast
+                        packsize = variant.get("packsize", False)
+                        if packsize is not True:
+                            all_variants_map[variant_id] = variant
+            
+            if len(products_data) < limit:
+                break
+            
+            page += 1
+            if page > 100:
+                break
+        
+        logger.info(f"[SalesForecastService] Fetched {len(all_products)} products, {len(all_variants_map)} variants for purchase suggestions")
+        
+        # Tạo map variant_id -> product_data để lấy brand
+        variant_to_product: Dict[int, Dict[str, Any]] = {}
+        for product in all_products:
+            variants = product.get("variants", [])
+            for variant in variants:
+                variant_id = variant.get("id")
+                if variant_id and variant_id in variant_ids:
+                    variant_to_product[variant_id] = product
+        
+        # Gom theo brand và tính gợi ý nhập
+        supplier_suggestions: Dict[str, Dict[str, Any]] = {}
+        
+        for variant_id, forecast_30 in forecast_map.items():
+            # Tính suggested_purchase_qty từ forecast và inventory
+            variant_data = all_variants_map.get(variant_id)
+            if not variant_data:
+                continue
+            
+            # Lấy tồn kho
+            inventories = variant_data.get("inventories", [])
+            total_inventory = 0
+            for inv in inventories:
+                available = inv.get("available", 0) or 0
+                total_inventory += max(0, int(available))
+            
+            # Tính suggested_purchase_qty
+            suggested_purchase_qty = self.calculate_suggested_purchase_qty(forecast_30, total_inventory)
+            
+            if not suggested_purchase_qty or suggested_purchase_qty <= 0:
+                continue
+            
+            # Lấy brand từ product_data (ưu tiên) hoặc variant_data
+            product_data = variant_to_product.get(variant_id)
+            brand = ""
+            if product_data:
+                brand = product_data.get("brand") or ""
+            if not brand:
+                brand = variant_data.get("brand") or ""
+            brand = brand.strip()
+            
+            if not brand:
+                continue
+            
+            # Lấy metadata để lấy box_info
+            box_info = None
+            full_box = None
+            box_length = None
+            box_width = None
+            box_height = None
+            
+            if product_data:
+                description = product_data.get("description") or ""
+                if description:
+                    metadata, _ = extract_gdp_metadata(description)
+                    if metadata:
+                        # Tìm variant metadata
+                        for v_meta in metadata.variants:
+                            if v_meta.id == variant_id and v_meta.box_info:
+                                box_info = v_meta.box_info
+                                full_box = box_info.full_box
+                                box_length = box_info.length_cm
+                                box_width = box_info.width_cm
+                                box_height = box_info.height_cm
+                                break
+            
+            # Nếu không có box_info, bỏ qua variant này
+            if not full_box or full_box <= 0:
+                continue
+            
+            # Tính số thùng: suggested_purchase_qty / full_box
+            # Làm tròn lên từ 0.5, dưới 0.5 thì bỏ qua
+            boxes_float = suggested_purchase_qty / full_box
+            if boxes_float < 0.5:
+                continue  # Bỏ qua nếu dưới 0.5 thùng
+            
+            # Làm tròn lên
+            boxes = math.ceil(boxes_float)
+            
+            # Tính CPM (mét khối) = số thùng * (dài x rộng x cao / 1,000,000)
+            cbm = 0.0
+            if box_length and box_width and box_height:
+                box_volume_cm3 = box_length * box_width * box_height
+                box_volume_m3 = box_volume_cm3 / 1_000_000  # Chuyển từ cm³ sang m³
+                cbm = boxes * box_volume_m3
+            
+            # Khởi tạo brand entry nếu chưa có
+            if brand not in supplier_suggestions:
+                supplier_suggestions[brand] = {
+                    "total_pcs": 0,
+                    "total_boxes": 0,
+                    "total_cbm": 0.0,
+                    "variants": []
+                }
+            
+            # Cộng dồn
+            supplier_suggestions[brand]["total_pcs"] += int(suggested_purchase_qty)
+            supplier_suggestions[brand]["total_boxes"] += boxes
+            supplier_suggestions[brand]["total_cbm"] += cbm
+            
+            # Lưu chi tiết variant
+            supplier_suggestions[brand]["variants"].append({
+                "variant_id": variant_id,
+                "sku": variant_data.get("sku", ""),
+                "name": variant_data.get("name", ""),
+                "suggested_pcs": int(suggested_purchase_qty),
+                "boxes": boxes,
+                "cbm": cbm,
+                "full_box": full_box
+            })
+        
+        logger.info(f"[SalesForecastService] Calculated purchase suggestions for {len(supplier_suggestions)} suppliers")
+        return supplier_suggestions
+    
+    def calculate_container_template_suggestions(
+        self,
+        template_suppliers: List[Dict[str, Any]],
+        volume_cbm: float
+    ) -> Dict[str, Any]:
+        """
+        Tính gợi ý nhập hàng cho container template.
+        
+        Args:
+            template_suppliers: List suppliers trong container template [
+                {"supplier_code": "...", "supplier_name": "..."},
+                ...
+            ]
+            volume_cbm: Thể tích container (m³)
+            
+        Returns:
+            Dict {
+                "current_cbm": float,  # Tổng CPM hiện tại
+                "percentage": float,     # % đã đủ (0-100)
+                "daily_cbm_growth": float,  # Tốc độ tăng CPM/ngày
+                "days_to_full": Optional[int],  # Số ngày để đủ container (None nếu không tính được)
+                "estimated_date": Optional[str],  # Ngày dự kiến đủ container (format: DD/MM/YYYY)
+            }
+        """
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        
+        # Lấy gợi ý nhập hàng theo NSX
+        supplier_suggestions = self.calculate_supplier_purchase_suggestions_from_db(days=30)
+        
+        if not supplier_suggestions:
+            return {
+                "current_cbm": 0.0,
+                "percentage": 0.0,
+                "daily_cbm_growth": 0.0,
+                "days_to_full": None,
+                "estimated_date": None,
+            }
+        
+        # Tính tổng CPM từ các NSX trong container template
+        current_cbm = 0.0
+        daily_cbm_growth = 0.0
+        
+        # Tạo set các brand names từ template suppliers (để match)
+        template_brand_names = set()
+        for supplier in template_suppliers:
+            supplier_code = (supplier.get("supplier_code") or "").strip().upper()
+            supplier_name = (supplier.get("supplier_name") or "").strip().upper()
+            if supplier_code:
+                template_brand_names.add(supplier_code)
+            if supplier_name:
+                template_brand_names.add(supplier_name)
+        
+        # Load forecast map để lấy sales_rate
+        from products.models import VariantSalesForecast
+        forecasts_db = VariantSalesForecast.objects.filter(period_days=30)
+        forecast_map = {f.variant_id: f for f in forecasts_db}
+        
+        # Match và tính tổng
+        for brand_name, suggestion_data in supplier_suggestions.items():
+            brand_upper = brand_name.upper()
+            if brand_upper in template_brand_names:
+                current_cbm += suggestion_data.get("total_cbm", 0.0)
+                
+                # Tính tốc độ tăng CPM/ngày từ tốc độ bán
+                # Dựa vào variants trong suggestion để tính daily_cbm_growth
+                for variant_info in suggestion_data.get("variants", []):
+                    variant_id = variant_info.get("variant_id")
+                    if variant_id and variant_id in forecast_map:
+                        forecast = forecast_map[variant_id]
+                        sales_rate = forecast.sales_rate or 0.0
+                        
+                        if sales_rate > 0:
+                            # Tính CPM/ngày từ sales_rate
+                            # CPM/ngày = (sales_rate / full_box) * box_volume_m3
+                            full_box = variant_info.get("full_box", 1)
+                            if full_box > 0:
+                                boxes_per_day = sales_rate / full_box
+                                variant_cbm = variant_info.get("cbm", 0.0)
+                                variant_boxes = variant_info.get("boxes", 1)
+                                if variant_boxes > 0:
+                                    box_volume_m3 = variant_cbm / variant_boxes
+                                    daily_cbm_growth += boxes_per_day * box_volume_m3
+        
+        # Tính phần trăm
+        percentage = (current_cbm / volume_cbm * 100) if volume_cbm > 0 else 0.0
+        percentage = min(100.0, max(0.0, percentage))  # Clamp 0-100
+        
+        # Tính số ngày để đủ container
+        days_to_full = None
+        estimated_date = None
+        
+        if daily_cbm_growth > 0:
+            remaining_cbm = volume_cbm - current_cbm
+            if remaining_cbm > 0:
+                days_to_full = int(remaining_cbm / daily_cbm_growth)
+                
+                # Tính ngày dự kiến
+                now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
+                estimated_date_obj = now + timedelta(days=days_to_full)
+                estimated_date = estimated_date_obj.strftime("%d/%m/%Y")
+        elif current_cbm >= volume_cbm:
+            # Đã đủ container
+            days_to_full = 0
+            estimated_date = "Đã đủ"
+        
+        return {
+            "current_cbm": round(current_cbm, 3),
+            "percentage": round(percentage, 1),
+            "daily_cbm_growth": round(daily_cbm_growth, 3),
+            "days_to_full": days_to_full,
+            "estimated_date": estimated_date,
+        }
+    
+    def calculate_supplier_purchase_suggestions(
+        self,
+        forecast_map_30: Dict[int, SalesForecastDTO],
+        all_products: List[Dict[str, Any]],
+        all_variants_map: Dict[int, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Tính gợi ý nhập hàng theo NSX (supplier/brand).
+        
+        Gom tất cả variants có suggested_purchase_qty theo brand và tính:
+        - Tổng số lượng pcs cần nhập
+        - Số thùng (làm tròn lên từ 0.5, dưới 0.5 thì bỏ qua)
+        - Tổng CPM (mét khối)
+        
+        Args:
+            forecast_map_30: Map forecast 30 ngày {variant_id: SalesForecastDTO}
+            all_products: Danh sách products từ Sapo
+            all_variants_map: Map variants {variant_id: variant_data}
+            
+        Returns:
+            Dict {brand_name: {
+                "total_pcs": int,
+                "total_boxes": int,
+                "total_cbm": float,
+                "variants": List[Dict]  # Chi tiết từng variant
+            }}
+        """
+        from products.services.metadata_helper import extract_gdp_metadata
+        import math
+        
+        # Tạo map variant_id -> product_data để lấy brand
+        variant_to_product: Dict[int, Dict[str, Any]] = {}
+        for product in all_products:
+            product_id = product.get("id")
+            variants = product.get("variants", [])
+            for variant in variants:
+                variant_id = variant.get("id")
+                if variant_id:
+                    variant_to_product[variant_id] = product
+        
+        # Gom theo brand
+        supplier_suggestions: Dict[str, Dict[str, Any]] = {}
+        
+        for variant_id, forecast_30 in forecast_map_30.items():
+            # Chỉ xử lý variants có suggested_purchase_qty > 0
+            if not forecast_30.suggested_purchase_qty or forecast_30.suggested_purchase_qty <= 0:
+                continue
+            
+            variant_data = all_variants_map.get(variant_id)
+            if not variant_data:
+                continue
+            
+            # Lấy brand từ product_data (ưu tiên) hoặc variant_data
+            product_data = variant_to_product.get(variant_id)
+            brand = ""
+            if product_data:
+                brand = product_data.get("brand") or ""
+            if not brand:
+                brand = variant_data.get("brand") or ""
+            brand = brand.strip()
+            
+            if not brand:
+                continue
+            
+            # Lấy metadata để lấy box_info
+            box_info = None
+            full_box = None
+            box_length = None
+            box_width = None
+            box_height = None
+            
+            if product_data:
+                description = product_data.get("description") or ""
+                if description:
+                    metadata, _ = extract_gdp_metadata(description)
+                    if metadata:
+                        # Tìm variant metadata
+                        for v_meta in metadata.variants:
+                            if v_meta.id == variant_id and v_meta.box_info:
+                                box_info = v_meta.box_info
+                                full_box = box_info.full_box
+                                box_length = box_info.length_cm
+                                box_width = box_info.width_cm
+                                box_height = box_info.height_cm
+                                break
+            
+            # Nếu không có box_info, bỏ qua variant này (không thể tính số thùng)
+            if not full_box or full_box <= 0:
+                continue
+            
+            # Tính số thùng: suggested_purchase_qty / full_box
+            # Làm tròn lên từ 0.5, dưới 0.5 thì bỏ qua
+            boxes_float = forecast_30.suggested_purchase_qty / full_box
+            if boxes_float < 0.5:
+                continue  # Bỏ qua nếu dưới 0.5 thùng
+            
+            # Làm tròn lên
+            boxes = math.ceil(boxes_float)
+            
+            # Tính CPM (mét khối) = số thùng * (dài x rộng x cao / 1,000,000)
+            cbm = 0.0
+            if box_length and box_width and box_height:
+                box_volume_cm3 = box_length * box_width * box_height
+                box_volume_m3 = box_volume_cm3 / 1_000_000  # Chuyển từ cm³ sang m³
+                cbm = boxes * box_volume_m3
+            
+            # Khởi tạo brand entry nếu chưa có
+            if brand not in supplier_suggestions:
+                supplier_suggestions[brand] = {
+                    "total_pcs": 0,
+                    "total_boxes": 0,
+                    "total_cbm": 0.0,
+                    "variants": []
+                }
+            
+            # Cộng dồn
+            supplier_suggestions[brand]["total_pcs"] += int(forecast_30.suggested_purchase_qty)
+            supplier_suggestions[brand]["total_boxes"] += boxes
+            supplier_suggestions[brand]["total_cbm"] += cbm
+            
+            # Lưu chi tiết variant
+            supplier_suggestions[brand]["variants"].append({
+                "variant_id": variant_id,
+                "sku": variant_data.get("sku", ""),
+                "name": variant_data.get("name", ""),
+                "suggested_pcs": int(forecast_30.suggested_purchase_qty),
+                "boxes": boxes,
+                "cbm": cbm,
+                "full_box": full_box
+            })
+        
+        return supplier_suggestions
