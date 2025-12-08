@@ -85,6 +85,13 @@ class SalesForecastDTO(BaseDTO):
     sales_rate: float = 0.0  # Tốc độ bán (số lượng/ngày)
     growth_percentage: Optional[float] = None  # % tăng trưởng so với kỳ trước
     suggested_purchase_qty: Optional[float] = None  # Gợi ý số lượng nhập cho 60 ngày
+    
+    # ABC Analysis fields (chỉ có khi period_days=30)
+    revenue: Optional[float] = None  # Tổng doanh thu (line_amount)
+    revenue_percentage: Optional[float] = None  # % doanh thu trên tổng
+    cumulative_percentage: Optional[float] = None  # % tích lũy cộng dồn
+    abc_category: Optional[str] = None  # A, B, hoặc C
+    abc_rank: Optional[int] = None  # Thứ hạng (1 = cao nhất)
 
 
 class VariantMetadataDTO(BaseDTO):

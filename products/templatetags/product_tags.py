@@ -26,3 +26,36 @@ def tag_color(tag_name):
     # Use hash of tag name to get consistent color index
     color_index = hash(tag_name) % len(colors)
     return colors[color_index]
+
+
+@register.filter(name='format_kmb')
+def format_kmb(value):
+    """
+    Format số tiền theo định dạng K (nghìn), M (triệu), B (tỉ).
+    
+    Examples:
+        1500 -> 1.5K
+        2500000 -> 2.5M
+        1200000000 -> 1.2B
+    """
+    if value is None:
+        return '-'
+    
+    try:
+        num = float(value)
+        if num == 0:
+            return '0'
+        
+        if abs(num) >= 1000000000:
+            # Tỉ (B)
+            return f"{num / 1000000000:.1f}B"
+        elif abs(num) >= 1000000:
+            # Triệu (M)
+            return f"{num / 1000000:.1f}M"
+        elif abs(num) >= 1000:
+            # Nghìn (K)
+            return f"{num / 1000:.1f}K"
+        else:
+            return f"{num:.0f}"
+    except (ValueError, TypeError):
+        return '-'

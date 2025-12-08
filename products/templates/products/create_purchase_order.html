@@ -1,0 +1,307 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+            {% if supplier %}
+            <p class="text-xs text-gray-500 mt-1">Nhà cung cấp: <strong>{{ supplier.name }}</strong> ({{ supplier.code }})</p>
+            {% endif %}
+        </div>
+        <a href="{% url 'products:supplier_list' %}" class="text-sm text-slate-600 hover:text-slate-800">
+            ← Quay lại danh sách NSX
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    {% if error %}
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% if supplier %}
+    <!-- Supplier Info -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div class="flex items-center gap-3">
+            {% if supplier.logo_path %}
+            <img src="{{ supplier.logo_path }}" alt="{{ supplier.name }}" class="w-16 h-16 object-contain rounded-md border border-slate-200">
+            {% endif %}
+            <div>
+                <h2 class="text-base font-semibold text-slate-800">{{ supplier.name }}</h2>
+                <p class="text-xs text-slate-500">Mã: {{ supplier.code }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form tạo đơn -->
+    <form id="create-po-form" method="POST" action="{% url 'products:submit_purchase_order_draft' %}">
+        {% csrf_token %}
+        <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
+        
+        <!-- Chọn kho -->
+        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <label class="block text-sm font-semibold text-slate-700 mb-2">Chọn kho nhận hàng:</label>
+            <div class="flex gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="location_id" value="241737" checked class="h-4 w-4 text-emerald-600 focus:ring-emerald-500">
+                    <span class="text-sm text-slate-700">Gele (Hà Nội)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="location_id" value="548744" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500">
+                    <span class="text-sm text-slate-700">Toky (Hồ Chí Minh)</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Danh sách variants -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-slate-700">Danh sách phân loại</h3>
+                    <div class="text-xs text-slate-500">
+                        Tổng: {{ variants|length }} phân loại
+                    </div>
+                </div>
+            </div>
+
+            <div class="divide-y divide-slate-200">
+                {% if variants %}
+                    {% for variant in variants %}
+                    <div class="p-4 hover:bg-slate-50 transition">
+                        <div class="flex gap-4">
+                            <!-- Hình ảnh -->
+                            <div class="flex-shrink-0">
+                                {% if variant.image_url %}
+                                <img src="{{ variant.image_url }}" alt="{{ variant.name }}" class="w-24 h-24 object-cover rounded-lg border border-slate-200">
+                                {% else %}
+                                <div class="w-24 h-24 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                                    <span class="text-xs text-slate-400">No img</span>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Thông tin -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start justify-between mb-2">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-xs font-mono text-slate-600 bg-blue-50 px-2 py-0.5 rounded">{{ variant.sku }}</span>
+                                        </div>
+                                        <h4 class="text-sm font-medium text-slate-800">{{ variant.name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
+                                    </div>
+                                </div>
+
+                                <!-- Thông tin chi tiết -->
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-3">
+                                    <div class="bg-blue-50 rounded-lg p-2 border border-blue-200">
+                                        <div class="text-[9px] text-blue-600 font-semibold mb-0.5 uppercase">Tốc độ bán/ngày</div>
+                                        <div class="text-sm font-bold text-blue-700">{{ variant.sales_rate|floatformat:1 }}</div>
+                                    </div>
+                                    <div class="bg-purple-50 rounded-lg p-2 border border-purple-200">
+                                        <div class="text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Tồn kho</div>
+                                        <div class="text-sm font-bold text-purple-700">{{ variant.total_inventory|intcomma }}</div>
+                                        <div class="text-[8px] text-purple-500 mt-0.5">HN: {{ variant.inventory_hn|intcomma }} | SG: {{ variant.inventory_sg|intcomma }}</div>
+                                    </div>
+                                    <div class="bg-indigo-50 rounded-lg p-2 border border-indigo-200">
+                                        <div class="text-[9px] text-indigo-600 font-semibold mb-0.5 uppercase">Gợi ý nhập</div>
+                                        <div class="text-sm font-bold text-indigo-700">
+                                            {% if variant.suggested_purchase_qty %}{{ variant.suggested_purchase_qty|floatformat:0|intcomma }} pcs{% else %}-{% endif %}
+                                        </div>
+                                        {% if variant.suggested_boxes %}
+                                        <div class="text-[8px] text-indigo-500 mt-0.5">({{ variant.suggested_boxes }} thùng)</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="bg-amber-50 rounded-lg p-2 border border-amber-200">
+                                        <div class="text-[9px] text-amber-600 font-semibold mb-0.5 uppercase">Số cái/thùng</div>
+                                        <div class="text-sm font-bold text-amber-700">{{ variant.full_box }}</div>
+                                    </div>
+                                    {% if variant.price_tq %}
+                                    <div class="bg-green-50 rounded-lg p-2 border border-green-200">
+                                        <div class="text-[9px] text-green-600 font-semibold mb-0.5 uppercase">Giá TQ (CNY)</div>
+                                        <div class="text-sm font-bold text-green-700">{{ variant.price_tq|floatformat:2 }}</div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Input số lượng -->
+                                <div class="flex items-center gap-3">
+                                    <label class="text-xs font-semibold text-slate-700 min-w-[80px]">Số lượng nhập:</label>
+                                    <div class="flex items-center gap-2 flex-1">
+                                        <input type="number" 
+                                               name="quantity_{{ variant.variant_id }}" 
+                                               id="qty_{{ variant.variant_id }}"
+                                               value="{% if variant.suggested_boxes %}{{ variant.suggested_boxes }}{% else %}0{% endif %}"
+                                               min="0"
+                                               step="1"
+                                               class="w-24 px-2 py-1 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                               data-variant-id="{{ variant.variant_id }}"
+                                               data-full-box="{{ variant.full_box }}"
+                                               onchange="updateQuantity({{ variant.variant_id }})">
+                                        <span class="text-xs text-slate-500">thùng</span>
+                                        <span id="pcs_{{ variant.variant_id }}" class="text-xs text-slate-600 font-medium">
+                                            ({% if variant.suggested_boxes %}{{ variant.suggested_boxes|floatformat:0|intcomma }}{% else %}0{% endif %} pcs)
+                                        </span>
+                                        <button type="button" 
+                                                onclick="setSuggestedQuantity({{ variant.variant_id }}, {{ variant.suggested_boxes|default:0 }})"
+                                                class="text-xs text-emerald-600 hover:text-emerald-700 hover:underline">
+                                            Dùng gợi ý
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="px-4 py-12 text-center">
+                        <p class="text-sm text-slate-500">Không có phân loại nào cho nhà cung cấp này</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Nút tạo đơn -->
+        {% if variants %}
+        <div class="mt-4 flex justify-end gap-3">
+            <a href="{% url 'products:supplier_list' %}" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+                Hủy
+            </a>
+            <button type="submit" class="px-6 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-semibold">
+                📦 Tạo đơn nháp
+            </button>
+        </div>
+        {% endif %}
+    </form>
+    {% endif %}
+</div>
+
+<script>
+function updateQuantity(variantId) {
+    const input = document.getElementById(`qty_${variantId}`);
+    const fullBox = parseFloat(input.dataset.fullBox) || 1;
+    const boxes = parseFloat(input.value) || 0;
+    const pcs = Math.round(boxes * fullBox);
+    
+    const pcsSpan = document.getElementById(`pcs_${variantId}`);
+    if (pcsSpan) {
+        pcsSpan.textContent = `(${pcs.toLocaleString('vi-VN')} pcs)`;
+    }
+}
+
+function setSuggestedQuantity(variantId, suggestedBoxes) {
+    const input = document.getElementById(`qty_${variantId}`);
+    if (input && suggestedBoxes > 0) {
+        input.value = suggestedBoxes;
+        updateQuantity(variantId);
+    }
+}
+
+// Làm tròn số thùng khi blur (0.5 -> làm tròn lên, < 0.5 -> làm tròn xuống)
+document.querySelectorAll('input[type="number"][data-full-box]').forEach(input => {
+    input.addEventListener('blur', function() {
+        const value = parseFloat(this.value);
+        if (!isNaN(value) && value > 0) {
+            const rounded = Math.round(value);
+            const decimal = value - Math.floor(value);
+            if (decimal >= 0.5) {
+                this.value = Math.ceil(value);
+            } else {
+                this.value = Math.floor(value);
+            }
+            updateQuantity(parseInt(this.dataset.variantId));
+        }
+    });
+});
+
+// Submit form
+document.getElementById('create-po-form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        supplier_id: parseInt(formData.get('supplier_id')),
+        location_id: parseInt(formData.get('location_id')),
+        line_items: []
+    };
+    
+    // Collect line items
+    document.querySelectorAll('input[type="number"][name^="quantity_"]').forEach(input => {
+        const quantity = parseFloat(input.value) || 0;
+        if (quantity > 0) {
+            const variantId = parseInt(input.dataset.variantId);
+            const fullBox = parseFloat(input.dataset.fullBox) || 1;
+            const pcs = Math.round(quantity * fullBox);
+            
+            data.line_items.push({
+                variant_id: variantId,
+                quantity: pcs,
+                boxes: quantity
+            });
+        }
+    });
+    
+    if (data.line_items.length === 0) {
+        alert('Vui lòng nhập số lượng cho ít nhất một phân loại');
+        return;
+    }
+    
+    // Show loading
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Đang tạo đơn...';
+    
+    // Get CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    
+    // Submit
+    fetch('{% url "products:submit_purchase_order_draft" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': csrftoken,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert(`✅ Đã tạo đơn nháp thành công!\nMã đơn: ${data.order_code || 'N/A'}`);
+            window.location.href = '{% url "products:supplier_list" %}';
+        } else {
+            alert('❌ Lỗi: ' + (data.message || 'Không thể tạo đơn'));
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalText;
+        }
+    })
+    .catch(error => {
+        alert('❌ Lỗi: ' + error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    });
+});
+</script>
+{% endblock %}

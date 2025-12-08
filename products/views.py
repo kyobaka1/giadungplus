@@ -5,7 +5,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from typing import List, Dict, Any
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime
 import logging
 import io
 import os
@@ -1786,7 +1786,12 @@ def sales_forecast_list(request: HttpRequest):
                     "total_sold": forecast_30.total_sold,
                     "total_sold_previous_period": forecast_30.total_sold_previous_period,
                     "growth_percentage": forecast_30.growth_percentage,
-                    "sales_rate": forecast_30.sales_rate
+                    "sales_rate": forecast_30.sales_rate,
+                    "abc_category": forecast_30.abc_category,
+                    "revenue": forecast_30.revenue,
+                    "revenue_percentage": forecast_30.revenue_percentage,
+                    "cumulative_percentage": forecast_30.cumulative_percentage,
+                    "abc_rank": forecast_30.abc_rank,
                 }
                 # Tính tỉ lệ %: (hiện tại - cùng kỳ) / cùng kỳ * 100
                 if forecast_30.total_sold_previous_period > 0:
@@ -1802,7 +1807,8 @@ def sales_forecast_list(request: HttpRequest):
                     "total_sold": forecast_10.total_sold,
                     "total_sold_previous_period": forecast_10.total_sold_previous_period,
                     "growth_percentage": forecast_10.growth_percentage,
-                    "sales_rate": forecast_10.sales_rate
+                    "sales_rate": forecast_10.sales_rate,
+                    "revenue": forecast_10.revenue,  # Revenue cho 10N (nếu có)
                 }
                 # Tính tỉ lệ %: (hiện tại - cùng kỳ) / cùng kỳ * 100
                 if forecast_10.total_sold_previous_period > 0:
@@ -4242,4 +4248,406 @@ def refresh_sales_forecast(request: HttpRequest):
         return JsonResponse({
             "status": "error",
             "message": error_msg
+        }, status=500)
+
+
+@admin_only
+def create_purchase_order_from_supplier(request: HttpRequest, supplier_id: int):
+    """
+    Màn hình lên đơn nhập hàng từ nhà cung cấp.
+    Hiển thị danh sách variants với thông tin đầy đủ và form nhập số lượng.
+    """
+    context = {
+        "title": "Lên đơn nhập hàng",
+        "supplier": None,
+        "variants": [],
+        "error": None,
+    }
+    
+    try:
+        from products.services.sapo_supplier_service import SapoSupplierService
+        from products.services.sales_forecast_service import SalesForecastService
+        from products.services.metadata_helper import extract_gdp_metadata
+        
+        sapo_client = get_sapo_client()
+        supplier_service = SapoSupplierService(sapo_client)
+        forecast_service = SalesForecastService(sapo_client)
+        
+        # Lấy thông tin supplier
+        all_suppliers = supplier_service.get_all_suppliers(status="active")
+        supplier = None
+        for s in all_suppliers:
+            if s.id == supplier_id:
+                supplier = s
+                break
+        
+        if not supplier:
+            context["error"] = f"Không tìm thấy nhà cung cấp với ID {supplier_id}"
+            return render(request, "products/create_purchase_order.html", context)
+        
+        context["supplier"] = {
+            "id": supplier.id,
+            "code": supplier.code,
+            "name": supplier.name,
+            "logo_path": supplier.logo_path,
+        }
+        
+        # Lấy brand từ supplier (code hoặc name)
+        brand_name = supplier.code or supplier.name
+        
+        # Lấy brand_id từ Sapo
+        from products.services.sapo_product_service import SapoProductService
+        product_service = SapoProductService(sapo_client)
+        
+        # Tìm brand_id
+        brand_id = None
+        try:
+            # Lấy brands từ Sapo
+            brands_response = sapo_client.core.list_brands_raw(query=brand_name)
+            brands = brands_response.get("brands", [])
+            for brand in brands:
+                if (brand.get("code", "").upper() == brand_name.upper() or 
+                    brand.get("name", "").upper() == brand_name.upper()):
+                    brand_id = brand.get("id")
+                    break
+        except Exception as e:
+            logger.warning(f"Error getting brand_id for {brand_name}: {e}")
+        
+        # Lấy products của brand này
+        all_products = []
+        all_variants_map = {}
+        
+        if brand_id:
+            # Lấy products theo brand_id
+            page = 1
+            limit = 250
+            while True:
+                response = sapo_client.core.list_products_raw(
+                    page=page,
+                    limit=limit,
+                    status="active",
+                    product_types="normal",
+                    brand_ids=str(brand_id)
+                )
+                
+                products_data = response.get("products", [])
+                if not products_data:
+                    break
+                
+                all_products.extend(products_data)
+                
+                # Extract variants (chỉ lấy packsize=false)
+                for product in products_data:
+                    variants = product.get("variants", [])
+                    for variant in variants:
+                        variant_id = variant.get("id")
+                        if variant_id:
+                            packsize = variant.get("packsize", False)
+                            if packsize is not True:
+                                all_variants_map[variant_id] = variant
+                
+                if len(products_data) < limit:
+                    break
+                
+                page += 1
+                if page > 100:
+                    break
+        
+        # Lấy forecast data từ database
+        forecast_map_30, all_products_forecast, all_variants_map_forecast = forecast_service.calculate_sales_forecast(
+            days=30,
+            force_refresh=False
+        )
+        
+        # Import LOCATION constants
+        from products.services.sales_forecast_service import LOCATION_HN, LOCATION_SG
+        
+        # Tạo map variant_id -> product_data
+        variant_to_product: Dict[int, Dict[str, Any]] = {}
+        for product in all_products:
+            variants = product.get("variants", [])
+            for variant in variants:
+                variant_id = variant.get("id")
+                if variant_id:
+                    variant_to_product[variant_id] = product
+        
+        # Lấy variants và thông tin đầy đủ
+        variants_data = []
+        for variant_id, variant in all_variants_map.items():
+            # Lấy forecast
+            forecast_30 = forecast_map_30.get(variant_id)
+            
+            # Lấy tồn kho
+            inventories = variant.get("inventories", [])
+            inventory_hn = 0
+            inventory_sg = 0
+            for inv in inventories:
+                location_id = inv.get("location_id")
+                available = inv.get("available", 0) or 0
+                available = max(0, int(available))
+                if location_id == LOCATION_HN:
+                    inventory_hn = available
+                elif location_id == LOCATION_SG:
+                    inventory_sg = available
+            
+            total_inventory = inventory_hn + inventory_sg
+            
+            # Tính suggested_purchase_qty
+            suggested_purchase_qty = None
+            if forecast_30:
+                suggested_purchase_qty = forecast_service.calculate_suggested_purchase_qty(
+                    forecast_30,
+                    total_inventory
+                )
+            
+            # Lấy box_info từ metadata
+            box_info = None
+            full_box = None
+            price_tq = None
+            product_data = variant_to_product.get(variant_id)
+            
+            if product_data:
+                description = product_data.get("description") or ""
+                if description:
+                    metadata, _ = extract_gdp_metadata(description)
+                    if metadata:
+                        for v_meta in metadata.variants:
+                            if v_meta.id == variant_id:
+                                if v_meta.box_info:
+                                    box_info = v_meta.box_info
+                                    full_box = box_info.full_box
+                                if v_meta.price_tq:
+                                    price_tq = v_meta.price_tq
+                                break
+            
+            # Tính số thùng gợi ý (nếu có)
+            suggested_boxes = None
+            if suggested_purchase_qty and full_box and full_box > 0:
+                boxes_float = suggested_purchase_qty / full_box
+                if boxes_float >= 0.5:
+                    suggested_boxes = int(boxes_float + 0.5)  # Làm tròn 0.5 lên
+                else:
+                    suggested_boxes = 0
+            
+            # Lấy ảnh
+            image_url = None
+            images = variant.get("images", [])
+            if images and len(images) > 0:
+                image_url = images[0].get("full_path") or images[0].get("path")
+            
+            variants_data.append({
+                "variant_id": variant_id,
+                "product_id": variant.get("product_id"),
+                "sku": variant.get("sku", ""),
+                "name": variant.get("name", ""),
+                "opt1": variant.get("opt1", ""),
+                "image_url": image_url,
+                "inventory_hn": inventory_hn,
+                "inventory_sg": inventory_sg,
+                "total_inventory": total_inventory,
+                "sales_rate": forecast_30.sales_rate if forecast_30 else 0.0,
+                "suggested_purchase_qty": suggested_purchase_qty,
+                "suggested_boxes": suggested_boxes,
+                "full_box": full_box or 1,
+                "price_tq": price_tq,
+            })
+        
+        context["variants"] = variants_data
+        
+    except Exception as e:
+        logger.error(f"Error in create_purchase_order_from_supplier: {e}", exc_info=True)
+        context["error"] = str(e)
+    
+    return render(request, "products/create_purchase_order.html", context)
+
+
+@admin_only
+@require_POST
+@csrf_exempt
+def submit_purchase_order_draft(request: HttpRequest):
+    """
+    API endpoint để tạo đơn nháp (Purchase Order) trong Sapo.
+    
+    Request body:
+        {
+            "supplier_id": int,
+            "location_id": int (241737 = Gele/HN, 548744 = Toky/SG),
+            "line_items": [
+                {
+                    "variant_id": int,
+                    "quantity": int (số pcs),
+                    "boxes": int (số thùng)
+                },
+                ...
+            ]
+        }
+    
+    Returns:
+        JSON: {status, message, order_code, order_id}
+    """
+    try:
+        import json
+        from products.services.sales_forecast_service import LOCATION_HN, LOCATION_SG
+        from products.services.metadata_helper import extract_gdp_metadata
+        
+        data = json.loads(request.body)
+        supplier_id = data.get("supplier_id")
+        location_id = data.get("location_id")
+        line_items = data.get("line_items", [])
+        
+        if not supplier_id or not location_id:
+            return JsonResponse({
+                "status": "error",
+                "message": "Thiếu supplier_id hoặc location_id"
+            }, status=400)
+        
+        if not line_items:
+            return JsonResponse({
+                "status": "error",
+                "message": "Vui lòng nhập số lượng cho ít nhất một phân loại"
+            }, status=400)
+        
+        # Validate location_id
+        if location_id not in [LOCATION_HN, LOCATION_SG]:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Location ID không hợp lệ: {location_id}"
+            }, status=400)
+        
+        sapo_client = get_sapo_client()
+        
+        # Lấy thông tin supplier
+        from products.services.sapo_supplier_service import SapoSupplierService
+        supplier_service = SapoSupplierService(sapo_client)
+        all_suppliers = supplier_service.get_all_suppliers(status="active")
+        supplier = None
+        for s in all_suppliers:
+            if s.id == supplier_id:
+                supplier = s
+                break
+        
+        if not supplier:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không tìm thấy nhà cung cấp với ID {supplier_id}"
+            }, status=404)
+        
+        # Tạo order_supplier payload
+        order_supplier_data = {
+            "location_id": location_id,
+            "supplier_id": supplier_id,
+            "assignee_id": 319911,  # Default assignee
+            "line_items": []
+        }
+        
+        # Xử lý line_items: lấy price_tq từ metadata
+        for item in line_items:
+            variant_id = item.get("variant_id")
+            quantity = item.get("quantity", 0)  # Số pcs
+            
+            if not variant_id or quantity <= 0:
+                continue
+            
+            # Lấy variant để lấy product_id và price_tq
+            try:
+                variant_response = sapo_client.core.get_variant_raw(variant_id)
+                variant = variant_response.get("variant", {})
+                product_id = variant.get("product_id")
+                
+                # Lấy price_tq từ metadata
+                price_tq = 0.0
+                product_response = sapo_client.core.get_product_raw(product_id)
+                product = product_response.get("product", {})
+                description = product.get("description", "")
+                
+                if description:
+                    metadata, _ = extract_gdp_metadata(description)
+                    if metadata:
+                        for v_meta in metadata.variants:
+                            if v_meta.id == variant_id and v_meta.price_tq:
+                                price_tq = v_meta.price_tq
+                                break
+                
+                # Tạo line_item
+                line_item = {
+                    "variant_id": variant_id,
+                    "product_id": product_id,
+                    "quantity": quantity,
+                    "units": [
+                        {
+                            "variant_id": variant_id,
+                            "name": "chiếc"
+                        }
+                    ],
+                    "tax": {
+                        "tax_value": 0,
+                        "tax_type": "exclude"
+                    },
+                    "excluded_tax_begin_amount": 0,
+                    "excluded_tax_line_amount": 0
+                }
+                
+                # Thêm price nếu có
+                if price_tq > 0:
+                    # Convert CNY sang VNĐ (tỷ giá tạm thời, có thể cần config)
+                    price_vnd = int(price_tq * 3600)  # Tỷ giá tạm thời
+                    line_item["price"] = price_vnd
+                
+                order_supplier_data["line_items"].append(line_item)
+            except Exception as e:
+                logger.warning(f"Error processing variant {variant_id}: {e}")
+                continue
+        
+        if not order_supplier_data["line_items"]:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không có line items hợp lệ để tạo đơn"
+            }, status=400)
+        
+        # Tạo mã đơn tự động (CN-2025-SXX)
+        try:
+            # Lấy đơn mới nhất để tạo mã tiếp theo
+            last_po_response = sapo_client.core.list_order_suppliers_raw(limit=1, page=1)
+            last_pos = last_po_response.get("order_suppliers", [])
+            
+            if last_pos:
+                last_code = last_pos[0].get("code", "")
+                if "CN-2025-S" in last_code:
+                    next_num = int(last_code.replace("CN-2025-S", "")) + 1
+                    order_code = f"CN-2025-S{next_num:02d}"
+                else:
+                    order_code = "CN-2025-S01"
+            else:
+                order_code = "CN-2025-S01"
+        except Exception as e:
+            logger.warning(f"Error generating order code: {e}")
+            order_code = f"CN-{datetime.now().strftime('%Y-%m-%d')}"
+        
+        order_supplier_data["code"] = order_code
+        order_supplier_data["tags"] = ["CN", "DRAFT"]
+        
+        # Tạo đơn trong Sapo
+        response = sapo_client.core.create_order_supplier_raw(order_supplier_data)
+        order_supplier = response.get("order_supplier", {})
+        
+        if not order_supplier:
+            return JsonResponse({
+                "status": "error",
+                "message": "Không thể tạo đơn trong Sapo"
+            }, status=500)
+        
+        logger.info(f"[submit_purchase_order_draft] Created PO: {order_code} (ID: {order_supplier.get('id')}) for supplier {supplier_id}")
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Đã tạo đơn nháp thành công",
+            "order_code": order_code,
+            "order_id": order_supplier.get("id")
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in submit_purchase_order_draft: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
         }, status=500)

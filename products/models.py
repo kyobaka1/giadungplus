@@ -46,6 +46,45 @@ class VariantSalesForecast(models.Model):
         help_text="% tăng trưởng so với kỳ trước"
     )
     
+    # ABC Analysis (chỉ tính cho period_days=30)
+    ABC_CATEGORY_CHOICES = [
+        ('A', 'Nhóm A (70-80% doanh thu)'),
+        ('B', 'Nhóm B (15-25% doanh thu)'),
+        ('C', 'Nhóm C (5-10% doanh thu)'),
+    ]
+    abc_category = models.CharField(
+        max_length=1,
+        choices=ABC_CATEGORY_CHOICES,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Phân loại ABC (chỉ có khi period_days=30)"
+    )
+    revenue = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        null=True,
+        blank=True,
+        help_text="Tổng doanh thu (line_amount) - chỉ tính cho period_days=30"
+    )
+    revenue_percentage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="% doanh thu trên tổng doanh thu (chỉ có khi period_days=30)"
+    )
+    cumulative_percentage = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="% tích lũy cộng dồn (chỉ có khi period_days=30)"
+    )
+    abc_rank = models.IntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Thứ tự xếp hạng theo doanh thu (1 = cao nhất, chỉ có khi period_days=30)"
+    )
+    
     # Metadata
     calculated_at = models.DateTimeField(
         null=True,
@@ -71,6 +110,8 @@ class VariantSalesForecast(models.Model):
             models.Index(fields=['variant_id', 'period_days']),
             models.Index(fields=['calculated_at']),
             models.Index(fields=['-updated_at']),  # Descending để query mới nhất trước
+            models.Index(fields=['abc_category']),
+            models.Index(fields=['abc_rank']),
         ]
     
     def __str__(self):

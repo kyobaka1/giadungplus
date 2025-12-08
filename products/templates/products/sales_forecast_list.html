@@ -1,6 +1,7 @@
 {% extends "products/base_products.html" %}
 {% load static %}
 {% load humanize %}
+{% load product_tags %}
 
 {% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
 
@@ -56,6 +57,17 @@
                 </div>
             </div>
             
+            <!-- Bộ lọc Nhóm ABC -->
+            <div class="mb-3">
+                <label class="text-xs text-slate-600 font-medium mb-1 block">Lọc theo nhóm ABC:</label>
+                <div class="flex items-center gap-2">
+                    <button class="filter-abc-btn px-3 py-1 rounded-full border text-xs font-medium hover:bg-slate-100 transition active bg-red-100 text-red-700 border-red-300" data-abc="all">Tất cả</button>
+                    <button class="filter-abc-btn px-3 py-1 rounded-full border text-xs font-medium hover:bg-slate-100 transition bg-slate-50 border-slate-300" data-abc="A">Nhóm A</button>
+                    <button class="filter-abc-btn px-3 py-1 rounded-full border text-xs font-medium hover:bg-slate-100 transition bg-slate-50 border-slate-300" data-abc="B">Nhóm B</button>
+                    <button class="filter-abc-btn px-3 py-1 rounded-full border text-xs font-medium hover:bg-slate-100 transition bg-slate-50 border-slate-300" data-abc="C">Nhóm C</button>
+                </div>
+            </div>
+            
             <!-- Tìm kiếm nhanh -->
             <div>
                 <label class="text-xs text-slate-600 font-medium mb-1 block">Tìm kiếm:</label>
@@ -96,7 +108,7 @@
             <div id="forecast-container" class="divide-y divide-slate-200">
                 {% if variants %}
                     {% for variant in variants %}
-                    <div class="js-variant-row hover:bg-slate-50 transition p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}">
+                    <div class="js-variant-row hover:bg-slate-50 transition p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}" data-abc-category="{% if variant.forecast_30 and variant.forecast_30.abc_category %}{{ variant.forecast_30.abc_category }}{% else %}{% endif %}">
                         <div class="flex gap-4">
                             <!-- Hình ảnh -->
                             <div class="flex-shrink-0">
@@ -109,6 +121,15 @@
                                         <div class="flex items-center gap-2 mb-1">
                                             <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{{ variant.brand|default:"N/A" }}</span>
                                             <span class="text-xs font-mono text-slate-600 bg-blue-50 px-2 py-0.5 rounded">{{ variant.sku }}</span>
+                                            {% if variant.forecast_30 and variant.forecast_30.abc_category %}
+                                                {% if variant.forecast_30.abc_category == "A" %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300">Nhóm A</span>
+                                                {% elif variant.forecast_30.abc_category == "B" %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">Nhóm B</span>
+                                                {% else %}
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Nhóm C</span>
+                                                {% endif %}
+                                            {% endif %}
                                         </div>
                                         <h4 class="text-sm font-medium text-slate-800 truncate" title="{{ variant.product_name }}">{{ variant.product_name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
                                     </div>
@@ -116,7 +137,7 @@
                                         {% if variant.warning_color == "red" %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border-2 border-red-300">⚠️ &lt; 30 ngày</span>{% elif variant.warning_color == "yellow" %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">⚡ 30-60 ngày</span>{% else %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ &gt; 60 ngày</span>{% endif %}
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-8 gap-2 mt-3">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
                                     <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-1.5 border border-blue-200">
                                         <div class="text-[9px] text-blue-600 font-semibold mb-0.5 uppercase">Tốc độ bán/ngày</div>
                                         <div class="text-sm font-bold text-blue-700">{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate|floatformat:1 }}{% else %}-{% endif %}</div>
@@ -132,7 +153,18 @@
                                     </div>
                                     <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-1.5 border border-emerald-200">
                                         <div class="text-[9px] text-emerald-600 font-semibold mb-0.5 uppercase">Bán (30N)</div>
-                                        <div class="text-sm font-bold text-emerald-700">{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                        <div class="grid grid-cols-2 gap-1">
+                                            <div>
+                                                <div class="text-sm font-bold text-emerald-700">{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                            </div>
+                                            <div>
+                                                {% if variant.forecast_30 and variant.forecast_30.revenue %}
+                                                    <div class="text-sm font-bold text-emerald-700">{{ variant.forecast_30.revenue|format_kmb }}</div>
+                                                {% else %}
+                                                    <div class="text-sm font-bold text-emerald-700">-</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                         {% if variant.forecast_30 and variant.forecast_30.total_sold_previous_period > 0 and variant.growth_percentage_30 is not None %}
                                             <div class="text-[8px] text-emerald-500 mt-0.5">
                                                 Kỳ trước: {{ variant.forecast_30.total_sold_previous_period|intcomma }} 
@@ -150,7 +182,18 @@
                                     </div>
                                     <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-1.5 border border-amber-200">
                                         <div class="text-[9px] text-amber-600 font-semibold mb-0.5 uppercase">Bán (10N)</div>
-                                        <div class="text-sm font-bold text-amber-700">{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                        <div class="grid grid-cols-2 gap-1">
+                                            <div>
+                                                <div class="text-sm font-bold text-amber-700">{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                            </div>
+                                            <div>
+                                                {% if variant.forecast_10 and variant.forecast_10.revenue %}
+                                                    <div class="text-sm font-bold text-amber-700">{{ variant.forecast_10.revenue|format_kmb }} VNĐ</div>
+                                                {% else %}
+                                                    <div class="text-sm font-bold text-amber-700">-</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
                                         {% if variant.forecast_10 and variant.forecast_10.total_sold_previous_period > 0 and variant.growth_percentage_10 is not None %}
                                             <div class="text-[8px] text-amber-500 mt-0.5">
                                                 Kỳ trước: {{ variant.forecast_10.total_sold_previous_period|intcomma }} 
@@ -289,7 +332,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function applySearch() {
+    // ========== ABC FILTER ==========
+    let currentABCFilter = 'all';
+    const abcButtons = document.querySelectorAll('.filter-abc-btn');
+    
+    abcButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const abcCategory = this.dataset.abc;
+            currentABCFilter = abcCategory;
+            
+            // Update button styles
+            abcButtons.forEach(b => {
+                if (b.dataset.abc === abcCategory) {
+                    b.classList.remove('bg-slate-50', 'border-slate-300');
+                    b.classList.add('bg-red-100', 'text-red-700', 'border-red-300');
+                } else {
+                    b.classList.remove('bg-red-100', 'text-red-700', 'border-red-300');
+                    b.classList.add('bg-slate-50', 'border-slate-300');
+                }
+            });
+            
+            // Apply filters
+            applyFilters();
+        });
+    });
+    
+    function applyFilters() {
         const rows = getRows();
         const searchQuery = (document.getElementById('search-input')?.value || '').trim().toLowerCase();
         
@@ -298,14 +366,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         rows.forEach(row => {
+            const abcCategory = row.dataset.abcCategory || '';
             const rowText = rowTextCache.get(row) || (row.innerText || row.textContent || '').toLowerCase();
             
-            if (!searchQuery || rowText.includes(searchQuery)) {
+            // ABC filter
+            const abcMatch = currentABCFilter === 'all' || abcCategory === currentABCFilter;
+            
+            // Search filter
+            const searchMatch = !searchQuery || rowText.includes(searchQuery);
+            
+            if (abcMatch && searchMatch) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
             }
         });
+    }
+    
+    function applySearch() {
+        applyFilters();
     }
     
     // ========== SORTING FUNCTIONALITY (Client-side) ==========
@@ -391,25 +470,25 @@ document.addEventListener('DOMContentLoaded', function() {
         sortRows('days_remaining', 'asc');
     }
     
-    // Search input handler với debounce
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        let searchTimeout;
-        searchInput.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                applySearch();
-            }, 200);
-        });
-        
-        // Clear search khi nhấn Escape
-        searchInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                searchInput.value = '';
-                applySearch();
-            }
-        });
-    }
+        // Search input handler với debounce
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) {
+            let searchTimeout;
+            searchInput.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    applyFilters();
+                }, 200);
+            });
+            
+            // Clear search khi nhấn Escape
+            searchInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    searchInput.value = '';
+                    applyFilters();
+                }
+            });
+        }
     
     // Initialize cache khi DOM ready
     cacheRowTexts();

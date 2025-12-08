@@ -684,3 +684,34 @@ class SapoCoreRepository(BaseRepository):
         """
         logger.debug(f"[SapoCoreRepo] get_order_supplier: {order_supplier_id}")
         return self.get(f"order_suppliers/{order_supplier_id}.json")
+    
+    def create_order_supplier_raw(self, order_supplier_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Tạo order_supplier (Purchase Order) mới trong Sapo.
+        
+        Args:
+            order_supplier_data: Dict chứa thông tin order_supplier:
+                - location_id: int (241737 = HN/Gele, 548744 = SG/Toky)
+                - supplier_id: int
+                - code: str (optional, Sapo sẽ tự tạo nếu không có)
+                - line_items: List[Dict] - Mỗi item có:
+                    - variant_id: int
+                    - product_id: int
+                    - quantity: int
+                    - price: float (optional)
+                - tags: List[str] (optional)
+                - assignee_id: int (optional)
+                - price_list_id: int (optional)
+                
+        Returns:
+            {
+                "order_supplier": {...}
+            }
+            
+        Example:
+            POST /admin/order_suppliers.json
+        """
+        logger.info(f"[SapoCoreRepo] create_order_supplier: supplier={order_supplier_data.get('supplier_id')}")
+        return self.post("order_suppliers.json", json={
+            "order_supplier": order_supplier_data
+        })

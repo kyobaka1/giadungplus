@@ -44,6 +44,8 @@ urlpatterns = [
     path("suppliers/", views.supplier_list, name="supplier_list"),
     path("suppliers/<int:supplier_id>/upload-logo/", views.upload_supplier_logo, name="upload_supplier_logo"),
     path("suppliers/<int:supplier_id>/add-website/", views.add_supplier_website, name="add_supplier_website"),
+    path("suppliers/<int:supplier_id>/create-purchase-order/", views.create_purchase_order_from_supplier, name="create_purchase_order_from_supplier"),
+    path("suppliers/create-purchase-order/submit/", views.submit_purchase_order_draft, name="submit_purchase_order_draft"),
     
     # Sales Forecast
     path("sales-forecast/", views.sales_forecast_list, name="sales_forecast_list"),
