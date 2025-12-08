@@ -227,6 +227,11 @@ class SumPurchaseOrder(models.Model):
         null=True,
         help_text="Dự kiến ngày hàng về (phải cách ngày lên đơn tối thiểu 12 ngày)"
     )
+    created_date = models.DateField(
+        blank=True,
+        null=True,
+        help_text="Ngày tạo SPO (có thể điền thủ công)"
+    )
     
     # Tracking Timeline (JSON)
     # Format: [{"stage": "created", "planned_date": "2025-01-01", "actual_date": "2025-01-02", "note": "..."}, ...]
