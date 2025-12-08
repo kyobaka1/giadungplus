@@ -4231,8 +4231,15 @@ def refresh_sales_forecast(request: HttpRequest):
         })
         
     except Exception as e:
+        error_msg = str(e)
+        # Xử lý lỗi Bad Gateway hoặc JSON parsing
+        if "Bad Gateway" in error_msg or "502" in error_msg:
+            error_msg = "Lỗi kết nối tới Sapo (Bad Gateway). Vui lòng thử lại sau vài giây."
+        elif "JSON" in error_msg or "json" in error_msg.lower() or "Unexpected token" in error_msg:
+            error_msg = "Lỗi xử lý dữ liệu từ Sapo. Vui lòng thử lại."
+        
         logger.error(f"Error in refresh_sales_forecast: {e}", exc_info=True)
         return JsonResponse({
             "status": "error",
-            "message": str(e)
+            "message": error_msg
         }, status=500)

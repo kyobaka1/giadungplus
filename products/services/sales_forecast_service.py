@@ -333,6 +333,152 @@ class SalesForecastService:
         print(f"[DEBUG]        └─ ✅ Đã tính toán xong trong {time.time() - step_start:.2f}s")
         logger.info(f"[SalesForecastService] Calculated sales for {variants_with_sales} variants (period_days={days})")
     
+    def _fetch_orders_page_with_retry(
+        self,
+        page: int,
+        limit: int,
+        created_on_min: str,
+        created_on_max: str,
+        max_retries: int = 3,
+        retry_delay: float = 1.0
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch một page orders với retry logic.
+        
+        Args:
+            page: Số trang
+            limit: Số lượng orders mỗi trang
+            created_on_min: Ngày bắt đầu
+            created_on_max: Ngày kết thúc
+            max_retries: Số lần retry tối đa
+            retry_delay: Thời gian chờ giữa các lần retry (giây)
+            
+        Returns:
+            Response dict hoặc None nếu lỗi
+        """
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.sapo_client.core.list_orders_raw(
+                    page=page,
+                    limit=limit,
+                    created_on_min=created_on_min,
+                    created_on_max=created_on_max,
+                    status=",".join(VALID_ORDER_STATUSES)
+                )
+                return response
+            except Exception as e:
+                error_msg = str(e)
+                # Kiểm tra nếu là lỗi Bad Gateway hoặc timeout
+                if "Bad Gateway" in error_msg or "502" in error_msg or "timeout" in error_msg.lower():
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (attempt + 1)  # Exponential backoff
+                        logger.warning(f"[SalesForecastService] Bad Gateway/Timeout on page {page}, retry {attempt + 1}/{max_retries} after {wait_time}s")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"[SalesForecastService] Failed to fetch page {page} after {max_retries} retries: {e}")
+                        return None
+                else:
+                    # Lỗi khác, không retry
+                    logger.error(f"[SalesForecastService] Error fetching page {page}: {e}")
+                    return None
+        
+        return None
+    
+    def _process_orders_page(
+        self,
+        page: int,
+        limit: int,
+        created_on_min: str,
+        created_on_max: str,
+        is_current_period: bool,
+        forecast_map: Dict[int, SalesForecastDTO],
+        lock: Optional[threading.Lock],
+        now_iso: str,
+        days: int
+    ) -> Dict[str, Any]:
+        """
+        Xử lý một page orders (dùng trong thread).
+        
+        Returns:
+            Dict với keys: orders_count, items_count, accumulator
+        """
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        
+        local_accumulator: Dict[int, int] = {}
+        orders_count = 0
+        items_count = 0
+        
+        # Fetch page với retry
+        response = self._fetch_orders_page_with_retry(
+            page=page,
+            limit=limit,
+            created_on_min=created_on_min,
+            created_on_max=created_on_max
+        )
+        
+        if not response:
+            return {"orders_count": 0, "items_count": 0, "accumulator": {}}
+        
+        orders_data = response.get("orders", [])
+        if not orders_data:
+            return {"orders_count": 0, "items_count": 0, "accumulator": {}}
+        
+        # Process orders
+        for order_data in orders_data:
+            try:
+                order = self.order_service.factory.from_sapo_json(
+                    order_data,
+                    sapo_client=self.sapo_client
+                )
+                
+                if not order.real_items:
+                    continue
+                
+                for real_item in order.real_items:
+                    variant_id = real_item.variant_id
+                    if not variant_id:
+                        continue
+                    
+                    # Tạo forecast entry nếu chưa có
+                    if variant_id not in forecast_map:
+                        if lock:
+                            with lock:
+                                if variant_id not in forecast_map:
+                                    forecast_map[variant_id] = SalesForecastDTO(
+                                        variant_id=variant_id,
+                                        period_days=days,
+                                        calculated_at=now_iso if is_current_period else None
+                                    )
+                        else:
+                            if variant_id not in forecast_map:
+                                forecast_map[variant_id] = SalesForecastDTO(
+                                    variant_id=variant_id,
+                                    period_days=days,
+                                    calculated_at=now_iso if is_current_period else None
+                                )
+                    
+                    # Accumulate
+                    if variant_id not in local_accumulator:
+                        local_accumulator[variant_id] = 0
+                    local_accumulator[variant_id] += int(real_item.quantity)
+                    items_count += 1
+                
+                orders_count += 1
+            except Exception as e:
+                logger.warning(f"[SalesForecastService] Error processing order {order_data.get('id')}: {e}")
+                continue
+        
+        return {
+            "orders_count": orders_count,
+            "items_count": items_count,
+            "accumulator": local_accumulator,
+            "has_more": len(orders_data) >= limit
+        }
+    
     def _calculate_period(
         self,
         forecast_map: Dict[int, SalesForecastDTO],
@@ -343,10 +489,12 @@ class SalesForecastService:
         now_iso: Optional[str] = None,
         days: int = 7
     ):
-        """Tính toán cho một kỳ cụ thể (thread-safe)"""
+        """Tính toán cho một kỳ cụ thể (thread-safe, multi-threaded pages)"""
         import time
+        import threading
         from datetime import datetime
         from zoneinfo import ZoneInfo
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         
         period_start = time.time()
         
@@ -354,123 +502,114 @@ class SalesForecastService:
         if not now_iso:
             now_iso = datetime.now(ZoneInfo("UTC")).isoformat()
         
-        page = 1
         limit = 250
         total_orders = 0
         total_items_processed = 0
         
-        # Tạo local dict để accumulate trước, sau đó update vào forecast_map một lần (giảm lock contention)
-        local_accumulator: Dict[int, int] = {}
+        # Tạo lock cho accumulator nếu chưa có
+        if lock is None:
+            lock = threading.Lock()
         
-        while True:
-            try:
-                page_start = time.time()
-                if page == 1 or page % 10 == 0:
-                    period_name = "hiện tại" if is_current_period else "trước"
-                    thread_id = threading.current_thread().name
-                    print(f"[DEBUG]        └─ [{thread_id}] Đang lấy page {page} (kỳ {period_name})...")
-                
-                response = self.sapo_client.core.list_orders_raw(
-                    page=page,
-                    limit=limit,
-                    created_on_min=created_on_min,
-                    created_on_max=created_on_max,
-                    status=",".join(VALID_ORDER_STATUSES)
-                )
-                
-                orders_data = response.get("orders", [])
-                if not orders_data:
-                    break
-                
-                # Convert sang OrderDTO và tính toán vào local accumulator
-                for order_data in orders_data:
-                    try:
-                        order = self.order_service.factory.from_sapo_json(
-                            order_data,
-                            sapo_client=self.sapo_client
-                        )
-                        
-                        # Lấy real_items (đã bỏ combo, packsize)
-                        # TÍNH TẤT CẢ variants từ orders, không chỉ những variants có trong forecast_map
-                        # Vì có thể có variants trong orders nhưng không có trong products list (đã xóa, inactive, v.v.)
-                        if not order.real_items:
-                            # Debug: Log nếu order không có real_items
-                            logger.debug(f"[SalesForecastService] Order {order.id} has no real_items")
-                            continue
-                        
-                        for real_item in order.real_items:
-                            variant_id = real_item.variant_id
-                            if not variant_id:
-                                logger.debug(f"[SalesForecastService] real_item has no variant_id: {real_item}")
-                                continue
-                            
-                            # Tạo forecast entry nếu chưa có (cho variants không có trong products list)
-                            # Cần lock khi tạo mới entry
-                            if variant_id not in forecast_map:
-                                if lock:
-                                    with lock:
-                                        if variant_id not in forecast_map:  # Double check
-                                            forecast_map[variant_id] = SalesForecastDTO(
-                                                variant_id=variant_id,
-                                                period_days=days,
-                                                calculated_at=now_iso if is_current_period else None
-                                            )
-                                else:
-                                    # Single-threaded fallback
-                                    if variant_id not in forecast_map:
-                                        forecast_map[variant_id] = SalesForecastDTO(
-                                            variant_id=variant_id,
-                                            period_days=days,
-                                            calculated_at=now_iso if is_current_period else None
-                                        )
-                            
-                            # Accumulate vào local dict (không cần lock)
-                            if variant_id not in local_accumulator:
-                                local_accumulator[variant_id] = 0
-                            local_accumulator[variant_id] += int(real_item.quantity)
-                            total_items_processed += 1
-                        
-                        total_orders += 1
-                    except Exception as e:
-                        logger.warning(f"[SalesForecastService] Error processing order {order_data.get('id')}: {e}")
-                        continue
-                
-                if page == 1 or page % 10 == 0:
-                    period_name = "hiện tại" if is_current_period else "trước"
-                    thread_id = threading.current_thread().name
-                    print(f"[DEBUG]        └─ [{thread_id}] Page {page} (kỳ {period_name}): {len(orders_data)} orders, tổng: {total_orders} orders ({time.time() - page_start:.2f}s)")
-                
-                if len(orders_data) < limit:
-                    break
-                
-                page += 1
-                
-                # Safety limit
-                if page > 1000:
-                    logger.warning("[SalesForecastService] Reached max pages limit (1000)")
-                    break
-                    
-            except Exception as e:
-                logger.error(f"[SalesForecastService] Error fetching orders page {page}: {e}", exc_info=True)
-                break
+        # Tìm số pages đầu tiên để xác định phạm vi
+        # Fetch page 1 để biết có bao nhiêu pages
+        first_page_result = self._process_orders_page(
+            page=1,
+            limit=limit,
+            created_on_min=created_on_min,
+            created_on_max=created_on_max,
+            is_current_period=is_current_period,
+            forecast_map=forecast_map,
+            lock=lock,
+            now_iso=now_iso,
+            days=days
+        )
         
-        # Update vào forecast_map một lần với lock (giảm lock contention)
-        if lock:
+        if not first_page_result.get("has_more", False):
+            # Chỉ có 1 page
+            total_orders += first_page_result["orders_count"]
+            total_items_processed += first_page_result["items_count"]
+            # Update accumulator
             with lock:
-                for variant_id, quantity in local_accumulator.items():
+                for variant_id, quantity in first_page_result["accumulator"].items():
                     if variant_id in forecast_map:
                         if is_current_period:
                             forecast_map[variant_id].total_sold += quantity
                         else:
                             forecast_map[variant_id].total_sold_previous_period += quantity
         else:
-            # Fallback nếu không có lock (single-threaded)
-            for variant_id, quantity in local_accumulator.items():
-                if variant_id in forecast_map:
-                    if is_current_period:
-                        forecast_map[variant_id].total_sold += quantity
-                    else:
-                        forecast_map[variant_id].total_sold_previous_period += quantity
+            # Có nhiều pages, xử lý song song
+            # Sử dụng ThreadPoolExecutor với 4-8 workers để fetch pages song song
+            max_workers = 6  # Số threads song song cho mỗi kỳ
+            page = 2  # Bắt đầu từ page 2 (page 1 đã xử lý)
+            max_pages = 1000  # Safety limit
+            
+            # Update accumulator từ page 1
+            total_orders += first_page_result["orders_count"]
+            total_items_processed += first_page_result["items_count"]
+            with lock:
+                for variant_id, quantity in first_page_result["accumulator"].items():
+                    if variant_id in forecast_map:
+                        if is_current_period:
+                            forecast_map[variant_id].total_sold += quantity
+                        else:
+                            forecast_map[variant_id].total_sold_previous_period += quantity
+            
+            # Xử lý các pages còn lại song song
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {}
+                has_more = True
+                
+                while has_more and page <= max_pages:
+                    # Submit các pages để xử lý song song
+                    while len(futures) < max_workers and page <= max_pages:
+                        future = executor.submit(
+                            self._process_orders_page,
+                            page=page,
+                            limit=limit,
+                            created_on_min=created_on_min,
+                            created_on_max=created_on_max,
+                            is_current_period=is_current_period,
+                            forecast_map=forecast_map,
+                            lock=lock,
+                            now_iso=now_iso,
+                            days=days
+                        )
+                        futures[future] = page
+                        page += 1
+                    
+                    # Xử lý các futures hoàn thành
+                    for future in as_completed(futures):
+                        page_num = futures.pop(future)
+                        try:
+                            result = future.result()
+                            total_orders += result["orders_count"]
+                            total_items_processed += result["items_count"]
+                            
+                            # Update accumulator
+                            with lock:
+                                for variant_id, quantity in result["accumulator"].items():
+                                    if variant_id in forecast_map:
+                                        if is_current_period:
+                                            forecast_map[variant_id].total_sold += quantity
+                                        else:
+                                            forecast_map[variant_id].total_sold_previous_period += quantity
+                            
+                            # Kiểm tra xem còn pages không
+                            if not result.get("has_more", False):
+                                has_more = False
+                                # Cancel các futures còn lại
+                                for f in list(futures.keys()):
+                                    f.cancel()
+                                futures.clear()
+                                break
+                            
+                            if page_num % 20 == 0:
+                                period_name = "hiện tại" if is_current_period else "trước"
+                                thread_id = threading.current_thread().name
+                                print(f"[DEBUG]        └─ [{thread_id}] Đã xử lý page {page_num} (kỳ {period_name}): {total_orders} orders")
+                        except Exception as e:
+                            logger.error(f"[SalesForecastService] Error processing page {page_num}: {e}", exc_info=True)
+                            continue
         
         period_name = "hiện tại" if is_current_period else "trước"
         thread_id = threading.current_thread().name
