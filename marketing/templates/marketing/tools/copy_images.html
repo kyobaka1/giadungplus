@@ -1,0 +1,314 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Công cụ trích xuất và tải hình ảnh từ HTML</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-[80%] float-left">
+    <div class="space-y-4">
+        <!-- Input Section -->
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+            <h2 class="text-sm font-semibold text-slate-800 mb-3">Nhập HTML Code</h2>
+            
+            <form id="extractForm" method="POST" class="space-y-3">
+                {% csrf_token %}
+                
+                <!-- HTML Input -->
+                <div>
+                    <textarea 
+                        id="htmlContent"
+                        name="html_content" 
+                        rows="4"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand focus:border-transparent resize-none font-mono text-xs"
+                        placeholder="Dán HTML code vào đây...">{{ html_content|default:'' }}</textarea>
+                </div>
+                
+                <!-- Submit Button -->
+                <div class="flex justify-end">
+                    <button 
+                        type="submit"
+                        class="px-4 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm">
+                        Trích xuất hình ảnh
+                    </button>
+                </div>
+            </form>
+        </div>
+    
+        <!-- Results Section -->
+        {% if images %}
+        <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-slate-800">
+                    Kết quả: <span id="imageCount">{{ images|length }}</span> hình ảnh
+                </h2>
+                
+                <!-- Download All -->
+                <div class="flex items-center gap-2">
+                    <input 
+                        type="text" 
+                        id="baseName"
+                        placeholder="Tên file" 
+                        class="px-2 py-1 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-brand focus:border-transparent w-32"
+                        value="images">
+                    <button 
+                        id="downloadAllBtn"
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+                        Tải tất cả (ZIP)
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Filters Section (chỉ hiện sau khi có kết quả) -->
+            <div class="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                <h3 class="text-xs font-semibold text-slate-700 mb-2">Định dạng tải về</h3>
+                <div class="flex flex-wrap gap-1.5">
+                    <label class="flex items-center gap-1 px-2 py-1 border border-slate-300 rounded cursor-pointer hover:bg-white transition">
+                        <input type="radio" name="downloadFormat" value="jpg" class="text-brand focus:ring-brand text-xs" checked>
+                        <span class="text-xs">JPG</span>
+                    </label>
+                    <label class="flex items-center gap-1 px-2 py-1 border border-slate-300 rounded cursor-pointer hover:bg-white transition">
+                        <input type="radio" name="downloadFormat" value="png" class="text-brand focus:ring-brand text-xs">
+                        <span class="text-xs">PNG</span>
+                    </label>
+                    <label class="flex items-center gap-1 px-2 py-1 border border-slate-300 rounded cursor-pointer hover:bg-white transition">
+                        <input type="radio" name="downloadFormat" value="webp" class="text-brand focus:ring-brand text-xs">
+                        <span class="text-xs">WEBP</span>
+                    </label>
+                    <label class="flex items-center gap-1 px-2 py-1 border border-slate-300 rounded cursor-pointer hover:bg-white transition">
+                        <input type="radio" name="downloadFormat" value="original" class="text-brand focus:ring-brand text-xs">
+                        <span class="text-xs">Gốc</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Images Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3" id="imagesGrid">
+            {% for img in images %}
+                <div class="image-item border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition group relative" data-image-url="{{ img.normalized_url|escapejs }}" data-original-url="{{ img.original_url|escapejs }}" data-source="{{ img.source|escapejs }}">
+                    <!-- Delete Button -->
+                    <button 
+                        onclick="removeImage(this)"
+                        class="absolute top-1 right-1 z-10 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-red-600 shadow-lg"
+                        title="Xóa ảnh">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    
+                    <div class="aspect-square bg-slate-100 relative overflow-hidden">
+                        <img 
+                            src="{{ img.normalized_url }}" 
+                            alt="Image {{ forloop.counter }}"
+                            class="w-full h-full object-cover cursor-pointer"
+                            loading="lazy"
+                            onerror="this.src='/static/none-loading.png'"
+                            data-image-url="{{ img.normalized_url|escapejs }}">
+                    </div>
+                    <div class="p-2">
+                        <span class="text-[9px] text-slate-500 font-medium">Tên hình ảnh</span>
+                        <p class="text-[10px] text-slate-600 truncate mt-0.5" title="{{ img.normalized_url }}">
+                            {{ img.normalized_url|truncatechars:30 }}
+                        </p>
+                        {% if img.source %}
+                        <span class="inline-block mt-1 px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[9px]">
+                            {{ img.source }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    /* Custom scrollbar */
+    textarea::-webkit-scrollbar {
+        width: 8px;
+    }
+    textarea::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+    }
+    textarea::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    textarea::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const baseNameInput = document.getElementById('baseName');
+    const imageCountSpan = document.getElementById('imageCount');
+    
+    // Track deleted images
+    const deletedImageUrls = new Set();
+    
+    // Remove image function
+    window.removeImage = function(button) {
+        const imageItem = button.closest('.image-item');
+        const imageUrl = imageItem.getAttribute('data-image-url');
+        
+        // Mark as deleted
+        deletedImageUrls.add(imageUrl);
+        
+        // Hide the image item
+        imageItem.style.display = 'none';
+        
+        // Update count
+        updateImageCount();
+    };
+    
+    // Update image count
+    function updateImageCount() {
+        const visibleImages = document.querySelectorAll('.image-item:not([style*="display: none"])');
+        if (imageCountSpan) {
+            imageCountSpan.textContent = visibleImages.length;
+        }
+    }
+    
+    // Get all visible images (not deleted)
+    function getVisibleImages() {
+        const imageItems = document.querySelectorAll('.image-item');
+        const images = [];
+        
+        imageItems.forEach(item => {
+            // Check if item is visible (not hidden)
+            const isHidden = item.style.display === 'none' || 
+                           window.getComputedStyle(item).display === 'none';
+            
+            if (!isHidden) {
+                // Get URL from data attribute or from img src
+                let imageUrl = item.getAttribute('data-image-url');
+                if (!imageUrl) {
+                    const imgElement = item.querySelector('img');
+                    if (imgElement) {
+                        imageUrl = imgElement.src || imgElement.getAttribute('data-image-url');
+                    }
+                }
+                
+                // Decode any HTML entities and unicode escapes
+                if (imageUrl) {
+                    // Create a temporary element to decode HTML entities
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = imageUrl;
+                    imageUrl = tempDiv.textContent || tempDiv.innerText || imageUrl;
+                    
+                    // Double check với deletedImageUrls
+                    if (imageUrl && !deletedImageUrls.has(imageUrl)) {
+                        images.push({
+                            normalized_url: imageUrl,
+                            original_url: item.getAttribute('data-original-url') || imageUrl,
+                            source: item.getAttribute('data-source') || ''
+                        });
+                    }
+                }
+            }
+        });
+        
+        console.log('Visible images:', images.length, images);
+        return images;
+    }
+    
+    // Download all images
+    if (downloadAllBtn) {
+        downloadAllBtn.addEventListener('click', function() {
+            const baseName = baseNameInput.value.trim() || 'images';
+            const images = getVisibleImages();
+            
+            if (images.length === 0) {
+                alert('Không có hình ảnh để tải về!');
+                return;
+            }
+            
+            // Get selected format
+            const formatRadio = document.querySelector('input[name="downloadFormat"]:checked');
+            const downloadFormat = formatRadio ? formatRadio.value : 'original';
+            
+            // Disable button
+            downloadAllBtn.disabled = true;
+            downloadAllBtn.textContent = 'Đang tải...';
+            
+            console.log('Sending download request:', {
+                imageCount: images.length,
+                baseName: baseName,
+                format: downloadFormat,
+                firstImage: images[0]
+            });
+            
+            fetch('{% url "marketing:tools_copy_images_download" %}', {
+                method: 'POST',
+                body: JSON.stringify({
+                    images: images,
+                    base_name: baseName,
+                    format: downloadFormat
+                }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => {
+                console.log('Response status:', response.status, response.statusText);
+                if (response.ok) {
+                    return response.blob();
+                }
+                // Try to get error message
+                return response.json().then(err => {
+                    throw new Error(err.error || 'Download failed');
+                }).catch(() => {
+                    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                });
+            })
+            .then(blob => {
+                console.log('Blob received, size:', blob.size);
+                if (blob.size === 0) {
+                    throw new Error('ZIP file is empty');
+                }
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = baseName + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Có lỗi xảy ra khi tải về: ' + error.message);
+            })
+            .finally(() => {
+                downloadAllBtn.disabled = false;
+                downloadAllBtn.textContent = 'Tải tất cả (ZIP)';
+            });
+        });
+    }
+    
+    // Initialize count
+    updateImageCount();
+    
+    // Add context menu hint (optional - có thể bỏ nếu không cần)
+    const images = document.querySelectorAll('.image-item img');
+    images.forEach(img => {
+        img.addEventListener('contextmenu', function(e) {
+            // Cho phép context menu mặc định (chuột phải)
+            // Không cần làm gì thêm
+        });
+    });
+});
+</script>
+{% endblock %}

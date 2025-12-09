@@ -1,0 +1,49 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Trang chủ Marketing Tools</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <!-- Shopee Shop Manager Card -->
+    <a href="{% url 'marketing:shopee_overview' %}" class="bg-white border rounded-xl shadow-sm p-6 hover:shadow-md transition">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <span class="text-2xl">🛒</span>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-800">Shopee Shop Manager</h3>
+        </div>
+        <p class="text-sm text-gray-600">Quản lý shop Shopee, sản phẩm, ROAS và Flash Sale</p>
+    </a>
+
+    <!-- Tiktok Booking Card -->
+    <a href="{% url 'marketing:tiktok_overview' %}" class="bg-white border rounded-xl shadow-sm p-6 hover:shadow-md transition">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-black rounded-lg flex items-center justify-center">
+                <span class="text-2xl">🎵</span>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-800">Tiktok Booking</h3>
+        </div>
+        <p class="text-sm text-gray-600">Quản lý booking KOC/KOL và tracking video</p>
+    </a>
+
+    <!-- Tools Card -->
+    <a href="{% url 'marketing:tools_copy_images' %}" class="bg-white border rounded-xl shadow-sm p-6 hover:shadow-md transition">
+        <div class="flex items-center gap-3 mb-3">
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <span class="text-2xl">🛠️</span>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-800">Tools</h3>
+        </div>
+        <p class="text-sm text-gray-600">Các công cụ hỗ trợ: Copy images, Get videos</p>
+    </a>
+</div>
+{% endblock %}
+
