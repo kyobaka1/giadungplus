@@ -156,6 +156,11 @@ def export_variants_excel(request: HttpRequest):
             opt1 = opt1_raw or ""
             
             # Chuẩn bị dữ liệu cho Excel
+            # Plan tags (join bằng dấu phẩy)
+            plan_tags_str = ""
+            if variant_meta and variant_meta.plan_tags:
+                plan_tags_str = ", ".join(variant_meta.plan_tags)
+            
             row_data = {
                 "sku": variant_data.get("sku", ""),
                 "opt1": opt1,  # Tên phân loại - thêm sau SKU
@@ -168,6 +173,7 @@ def export_variants_excel(request: HttpRequest):
                 "box_width_cm": variant_meta.box_info.width_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.width_cm else "",
                 "box_height_cm": variant_meta.box_info.height_cm if variant_meta and variant_meta.box_info and variant_meta.box_info.height_cm else "",
                 "sku_model_xnk": variant_meta.sku_model_xnk if variant_meta and variant_meta.sku_model_xnk else "",
+                "plan_tags": plan_tags_str,
                 "update": ""  # Cột update để user đánh dấu
             }
             variants_data.append(row_data)
@@ -181,7 +187,7 @@ def export_variants_excel(request: HttpRequest):
         headers = [
             "sku", "opt1", "vari_id", "price_tq", "sku_tq", "name_tq",
             "full_box", "box_length_cm", "box_width_cm", "box_height_cm",
-            "sku_model_xnk", "update"
+            "sku_model_xnk", "plan_tags", "update"
         ]
         
         # Write headers
@@ -387,6 +393,22 @@ def import_variants_excel(request: HttpRequest):
                 name_tq = get_cell_value('name_tq', '').strip() if get_cell_value('name_tq') else None
                 sku_model_xnk = get_cell_value('sku_model_xnk', '').strip() if get_cell_value('sku_model_xnk') else None
                 
+                # Plan tags (parse từ string, phân cách bằng dấu phẩy)
+                plan_tags = []
+                plan_tags_str = get_cell_value('plan_tags', '').strip() if get_cell_value('plan_tags') else None
+                if plan_tags_str:
+                    # Split by comma and clean
+                    plan_tags = [tag.strip() for tag in plan_tags_str.split(',') if tag.strip()]
+                    # Validate tags exist in database
+                    from settings.models import VariantTag
+                    valid_tags = []
+                    for tag_name in plan_tags:
+                        if VariantTag.objects.filter(tags_name=tag_name).exists():
+                            valid_tags.append(tag_name)
+                    plan_tags = valid_tags
+                else:
+                    plan_tags = variant_meta.plan_tags if variant_meta.plan_tags else []
+                
                 # Update box_info
                 full_box = to_int_safe(get_cell_value('full_box'))
                 box_length = to_float_safe(get_cell_value('box_length_cm'))
@@ -413,7 +435,8 @@ def import_variants_excel(request: HttpRequest):
                     box_info=box_info,
                     packed_info=variant_meta.packed_info,
                     sku_model_xnk=sku_model_xnk if sku_model_xnk else variant_meta.sku_model_xnk,
-                    web_variant_id=variant_meta.web_variant_id if variant_meta.web_variant_id else []
+                    web_variant_id=variant_meta.web_variant_id if variant_meta.web_variant_id else [],
+                    plan_tags=plan_tags
                 )
                 
                 # Update variant metadata

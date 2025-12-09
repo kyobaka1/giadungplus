@@ -13,7 +13,7 @@
 
 {% block content %}
 <div class="min-h-screen bg-slate-100">
-    <div class="max-w-[95%] mx-auto">
+    <div class="max-w-[100%] mx-auto">
 
         <!-- BỘ LỌC VÀ TÌM KIẾM -->
         <div class="mb-3 bg-white rounded-lg shadow-sm border border-slate-200 p-3">
@@ -119,15 +119,16 @@
                 <table class="min-w-full divide-y divide-slate-200 text-xs">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Giá bán</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Mua hàng TQ</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU nhập khẩu</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
-                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Giá bán</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Mua hàng TQ</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">SKU nhập khẩu</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Plan Tags</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-slate-200" id="variants-tbody">
@@ -139,14 +140,14 @@
                                 data-variant-id="{{ variant.id }}">
                                 <!-- SKU -->
                                 <td class="px-2 py-2">
-                                    <div class="font-mono text-[11px] text-slate-800 font-medium">{{ variant.sku }}</div>
+                                    <div class="font-mono text-[13px] text-slate-800 font-medium">{{ variant.sku }}</div>
                                     {% if variant.opt2 or variant.opt3 %}
                                     <div class="flex gap-0.5 mt-0.5 flex-wrap">
                                         {% if variant.opt2 %}
-                                        <span class="text-[9px] px-1 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
+                                        <span class="text-[11px] px-1 py-0.5 bg-green-50 text-green-700 rounded">{{ variant.opt2 }}</span>
                                         {% endif %}
                                         {% if variant.opt3 %}
-                                        <span class="text-[9px] px-1 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
+                                        <span class="text-[11px] px-1 py-0.5 bg-purple-50 text-purple-700 rounded">{{ variant.opt3 }}</span>
                                         {% endif %}
                                     </div>
                                     {% endif %}
@@ -155,35 +156,35 @@
                                 <!-- Tên phân loại (opt1) -->
                                 <td class="px-2 py-2">
                                     {% if variant.opt1 %}
-                                    <div class="text-[11px] text-slate-700 font-medium">{{ variant.opt1 }}</div>
+                                    <div class="text-[13px] text-slate-700 font-medium">{{ variant.opt1 }}</div>
                                     {% else %}
-                                    <span class="text-slate-400 text-[10px]">-</span>
+                                    <span class="text-slate-400 text-[12px]">-</span>
                                     {% endif %}
                                 </td>
                                 
                                 <!-- Giá bán -->
-                                <td class="px-2 py-2 text-[11px] text-slate-700">
+                                <td class="px-2 py-2 text-[13px] text-slate-700">
                                     <div class="font-medium">{{ variant.variant_retail_price|floatformat:0|intcomma }} đ</div>
                                 </td>
                                 
                                 <!-- Tồn kho -->
                                 <td class="px-2 py-2 text-center">
                                     <div class="flex flex-col items-center">
-                                        <span class="text-[11px] font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
+                                        <span class="text-[13px] font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
                                             {{ variant.total_available|floatformat:0|intcomma }}
                                         </span>
-                                        <span class="text-[9px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
+                                        <span class="text-[11px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
                                     </div>
                                 </td>
                                 
                                 <!-- Thông tin thùng -->
-                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                <td class="px-2 py-2 text-[12px] text-slate-600">
                                     {% if variant.box_info %}
                                         {% if variant.box_info.full_box %}
                                         <div><span class="font-medium"><b>{{ variant.box_info.full_box }}</b></span> cái/thùng</div>
                                         {% endif %}
                                         {% if variant.box_info.length_cm or variant.box_info.width_cm or variant.box_info.height_cm %}
-                                        <div class="text-[9px] text-slate-500">
+                                        <div class="text-[11px] text-slate-500">
                                             {{ variant.box_info.length_cm|default:"-" }} × {{ variant.box_info.width_cm|default:"-" }} × {{ variant.box_info.height_cm|default:"-" }} cm
                                         </div>
                                         {% endif %}
@@ -193,16 +194,16 @@
                                 </td>
                                 
                                 <!-- Mua hàng TQ -->
-                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                <td class="px-2 py-2 text-[12px] text-slate-600">
                                     {% if variant.price_tq or variant.sku_tq or variant.name_tq %}
                                         {% if variant.price_tq %}
                                         <div class="font-medium text-red-600"><b>{{ variant.price_tq|floatformat:2 }}</b> <small>CNY</small></div>
                                         {% endif %}
                                         {% if variant.sku_tq %}
-                                        <div class="text-[9px] text-slate-500 font-mono mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">SKU: {{ variant.sku_tq }}</div>
+                                        <div class="text-[11px] text-slate-500 font-mono mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">SKU: {{ variant.sku_tq }}</div>
                                         {% endif %}
                                         {% if variant.name_tq %}
-                                        <div class="text-[9px] text-slate-600 mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{{ variant.name_tq }}</div>
+                                        <div class="text-[11px] text-slate-600 mt-0.5 max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{{ variant.name_tq }}</div>
                                         {% endif %}
                                     {% else %}
                                         <span class="text-slate-400">-</span>
@@ -210,7 +211,7 @@
                                 </td>
                                 
                                 <!-- SKU nhập khẩu -->
-                                <td class="px-2 py-2 text-[10px] text-slate-600">
+                                <td class="px-2 py-2 text-[12px] text-slate-600">
                                     {% if variant.sku_model_xnk %}
                                         <span class="font-mono text-slate-700">{{ variant.sku_model_xnk }}</span>
                                     {% else %}
@@ -218,14 +219,37 @@
                                     {% endif %}
                                 </td>
                                 
+                                <!-- Plan Tags -->
+                                <td class="px-2 py-2">
+                                    {% if variant.plan_tags_with_color %}
+                                        <div class="flex flex-wrap gap-1">
+                                            {% for tag_info in variant.plan_tags_with_color %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium border {{ tag_info.color_classes }}">
+                                                {{ tag_info.name }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% elif variant.plan_tags %}
+                                        <div class="flex flex-wrap gap-1">
+                                            {% for tag_name in variant.plan_tags %}
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                                                {{ tag_name }}
+                                            </span>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <span class="text-slate-400 text-[12px]">-</span>
+                                    {% endif %}
+                                </td>
+                                
                                 <!-- Trạng thái -->
                                 <td class="px-2 py-2">
                                     {% if variant.status == "active" %}
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-green-100 text-green-800">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-800">
                                             ✓ Hoạt động
                                         </span>
                                     {% else %}
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-500">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500">
                                             ⊗ Ngừng
                                         </span>
                                     {% endif %}
@@ -235,7 +259,7 @@
                                 <td class="px-2 py-2">
                                     <div class="flex items-center gap-1">
                                         <button type="button"
-                                                class="variant-edit-btn text-[9px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition"
+                                                class="variant-edit-btn text-[11px] px-1.5 py-0.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition"
                                                 data-variant-id="{{ variant.id }}"
                                                 data-variant-sku="{{ variant.sku }}"
                                                 data-variant-box-full-box="{{ variant.box_info.full_box|default:'' }}"
@@ -245,16 +269,17 @@
                                                 data-variant-price-tq="{{ variant.price_tq|default:'' }}"
                                                 data-variant-sku-tq="{{ variant.sku_tq|default:'' }}"
                                                 data-variant-name-tq="{{ variant.name_tq|default:'' }}"
-                                                data-variant-sku-xnk="{{ variant.sku_model_xnk|default:'' }}">
+                                                data-variant-sku-xnk="{{ variant.sku_model_xnk|default:'' }}"
+                                                data-variant-plan-tags="{{ variant.plan_tags|join:',' }}">
                                             Sửa
                                         </button>
                                         <a href="{% url 'products:variant_detail' variant.id %}" 
-                                           class="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition">
+                                           class="text-[11px] px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 transition">
                                             Xem
                                         </a>
                                         <a href="https://sisapsan.mysapogo.com/admin/variants/{{ variant.id }}" 
                                            target="_blank"
-                                           class="text-[9px] px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded hover:bg-slate-100 transition">
+                                           class="text-[11px] px-1.5 py-0.5 bg-slate-50 text-slate-700 rounded hover:bg-slate-100 transition">
                                             Sapo
                                         </a>
                                     </div>
@@ -391,6 +416,24 @@
                         <div id="modal-xnk-search-results" class="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded shadow-lg max-h-48 overflow-y-auto hidden">
                             <!-- Results will be inserted here -->
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Plan Tags -->
+                <div class="mb-3">
+                    <h3 class="text-xs font-semibold text-slate-700 mb-1.5">Plan Tags</h3>
+                    <div class="space-y-2">
+                        <div id="modal-plan-tags-container" class="flex flex-wrap gap-1.5 mb-2">
+                            <!-- Selected tags will be shown here -->
+                        </div>
+                        <select id="modal-plan-tags-select" 
+                                class="w-full px-2 py-1 text-xs border border-slate-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">-- Chọn tag --</option>
+                            {% for tag_name, tag_info in all_tags_with_color.items %}
+                            <option value="{{ tag_name }}" data-color-classes="{{ tag_info.color_classes }}">{{ tag_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" id="modal-plan-tags-input" name="plan_tags">
                     </div>
                 </div>
             </form>
@@ -902,8 +945,63 @@
             // XNK
             document.getElementById('modal-sku-xnk').value = btn.dataset.variantSkuXnk || '';
             
+            // Plan Tags
+            const planTagsStr = btn.dataset.variantPlanTags || '';
+            const planTags = planTagsStr ? planTagsStr.split(',').filter(t => t.trim()) : [];
+            updatePlanTagsDisplay(planTags);
+            
             // Show modal
             variantEditModal.classList.remove('hidden');
+        }
+        
+        // Plan Tags management
+        let selectedPlanTags = [];
+        let tagsColorMap = {}; // Map tag name to color classes
+        
+        // Build color map from select options
+        const planTagsSelect = document.getElementById('modal-plan-tags-select');
+        if (planTagsSelect) {
+            Array.from(planTagsSelect.options).forEach(option => {
+                if (option.value) {
+                    tagsColorMap[option.value] = option.dataset.colorClasses || 'bg-blue-100 text-blue-800 border-blue-200';
+                }
+            });
+        }
+        
+        function updatePlanTagsDisplay(tags) {
+            selectedPlanTags = tags || [];
+            const container = document.getElementById('modal-plan-tags-container');
+            const input = document.getElementById('modal-plan-tags-input');
+            
+            container.innerHTML = '';
+            
+            selectedPlanTags.forEach(tag => {
+                const colorClasses = tagsColorMap[tag] || 'bg-blue-100 text-blue-800 border-blue-200';
+                const tagEl = document.createElement('span');
+                tagEl.className = `inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${colorClasses}`;
+                tagEl.innerHTML = `${tag} <button type="button" class="ml-1 hover:opacity-75" data-tag="${tag}">×</button>`;
+                container.appendChild(tagEl);
+                
+                // Remove tag button
+                tagEl.querySelector('button').addEventListener('click', function() {
+                    selectedPlanTags = selectedPlanTags.filter(t => t !== tag);
+                    updatePlanTagsDisplay(selectedPlanTags);
+                });
+            });
+            
+            input.value = JSON.stringify(selectedPlanTags);
+        }
+        
+        // Add tag from select
+        if (planTagsSelect) {
+            planTagsSelect.addEventListener('change', function() {
+                const selectedTag = this.value.trim();
+                if (selectedTag && !selectedPlanTags.includes(selectedTag)) {
+                    selectedPlanTags.push(selectedTag);
+                    updatePlanTagsDisplay(selectedPlanTags);
+                    this.value = ''; // Reset select
+                }
+            });
         }
         
         // Đóng modal
@@ -967,6 +1065,19 @@
                 // XNK
                 const skuXnk = document.getElementById('modal-sku-xnk').value.trim();
                 if (skuXnk !== '') data.sku_model_xnk = skuXnk;
+                
+                // Plan Tags
+                const planTagsInput = document.getElementById('modal-plan-tags-input').value;
+                if (planTagsInput) {
+                    try {
+                        const planTags = JSON.parse(planTagsInput);
+                        if (Array.isArray(planTags) && planTags.length > 0) {
+                            data.plan_tags = planTags;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing plan_tags:', e);
+                    }
+                }
                 
                 const csrftoken = getCookie('csrftoken');
                 

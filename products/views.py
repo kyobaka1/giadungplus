@@ -482,6 +482,8 @@ def variant_list(request: HttpRequest):
                 "sku_model_xnk": variant_meta.sku_model_xnk if variant_meta else None,
                 "box_info": variant_meta.box_info if variant_meta else None,
                 "packed_info": variant_meta.packed_info if variant_meta else None,
+                "plan_tags": variant_meta.plan_tags if variant_meta and variant_meta.plan_tags else [],
+                "plan_tags_with_color": [],  # Sẽ được populate sau
             })
         
         # Sắp xếp variants theo SKU: nhóm theo mã số, sắp xếp suffix
@@ -491,6 +493,38 @@ def variant_list(request: HttpRequest):
         logger.info(f"[variant_list] Sorted {len(variants_data)} variants by SKU pattern")
         
         # Luôn hiển thị tất cả variants
+        # Load variant tags từ database (với màu sắc)
+        from settings.models import VariantTag
+        all_tags = {}
+        all_tags_with_color = {}
+        for tag in VariantTag.objects.all():
+            all_tags[tag.tags_name] = tag.id
+            all_tags_with_color[tag.tags_name] = {
+                'id': tag.id,
+                'color': tag.color,
+                'color_classes': tag.get_color_classes()
+            }
+        context["all_tags"] = all_tags
+        context["all_tags_with_color"] = all_tags_with_color
+        
+        # Populate plan_tags_with_color cho từng variant
+        for variant_data in variants_data:
+            plan_tags_with_color = []
+            if variant_data.get("plan_tags"):
+                for tag_name in variant_data["plan_tags"]:
+                    if tag_name in all_tags_with_color:
+                        plan_tags_with_color.append({
+                            'name': tag_name,
+                            'color_classes': all_tags_with_color[tag_name]['color_classes']
+                        })
+                    else:
+                        # Fallback nếu tag không tồn tại trong database
+                        plan_tags_with_color.append({
+                            'name': tag_name,
+                            'color_classes': 'bg-blue-100 text-blue-800 border-blue-200'
+                        })
+            variant_data["plan_tags_with_color"] = plan_tags_with_color
+        
         context["variants"] = variants_data
         context["total"] = len(variants_data)
         context["total_variants"] = len(variants_data)
@@ -918,6 +952,19 @@ def update_variant_metadata(request: HttpRequest, variant_id: int):
         name_tq = data.get('name_tq', '').strip() if data.get('name_tq') else None
         sku_model_xnk = data.get('sku_model_xnk', '').strip() if data.get('sku_model_xnk') else None
         
+        # Plan tags
+        plan_tags = data.get('plan_tags', [])
+        if plan_tags and isinstance(plan_tags, list):
+            # Validate tags exist in database
+            from settings.models import VariantTag
+            valid_tags = []
+            for tag_name in plan_tags:
+                if VariantTag.objects.filter(tags_name=tag_name).exists():
+                    valid_tags.append(tag_name)
+            plan_tags = valid_tags
+        else:
+            plan_tags = variant_meta.plan_tags if variant_meta and variant_meta.plan_tags else []
+        
         # Update box_info
         full_box = to_int_safe(data.get('full_box'))
         box_length = to_float_safe(data.get('box_length_cm'))
@@ -981,7 +1028,8 @@ def update_variant_metadata(request: HttpRequest, variant_id: int):
             box_info=box_info,
             packed_info=packed_info,
             sku_model_xnk=sku_model_xnk if sku_model_xnk else variant_meta.sku_model_xnk,
-            web_variant_id=variant_meta.web_variant_id if variant_meta.web_variant_id else []
+            web_variant_id=variant_meta.web_variant_id if variant_meta.web_variant_id else [],
+            plan_tags=plan_tags
         )
         
         # Update product level nhanphu_info nếu có
