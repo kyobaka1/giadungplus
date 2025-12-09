@@ -1272,12 +1272,37 @@ document.addEventListener('DOMContentLoaded', function() {
             if(!confirm('Bạn có chắc muốn xóa PO này khỏi SPO? (PO sẽ không bị xóa, chỉ xóa khỏi container này)')) return;
             const poId = this.getAttribute('data-po-id');
             
+            // Get CSRF token
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+            const csrftoken = getCookie('csrftoken');
+            
             fetch(`/products/sum-purchase-orders/${spoId}/remove-po/${poId}/`, {
                 method: 'DELETE',
-                headers: {'X-CSRFToken': '{{ csrf_token }}'}
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'Content-Type': 'application/json',
+                }
             }).then(r => r.json()).then(d => {
-                if(d.status === 'success') window.location.reload();
-                else alert(d.message);
+                if(d.status === 'success') {
+                    window.location.reload();
+                } else {
+                    alert('Lỗi: ' + (d.message || 'Không thể xóa PO khỏi SPO'));
+                }
+            }).catch(error => {
+                alert('Lỗi: ' + error.message);
             });
         });
     });

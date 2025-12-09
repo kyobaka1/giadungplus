@@ -4271,6 +4271,67 @@ def delete_sum_purchase_order(request: HttpRequest, spo_id: int):
 
 
 @admin_only
+@require_http_methods(["DELETE", "POST"])
+def remove_po_from_spo(request: HttpRequest, spo_id: int, po_id: int):
+    """
+    API endpoint để xóa PO khỏi SPO (không xóa PO, chỉ xóa quan hệ).
+    
+    Args:
+        spo_id: SumPurchaseOrder ID
+        po_id: PurchaseOrder.id (database ID, không phải sapo_order_supplier_id)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        from products.models import SumPurchaseOrder, SPOPurchaseOrder, PurchaseOrder
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        # Tìm PurchaseOrder theo id (database ID, không phải sapo_order_supplier_id)
+        try:
+            purchase_order = PurchaseOrder.objects.get(id=po_id)
+        except PurchaseOrder.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không tìm thấy PO với ID {po_id}"
+            }, status=404)
+        
+        # Tìm và xóa SPOPurchaseOrder
+        try:
+            spo_po = SPOPurchaseOrder.objects.get(
+                sum_purchase_order=spo,
+                purchase_order=purchase_order
+            )
+            spo_po.delete()
+            
+            # Tính lại total_cbm của SPO
+            from products.services.sum_purchase_order_service import SumPurchaseOrderService
+            sapo_client = get_sapo_client()
+            spo_service = SumPurchaseOrderService(sapo_client)
+            spo_service._recalculate_spo_cbm(spo)
+            
+            logger.info(f"[remove_po_from_spo] Removed PO {po_id} (sapo_id: {purchase_order.sapo_order_supplier_id}) from SPO {spo.code}")
+            
+            return JsonResponse({
+                "status": "success",
+                "message": f"Đã xóa PO khỏi SPO {spo.code}"
+            })
+        except SPOPurchaseOrder.DoesNotExist:
+            return JsonResponse({
+                "status": "error",
+                "message": "PO không có trong SPO này"
+            }, status=404)
+        
+    except Exception as e:
+        logger.error(f"Error in remove_po_from_spo: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@admin_only
 @require_POST
 def refresh_sales_forecast(request: HttpRequest):
     """
