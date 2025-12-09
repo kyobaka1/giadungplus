@@ -142,6 +142,7 @@ class GiftItemDTO(BaseDTO):
     sku: Optional[str] = None  # SKU của variant
     unit: Optional[str] = None  # Đơn vị tính
     opt1: Optional[str] = None  # Option 1 (phân loại 1)
+    trigger_variant_ids: List[int] = Field(default_factory=list)  # Danh sách variant_ids trigger quà tặng này
 
 
 # ========================= FULFILLMENT & SHIPMENT =========================
