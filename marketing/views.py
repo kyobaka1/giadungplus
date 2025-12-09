@@ -277,45 +277,10 @@ def tools_copy_images_download(request):
 def tools_get_videos(request):
     """Tools - Get Videos - Hiển thị danh sách video đã được track"""
     from marketing.models import MediaTrack
-    from marketing.services.video_thumbnail import generate_thumbnail_from_video_url
-    import threading
     
     # Chỉ hiển thị video của user đang login
     current_username = request.user.username
     media_tracks = MediaTrack.objects.filter(user_name=current_username)
-    
-    # Tự động generate thumbnail cho video không có thumbnail (chạy background)
-    def generate_missing_thumbnails():
-        """Background task để generate thumbnail cho video không có thumbnail"""
-        try:
-            # Lấy các video không có thumbnail và có extension là mp4 hoặc mov (chỉ của user hiện tại)
-            videos_without_thumbnail = MediaTrack.objects.filter(
-                user_name=current_username,
-                thumbnail_url__isnull=True,
-                file_extension__in=['mp4', 'mov']
-            ).exclude(media_url__startswith='blob:').exclude(media_url__startswith='data:')[:10]  # Giới hạn 10 video mỗi lần
-            
-            for track in videos_without_thumbnail:
-                try:
-                    print(f"[GDP Media Tracker] Generating thumbnail for video ID {track.id}: {track.media_url[:100]}")
-                    thumbnail_url = generate_thumbnail_from_video_url(track.media_url)
-                    if thumbnail_url:
-                        track.thumbnail_url = thumbnail_url
-                        track.save(update_fields=['thumbnail_url'])
-                        print(f"[GDP Media Tracker] ✅ Thumbnail generated for video ID {track.id}: {thumbnail_url}")
-                    else:
-                        print(f"[GDP Media Tracker] ⚠️ Failed to generate thumbnail for video ID {track.id}")
-                except Exception as e:
-                    print(f"[GDP Media Tracker] ❌ Error generating thumbnail for video ID {track.id}: {e}")
-                    continue
-        except Exception as e:
-            print(f"[GDP Media Tracker] ❌ Error in generate_missing_thumbnails: {e}")
-    
-    # Chạy background task (không block request)
-    if request.GET.get('generate_thumbnails') == '1':
-        # Chạy trong thread riêng để không block response
-        thread = threading.Thread(target=generate_missing_thumbnails, daemon=True)
-        thread.start()
     
     context = {
         "title": "Tools - Get Videos",
@@ -324,6 +289,110 @@ def tools_get_videos(request):
         "current_username": current_username,
     }
     return render(request, "marketing/tools/get_videos.html", context)
+
+@csrf_exempt
+@marketing_permission_required("MarketingManager", "MarketingStaff")
+def tools_get_videos_delete(request, track_id):
+    """
+    API endpoint để xóa một video track
+    DELETE /marketing/tools/get-videos/delete/<track_id>/
+    """
+    # Add CORS headers
+    response_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'DELETE, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-CSRFToken',
+    }
+    
+    if request.method == 'OPTIONS':
+        response = HttpResponse()
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
+    
+    if request.method != 'DELETE' and request.method != 'POST':
+        response = JsonResponse({'error': 'Method not allowed'}, status=405)
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
+    
+    try:
+        from marketing.models import MediaTrack
+        
+        # Chỉ cho phép xóa video của user hiện tại
+        current_username = request.user.username
+        track = MediaTrack.objects.filter(id=track_id, user_name=current_username).first()
+        
+        if not track:
+            return JsonResponse({'error': 'Video not found or you do not have permission'}, status=404)
+        
+        track.delete()
+        
+        result = JsonResponse({
+            'success': True,
+            'message': 'Video deleted successfully'
+        })
+        for key, value in response_headers.items():
+            result[key] = value
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[GDP Media Tracker] Error deleting video: {e}")
+        traceback.print_exc()
+        response = JsonResponse({'error': str(e)}, status=500)
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
+
+@csrf_exempt
+@marketing_permission_required("MarketingManager", "MarketingStaff")
+def tools_get_videos_clear_all(request):
+    """
+    API endpoint để xóa tất cả video của user hiện tại
+    POST /marketing/tools/get-videos/clear-all/
+    """
+    # Add CORS headers
+    response_headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-CSRFToken',
+    }
+    
+    if request.method == 'OPTIONS':
+        response = HttpResponse()
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
+    
+    if request.method != 'POST':
+        response = JsonResponse({'error': 'Method not allowed'}, status=405)
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
+    
+    try:
+        from marketing.models import MediaTrack
+        
+        # Chỉ xóa video của user hiện tại
+        current_username = request.user.username
+        deleted_count = MediaTrack.objects.filter(user_name=current_username).delete()[0]
+        
+        result = JsonResponse({
+            'success': True,
+            'message': f'Deleted {deleted_count} videos successfully',
+            'deleted_count': deleted_count
+        })
+        for key, value in response_headers.items():
+            result[key] = value
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[GDP Media Tracker] Error clearing videos: {e}")
+        traceback.print_exc()
+        response = JsonResponse({'error': str(e)}, status=500)
+        for key, value in response_headers.items():
+            response[key] = value
+        return response
 
 @csrf_exempt
 def tools_get_videos_api(request):
@@ -429,17 +498,7 @@ def tools_get_videos_api(request):
                 result[key] = value
             return result
         
-        # Try to find thumbnail if not provided
-        thumbnail_url = data.get('thumbnail_url', '')
-        if not thumbnail_url and file_ext in ['mp4', 'mov']:
-            # Try to find thumbnail URL pattern
-            from marketing.services.video_thumbnail import find_thumbnail_url_pattern, check_url_exists
-            potential_thumbnail = find_thumbnail_url_pattern(data['media_url'])
-            if potential_thumbnail and check_url_exists(potential_thumbnail):
-                thumbnail_url = potential_thumbnail
-                print(f"[GDP Media Tracker API] Found thumbnail URL: {thumbnail_url[:200]}")
-        
-        # Create new MediaTrack
+        # Create new MediaTrack (không tự động tạo thumbnail)
         media_track = MediaTrack.objects.create(
             user_name=data['user_name'],
             page_url=data['page_url'],
@@ -449,7 +508,7 @@ def tools_get_videos_api(request):
             mime_type=data.get('mime_type', '')[:100],
             source_type=data.get('source_type', 'video_tag'),
             tab_id=data.get('tab_id'),
-            thumbnail_url=thumbnail_url
+            thumbnail_url=data.get('thumbnail_url', '')  # Giữ nguyên nếu extension gửi lên, không tự động tạo
         )
         
         print(f"[GDP Media Tracker API] Successfully saved: ID={media_track.id}, URL={media_track.media_url[:100]}")

@@ -19,12 +19,14 @@
             <span class="font-semibold">{{ total_count }}</span> video/audio đã được track
             <span class="text-gray-500">(User: {{ current_username }})</span>
         </div>
-        <div class="ml-auto">
-            <button id="generateThumbnailsBtn" 
-                    onclick="generateThumbnails()" 
-                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
-                🔄 Tạo thumbnail cho video chưa có
+        <div class="ml-auto flex gap-2">
+            {% if total_count > 0 %}
+            <button id="clearAllBtn" 
+                    onclick="clearAllVideos()" 
+                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium">
+                🗑️ Xóa tất cả
             </button>
+            {% endif %}
         </div>
     </div>
     
@@ -33,38 +35,37 @@
 
     <!-- Danh sách video -->
     {% if media_tracks %}
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
         {% for track in media_tracks %}
-        <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
-            <!-- Thumbnail hoặc video preview -->
-            <div class="relative bg-gray-100 aspect-video flex items-center justify-center overflow-hidden">
-                {% if track.thumbnail_url %}
-                <img src="{{ track.thumbnail_url }}" alt="Thumbnail" class="w-full h-full object-cover" 
-                     onerror="this.style.display='none'; handleThumbnailError({{ track.id }}, '{{ track.media_url }}', '{{ track.file_extension }}');">
-                {% endif %}
-                
-                <!-- Video preview (nếu không có thumbnail và là video) -->
-                {% if not track.thumbnail_url and track.file_extension == 'mp4' or track.file_extension == 'mov' %}
-                <video class="w-full h-full object-cover" muted preload="metadata" 
-                       onloadedmetadata="this.currentTime=1;" 
-                       onerror="this.style.display='none'; showVideoIcon({{ track.id }});">
+        <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow relative group" 
+             data-track-id="{{ track.id }}">
+            <!-- Nút xóa (X) -->
+            <button onclick="deleteVideo({{ track.id }}, this)" 
+                    class="absolute top-2 right-2 z-10 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Xóa video này">
+                ×
+            </button>
+            
+            <!-- Video preview - Dạng chữ nhật (width nhỏ, height giữ nguyên) -->
+            <div class="relative bg-gray-100 flex items-center justify-center overflow-hidden" style="height: 240px;">
+                {% if track.file_extension == 'mp4' or track.file_extension == 'mov' %}
+                <video id="video-{{ track.id }}" 
+                       class="h-full w-auto object-contain" 
+                       muted 
+                       preload="metadata"
+                       data-media-url="{{ track.media_url }}"
+                       data-file-ext="{{ track.file_extension }}"
+                       style="max-width: 100%;">
                     <source src="{{ track.media_url }}" type="video/{{ track.file_extension }}">
                 </video>
-                {% endif %}
-                
-                <!-- Fallback icon -->
-                <div class="absolute inset-0 flex items-center justify-center bg-gray-100 {% if track.thumbnail_url %}hidden{% endif %}" 
-                     id="icon-{{ track.id }}">
-                    {% if track.file_extension == 'mp4' or track.file_extension == 'mov' %}
-                    <svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
-                    </svg>
-                    {% else %}
+                {% else %}
+                <!-- Audio icon -->
+                <div class="flex items-center justify-center bg-gray-100 w-full h-full">
                     <svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.383 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.383l4-3.617a1 1 0 011.617.793zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
                     </svg>
-                    {% endif %}
                 </div>
+                {% endif %}
             </div>
             
             <!-- Thông tin -->
@@ -155,58 +156,167 @@ function copyToClipboard(text) {
     });
 }
 
-// Generate thumbnails for videos without thumbnails
-function generateThumbnails() {
-    const btn = document.getElementById('generateThumbnailsBtn');
-    const statusMsg = document.getElementById('statusMessage');
-    
-    // Disable button
-    btn.disabled = true;
-    btn.textContent = '⏳ Đang tạo thumbnail...';
-    
-    // Show status
-    statusMsg.className = 'mb-4 p-3 rounded-lg text-sm bg-blue-100 text-blue-800 border border-blue-200';
-    statusMsg.textContent = 'Đang tạo thumbnail cho các video chưa có thumbnail. Vui lòng đợi...';
-    statusMsg.classList.remove('hidden');
-    
-    // Add generate_thumbnails=1 to URL
-    const url = new URL(window.location.href);
-    url.searchParams.set('generate_thumbnails', '1');
-    
-    // Reload page
-    window.location.href = url.toString();
-}
-
-// Handle thumbnail error - try to generate from video
-function handleThumbnailError(trackId, mediaUrl, fileExt) {
-    if (fileExt !== 'mp4' && fileExt !== 'mov') {
-        showVideoIcon(trackId);
+// Delete single video
+function deleteVideo(trackId, buttonEl) {
+    if (!confirm('Bạn có chắc muốn xóa video này?')) {
         return;
     }
     
-    // Try to show video preview instead
-    const container = document.querySelector(`#icon-${trackId}`).parentElement;
-    const video = document.createElement('video');
-    video.className = 'w-full h-full object-cover';
-    video.muted = true;
-    video.preload = 'metadata';
-    video.src = mediaUrl;
-    video.onloadedmetadata = function() {
-        this.currentTime = 1; // Seek to 1 second
-    };
-    video.onerror = function() {
-        showVideoIcon(trackId);
-    };
-    container.appendChild(video);
+    // Disable button
+    buttonEl.disabled = true;
+    buttonEl.textContent = '...';
+    
+    fetch(`/marketing/tools/get-videos/delete/${trackId}/`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove the card from DOM
+            const card = buttonEl.closest('[data-track-id]');
+            if (card) {
+                card.style.transition = 'opacity 0.3s';
+                card.style.opacity = '0';
+                setTimeout(() => {
+                    card.remove();
+                    // Update count
+                    updateVideoCount();
+                }, 300);
+            }
+            showStatus('Đã xóa video thành công!', 'success');
+        } else {
+            showStatus('Lỗi khi xóa video: ' + (data.error || 'Unknown error'), 'error');
+            buttonEl.disabled = false;
+            buttonEl.textContent = '×';
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting video:', error);
+        showStatus('Lỗi khi xóa video: ' + error.message, 'error');
+        buttonEl.disabled = false;
+        buttonEl.textContent = '×';
+    });
 }
 
-// Show video icon fallback
-function showVideoIcon(trackId) {
-    const iconEl = document.getElementById(`icon-${trackId}`);
-    if (iconEl) {
-        iconEl.classList.remove('hidden');
+// Clear all videos
+function clearAllVideos() {
+    if (!confirm('Bạn có chắc muốn xóa TẤT CẢ video? Hành động này không thể hoàn tác!')) {
+        return;
+    }
+    
+    const btn = document.getElementById('clearAllBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang xóa...';
+    
+    fetch('/marketing/tools/get-videos/clear-all/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus(`Đã xóa ${data.deleted_count} video thành công!`, 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showStatus('Lỗi khi xóa video: ' + (data.error || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.textContent = '🗑️ Xóa tất cả';
+        }
+    })
+    .catch(error => {
+        console.error('Error clearing videos:', error);
+        showStatus('Lỗi khi xóa video: ' + error.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '🗑️ Xóa tất cả';
+    });
+}
+
+// Get CSRF token from cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Show status message
+function showStatus(message, type) {
+    const statusMsg = document.getElementById('statusMessage');
+    statusMsg.textContent = message;
+    statusMsg.className = `mb-4 p-3 rounded-lg text-sm ${
+        type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' : 
+        type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' : 
+        'bg-blue-100 text-blue-800 border border-blue-200'
+    }`;
+    statusMsg.classList.remove('hidden');
+    
+    // Auto hide after 3 seconds
+    setTimeout(() => {
+        statusMsg.classList.add('hidden');
+    }, 3000);
+}
+
+// Update video count
+function updateVideoCount() {
+    const cards = document.querySelectorAll('[data-track-id]');
+    const countEl = document.querySelector('.font-semibold');
+    if (countEl) {
+        countEl.textContent = cards.length;
     }
 }
+
+// Auto-play video on hover
+document.addEventListener('DOMContentLoaded', function() {
+    const videoCards = document.querySelectorAll('[data-track-id]');
+    
+    videoCards.forEach(card => {
+        const video = card.querySelector('video');
+        if (!video) return;
+        
+        let hoverTimeout;
+        
+        card.addEventListener('mouseenter', function() {
+            hoverTimeout = setTimeout(() => {
+                if (video.readyState >= 2) {
+                    video.currentTime = 0;
+                    video.play().catch(e => {
+                        console.log('Video play failed:', e);
+                    });
+                } else {
+                    video.addEventListener('loadeddata', function() {
+                        video.currentTime = 0;
+                        video.play().catch(e => {
+                            console.log('Video play failed:', e);
+                        });
+                    }, { once: true });
+                }
+            }, 300); // Delay 300ms before playing
+        });
+        
+        card.addEventListener('mouseleave', function() {
+            clearTimeout(hoverTimeout);
+            video.pause();
+            video.currentTime = 0;
+        });
+    });
+});
 </script>
 {% endblock %}
 
