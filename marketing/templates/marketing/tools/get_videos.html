@@ -35,11 +35,24 @@
         {% for track in media_tracks %}
         <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
             <!-- Thumbnail hoặc video preview -->
-            <div class="relative bg-gray-100 aspect-video flex items-center justify-center">
+            <div class="relative bg-gray-100 aspect-video flex items-center justify-center overflow-hidden">
                 {% if track.thumbnail_url %}
-                <img src="{{ track.thumbnail_url }}" alt="Thumbnail" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <img src="{{ track.thumbnail_url }}" alt="Thumbnail" class="w-full h-full object-cover" 
+                     onerror="this.style.display='none'; handleThumbnailError({{ track.id }}, '{{ track.media_url }}', '{{ track.file_extension }}');">
                 {% endif %}
-                <div class="absolute inset-0 flex items-center justify-center {% if track.thumbnail_url %}hidden{% endif %}" {% if track.thumbnail_url %}id="fallback-{{ track.id }}"{% endif %}>
+                
+                <!-- Video preview (nếu không có thumbnail và là video) -->
+                {% if not track.thumbnail_url and track.file_extension == 'mp4' or track.file_extension == 'mov' %}
+                <video class="w-full h-full object-cover" muted preload="metadata" 
+                       onloadedmetadata="this.currentTime=1;" 
+                       onerror="this.style.display='none'; showVideoIcon({{ track.id }});">
+                    <source src="{{ track.media_url }}" type="video/{{ track.file_extension }}">
+                </video>
+                {% endif %}
+                
+                <!-- Fallback icon -->
+                <div class="absolute inset-0 flex items-center justify-center bg-gray-100 {% if track.thumbnail_url %}hidden{% endif %}" 
+                     id="icon-{{ track.id }}">
                     {% if track.file_extension == 'mp4' or track.file_extension == 'mov' %}
                     <svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
@@ -133,6 +146,37 @@ function copyToClipboard(text) {
         document.body.removeChild(textarea);
         alert('Đã copy URL vào clipboard!');
     });
+}
+
+// Handle thumbnail error - try to generate from video
+function handleThumbnailError(trackId, mediaUrl, fileExt) {
+    if (fileExt !== 'mp4' && fileExt !== 'mov') {
+        showVideoIcon(trackId);
+        return;
+    }
+    
+    // Try to show video preview instead
+    const container = document.querySelector(`#icon-${trackId}`).parentElement;
+    const video = document.createElement('video');
+    video.className = 'w-full h-full object-cover';
+    video.muted = true;
+    video.preload = 'metadata';
+    video.src = mediaUrl;
+    video.onloadedmetadata = function() {
+        this.currentTime = 1; // Seek to 1 second
+    };
+    video.onerror = function() {
+        showVideoIcon(trackId);
+    };
+    container.appendChild(video);
+}
+
+// Show video icon fallback
+function showVideoIcon(trackId) {
+    const iconEl = document.getElementById(`icon-${trackId}`);
+    if (iconEl) {
+        iconEl.classList.remove('hidden');
+    }
 }
 </script>
 {% endblock %}

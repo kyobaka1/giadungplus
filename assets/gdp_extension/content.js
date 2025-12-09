@@ -32,22 +32,65 @@ function getFileExtension(url) {
 // Get thumbnail from video element
 function getVideoThumbnail(video) {
   try {
-    // Try to get poster attribute
-    if (video.poster) return video.poster;
+    // Priority 1: Try to get poster attribute
+    if (video.poster && video.poster.trim()) {
+      console.log('[GDP Media Tracker] Found poster attribute:', video.poster);
+      return video.poster;
+    }
     
-    // Try to capture current frame (requires video to be loaded)
-    if (video.readyState >= 2) {
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 320;
-      canvas.height = video.videoHeight || 240;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.8);
+    // Priority 2: Try to capture current frame (requires video to be loaded)
+    if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        console.log('[GDP Media Tracker] Generated thumbnail from video frame');
+        return dataUrl;
+      } catch (e) {
+        console.warn('[GDP Media Tracker] Could not capture video frame:', e);
+      }
     }
   } catch (e) {
     console.warn('[GDP Media Tracker] Could not get video thumbnail:', e);
   }
   return null;
+}
+
+// Try to find thumbnail URL from video URL (common patterns)
+function findThumbnailFromVideoUrl(videoUrl) {
+  if (!videoUrl || typeof videoUrl !== 'string') return null;
+  
+  try {
+    // Pattern 1: Replace .mp4 with .jpg or .png
+    const patterns = [
+      videoUrl.replace(/\.mp4(\?|$)/i, '.jpg$1'),
+      videoUrl.replace(/\.mp4(\?|$)/i, '.png$1'),
+      videoUrl.replace(/\.mp4(\?|$)/i, '.webp$1'),
+      videoUrl.replace(/\.mov(\?|$)/i, '.jpg$1'),
+      videoUrl.replace(/\.mov(\?|$)/i, '.png$1'),
+    ];
+    
+    // Pattern 2: Insert _thumb or _thumbnail before extension
+    const urlObj = new URL(videoUrl);
+    const pathname = urlObj.pathname;
+    if (pathname.match(/\.(mp4|mov)$/i)) {
+      patterns.push(
+        pathname.replace(/\.(mp4|mov)$/i, '_thumb.$1'),
+        pathname.replace(/\.(mp4|mov)$/i, '_thumbnail.$1'),
+        pathname.replace(/\.(mp4|mov)$/i, '_thumb.jpg'),
+        pathname.replace(/\.(mp4|mov)$/i, '_thumbnail.jpg')
+      );
+    }
+    
+    // Return first pattern (we'll let backend verify if it exists)
+    // For now, return null and let backend handle it
+    return null; // We'll generate thumbnail on backend instead
+  } catch (e) {
+    return null;
+  }
 }
 
 // Send media to background script
@@ -125,37 +168,42 @@ function scanMediaElements() {
       type: video.type
     });
     
-    // Check main src
-    if (video.src) {
-      console.log(`[GDP Media Tracker] Video ${index + 1} has src:`, video.src.substring(0, 200));
-      
-      // Check if it's a blob or data URL
-      if (video.src.startsWith('blob:') || video.src.startsWith('data:')) {
-        console.log(`[GDP Media Tracker] Video ${index + 1} src is blob/data URL - cannot track`);
-      } 
-      // Check if already tracked
-      else if (trackedUrls.has(video.src)) {
-        console.log(`[GDP Media Tracker] Video ${index + 1} src already tracked`);
-      }
-      // Check if URL has valid extension
-      else {
-        const fileExt = getFileExtension(video.src);
-        if (fileExt) {
-          console.log(`[GDP Media Tracker] Video ${index + 1} src has valid extension: ${fileExt}`);
+      // Check main src
+      if (video.src) {
+        console.log(`[GDP Media Tracker] Video ${index + 1} has src:`, video.src.substring(0, 200));
+        
+        // Check if it's a blob or data URL
+        if (video.src.startsWith('blob:') || video.src.startsWith('data:')) {
+          console.log(`[GDP Media Tracker] Video ${index + 1} src is blob/data URL - cannot track`);
+          // But we can still try to get thumbnail from video element
           const thumbnail = getVideoThumbnail(video);
-          sendMedia(video.src, 'video_tag', video.type || 'video/mp4', thumbnail);
-          trackedUrls.add(video.src);
-          foundCount++;
-        } else {
-          console.log(`[GDP Media Tracker] Video ${index + 1} src has NO valid extension (.mp3/.mp4/.mov) in URL`);
-          console.log(`[GDP Media Tracker] Video ${index + 1} src:`, video.src);
-          console.log(`[GDP Media Tracker] Video ${index + 1} type:`, video.type);
-          // Some sites use URLs without extension, but we can't track them without extension
+          if (thumbnail) {
+            console.log(`[GDP Media Tracker] Video ${index + 1} has thumbnail from element`);
+          }
+        } 
+        // Check if already tracked
+        else if (trackedUrls.has(video.src)) {
+          console.log(`[GDP Media Tracker] Video ${index + 1} src already tracked`);
         }
+        // Check if URL has valid extension
+        else {
+          const fileExt = getFileExtension(video.src);
+          if (fileExt) {
+            console.log(`[GDP Media Tracker] Video ${index + 1} src has valid extension: ${fileExt}`);
+            const thumbnail = getVideoThumbnail(video);
+            sendMedia(video.src, 'video_tag', video.type || 'video/mp4', thumbnail);
+            trackedUrls.add(video.src);
+            foundCount++;
+          } else {
+            console.log(`[GDP Media Tracker] Video ${index + 1} src has NO valid extension (.mp3/.mp4/.mov) in URL`);
+            console.log(`[GDP Media Tracker] Video ${index + 1} src:`, video.src);
+            console.log(`[GDP Media Tracker] Video ${index + 1} type:`, video.type);
+            // Some sites use URLs without extension, but we can't track them without extension
+          }
+        }
+      } else {
+        console.log(`[GDP Media Tracker] Video ${index + 1} has NO src attribute`);
       }
-    } else {
-      console.log(`[GDP Media Tracker] Video ${index + 1} has NO src attribute`);
-    }
     
     // Check currentSrc (actual playing source)
     if (video.currentSrc && video.currentSrc !== video.src) {
@@ -458,8 +506,22 @@ function monitorPerformanceEntries() {
             const fileExt = getFileExtension(entry.name);
             if (fileExt) {
               console.log('[GDP Media Tracker] ✅ New performance entry (by extension):', entry.name.substring(0, 200));
+              
+              // Try to find thumbnail for video
+              let thumbnail = null;
+              if (fileExt === 'mp4' || fileExt === 'mov') {
+                // Try to find video element that might be using this URL
+                const videos = document.querySelectorAll('video');
+                for (const video of videos) {
+                  if (video.currentSrc === entry.name || video.src === entry.name) {
+                    thumbnail = getVideoThumbnail(video);
+                    if (thumbnail) break;
+                  }
+                }
+              }
+              
               networkTrackedUrls.add(entry.name);
-              sendMedia(entry.name, 'network_request', entry.initiatorType || '', null);
+              sendMedia(entry.name, 'network_request', entry.initiatorType || '', thumbnail);
             }
           }
         }
