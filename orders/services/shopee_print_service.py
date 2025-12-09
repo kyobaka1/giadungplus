@@ -328,18 +328,6 @@ def _render_mvd_overlay(
     }
     y_value = config[sc]["y_start_1"]
 
-    # DEBUG: Kiểm tra điều kiện đơn tách
-    debug("=" * 60)
-    debug("DEBUG: Kiểm tra điều kiện đơn tách")
-    debug("=" * 60)
-    debug(f"  total_packages: {total_packages}")
-    debug(f"  current_package: {current_package is not None}")
-    debug(f"  client: {client is not None}")
-    debug(f"  shopee_order_id: {shopee_order_id}")
-    debug(f"  seller_shop_id: {seller_shop_id}")
-    debug(f"  connection_id: {connection_id}")
-    debug("=" * 60)
-    
     # Lấy các real_items thuộc package hiện tại (nếu là đơn tách)
     items_to_print = order.real_items  # Default: in toàn bộ real_items
     total_quantity = 0
@@ -402,30 +390,58 @@ def _render_mvd_overlay(
 
     """
     In quà tặng có trong đơn hàng.
+    Logic: Chỉ in quà tặng nếu package hiện tại có chứa sản phẩm trigger quà tặng.
     """
-    if len(order.gifts) > 0:
+    # Kiểm tra xem package hiện tại có sản phẩm trigger quà tặng không
+    should_print_gifts = True
+    if total_packages > 1 and items_to_print:
+        # Lấy danh sách variant_ids trong package hiện tại
+        package_variant_ids = {item.variant_id for item in items_to_print}
+        package_variant_ids.update({item.old_id for item in items_to_print if item.old_id})
+        
+        # Kiểm tra xem có quà tặng nào được trigger bởi sản phẩm trong package này không
+        has_triggering_product = False
+        for gift in order.gifts:
+            # Kiểm tra xem có variant_id nào trong trigger_variant_ids match với package không
+            if gift.trigger_variant_ids:
+                if any(trigger_id in package_variant_ids for trigger_id in gift.trigger_variant_ids):
+                    has_triggering_product = True
+                    break
+            else:
+                # Nếu không có trigger_variant_ids (quà tặng cũ), mặc định in ở package đầu tiên
+                parcel_no = current_package.get("parcel_no", 1) if current_package else 1
+                if parcel_no == 1:
+                    has_triggering_product = True
+                    break
+        
+        should_print_gifts = has_triggering_product
+    elif total_packages == 1:
+        # Đơn không tách: luôn in quà tặng
+        should_print_gifts = True
+    
+    if should_print_gifts and len(order.gifts) > 0:
         line_order = f"---  QUÀ TẶNG KÈM TRONG ĐƠN  ---"
         c.setFont('Arial', 8)
         c.drawString(-32, y_value, line_order)
         y_value -= line_spacing
 
-    for x in order.gifts:
-        # Sử dụng thông tin từ GiftItemDTO (sku, unit, opt1 đã được fetch từ variant)
-        unit_str = x.unit or "cái"  # Fallback về "cái" nếu không có unit
-        sku_str = x.sku or ""  # SKU từ variant
-        opt1_str = x.opt1 or ""  # Option 1 từ variant
-        
-        # Format: ** QUÀ TẶNG: {quantity} {unit} - {sku} - {opt1}
-        line_order = f"** {int(x.quantity)} {unit_str}"
-        if sku_str:
-            line_order += f" - {sku_str}"
-        if opt1_str:
-            line_order += f" - {opt1_str}"
-        
-        line_order = line_order[:53]
-        c.setFont('Arial', 8)
-        c.drawString(-32, y_value, line_order)
-        y_value -= line_spacing
+        for x in order.gifts:
+            # Sử dụng thông tin từ GiftItemDTO (sku, unit, opt1 đã được fetch từ variant)
+            unit_str = x.unit or "cái"  # Fallback về "cái" nếu không có unit
+            sku_str = x.sku or ""  # SKU từ variant
+            opt1_str = x.opt1 or ""  # Option 1 từ variant
+            
+            # Format: ** QUÀ TẶNG: {quantity} {unit} - {sku} - {opt1}
+            line_order = f"** {int(x.quantity)} {unit_str}"
+            if sku_str:
+                line_order += f" - {sku_str}"
+            if opt1_str:
+                line_order += f" - {opt1_str}"
+            
+            line_order = line_order[:53]
+            c.setFont('Arial', 8)
+            c.drawString(-32, y_value, line_order)
+            y_value -= line_spacing
         
     if count > 10:
         c.setFont('UTM Avo Bold', 8)

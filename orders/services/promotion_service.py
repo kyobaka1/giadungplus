@@ -388,12 +388,14 @@ class PromotionService:
                 continue
             
             # Điều kiện thoả mãn -> apply gifts
+            # Lưu goods_condition (variant_ids trigger quà tặng) để dùng cho đơn tách
             return self._create_gift_items(
                 gifts=condition_item.gifts,
                 matched_quantity=matched_quantity,
                 required_quantity=required_quantity,
                 multiple=condition_item.multiple,
-                promotion_name=promotion_name
+                promotion_name=promotion_name,
+                trigger_variant_ids=condition.goods_condition  # Lưu variant_ids trigger quà tặng
             )
         
         return []
@@ -427,7 +429,8 @@ class PromotionService:
         matched_quantity: int,
         required_quantity: int,
         multiple: bool,
-        promotion_name: str
+        promotion_name: str,
+        trigger_variant_ids: List[int] = None
     ) -> List[GiftItemDTO]:
         """
         Tạo GiftItemDTO dựa trên logic multiple.
@@ -438,6 +441,7 @@ class PromotionService:
             required_quantity: Số lượng tối thiểu yêu cầu
             multiple: False = áp dụng nhiều lần, True = chỉ 1 lần
             promotion_name: Tên chương trình khuyến mãi
+            trigger_variant_ids: Danh sách variant_ids trigger quà tặng này
             
         Returns:
             List of GiftItemDTO
@@ -461,7 +465,8 @@ class PromotionService:
                 promotion_name=promotion_name,
                 sku=gift.sku,
                 unit=gift.unit,
-                opt1=gift.opt1
+                opt1=gift.opt1,
+                trigger_variant_ids=trigger_variant_ids or []  # Lưu variant_ids trigger quà tặng
             ))
         
         return result
