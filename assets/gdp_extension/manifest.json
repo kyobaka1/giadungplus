@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GDP Media Tracker Ext",
   "version": "1.0.0",
-  "description": "Track video and audio URLs from specific websites (tmall, douyin, 1688, taobao, xiaohongshu, pinterest)",
+  "description": "Track video and audio URLs from specific websites (tmall, douyin, 1688, taobao, xiaohongshu, pinterest, shopee)",
   "permissions": [
     "tabs",
     "scripting",

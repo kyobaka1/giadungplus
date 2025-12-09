@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     if (tabs[0]) {
       const url = tabs[0].url.toLowerCase();
-      const trackedKeywords = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest'];
+      const trackedKeywords = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest', 'shopee'];
       const isTracked = trackedKeywords.some(keyword => url.includes(keyword));
       
       if (isTracked) {

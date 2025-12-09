@@ -1,7 +1,7 @@
 // content.js - Content script for GDP Media Tracker Extension
 
 // Tracked domains/keywords
-const TRACKED_KEYWORDS = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest'];
+const TRACKED_KEYWORDS = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest', 'shopee'];
 
 // Tracked media URLs from network requests
 const networkTrackedUrls = new Set();

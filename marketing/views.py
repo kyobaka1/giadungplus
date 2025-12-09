@@ -280,27 +280,20 @@ def tools_get_videos(request):
     from marketing.services.video_thumbnail import generate_thumbnail_from_video_url
     import threading
     
-    # Lấy username từ request (có thể filter theo user hiện tại hoặc tất cả)
-    username_filter = request.GET.get('username', '')
-    
-    # Lấy danh sách media tracks
-    media_tracks = MediaTrack.objects.all()
-    
-    if username_filter:
-        media_tracks = media_tracks.filter(user_name=username_filter)
-    
-    # Lấy danh sách unique usernames để filter
-    usernames = MediaTrack.objects.values_list('user_name', flat=True).distinct().order_by('user_name')
+    # Chỉ hiển thị video của user đang login
+    current_username = request.user.username
+    media_tracks = MediaTrack.objects.filter(user_name=current_username)
     
     # Tự động generate thumbnail cho video không có thumbnail (chạy background)
     def generate_missing_thumbnails():
         """Background task để generate thumbnail cho video không có thumbnail"""
         try:
-            # Lấy các video không có thumbnail và có extension là mp4 hoặc mov
+            # Lấy các video không có thumbnail và có extension là mp4 hoặc mov (chỉ của user hiện tại)
             videos_without_thumbnail = MediaTrack.objects.filter(
+                user_name=current_username,
                 thumbnail_url__isnull=True,
                 file_extension__in=['mp4', 'mov']
-            ).exclude(media_url__startswith='blob:')[:10]  # Giới hạn 10 video mỗi lần
+            ).exclude(media_url__startswith='blob:').exclude(media_url__startswith='data:')[:10]  # Giới hạn 10 video mỗi lần
             
             for track in videos_without_thumbnail:
                 try:
@@ -327,9 +320,8 @@ def tools_get_videos(request):
     context = {
         "title": "Tools - Get Videos",
         "media_tracks": media_tracks[:100],  # Giới hạn 100 items mới nhất
-        "usernames": usernames,
-        "selected_username": username_filter,
         "total_count": media_tracks.count(),
+        "current_username": current_username,
     }
     return render(request, "marketing/tools/get_videos.html", context)
 
@@ -420,10 +412,9 @@ def tools_get_videos_api(request):
                 response[key] = value
             return response
         
-        # Check if this media_url already exists for this user (avoid duplicates)
+        # Check if this media_url already exists (avoid duplicates - không phân biệt user)
         from marketing.models import MediaTrack
         existing = MediaTrack.objects.filter(
-            user_name=data['user_name'],
             media_url=data['media_url']
         ).first()
         

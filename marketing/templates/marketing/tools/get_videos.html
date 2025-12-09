@@ -15,19 +15,11 @@
 <div class="bg-white border rounded-xl shadow-sm p-6">
     <!-- Filter và thống kê -->
     <div class="mb-6 flex flex-wrap items-center gap-4">
-        <div class="flex-1">
-            <label class="block text-sm font-medium text-gray-700 mb-2">Lọc theo username:</label>
-            <select id="usernameFilter" class="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Tất cả users</option>
-                {% for username in usernames %}
-                <option value="{{ username }}" {% if selected_username == username %}selected{% endif %}>{{ username }}</option>
-                {% endfor %}
-            </select>
-        </div>
         <div class="text-sm text-gray-600">
             <span class="font-semibold">{{ total_count }}</span> video/audio đã được track
+            <span class="text-gray-500">(User: {{ current_username }})</span>
         </div>
-        <div>
+        <div class="ml-auto">
             <button id="generateThumbnailsBtn" 
                     onclick="generateThumbnails()" 
                     class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
@@ -88,7 +80,22 @@
                     {{ track.page_title|default:"Không có tiêu đề"|truncatewords:8 }}
                 </div>
                 
-                <div class="text-xs text-gray-600 mb-2">
+                <div class="text-xs text-gray-600 mb-2 flex items-center gap-2">
+                    {% if 'tmall' in track.page_url|lower %}
+                    <img src="{% static 'tmall-logo.png' %}" alt="Tmall" class="h-4 w-4 object-contain">
+                    {% elif '1688' in track.page_url|lower %}
+                    <img src="{% static '1688-logo.png' %}" alt="1688" class="h-4 w-4 object-contain">
+                    {% elif 'xiaohongshu' in track.page_url|lower %}
+                    <img src="{% static 'xiaohongshu-logo.png' %}" alt="Xiaohongshu" class="h-4 w-4 object-contain" onerror="this.style.display='none';">
+                    {% elif 'douyin' in track.page_url|lower %}
+                    <img src="{% static 'douyin-logo.png' %}" alt="Douyin" class="h-4 w-4 object-contain">
+                    {% elif 'shopee' in track.page_url|lower %}
+                    <img src="{% static 'shopee-icon.png' %}" alt="Shopee" class="h-4 w-4 object-contain">
+                    {% elif 'taobao' in track.page_url|lower %}
+                    <img src="{% static 'taobao-logo.png' %}" alt="Taobao" class="h-4 w-4 object-contain">
+                    {% elif 'pinterest' in track.page_url|lower %}
+                    <span class="text-pink-600 font-semibold">P</span>
+                    {% endif %}
                     <span class="font-medium">{{ track.user_name }}</span>
                     <span class="mx-1">•</span>
                     <span class="text-gray-500">{{ track.source_type }}</span>
@@ -129,17 +136,7 @@
 </div>
 
 <script>
-// Filter by username
-document.getElementById('usernameFilter').addEventListener('change', function() {
-    const username = this.value;
-    const url = new URL(window.location.href);
-    if (username) {
-        url.searchParams.set('username', username);
-    } else {
-        url.searchParams.delete('username');
-    }
-    window.location.href = url.toString();
-});
+// Removed username filter - now only shows current user's videos
 
 // Copy to clipboard
 function copyToClipboard(text) {
