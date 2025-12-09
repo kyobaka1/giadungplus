@@ -917,16 +917,38 @@ class SalesForecastService:
             else:
                 abc_category = "C"
             
-            # Cập nhật forecast
+            # Cập nhật forecast (abc_rank sẽ được tính lại sau theo từng nhóm)
             forecast.revenue_percentage = revenue_percentage
             forecast.cumulative_percentage = cumulative_percentage
             forecast.abc_category = abc_category
+        
+        # Tính lại abc_rank cho từng nhóm riêng biệt (top 1, top 2, ... trong mỗi nhóm)
+        # Gom variants theo category
+        category_a_variants = [(vid, f) for vid, f in variants_with_revenue if f.abc_category == "A"]
+        category_b_variants = [(vid, f) for vid, f in variants_with_revenue if f.abc_category == "B"]
+        category_c_variants = [(vid, f) for vid, f in variants_with_revenue if f.abc_category == "C"]
+        
+        # Sắp xếp lại từng nhóm theo revenue từ cao xuống thấp và gán rank
+        category_a_variants.sort(key=lambda x: x[1].revenue, reverse=True)
+        category_b_variants.sort(key=lambda x: x[1].revenue, reverse=True)
+        category_c_variants.sort(key=lambda x: x[1].revenue, reverse=True)
+        
+        # Gán rank cho nhóm A (top 1, top 2, ...)
+        for rank, (variant_id, forecast) in enumerate(category_a_variants, start=1):
+            forecast.abc_rank = rank
+        
+        # Gán rank cho nhóm B (top 1, top 2, ...)
+        for rank, (variant_id, forecast) in enumerate(category_b_variants, start=1):
+            forecast.abc_rank = rank
+        
+        # Gán rank cho nhóm C (top 1, top 2, ...)
+        for rank, (variant_id, forecast) in enumerate(category_c_variants, start=1):
             forecast.abc_rank = rank
         
         # Đếm theo category
-        category_a_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "A")
-        category_b_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "B")
-        category_c_count = sum(1 for _, f in variants_with_revenue if f.abc_category == "C")
+        category_a_count = len(category_a_variants)
+        category_b_count = len(category_b_variants)
+        category_c_count = len(category_c_variants)
         
         print(f"[DEBUG]        └─ Nhóm A: {category_a_count}, B: {category_b_count}, C: {category_c_count}")
         logger.info(f"[SalesForecastService] ABC Analysis: A={category_a_count}, B={category_b_count}, C={category_c_count}")

@@ -364,10 +364,16 @@ def variant_list(request: HttpRequest):
                 product = None
             
             # Extract variants từ product (đã có inventories sẵn)
+            # CHỈ lấy variants có packsize = false (1 pcs), loại bỏ packsize = true (combo)
             variants = product_data.get("variants", [])
             for variant_data in variants:
                 variant_id = variant_data.get("id")
                 if not variant_id:
+                    continue
+                
+                # Bỏ qua variant có packsize = true (combo)
+                packsize = variant_data.get("packsize", False)
+                if packsize is True:
                     continue
                 
                 # Lưu variant với product_id và brand_id để filter sau
