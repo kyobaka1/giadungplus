@@ -107,6 +107,7 @@
                             <option value="total_sold_30">Bán 30N</option>
                             <option value="total_sold_10">Bán 10N</option>
                             <option value="suggested_purchase_qty">Gợi ý nhập</option>
+                            <option value="abc_rank">Top ABC</option>
                             <option value="brand">Nhà sản xuất</option>
                         </select>
                         <button id="sort-order-btn" class="text-xs px-2 py-1 border border-slate-300 rounded hover:bg-slate-100 transition" data-order="asc" title="Tăng dần">
@@ -118,7 +119,7 @@
             <div id="forecast-container" class="divide-y divide-slate-200">
                 {% if variants %}
                     {% for variant in variants %}
-                    <div class="js-variant-row hover:bg-slate-50 transition p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}" data-abc-category="{% if variant.forecast_30 and variant.forecast_30.abc_category %}{{ variant.forecast_30.abc_category }}{% else %}{% endif %}">
+                    <div class="js-variant-row hover:bg-slate-50 transition p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}" data-abc-category="{% if variant.forecast_30 and variant.forecast_30.abc_category %}{{ variant.forecast_30.abc_category }}{% else %}{% endif %}" data-abc-rank="{% if variant.forecast_30 and variant.forecast_30.abc_rank %}{{ variant.forecast_30.abc_rank }}{% else %}0{% endif %}">
                         <div class="flex gap-4">
                             <!-- Hình ảnh -->
                             <div class="flex-shrink-0">
@@ -139,6 +140,9 @@
                                                 {% else %}
                                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Nhóm C</span>
                                                 {% endif %}
+                                            {% endif %}
+                                            {% if variant.forecast_30 and variant.forecast_30.abc_rank %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-300">Top {{ variant.forecast_30.abc_rank }}</span>
                                             {% endif %}
                                         </div>
                                         <h4 class="text-sm font-medium text-slate-800 truncate" title="{{ variant.product_name }}">{{ variant.product_name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
@@ -451,6 +455,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 case 'suggested_purchase_qty':
                     aVal = parseFloat(a.dataset.suggestedPurchaseQty || 0);
                     bVal = parseFloat(b.dataset.suggestedPurchaseQty || 0);
+                    break;
+                case 'abc_rank':
+                    // Sắp xếp theo ABC rank: ưu tiên nhóm A > B > C, sau đó theo rank
+                    const aCategory = a.dataset.abcCategory || '';
+                    const bCategory = b.dataset.abcCategory || '';
+                    const aRank = parseFloat(a.dataset.abcRank || 999999); // Không có rank = 999999 (sẽ xuống cuối)
+                    const bRank = parseFloat(b.dataset.abcRank || 999999);
+                    
+                    // Nếu cùng nhóm, sắp xếp theo rank
+                    if (aCategory === bCategory && aCategory !== '') {
+                        aVal = aRank;
+                        bVal = bRank;
+                    } else if (aCategory !== bCategory) {
+                        // Khác nhóm: A > B > C (A=1, B=2, C=3, không có = 999)
+                        const categoryOrder = {'A': 1, 'B': 2, 'C': 3};
+                        const aOrder = categoryOrder[aCategory] || 999;
+                        const bOrder = categoryOrder[bCategory] || 999;
+                        if (aOrder !== bOrder) {
+                            return order === 'asc' ? aOrder - bOrder : bOrder - aOrder;
+                        }
+                        // Nếu cùng order (cả 2 đều không có category), sắp xếp theo rank
+                        aVal = aRank;
+                        bVal = bRank;
+                    } else {
+                        // Cả 2 đều không có category, sắp xếp theo rank
+                        aVal = aRank;
+                        bVal = bRank;
+                    }
                     break;
                 case 'brand':
                     aVal = (a.dataset.brand || '').toLowerCase();
