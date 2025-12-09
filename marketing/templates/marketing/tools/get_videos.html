@@ -27,7 +27,17 @@
         <div class="text-sm text-gray-600">
             <span class="font-semibold">{{ total_count }}</span> video/audio đã được track
         </div>
+        <div>
+            <button id="generateThumbnailsBtn" 
+                    onclick="generateThumbnails()" 
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium">
+                🔄 Tạo thumbnail cho video chưa có
+            </button>
+        </div>
     </div>
+    
+    <!-- Status message -->
+    <div id="statusMessage" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
 
     <!-- Danh sách video -->
     {% if media_tracks %}
@@ -146,6 +156,28 @@ function copyToClipboard(text) {
         document.body.removeChild(textarea);
         alert('Đã copy URL vào clipboard!');
     });
+}
+
+// Generate thumbnails for videos without thumbnails
+function generateThumbnails() {
+    const btn = document.getElementById('generateThumbnailsBtn');
+    const statusMsg = document.getElementById('statusMessage');
+    
+    // Disable button
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang tạo thumbnail...';
+    
+    // Show status
+    statusMsg.className = 'mb-4 p-3 rounded-lg text-sm bg-blue-100 text-blue-800 border border-blue-200';
+    statusMsg.textContent = 'Đang tạo thumbnail cho các video chưa có thumbnail. Vui lòng đợi...';
+    statusMsg.classList.remove('hidden');
+    
+    // Add generate_thumbnails=1 to URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('generate_thumbnails', '1');
+    
+    // Reload page
+    window.location.href = url.toString();
 }
 
 // Handle thumbnail error - try to generate from video

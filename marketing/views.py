@@ -277,6 +277,8 @@ def tools_copy_images_download(request):
 def tools_get_videos(request):
     """Tools - Get Videos - Hiển thị danh sách video đã được track"""
     from marketing.models import MediaTrack
+    from marketing.services.video_thumbnail import generate_thumbnail_from_video_url
+    import threading
     
     # Lấy username từ request (có thể filter theo user hiện tại hoặc tất cả)
     username_filter = request.GET.get('username', '')
@@ -289,6 +291,38 @@ def tools_get_videos(request):
     
     # Lấy danh sách unique usernames để filter
     usernames = MediaTrack.objects.values_list('user_name', flat=True).distinct().order_by('user_name')
+    
+    # Tự động generate thumbnail cho video không có thumbnail (chạy background)
+    def generate_missing_thumbnails():
+        """Background task để generate thumbnail cho video không có thumbnail"""
+        try:
+            # Lấy các video không có thumbnail và có extension là mp4 hoặc mov
+            videos_without_thumbnail = MediaTrack.objects.filter(
+                thumbnail_url__isnull=True,
+                file_extension__in=['mp4', 'mov']
+            ).exclude(media_url__startswith='blob:')[:10]  # Giới hạn 10 video mỗi lần
+            
+            for track in videos_without_thumbnail:
+                try:
+                    print(f"[GDP Media Tracker] Generating thumbnail for video ID {track.id}: {track.media_url[:100]}")
+                    thumbnail_url = generate_thumbnail_from_video_url(track.media_url)
+                    if thumbnail_url:
+                        track.thumbnail_url = thumbnail_url
+                        track.save(update_fields=['thumbnail_url'])
+                        print(f"[GDP Media Tracker] ✅ Thumbnail generated for video ID {track.id}: {thumbnail_url}")
+                    else:
+                        print(f"[GDP Media Tracker] ⚠️ Failed to generate thumbnail for video ID {track.id}")
+                except Exception as e:
+                    print(f"[GDP Media Tracker] ❌ Error generating thumbnail for video ID {track.id}: {e}")
+                    continue
+        except Exception as e:
+            print(f"[GDP Media Tracker] ❌ Error in generate_missing_thumbnails: {e}")
+    
+    # Chạy background task (không block request)
+    if request.GET.get('generate_thumbnails') == '1':
+        # Chạy trong thread riêng để không block response
+        thread = threading.Thread(target=generate_missing_thumbnails, daemon=True)
+        thread.start()
     
     context = {
         "title": "Tools - Get Videos",
