@@ -138,6 +138,13 @@ class SalesForecastService:
                 step_start = time.time()
                 self._calculate_abc_analysis(forecast_map)
                 print(f"[DEBUG] [BƯỚC 5] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
+                
+                # Tính Priority Score nếu days=30
+                print(f"[DEBUG] [BƯỚC 5.5] Tính toán Priority Score...")
+                logger.info("[SalesForecastService] Calculating Priority Score...")
+                step_start = time.time()
+                self._calculate_priority_score(forecast_map)
+                print(f"[DEBUG] [BƯỚC 5.5] ✅ Hoàn thành ({time.time() - step_start:.2f}s)\n")
             
             # Lưu vào Database
             print(f"[DEBUG] [BƯỚC 6] Lưu dữ liệu vào Database...")
@@ -734,6 +741,14 @@ class SalesForecastService:
                     forecast_dto.cumulative_percentage = forecast_db.cumulative_percentage
                     forecast_dto.abc_category = forecast_db.abc_category
                     forecast_dto.abc_rank = forecast_db.abc_rank
+                    
+                    # Priority Score fields (chỉ cho period_days=30)
+                    forecast_dto.priority_score = forecast_db.priority_score
+                    forecast_dto.velocity_stability_score = forecast_db.velocity_stability_score
+                    forecast_dto.velocity_score = forecast_db.velocity_score
+                    forecast_dto.stability_bonus = forecast_db.stability_bonus
+                    forecast_dto.asp_score = forecast_db.asp_score
+                    forecast_dto.revenue_contribution_score = forecast_db.revenue_contribution_score
                 loaded_count += 1
         
         print(f"[DEBUG]        └─ ✅ Tổng cộng load {loaded_count} forecasts từ Database ({time.time() - step_start:.2f}s)")
@@ -809,6 +824,14 @@ class SalesForecastService:
                             forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
                             forecast_db.abc_category = forecast_dto.abc_category
                             forecast_db.abc_rank = forecast_dto.abc_rank
+                            
+                            # Priority Score fields (chỉ cho period_days=30)
+                            forecast_db.priority_score = forecast_dto.priority_score
+                            forecast_db.velocity_stability_score = forecast_dto.velocity_stability_score
+                            forecast_db.velocity_score = forecast_dto.velocity_score
+                            forecast_db.stability_bonus = forecast_dto.stability_bonus
+                            forecast_db.asp_score = forecast_dto.asp_score
+                            forecast_db.revenue_contribution_score = forecast_dto.revenue_contribution_score
                         to_update.append(forecast_db)
                     else:
                         # Create new
@@ -834,6 +857,14 @@ class SalesForecastService:
                             forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
                             forecast_db.abc_category = forecast_dto.abc_category
                             forecast_db.abc_rank = forecast_dto.abc_rank
+                            
+                            # Priority Score fields (chỉ cho period_days=30)
+                            forecast_db.priority_score = forecast_dto.priority_score
+                            forecast_db.velocity_stability_score = forecast_dto.velocity_stability_score
+                            forecast_db.velocity_score = forecast_dto.velocity_score
+                            forecast_db.stability_bonus = forecast_dto.stability_bonus
+                            forecast_db.asp_score = forecast_dto.asp_score
+                            forecast_db.revenue_contribution_score = forecast_dto.revenue_contribution_score
                         to_create.append(forecast_db)
                 
                 # Bulk create và update
@@ -850,6 +881,15 @@ class SalesForecastService:
                     # ABC fields chỉ cho 30 ngày
                     if days == 30:
                         update_fields.extend(['revenue_percentage', 'cumulative_percentage', 'abc_category', 'abc_rank'])
+                        # Priority Score fields chỉ cho 30 ngày
+                        update_fields.extend([
+                            'priority_score', 
+                            'velocity_stability_score', 
+                            'velocity_score', 
+                            'stability_bonus', 
+                            'asp_score', 
+                            'revenue_contribution_score'
+                        ])
                     VariantSalesForecast.objects.bulk_update(
                         to_update,
                         fields=update_fields
@@ -953,6 +993,227 @@ class SalesForecastService:
         print(f"[DEBUG]        └─ Nhóm A: {category_a_count}, B: {category_b_count}, C: {category_c_count}")
         logger.info(f"[SalesForecastService] ABC Analysis: A={category_a_count}, B={category_b_count}, C={category_c_count}")
     
+    def _calculate_priority_score(
+        self,
+        forecast_map: Dict[int, SalesForecastDTO]
+    ):
+        """
+        Tính toán Priority Score cho variants (chỉ cho period_days=30).
+        
+        PriorityScore = 45% Velocity Stability Score + 30% ASP Score + 25% Revenue Contribution Score
+        
+        Velocity Stability Score = VelocityScore + Stability Bonus (tối đa 12)
+        - VelocityScore: dựa trên phân vị tốc độ bán (2, 4, 6, 8, 10)
+        - Stability Bonus: dựa trên so sánh cùng kỳ 7 ngày (0, 1, 2)
+        
+        ASP Score: dựa trên phân vị giá trị SKU (2, 4, 6, 8, 10)
+        
+        Revenue Contribution Score: từ nhóm ABC (A=10, B=7, C=4)
+        """
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+        
+        print(f"[DEBUG]        └─ Bắt đầu tính Priority Score cho {len(forecast_map)} variants...")
+        
+        # ========== 1. TÍNH VELOCITY STABILITY SCORE ==========
+        print(f"[DEBUG]        └─ [1/3] Tính Velocity Stability Score...")
+        
+        # Lấy dữ liệu 7 ngày để tính stability bonus
+        now = datetime.now(ZoneInfo("UTC"))
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        start_date_current_7d = (end_date - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date_previous_7d = start_date_current_7d - timedelta(seconds=1)
+        start_date_previous_7d = (end_date_previous_7d - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Fetch orders 7 ngày để tính stability
+        forecast_7d_map: Dict[int, SalesForecastDTO] = {}
+        for variant_id in forecast_map.keys():
+            forecast_7d_map[variant_id] = SalesForecastDTO(
+                variant_id=variant_id,
+                period_days=7,
+                calculated_at=now.isoformat()
+            )
+        
+        # Tính 7 ngày hiện tại và trước đó
+        created_on_min_current_7d = start_date_current_7d.strftime("%Y-%m-%dT%H:%M:%SZ")
+        created_on_max_current_7d = end_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+        created_on_min_previous_7d = start_date_previous_7d.strftime("%Y-%m-%dT%H:%M:%SZ")
+        created_on_max_previous_7d = end_date_previous_7d.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
+        # Tính 7 ngày hiện tại
+        self._calculate_period(
+            forecast_7d_map,
+            created_on_min_current_7d,
+            created_on_max_current_7d,
+            is_current_period=True,
+            lock=None,
+            now_iso=now.isoformat(),
+            days=7
+        )
+        
+        # Tính 7 ngày trước
+        self._calculate_period(
+            forecast_7d_map,
+            created_on_min_previous_7d,
+            created_on_max_previous_7d,
+            is_current_period=False,
+            lock=None,
+            now_iso=now.isoformat(),
+            days=7
+        )
+        
+        # Tính tốc độ bán 30 ngày và sắp xếp để tính phân vị
+        variants_with_velocity = [
+            (variant_id, forecast)
+            for variant_id, forecast in forecast_map.items()
+            if forecast.sales_rate and forecast.sales_rate > 0
+        ]
+        
+        if not variants_with_velocity:
+            print(f"[DEBUG]        └─ Không có variants có tốc độ bán để tính Velocity Score")
+            return
+        
+        # Sắp xếp theo sales_rate từ cao xuống thấp
+        variants_with_velocity.sort(key=lambda x: x[1].sales_rate, reverse=True)
+        total_skus = len(variants_with_velocity)
+        
+        # Tính Velocity Score và Stability Bonus cho từng variant
+        for rank, (variant_id, forecast) in enumerate(variants_with_velocity, start=1):
+            # Velocity Score dựa trên phân vị
+            percentile = (rank / total_skus) * 100
+            
+            if percentile <= 10:
+                velocity_score = 10  # Top 10%
+            elif percentile <= 30:
+                velocity_score = 8   # 10-30%
+            elif percentile <= 60:
+                velocity_score = 6   # 30-60%
+            elif percentile <= 80:
+                velocity_score = 4   # 60-80%
+            else:
+                velocity_score = 2   # 80-100%
+            
+            # Stability Bonus: so sánh 7 ngày hiện tại vs 7 ngày trước
+            forecast_7d = forecast_7d_map.get(variant_id)
+            stability_bonus = 0
+            
+            if forecast_7d and forecast_7d.total_sold_previous_period > 0:
+                # Tính % thay đổi
+                change_percentage = ((forecast_7d.total_sold - forecast_7d.total_sold_previous_period) / forecast_7d.total_sold_previous_period) * 100
+                
+                if abs(change_percentage) <= 20:
+                    stability_bonus = 2  # SS cùng kỳ 7d +/- 20%
+                elif change_percentage >= 20:
+                    stability_bonus = 1  # SS cùng kỳ 7d >= 20%
+                else:
+                    stability_bonus = 0  # SS cùng kỳ 7d < -20%
+            elif forecast_7d and forecast_7d.total_sold > 0 and forecast_7d.total_sold_previous_period == 0:
+                # Từ 0 lên có bán -> bonus 1
+                stability_bonus = 1
+            
+            # Velocity Stability Score = VelocityScore + Bonus (tối đa 12)
+            velocity_stability_score = min(12, velocity_score + stability_bonus)
+            
+            forecast.velocity_score = velocity_score
+            forecast.stability_bonus = stability_bonus
+            forecast.velocity_stability_score = velocity_stability_score
+        
+        print(f"[DEBUG]        └─ ✅ Đã tính Velocity Stability Score cho {len(variants_with_velocity)} variants")
+        
+        # ========== 2. TÍNH ASP SCORE ==========
+        print(f"[DEBUG]        └─ [2/3] Tính ASP Score...")
+        
+        # Tính ASP cho từng variant: ASP = revenue / total_sold
+        variants_with_asp = []
+        for variant_id, forecast in forecast_map.items():
+            if forecast.revenue and forecast.revenue > 0 and forecast.total_sold and forecast.total_sold > 0:
+                asp = forecast.revenue / forecast.total_sold
+                variants_with_asp.append((variant_id, forecast, asp))
+        
+        if not variants_with_asp:
+            print(f"[DEBUG]        └─ Không có variants có ASP để tính ASP Score")
+        else:
+            # Sắp xếp theo ASP từ cao xuống thấp
+            variants_with_asp.sort(key=lambda x: x[2], reverse=True)
+            total_asp_skus = len(variants_with_asp)
+            
+            # Tính ASP Score dựa trên phân vị
+            for rank, (variant_id, forecast, asp) in enumerate(variants_with_asp, start=1):
+                percentile = (rank / total_asp_skus) * 100
+                
+                if percentile <= 10:
+                    asp_score = 10  # Top 10%
+                elif percentile <= 30:
+                    asp_score = 8   # 10-30%
+                elif percentile <= 60:
+                    asp_score = 6   # 30-60%
+                elif percentile <= 80:
+                    asp_score = 4   # 60-80%
+                else:
+                    asp_score = 2   # 80-100%
+                
+                forecast.asp_score = asp_score
+            
+            print(f"[DEBUG]        └─ ✅ Đã tính ASP Score cho {len(variants_with_asp)} variants")
+        
+        # ========== 3. TÍNH REVENUE CONTRIBUTION SCORE ==========
+        print(f"[DEBUG]        └─ [3/3] Tính Revenue Contribution Score (từ ABC)...")
+        
+        # Revenue Contribution Score từ ABC category
+        for variant_id, forecast in forecast_map.items():
+            if forecast.abc_category:
+                if forecast.abc_category == "A":
+                    revenue_contribution_score = 10  # Top 70-80% doanh thu
+                elif forecast.abc_category == "B":
+                    revenue_contribution_score = 7    # Tiếp theo 15-25%
+                else:  # C
+                    revenue_contribution_score = 4   # Còn lại
+            else:
+                revenue_contribution_score = 4  # Mặc định C nếu không có ABC
+            
+            forecast.revenue_contribution_score = revenue_contribution_score
+        
+        print(f"[DEBUG]        └─ ✅ Đã tính Revenue Contribution Score cho {len(forecast_map)} variants")
+        
+        # ========== 4. TÍNH PRIORITY SCORE TỔNG HỢP ==========
+        print(f"[DEBUG]        └─ [4/4] Tính Priority Score tổng hợp...")
+        
+        variants_with_priority = 0
+        for variant_id, forecast in forecast_map.items():
+            # Chỉ tính nếu có velocity_stability_score và revenue_contribution_score
+            # ASP score có thể None nếu không có revenue
+            if (forecast.velocity_stability_score is not None and 
+                forecast.revenue_contribution_score is not None):
+                
+                # Normalize các score về thang 0-10
+                # Velocity Stability: 0-12 -> 0-10
+                velocity_stability_norm = (forecast.velocity_stability_score / 12) * 10
+                
+                # ASP: 2-10 -> normalize về 0-10 (nếu None thì dùng 0)
+                if forecast.asp_score is not None:
+                    asp_norm = forecast.asp_score  # Đã là 2-10, giữ nguyên
+                else:
+                    asp_norm = 0  # Không có ASP thì dùng 0
+                
+                # Revenue Contribution: 4-10 -> giữ nguyên (đã là 4-10)
+                revenue_contribution_norm = forecast.revenue_contribution_score
+                
+                # PriorityScore = 45% Velocity Stability + 30% ASP + 25% Revenue Contribution
+                priority_score = (
+                    0.45 * velocity_stability_norm +
+                    0.30 * asp_norm +
+                    0.25 * revenue_contribution_norm
+                )
+                
+                # Đảm bảo trong khoảng 0-10
+                priority_score = max(0.0, min(10.0, priority_score))
+                
+                forecast.priority_score = round(priority_score, 2)
+                variants_with_priority += 1
+        
+        print(f"[DEBUG]        └─ ✅ Đã tính Priority Score cho {variants_with_priority} variants")
+        logger.info(f"[SalesForecastService] Calculated Priority Score for {variants_with_priority} variants")
+    
     def _recalculate_from_saved_data(
         self,
         forecast_map: Dict[int, SalesForecastDTO],
@@ -981,19 +1242,33 @@ class SalesForecastService:
     def calculate_suggested_purchase_qty(
         self,
         forecast_30: Optional[SalesForecastDTO],
-        total_inventory: int
+        stock_now: int,
+        stock_inbound: int = 0,
+        strategy_factor: Optional[float] = None
     ) -> Optional[float]:
         """
-        Tính gợi ý số lượng nhập cho 60 ngày.
+        Tính gợi ý số lượng nhập theo công thức mới.
         
         Công thức:
-        - Tỉ lệ tăng trưởng: 1.2 nếu tăng trưởng (growth_percentage > 0), else 1.0
-        - Tồn kho dự kiến (15 ngày sau) = tồn kho - tốc độ bán * 15 (min = 0)
-        - Gợi ý SL NHẬP = Tỉ lệ tăng trưởng * 60 * tốc độ bán - tồn kho dự kiến
+        - L = Leadtime = 20 ngày (thời gian hàng về)
+        - V = Tốc độ bán (số lượng/ngày) = sales_rate từ forecast_30
+        - MinStock = (Leadtime + 5) * V = 25 * V
+        - Cần đủ bán 45 ngày = 45 * V
+        - Snow = Tồn hàng hiện tại (stock_now)
+        - Sfuture = Tồn hàng vào leadtime sau đó = max(0, Snow - V * L)
+        - Sin = Hàng đang về (stock_inbound), mặc định 0
+        - F = Hệ số chiến lược: Nhóm A x1.2, Nhóm B và C x1.0
+        
+        Công thức cuối cùng:
+        SuggestQty = round(((Cần đủ bán 45 ngày + MinStock) - Sfuture - Sin) * F)
+                   = round(((45 * V + 25 * V) - max(0, Snow - V * 20) - Sin) * F)
+                   = round((70 * V - max(0, Snow - V * 20) - Sin) * F)
         
         Args:
             forecast_30: Forecast data 30 ngày
-            total_inventory: Tổng tồn kho hiện tại
+            stock_now: Tồn kho hiện tại (Snow)
+            stock_inbound: Hàng đang về (Sin), mặc định 0
+            strategy_factor: Hệ số chiến lược (F), nếu None sẽ tự động tính từ ABC category
             
         Returns:
             Suggested purchase quantity hoặc None nếu không thể tính
@@ -1001,17 +1276,37 @@ class SalesForecastService:
         if not forecast_30 or forecast_30.sales_rate <= 0:
             return None
         
-        # Tỉ lệ tăng trưởng: 1.2 nếu có tăng trưởng, else 1.0
-        growth_rate = 1.2 if (forecast_30.growth_percentage is not None and forecast_30.growth_percentage > 0) else 1.0
+        # Tính hệ số chiến lược nếu chưa có
+        if strategy_factor is None:
+            # F = 1.2 nếu Nhóm A, 1.0 nếu Nhóm B hoặc C
+            if forecast_30.abc_category == "A":
+                strategy_factor = 1.2
+            else:
+                strategy_factor = 1.0
         
-        # Tồn kho dự kiến (15 ngày sau) = tồn kho - tốc độ bán * 15 (min = 0)
-        expected_inventory = max(0, total_inventory - forecast_30.sales_rate * 15)
+        # L = Leadtime = 20 ngày (thời gian hàng về)
+        leadtime = 20
         
-        # Gợi ý SL NHẬP = Tỉ lệ tăng trưởng * 60 * tốc độ bán - tồn kho dự kiến
-        suggested_qty = growth_rate * 60 * forecast_30.sales_rate - expected_inventory
+        # V = Tốc độ bán (số lượng/ngày)
+        velocity = forecast_30.sales_rate
         
-        # Đảm bảo không âm
-        return max(0, suggested_qty)
+        # MinStock = (Leadtime + 5) * V = 25 * V
+        min_stock = (leadtime + 5) * velocity
+        
+        # Cần đủ bán 45 ngày = 45 * V
+        need_45_days = 45 * velocity
+        
+        # Sfuture = Tồn hàng vào leadtime sau đó = max(0, Snow - V * L)
+        sfuture = max(0, stock_now - velocity * leadtime)
+        
+        # Sin = Hàng đang về (mặc định 0)
+        sin = stock_inbound
+        
+        # Số lượng nhập = ((Cần đủ bán 45 ngày + MinStock) - Sfuture - Sin) * F
+        suggest = ((need_45_days + min_stock) - sfuture - sin) * strategy_factor
+        
+        # Đảm bảo không âm và làm tròn
+        return round(max(0, suggest))
     
     def get_variant_forecast_with_inventory(
         self,
@@ -1043,16 +1338,21 @@ class SalesForecastService:
             inventories = variant_data.get("inventories", [])
             inventory_hn = 0
             inventory_sg = 0
+            stock_inbound = 0  # Hàng đang về (incoming)
             
             for inv in inventories:
                 location_id = inv.get("location_id")
                 available = inv.get("available", 0) or 0
+                incoming = inv.get("incoming", 0) or 0
                 # Nếu tồn âm thì set = 0
                 available = max(0, int(available))
+                incoming = max(0, int(incoming))
                 if location_id == LOCATION_HN:
                     inventory_hn = available
+                    stock_inbound += incoming
                 elif location_id == LOCATION_SG:
                     inventory_sg = available
+                    stock_inbound += incoming
             
             total_inventory = inventory_hn + inventory_sg
             
@@ -1099,7 +1399,21 @@ class SalesForecastService:
             
             # Tính gợi ý nhập hàng (dùng forecast_30 nếu có, nếu không dùng forecast hiện tại)
             forecast_for_calc = forecast_30 if forecast_30 else forecast
-            suggested_purchase_qty = self.calculate_suggested_purchase_qty(forecast_for_calc, total_inventory)
+            # Tạm thời bỏ Sin (hàng đang về) = 0
+            suggested_purchase_qty = self.calculate_suggested_purchase_qty(
+                forecast_for_calc, 
+                stock_now=total_inventory,
+                stock_inbound=0  # Tạm thời bỏ qua hàng đang về
+            )
+            
+            # Tính min_stock và sfuture để hiển thị (chỉ khi có forecast_30)
+            min_stock = None
+            sfuture = None
+            if forecast_30 and forecast_30.sales_rate > 0:
+                leadtime = 20
+                velocity = forecast_30.sales_rate
+                min_stock = round((leadtime + 5) * velocity)  # MinStock = 25 * V
+                sfuture = int(max(0, total_inventory - velocity * leadtime))  # Sfuture = max(0, Snow - V * L) - làm tròn thành integer
             
             return {
                 "variant_id": variant_id,
@@ -1119,6 +1433,8 @@ class SalesForecastService:
                 "warning_color": warning_color,
                 "growth_percentage": forecast.growth_percentage,  # % tăng trưởng
                 "suggested_purchase_qty": suggested_purchase_qty,  # Gợi ý số lượng nhập
+                "min_stock": min_stock,  # MinStock để hiển thị
+                "sfuture": sfuture,  # Sfuture để hiển thị
             }
         except Exception as e:
             logger.error(f"[SalesForecastService] Error getting variant {variant_id}: {e}", exc_info=True)
@@ -1139,6 +1455,8 @@ class SalesForecastService:
                 "is_infinite": False,
                 "warning_color": "gray",
                 "suggested_purchase_qty": None,
+                "min_stock": None,
+                "sfuture": None,
             }
     
     def calculate_supplier_purchase_suggestions_from_db(
@@ -1251,15 +1569,23 @@ class SalesForecastService:
             if not variant_data:
                 continue
             
-            # Lấy tồn kho
+            # Lấy tồn kho và hàng đang về
             inventories = variant_data.get("inventories", [])
             total_inventory = 0
+            stock_inbound = 0
             for inv in inventories:
                 available = inv.get("available", 0) or 0
+                incoming = inv.get("incoming", 0) or 0
                 total_inventory += max(0, int(available))
+                stock_inbound += max(0, int(incoming))
             
             # Tính suggested_purchase_qty
-            suggested_purchase_qty = self.calculate_suggested_purchase_qty(forecast_30, total_inventory)
+            # Tạm thời bỏ Sin (hàng đang về) = 0
+            suggested_purchase_qty = self.calculate_suggested_purchase_qty(
+                forecast_30, 
+                stock_now=total_inventory,
+                stock_inbound=0  # Tạm thời bỏ qua hàng đang về
+            )
             
             if not suggested_purchase_qty or suggested_purchase_qty <= 0:
                 continue

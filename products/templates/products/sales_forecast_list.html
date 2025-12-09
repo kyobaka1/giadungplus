@@ -144,6 +144,9 @@
                                             {% if variant.forecast_30 and variant.forecast_30.abc_rank %}
                                                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-300">Top {{ variant.forecast_30.abc_rank }}</span>
                                             {% endif %}
+                                            {% if variant.forecast_30 and variant.forecast_30.priority_score is not None %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-300" title="Priority Score: {{ variant.forecast_30.priority_score|floatformat:2 }}">PS: {{ variant.forecast_30.priority_score|floatformat:1 }}</span>
+                                            {% endif %}
                                         </div>
                                         <h4 class="text-sm font-medium text-slate-800 truncate" title="{{ variant.product_name }}">{{ variant.product_name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
                                     </div>
@@ -224,10 +227,32 @@
                                         {% endif %}
                                     </div>
                                     <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-1.5 border border-indigo-200">
-                                        <div class="text-[9px] text-indigo-600 font-semibold mb-0.5 uppercase">Gợi ý nhập (60N)</div>
+                                        <div class="text-[9px] text-indigo-600 font-semibold mb-0.5 uppercase">Gợi ý nhập (45N)</div>
                                         <div class="text-sm font-bold text-indigo-700">{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty|floatformat:0|intcomma }}{% else %}-{% endif %}</div>
+                                        {% if variant.min_stock is not None and variant.sfuture is not None %}
+                                        <div class="text-[8px] text-indigo-500 mt-0.5">Minstock: {{ variant.min_stock|intcomma }} pcs - Sfuture: {{ variant.sfuture|intcomma }} pcs</div>
+                                        {% else %}
                                         <div class="text-[8px] text-indigo-500 mt-0.5">Dựa trên 30N</div>
+                                        {% endif %}
                                     </div>
+                                    {% if variant.forecast_30 and variant.forecast_30.asp_value %}
+                                    <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-1.5 border border-cyan-200">
+                                        <div class="text-[9px] text-cyan-600 font-semibold mb-0.5 uppercase">ASP (30N)</div>
+                                        <div class="text-sm font-bold text-cyan-700">{{ variant.forecast_30.asp_value|floatformat:0|intcomma }}</div>
+                                        <div class="text-[8px] text-cyan-500 mt-0.5">Giá bán TB</div>
+                                    </div>
+                                    {% endif %}
+                                    {% if variant.forecast_30 and variant.forecast_30.priority_score is not None %}
+                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-1.5 border border-purple-200">
+                                        <div class="text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Priority Score</div>
+                                        <div class="text-sm font-bold text-purple-700">{{ variant.forecast_30.priority_score|floatformat:2 }}</div>
+                                        <div class="text-[8px] text-purple-500 mt-0.5">
+                                            V:{{ variant.forecast_30.velocity_score|default:"-" }} 
+                                            A:{{ variant.forecast_30.asp_score|default:"-" }} 
+                                            R:{{ variant.forecast_30.revenue_contribution_score|default:"-" }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
