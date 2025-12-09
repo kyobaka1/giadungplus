@@ -1,0 +1,208 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+            {% if po %}
+            <p class="text-xs text-gray-500 mt-1">Mã đơn: <strong>{{ po.code }}</strong> | Kho: <strong>{{ po.location_name }}</strong></p>
+            {% endif %}
+        </div>
+        <a href="{% url 'products:supplier_list' %}" class="text-sm text-slate-600 hover:text-slate-800">
+            ← Quay lại danh sách NSX
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    {% if error %}
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <p class="text-sm font-medium">Lỗi: {{ error }}</p>
+    </div>
+    {% endif %}
+
+    {% if po %}
+    <!-- Thông tin đơn hàng -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Thông tin đơn hàng -->
+            <div>
+                <h2 class="text-base font-semibold text-slate-800 mb-3">Thông tin đơn hàng</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 w-24">Mã đơn:</span>
+                        <span class="font-semibold text-slate-800">{{ po.code }}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 w-24">Trạng thái:</span>
+                        <span class="px-2 py-1 rounded text-xs font-medium {% if po.status == 'pending' %}bg-yellow-100 text-yellow-700{% elif po.status == 'completed' %}bg-green-100 text-green-700{% else %}bg-slate-100 text-slate-700{% endif %}">
+                            {{ po.status|upper }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 w-24">Kho nhận:</span>
+                        <span class="font-medium text-slate-700">{{ po.location_name }}</span>
+                    </div>
+                    {% if po.created_at %}
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-500 w-24">Ngày tạo:</span>
+                        <span class="text-slate-700">{{ po.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Thông tin NSX -->
+            {% if supplier %}
+            <div>
+                <h2 class="text-base font-semibold text-slate-800 mb-3">Nhà cung cấp</h2>
+                <div class="flex items-center gap-3">
+                    {% if supplier.logo_path %}
+                    <img src="{{ supplier.logo_path }}" alt="{{ supplier.name }}" class="w-16 h-16 object-contain rounded-md border border-slate-200">
+                    {% endif %}
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-800">{{ supplier.name }}</h3>
+                        <p class="text-xs text-slate-500">Mã: {{ supplier.code }}</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tổng kết -->
+    {% if summary %}
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <h2 class="text-base font-semibold text-slate-800 mb-3">Tổng kết</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+                <div class="text-xs text-blue-600 font-semibold mb-1 uppercase">Tổng số lượng</div>
+                <div class="text-lg font-bold text-blue-700">{{ summary.total_quantity|intcomma }}</div>
+                <div class="text-[10px] text-blue-500 mt-0.5">pcs</div>
+            </div>
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-3 border border-purple-200">
+                <div class="text-xs text-purple-600 font-semibold mb-1 uppercase">Tổng số thùng</div>
+                <div class="text-lg font-bold text-purple-700">{{ summary.total_boxes|intcomma }}</div>
+                <div class="text-[10px] text-purple-500 mt-0.5">thùng</div>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 border border-emerald-200">
+                <div class="text-xs text-emerald-600 font-semibold mb-1 uppercase">Tổng số khối</div>
+                <div class="text-lg font-bold text-emerald-700">{% if summary.total_volume %}{{ summary.total_volume|floatformat:2 }}{% else %}-{% endif %}</div>
+                <div class="text-[10px] text-emerald-500 mt-0.5">m³</div>
+            </div>
+            <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-3 border border-amber-200">
+                <div class="text-xs text-amber-600 font-semibold mb-1 uppercase">Tổng giá trị</div>
+                <div class="text-lg font-bold text-amber-700">{{ summary.total_price|intcomma }}</div>
+                <div class="text-[10px] text-amber-500 mt-0.5">VNĐ</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Table sản phẩm -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-700">Danh sách sản phẩm</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Hình ảnh</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">SKU</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Tên sản phẩm</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Số lượng (pcs)</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Số thùng</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Số khối (m³)</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Giá VNĐ</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Giá CNY</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Thành tiền</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% if line_items %}
+                        {% for item in line_items %}
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-4 py-3">
+                                {% if item.image_url %}
+                                <img src="{{ item.image_url }}" alt="{{ item.name }}" class="w-12 h-12 object-cover rounded border border-slate-200">
+                                {% else %}
+                                <div class="w-12 h-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
+                                    <span class="text-[8px] text-slate-400">No img</span>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="text-xs font-mono text-slate-700 bg-blue-50 px-2 py-0.5 rounded">{{ item.sku }}</span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="text-sm font-medium text-slate-800">{{ item.name }}{% if item.opt1 %} - {{ item.opt1 }}{% endif %}</div>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-semibold text-slate-700">{{ item.quantity|intcomma }}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-semibold text-slate-700">{% if item.boxes %}{{ item.boxes|intcomma }}{% else %}-{% endif %}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-semibold text-slate-700">{% if item.volume_cbm %}{{ item.volume_cbm|floatformat:3 }}{% else %}-{% endif %}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm text-slate-700">{% if item.price %}{{ item.price|intcomma }}{% else %}-{% endif %}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm text-slate-700">{% if item.price_tq %}{{ item.price_tq|floatformat:2 }}{% else %}-{% endif %}</span>
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <span class="text-sm font-semibold text-slate-800">{{ item.total_price|intcomma }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="9" class="px-4 py-12 text-center">
+                                <p class="text-sm text-slate-500">Không có sản phẩm nào trong đơn hàng</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+                {% if line_items and summary %}
+                <tfoot class="bg-slate-50 border-t-2 border-slate-300">
+                    <tr>
+                        <td colspan="3" class="px-4 py-3 text-right font-semibold text-slate-700">TỔNG CỘNG:</td>
+                        <td class="px-4 py-3 text-right font-bold text-slate-800">{{ summary.total_quantity|intcomma }}</td>
+                        <td class="px-4 py-3 text-right font-bold text-slate-800">{{ summary.total_boxes|intcomma }}</td>
+                        <td class="px-4 py-3 text-right font-bold text-slate-800">{% if summary.total_volume %}{{ summary.total_volume|floatformat:3 }}{% else %}-{% endif %}</td>
+                        <td class="px-4 py-3 text-right"></td>
+                        <td class="px-4 py-3 text-right"></td>
+                        <td class="px-4 py-3 text-right font-bold text-slate-800">{{ summary.total_price|intcomma }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+    <!-- Nút quay lại -->
+    <div class="mt-4 flex justify-end gap-3">
+        <a href="{% url 'products:supplier_list' %}" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+            Quay lại danh sách NSX
+        </a>
+        {% if supplier %}
+        <a href="{% url 'products:create_purchase_order_from_supplier' supplier.id %}" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium">
+            Chỉnh sửa đơn hàng
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

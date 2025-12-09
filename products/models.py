@@ -85,6 +85,39 @@ class VariantSalesForecast(models.Model):
         help_text="Thứ tự xếp hạng theo doanh thu (1 = cao nhất, chỉ có khi period_days=30)"
     )
     
+    # Priority Score fields (chỉ tính cho period_days=30)
+    priority_score = models.FloatField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Điểm ưu tiên (0-10) = 45% Velocity Stability + 30% ASP + 25% Revenue Contribution"
+    )
+    velocity_stability_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Velocity Stability Score (0-12) = VelocityScore + Stability Bonus"
+    )
+    velocity_score = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Velocity Score (2, 4, 6, 8, 10) dựa trên phân vị tốc độ bán"
+    )
+    stability_bonus = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Stability Bonus (0, 1, 2) dựa trên so sánh cùng kỳ 7 ngày"
+    )
+    asp_score = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ASP Score (2, 4, 6, 8, 10) dựa trên phân vị giá trị SKU"
+    )
+    revenue_contribution_score = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Revenue Contribution Score (4, 7, 10) từ nhóm ABC"
+    )
+    
     # Metadata
     calculated_at = models.DateTimeField(
         null=True,
@@ -112,6 +145,7 @@ class VariantSalesForecast(models.Model):
             models.Index(fields=['-updated_at']),  # Descending để query mới nhất trước
             models.Index(fields=['abc_category']),
             models.Index(fields=['abc_rank']),
+            models.Index(fields=['priority_score']),
         ]
     
     def __str__(self):

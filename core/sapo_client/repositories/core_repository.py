@@ -715,3 +715,28 @@ class SapoCoreRepository(BaseRepository):
         return self.post("order_suppliers.json", json={
             "order_supplier": order_supplier_data
         })
+    
+    def update_order_supplier_raw(self, order_supplier_id: int, order_supplier_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Cập nhật order_supplier (Purchase Order) trong Sapo.
+        
+        Args:
+            order_supplier_id: Sapo order_supplier ID
+            order_supplier_data: Dict chứa thông tin cần update:
+                - line_items: List[Dict] - Danh sách line items mới
+                - location_id: int (optional)
+                - tags: List[str] (optional)
+                - etc.
+                
+        Returns:
+            {
+                "order_supplier": {...}
+            }
+            
+        Example:
+            PUT /admin/order_suppliers/{id}.json
+        """
+        logger.info(f"[SapoCoreRepo] update_order_supplier: {order_supplier_id}")
+        return self.put(f"order_suppliers/{order_supplier_id}.json", json={
+            "order_supplier": order_supplier_data
+        })

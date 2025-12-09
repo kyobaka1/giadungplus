@@ -92,6 +92,14 @@ class SalesForecastDTO(BaseDTO):
     cumulative_percentage: Optional[float] = None  # % tích lũy cộng dồn
     abc_category: Optional[str] = None  # A, B, hoặc C
     abc_rank: Optional[int] = None  # Thứ hạng (1 = cao nhất)
+    
+    # Priority Score fields (chỉ có khi period_days=30)
+    priority_score: Optional[float] = None  # Điểm ưu tiên (0-10)
+    velocity_stability_score: Optional[float] = None  # Velocity Stability Score (0-12)
+    velocity_score: Optional[int] = None  # Velocity Score (2, 4, 6, 8, 10)
+    stability_bonus: Optional[int] = None  # Stability Bonus (0, 1, 2)
+    asp_score: Optional[int] = None  # ASP Score (2, 4, 6, 8, 10)
+    revenue_contribution_score: Optional[int] = None  # Revenue Contribution Score (4, 7, 10)
 
 
 class VariantMetadataDTO(BaseDTO):
