@@ -1,7 +1,7 @@
 // background.js - Service Worker for GDP Media Tracker Extension
 
 // Tracked domains/keywords
-const TRACKED_KEYWORDS = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest'];
+const TRACKED_KEYWORDS = ['tmall', 'douyin', '1688', 'taobao', 'xiaohongshu', 'pinterest', 'shopee'];
 
 // Check if URL should be tracked
 function shouldTrackUrl(url) {
