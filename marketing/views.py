@@ -404,6 +404,16 @@ def tools_get_videos_api(request):
                 result[key] = value
             return result
         
+        # Try to find thumbnail if not provided
+        thumbnail_url = data.get('thumbnail_url', '')
+        if not thumbnail_url and file_ext in ['mp4', 'mov']:
+            # Try to find thumbnail URL pattern
+            from marketing.services.video_thumbnail import find_thumbnail_url_pattern, check_url_exists
+            potential_thumbnail = find_thumbnail_url_pattern(data['media_url'])
+            if potential_thumbnail and check_url_exists(potential_thumbnail):
+                thumbnail_url = potential_thumbnail
+                print(f"[GDP Media Tracker API] Found thumbnail URL: {thumbnail_url[:200]}")
+        
         # Create new MediaTrack
         media_track = MediaTrack.objects.create(
             user_name=data['user_name'],
@@ -414,7 +424,7 @@ def tools_get_videos_api(request):
             mime_type=data.get('mime_type', '')[:100],
             source_type=data.get('source_type', 'video_tag'),
             tab_id=data.get('tab_id'),
-            thumbnail_url=data.get('thumbnail_url', '')
+            thumbnail_url=thumbnail_url
         )
         
         print(f"[GDP Media Tracker API] Successfully saved: ID={media_track.id}, URL={media_track.media_url[:100]}")
