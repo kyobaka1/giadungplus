@@ -1,0 +1,432 @@
+{% load static %}
+{% load humanize %}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Language" content="en">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="Marketing Tools - Gia Dụng Plus">
+    <link rel="icon" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.png"/>
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <title>{% block title %}Marketing – Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind -->
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Averta -->
+    <style>
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+    }
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+    }
+
+    * {
+        font-family: 'Averta', sans-serif;
+    }
+    </style>
+
+    <!-- Web Push config (Marketing) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+    <script>
+        window.GP_PUSH_CONFIG = {
+            apiRegisterUrl: '/api/push/register/',
+            swUrl: '{% static "js/service-worker.js" %}',
+            vapidPublicKey: 'BMAinpH2KhQxtclH3XM3UJ_9e-NvlKTzY-WIszcXxCkll7ISLR3BEdWKmgBgkXvjjILJz5Uh375hHwRj3IvaIHU',
+            username: '{{ request.user.username|escapejs }}',
+        };
+    </script>
+    <script src="{% static 'js/push-setup.js' %}?v=20251204-1"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: "#db0d29",
+                        brandlight: "#fff1eb"
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @media (min-width: 1920px) {
+            html {
+                font-size: 110%;
+            }
+            .right-panel-placeholder {
+                display: block;
+            }
+        }
+        .right-panel-placeholder {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-gray-900 antialiased text-[14px] sm:text-[15px] md:text-[16px] lg:text-[17px]">
+
+<div class="min-h-screen flex flex-col">
+
+    <!-- █▀ TOP BAR ───────────────────────────── -->
+    <header class="h-16 md:h-14 bg-white border-b shadow-sm flex items-center justify-between px-4 md:px-6">
+        <a href="/marketing/" class="flex items-center gap-2 hover:opacity-90 transition">
+            <div class="w-8 h-8 rounded-md overflow-hidden flex justify-center items-center">
+                <img src="/static/favicon.png" alt="Logo" class="w-full h-full object-contain">
+            </div>
+
+            <div>
+                <div class="text-sm md:text-sm font-semibold leading-tight">Gia Dụng Plus – Marketing</div>
+                <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Marketing Tools & Analytics</div>
+            </div>
+        </a>
+
+        <div class="flex items-center gap-4">
+            <!-- Mobile Menu Button -->
+            <button id="mobileMenuToggle" class="md:hidden p-2 rounded-full hover:bg-slate-100 text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                    stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+
+            <!-- Notification Bell -->
+            {% include 'core/notification_bell.html' %}
+
+            <!-- User info -->
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-600">
+                    {% if request.user.is_authenticated %}
+                        {{ request.user.get_full_name|first|upper }}
+                    {% else %}
+                        U
+                    {% endif %}
+                </div>
+                <div class="hidden sm:block text-xs leading-tight text-left">
+                    <div class="font-medium text-sm">
+                        {% if request.user.is_authenticated %}
+                            {{ request.user.get_full_name }}
+                        {% else %}
+                            User
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke-width="2"
+                         stroke="currentColor"
+                         class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30 hidden"></div>
+
+    <!-- █▀ MAIN LAYOUT ───────────────────────── -->
+    <div class="flex flex-1 overflow-hidden">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar"
+            class="bg-white border-r overflow-y-auto flex-shrink-0
+                   fixed md:relative top-16 md:top-0 left-0 h-[calc(100vh-4rem)] md:h-auto
+                   w-1/2 md:w-16 lg:w-32 xl:w-48
+                   -translate-x-full md:translate-x-0
+                   transition-transform duration-300 ease-in-out z-40
+                   text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]">
+            <nav class="py-4 space-y-4">
+
+                <!-- GROUP: Shopee Shop Manager -->
+                <div class="px-3 md:px-4 mb-2 md:mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
+                        data-collapse-id="menu-shopee"
+                    >
+                        <span>SHOP MANAGER</span>
+                        <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-shopee" class="space-y-1">
+                        <li>
+                            <a href="{% url 'marketing:shopee_overview' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Overview</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:shopee_product' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Product</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:shopee_roas_manager' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">ROAS Manager</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:shopee_flash_sale' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Flash Sale</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- GROUP: Tiktok Booking -->
+                <div class="px-3 md:px-4 mb-2 md:mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
+                        data-collapse-id="menu-tiktok"
+                    >
+                        <span>BOOKING CENTER</span>
+                        <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-tiktok" class="space-y-1">
+                        <li>
+                            <a href="{% url 'marketing:tiktok_overview' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Overview</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:tiktok_koc_kol_list' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">KOC/KOL List</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:tiktok_booking_contact' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Booking Contact</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:tiktok_booking_manager' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Booking Manager</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:tiktok_tracking_video_booking' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Tracking Video</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- GROUP: Tools -->
+                <div class="px-3 md:px-4 mb-2 md:mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
+                        data-collapse-id="menu-tools"
+                    >
+                        <span>TOOLS</span>
+                        <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-tools" class="space-y-1">
+                        <li>
+                            <a href="{% url 'marketing:tools_copy_images' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Copy Images</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{% url 'marketing:tools_get_videos' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Get Videos</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+            </nav>
+        </aside>
+
+        <!-- █▀ MAIN CONTENT -->
+        <main class="flex-1 overflow-y-auto w-full">
+            <div class="w-full px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
+
+                <!-- █▀ OVERVIEW BLOCK -->
+                {% block overview %}
+                <section>
+                    <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+                        Marketing Tools
+                    </h1>
+                    <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+                        Quản lý marketing, quảng cáo và booking.
+                    </p>
+                </section>
+                {% endblock %}
+
+                <!-- █▀ CONTENT BLOCK -->
+                {% block content %}
+                <section>
+                    <div class="p-6 bg-white border rounded-xl shadow-sm text-sm text-gray-500">
+                        Đây là nội dung của trang con.
+                        Sử dụng:
+                        <pre class="text-[11px] bg-slate-100 p-3 rounded-md mt-2">
+{% verbatim %}{% extends "marketing/base_marketing.html" %}
+{% block overview %}...{% endblock %}
+{% block content %}...{% endblock %}{% endverbatim %}
+                        </pre>
+                    </div>
+                </section>
+                {% endblock %}
+
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- JS toggle sidebar group -->
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const toggles = document.querySelectorAll('.collapse-toggle');
+
+    toggles.forEach(function (btn) {
+        const id = btn.getAttribute('data-collapse-id');
+        const body = document.getElementById(id);
+        const arrow = btn.querySelector('.collapse-arrow');
+
+        if (!body) return;
+
+        btn.addEventListener('click', function () {
+            const isHidden = body.classList.toggle('hidden');
+            if (arrow) {
+                if (isHidden) {
+                    arrow.classList.add('-rotate-90');
+                } else {
+                    arrow.classList.remove('-rotate-90');
+                }
+            }
+        });
+    });
+
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    const sidebar = document.getElementById('sidebar');
+    const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+
+    if (mobileMenuToggle && sidebar && mobileMenuOverlay) {
+        mobileMenuToggle.addEventListener('click', function (e) {
+            e.stopPropagation();
+            sidebar.classList.toggle('-translate-x-full');
+            mobileMenuOverlay.classList.toggle('hidden');
+        });
+
+        mobileMenuOverlay.addEventListener('click', function () {
+            sidebar.classList.add('-translate-x-full');
+            mobileMenuOverlay.classList.add('hidden');
+        });
+
+        sidebar.addEventListener('click', function (e) {
+            if (e.target.closest('a')) {
+                setTimeout(() => {
+                    sidebar.classList.add('-translate-x-full');
+                    mobileMenuOverlay.classList.add('hidden');
+                }, 100);
+            }
+        });
+
+        let isMenuOpen = false;
+        mobileMenuToggle.addEventListener('click', function () {
+            isMenuOpen = !isMenuOpen;
+            if (isMenuOpen) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        });
+
+        mobileMenuOverlay.addEventListener('click', function () {
+            isMenuOpen = false;
+            document.body.style.overflow = '';
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const currentURL = window.location.pathname;
+    const links = document.querySelectorAll('.sidebar-link');
+
+    links.forEach(link => {
+        if (link.getAttribute('href') === currentURL) {
+            link.classList.add(
+                "bg-brandlight",
+                "text-brand",
+                "font-semibold"
+            );
+
+            let parent = link.closest("ul");
+            if (parent) {
+                parent.classList.remove('hidden');
+                const button = parent.previousElementSibling;
+                if (button && button.querySelector('.collapse-arrow')) {
+                    button.querySelector('.collapse-arrow').classList.remove('-rotate-90');
+                }
+            }
+        }
+    });
+});
+</script>
+
+<!-- Notification Bell Script (Marketing) -->
+<script src="{% static 'js/notifications.js' %}"></script>
+
+</body>
+</html>
+

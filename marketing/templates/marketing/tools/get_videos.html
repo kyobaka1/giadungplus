@@ -1,0 +1,139 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Công cụ lấy video từ Chrome Extension</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white border rounded-xl shadow-sm p-6">
+    <!-- Filter và thống kê -->
+    <div class="mb-6 flex flex-wrap items-center gap-4">
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Lọc theo username:</label>
+            <select id="usernameFilter" class="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">Tất cả users</option>
+                {% for username in usernames %}
+                <option value="{{ username }}" {% if selected_username == username %}selected{% endif %}>{{ username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="text-sm text-gray-600">
+            <span class="font-semibold">{{ total_count }}</span> video/audio đã được track
+        </div>
+    </div>
+
+    <!-- Danh sách video -->
+    {% if media_tracks %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {% for track in media_tracks %}
+        <div class="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+            <!-- Thumbnail hoặc video preview -->
+            <div class="relative bg-gray-100 aspect-video flex items-center justify-center">
+                {% if track.thumbnail_url %}
+                <img src="{{ track.thumbnail_url }}" alt="Thumbnail" class="w-full h-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                {% endif %}
+                <div class="absolute inset-0 flex items-center justify-center {% if track.thumbnail_url %}hidden{% endif %}" {% if track.thumbnail_url %}id="fallback-{{ track.id }}"{% endif %}>
+                    {% if track.file_extension == 'mp4' or track.file_extension == 'mov' %}
+                    <svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+                    </svg>
+                    {% else %}
+                    <svg class="w-16 h-16 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.383 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.383l4-3.617a1 1 0 011.617.793zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+                    </svg>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Thông tin -->
+            <div class="p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold px-2 py-1 bg-blue-100 text-blue-800 rounded uppercase">
+                        {{ track.file_extension }}
+                    </span>
+                    <span class="text-xs text-gray-500">{{ track.created_at|naturaltime }}</span>
+                </div>
+                
+                <div class="text-sm font-medium text-gray-900 mb-1 truncate" title="{{ track.page_title|default:'Không có tiêu đề' }}">
+                    {{ track.page_title|default:"Không có tiêu đề"|truncatewords:8 }}
+                </div>
+                
+                <div class="text-xs text-gray-600 mb-2">
+                    <span class="font-medium">{{ track.user_name }}</span>
+                    <span class="mx-1">•</span>
+                    <span class="text-gray-500">{{ track.source_type }}</span>
+                </div>
+                
+                <!-- Actions -->
+                <div class="flex gap-2 mt-3">
+                    <a href="{{ track.media_url }}" target="_blank" 
+                       class="flex-1 text-center text-xs px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                        Mở video
+                    </a>
+                    <button onclick="copyToClipboard('{{ track.media_url }}')" 
+                            class="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors">
+                        Copy URL
+                    </button>
+                </div>
+                
+                <!-- Page URL (collapsed) -->
+                <details class="mt-2">
+                    <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700">Xem trang nguồn</summary>
+                    <a href="{{ track.page_url }}" target="_blank" class="text-xs text-blue-600 hover:underline break-all block mt-1">
+                        {{ track.page_url|truncatechars:60 }}
+                    </a>
+                </details>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">Chưa có video nào</h3>
+        <p class="mt-1 text-sm text-gray-500">Cài đặt Chrome Extension và bắt đầu lướt web để track video.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Filter by username
+document.getElementById('usernameFilter').addEventListener('change', function() {
+    const username = this.value;
+    const url = new URL(window.location.href);
+    if (username) {
+        url.searchParams.set('username', username);
+    } else {
+        url.searchParams.delete('username');
+    }
+    window.location.href = url.toString();
+});
+
+// Copy to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        alert('Đã copy URL vào clipboard!');
+    }, function(err) {
+        console.error('Failed to copy:', err);
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('Đã copy URL vào clipboard!');
+    });
+}
+</script>
+{% endblock %}
+

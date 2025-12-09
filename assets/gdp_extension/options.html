@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDP Media Tracker - Settings</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            min-width: 500px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="url"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        input[type="text"]:focus,
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #4a90e2;
+            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+        }
+        
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .btn {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #357abd;
+        }
+        
+        .btn:active {
+            background: #2a5f8f;
+        }
+        
+        .status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .tracked-sites {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 4px;
+            margin-top: 24px;
+        }
+        
+        .tracked-sites h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        
+        .tracked-sites ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .tracked-sites li {
+            background: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #555;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GDP Media Tracker Settings</h1>
+        <p class="subtitle">Cấu hình extension để track video/audio từ các trang web</p>
+        
+        <form id="settingsForm">
+            <div class="form-group">
+                <label for="userName">Username *</label>
+                <input type="text" id="userName" name="userName" placeholder="Nhập username của bạn" required>
+                <div class="help-text">Username này phải trùng với username được lưu trên admin Django</div>
+            </div>
+            
+            <div class="form-group">
+                <label for="apiUrl">API URL</label>
+                <input type="url" id="apiUrl" name="apiUrl" placeholder="http://127.0.0.1:8000/marketing/tools/get-videos/api/">
+                <div class="help-text">Địa chỉ API endpoint để gửi dữ liệu (mặc định: http://127.0.0.1:8000/marketing/tools/get-videos/api/)</div>
+            </div>
+            
+            <button type="submit" class="btn">Lưu cài đặt</button>
+        </form>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="tracked-sites">
+            <h3>Trang web được track:</h3>
+            <ul>
+                <li>tmall</li>
+                <li>douyin</li>
+                <li>1688</li>
+                <li>taobao</li>
+                <li>xiaohongshu</li>
+                <li>pinterest</li>
+            </ul>
+            <p style="margin-top: 12px; font-size: 12px; color: #666;">
+                Extension chỉ track các trang web có chứa các từ khóa trên trong URL.
+            </p>
+        </div>
+    </div>
+    
+    <script src="options.js"></script>
+</body>
+</html>
+
