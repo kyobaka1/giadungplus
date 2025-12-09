@@ -485,8 +485,8 @@ class SalesForecastService:
                     local_accumulator[variant_id] += int(real_item.quantity)
                     items_count += 1
                 
-                # Tính revenue từ order_line_items (chỉ cho period_days=30 và is_current_period)
-                if days == 30 and is_current_period:
+                # Tính revenue từ order_line_items (cho period_days=30 hoặc 10 và is_current_period)
+                if (days == 30 or days == 10) and is_current_period:
                     for line_item in order.order_line_items:
                         variant_id = line_item.variant_id
                         if not variant_id or variant_id not in real_variant_ids:
@@ -511,7 +511,7 @@ class SalesForecastService:
             "orders_count": orders_count,
             "items_count": items_count,
             "accumulator": local_accumulator,
-            "revenue_accumulator": local_revenue_accumulator if days == 30 else {},
+            "revenue_accumulator": local_revenue_accumulator if (days == 30 or days == 10) else {},
             "has_more": len(orders_data) >= limit
         }
     
@@ -573,8 +573,16 @@ class SalesForecastService:
                         else:
                             forecast_map[variant_id].total_sold_previous_period += quantity
                 
-                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
-                if days == 30 and is_current_period and "revenue_accumulator" in first_page_result:
+                # Update revenue accumulator (cho days=30 hoặc 10 và is_current_period)
+                if (days == 30 or days == 10) and is_current_period and "revenue_accumulator" in first_page_result:
+                    for variant_id, revenue in first_page_result["revenue_accumulator"].items():
+                        if variant_id in forecast_map:
+                            if forecast_map[variant_id].revenue is None:
+                                forecast_map[variant_id].revenue = 0.0
+                            forecast_map[variant_id].revenue += float(revenue)
+                
+                # Update revenue accumulator (cho days=30 hoặc 10 và is_current_period)
+                if (days == 30 or days == 10) and is_current_period and "revenue_accumulator" in first_page_result:
                     for variant_id, revenue in first_page_result["revenue_accumulator"].items():
                         if variant_id in forecast_map:
                             if forecast_map[variant_id].revenue is None:
@@ -598,8 +606,8 @@ class SalesForecastService:
                         else:
                             forecast_map[variant_id].total_sold_previous_period += quantity
                 
-                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
-                if days == 30 and is_current_period and "revenue_accumulator" in first_page_result:
+                # Update revenue accumulator (cho days=30 hoặc 10 và is_current_period)
+                if (days == 30 or days == 10) and is_current_period and "revenue_accumulator" in first_page_result:
                     for variant_id, revenue in first_page_result["revenue_accumulator"].items():
                         if variant_id in forecast_map:
                             if forecast_map[variant_id].revenue is None:
@@ -646,8 +654,8 @@ class SalesForecastService:
                                         else:
                                             forecast_map[variant_id].total_sold_previous_period += quantity
                                 
-                                # Update revenue accumulator (chỉ cho days=30 và is_current_period)
-                                if days == 30 and is_current_period and "revenue_accumulator" in result:
+                                # Update revenue accumulator (cho days=30 hoặc 10 và is_current_period)
+                                if (days == 30 or days == 10) and is_current_period and "revenue_accumulator" in result:
                                     for variant_id, revenue in result["revenue_accumulator"].items():
                                         if variant_id in forecast_map:
                                             if forecast_map[variant_id].revenue is None:
@@ -716,9 +724,12 @@ class SalesForecastService:
                 forecast_dto.growth_percentage = forecast_db.growth_percentage
                 if forecast_db.calculated_at:
                     forecast_dto.calculated_at = forecast_db.calculated_at.isoformat()
+                # Revenue field (cho period_days=30 hoặc 10)
+                if days == 30 or days == 10:
+                    forecast_dto.revenue = float(forecast_db.revenue) if forecast_db.revenue else None
+                
                 # ABC fields (chỉ cho period_days=30)
                 if days == 30:
-                    forecast_dto.revenue = float(forecast_db.revenue) if forecast_db.revenue else None
                     forecast_dto.revenue_percentage = forecast_db.revenue_percentage
                     forecast_dto.cumulative_percentage = forecast_db.cumulative_percentage
                     forecast_dto.abc_category = forecast_db.abc_category
@@ -786,12 +797,14 @@ class SalesForecastService:
                         forecast_db.sales_rate = forecast_dto.sales_rate
                         forecast_db.growth_percentage = forecast_dto.growth_percentage
                         forecast_db.calculated_at = now
-                        # ABC fields (chỉ cho period_days=30)
-                        if days == 30:
+                        # Revenue fields (cho period_days=30 hoặc 10)
+                        if days == 30 or days == 10:
                             if forecast_dto.revenue is not None:
                                 forecast_db.revenue = Decimal(str(forecast_dto.revenue))
                             else:
                                 forecast_db.revenue = None
+                        # ABC fields (chỉ cho period_days=30)
+                        if days == 30:
                             forecast_db.revenue_percentage = forecast_dto.revenue_percentage
                             forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
                             forecast_db.abc_category = forecast_dto.abc_category
@@ -808,12 +821,15 @@ class SalesForecastService:
                             growth_percentage=forecast_dto.growth_percentage,
                             calculated_at=now
                         )
-                        # ABC fields (chỉ cho period_days=30)
-                        if days == 30:
+                        # Revenue field (cho period_days=30 hoặc 10)
+                        if days == 30 or days == 10:
                             if forecast_dto.revenue is not None:
                                 forecast_db.revenue = Decimal(str(forecast_dto.revenue))
                             else:
                                 forecast_db.revenue = None
+                        
+                        # ABC fields (chỉ cho period_days=30)
+                        if days == 30:
                             forecast_db.revenue_percentage = forecast_dto.revenue_percentage
                             forecast_db.cumulative_percentage = forecast_dto.cumulative_percentage
                             forecast_db.abc_category = forecast_dto.abc_category
@@ -826,10 +842,14 @@ class SalesForecastService:
                     created_count += len(to_create)
                 
                 if to_update:
-                    # Fields cần update (thêm ABC fields nếu days=30)
+                    # Fields cần update
                     update_fields = ['total_sold', 'total_sold_previous_period', 'sales_rate', 'growth_percentage', 'calculated_at']
+                    # Revenue cho cả 30 và 10 ngày
+                    if days == 30 or days == 10:
+                        update_fields.append('revenue')
+                    # ABC fields chỉ cho 30 ngày
                     if days == 30:
-                        update_fields.extend(['revenue', 'revenue_percentage', 'cumulative_percentage', 'abc_category', 'abc_rank'])
+                        update_fields.extend(['revenue_percentage', 'cumulative_percentage', 'abc_category', 'abc_rank'])
                     VariantSalesForecast.objects.bulk_update(
                         to_update,
                         fields=update_fields

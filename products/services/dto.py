@@ -118,6 +118,9 @@ class VariantMetadataDTO(BaseDTO):
     # Sales forecast data
     sales_forecast: Optional[SalesForecastDTO] = None
     
+    # Plan tags (list of tag names, e.g., ["clear_stock", "stop_import"])
+    plan_tags: List[str] = Field(default_factory=list)
+    
     # Legacy fields (giữ để tương thích)
     import_info: Optional[ImportInfoDTO] = None
     packaging_info: Optional[PackagingInfoDTO] = None

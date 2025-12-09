@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import settings_views, gift_views
+from .views import settings_views, gift_views, variant_tags_views
 
 urlpatterns = [
     path('', settings_views.settings_dashboard, name='settings_dashboard'),
@@ -18,6 +18,13 @@ urlpatterns = [
     path('gifts/', gift_views.gift_list, name='gift_list'),
     path('gifts/sync/', gift_views.gift_sync, name='gift_sync'),
     path('gifts/<int:promotion_id>/', gift_views.gift_detail, name='gift_detail'),
+
+    # Variant Tags routes
+    path('variant-tags/', variant_tags_views.variant_tags_list, name='variant_tags_list'),
+    path('variant-tags/create/', variant_tags_views.variant_tag_create, name='variant_tag_create'),
+    path('variant-tags/<int:tag_id>/edit/', variant_tags_views.variant_tag_edit, name='variant_tag_edit'),
+    path('variant-tags/<int:tag_id>/delete/', variant_tags_views.variant_tag_delete, name='variant_tag_delete'),
+    path('variant-tags/api/list/', variant_tags_views.variant_tags_api_list, name='variant_tags_api_list'),
 
     # Test route
     path('test/', settings_views.test_view, name='settings_test'),

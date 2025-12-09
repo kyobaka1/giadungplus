@@ -1,0 +1,212 @@
+{% extends "settings/base_settings.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Settings{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Quản lý tags cho variants (plan_tags)</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+    <!-- Form thêm tag mới -->
+    <div class="mb-4 pb-4 border-b border-slate-200">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">Thêm tag mới</h2>
+        <form method="post" action="{% url 'variant_tag_create' %}" class="flex items-end gap-2">
+            {% csrf_token %}
+            <div class="flex-1">
+                <label class="block text-xs text-slate-600 mb-1">Tên tag (tiếng Việt)</label>
+                <input type="text" 
+                       name="tags_name" 
+                       required
+                       placeholder="Ví dụ: Đang đẩy mạnh, Xả kho gấp..."
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="w-32">
+                <label class="block text-xs text-slate-600 mb-1">Màu sắc</label>
+                <select name="color" 
+                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="blue">Xanh dương</option>
+                    <option value="green">Xanh lá</option>
+                    <option value="red">Đỏ</option>
+                    <option value="yellow">Vàng</option>
+                    <option value="orange">Cam</option>
+                    <option value="purple">Tím</option>
+                    <option value="gray">Xám</option>
+                    <option value="pink">Hồng</option>
+                </select>
+            </div>
+            <button type="submit" 
+                    class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition text-sm font-medium">
+                Thêm
+            </button>
+        </form>
+    </div>
+
+    <!-- Danh sách tags -->
+    <div>
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">Danh sách tags ({{ tags|length }})</h2>
+        
+        {% if tags %}
+        <div class="space-y-2">
+            {% for tag in tags %}
+            <div class="flex items-center justify-between p-3 bg-slate-50 rounded-md border border-slate-200 hover:bg-slate-100 transition">
+                <div class="flex-1 flex items-center gap-3">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ tag.get_color_classes }}">
+                        {{ tag.tags_name }}
+                    </span>
+                    <div class="text-xs text-slate-500">ID: {{ tag.id }} | Tạo: {{ tag.created_at|date:"d/m/Y H:i" }}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <!-- Edit button -->
+                    <button type="button" 
+                            class="tag-edit-btn px-3 py-1.5 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition text-xs font-medium"
+                            data-tag-id="{{ tag.id }}"
+                            data-tag-name="{{ tag.tags_name }}"
+                            data-tag-color="{{ tag.color }}">
+                        Sửa
+                    </button>
+                    <!-- Delete button -->
+                    <form method="post" 
+                          action="{% url 'variant_tag_delete' tag.id %}" 
+                          class="inline"
+                          onsubmit="return confirm('Bạn có chắc muốn xóa tag này?');">
+                        {% csrf_token %}
+                        <button type="submit" 
+                                class="px-3 py-1.5 bg-red-50 text-red-700 rounded-md hover:bg-red-100 transition text-xs font-medium">
+                            Xóa
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-8 text-sm text-slate-500">
+            Chưa có tag nào. Hãy thêm tag đầu tiên.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal Edit Tag -->
+<div id="tag-edit-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+            <h2 class="text-base font-semibold text-slate-800">Sửa tag</h2>
+            <button type="button" id="tag-edit-modal-close" class="text-slate-400 hover:text-slate-600 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <form id="tag-edit-form" method="post" class="p-4">
+            {% csrf_token %}
+            <input type="hidden" id="modal-tag-id" name="tag_id">
+            
+            <div class="mb-4">
+                <label class="block text-xs text-slate-600 mb-1">Tên tag (tiếng Việt)</label>
+                <input type="text" 
+                       id="modal-tag-name"
+                       name="tags_name" 
+                       required
+                       class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs text-slate-600 mb-1">Màu sắc</label>
+                <select id="modal-tag-color"
+                        name="color" 
+                        class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="blue">Xanh dương</option>
+                    <option value="green">Xanh lá</option>
+                    <option value="red">Đỏ</option>
+                    <option value="yellow">Vàng</option>
+                    <option value="orange">Cam</option>
+                    <option value="purple">Tím</option>
+                    <option value="gray">Xám</option>
+                    <option value="pink">Hồng</option>
+                </select>
+            </div>
+            
+            <div class="flex items-center justify-end gap-2">
+                <button type="button" 
+                        id="tag-edit-modal-cancel"
+                        class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 transition">
+                    Hủy
+                </button>
+                <button type="submit" 
+                        class="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition">
+                    Lưu
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const tagEditModal = document.getElementById('tag-edit-modal');
+    const tagEditModalClose = document.getElementById('tag-edit-modal-close');
+    const tagEditModalCancel = document.getElementById('tag-edit-modal-cancel');
+    const tagEditForm = document.getElementById('tag-edit-form');
+    let currentTagId = null;
+    
+    // Mở modal edit
+    document.querySelectorAll('.tag-edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentTagId = this.dataset.tagId;
+            document.getElementById('modal-tag-id').value = currentTagId;
+            document.getElementById('modal-tag-name').value = this.dataset.tagName;
+            document.getElementById('modal-tag-color').value = this.dataset.tagColor || 'blue';
+            tagEditModal.classList.remove('hidden');
+        });
+    });
+    
+    // Đóng modal
+    function closeModal() {
+        tagEditModal.classList.add('hidden');
+        currentTagId = null;
+    }
+    
+    if (tagEditModalClose) {
+        tagEditModalClose.addEventListener('click', closeModal);
+    }
+    if (tagEditModalCancel) {
+        tagEditModalCancel.addEventListener('click', closeModal);
+    }
+    
+    // Close khi click outside
+    tagEditModal.addEventListener('click', function(e) {
+        if (e.target === tagEditModal) {
+            closeModal();
+        }
+    });
+    
+    // Submit form
+    if (tagEditForm) {
+        tagEditForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (!currentTagId) return;
+            
+            const formData = new FormData(this);
+            const tagsName = formData.get('tags_name').trim();
+            
+            if (!tagsName) {
+                alert('Tên tag không được để trống.');
+                return;
+            }
+            
+            // Submit form với action URL mới
+            this.action = `/settings/variant-tags/${currentTagId}/edit/`;
+            this.submit();
+        });
+    }
+});
+</script>
+{% endblock %}
+

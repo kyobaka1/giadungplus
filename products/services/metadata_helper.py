@@ -177,7 +177,8 @@ def init_empty_metadata(product_id: int, variant_ids: list[int]) -> ProductMetad
                 converted_weight_g=None
             ),
             sku_model_xnk=None,
-            web_variant_id=[]
+            web_variant_id=[],
+            plan_tags=[]
         )
         variant_metadata_list.append(variant_meta)
     
