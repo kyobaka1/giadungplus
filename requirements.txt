@@ -31,6 +31,7 @@ selenium-wire
 
 # Image processing
 pillow
+opencv-python-headless  # For video thumbnail extraction (headless version, no GUI dependencies)
 
 # Barcode và QR code
 python-barcode
