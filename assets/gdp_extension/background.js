@@ -12,10 +12,10 @@ function shouldTrackUrl(url) {
 
 // Send media data to backend
 async function sendMediaToBackend(data) {
-  try {
-    const result = await chrome.storage.sync.get(['apiUrl', 'userName']);
-    let apiUrl = result.apiUrl || 'http://127.0.0.1:8000/marketing/tools/get-videos/api/';
-    const userName = result.userName || 'anonymous';
+      try {
+        const result = await chrome.storage.sync.get(['apiUrl', 'userName']);
+        let apiUrl = result.apiUrl || 'https://giadungplus.io.vn/marketing/tools/get-videos/api/';
+        const userName = result.userName || 'anonymous';
     
     // Normalize API URL - remove trailing slash, then add /api/ if needed
     apiUrl = apiUrl.trim();
