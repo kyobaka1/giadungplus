@@ -26,4 +26,6 @@ urlpatterns = [
     path("tools/copy-images/download/", views.tools_copy_images_download, name="tools_copy_images_download"),
     path("tools/get-videos/", views.tools_get_videos, name="tools_get_videos"),
     path("tools/get-videos/api/", views.tools_get_videos_api, name="tools_get_videos_api"),
+    path("tools/get-videos/delete/<int:track_id>/", views.tools_get_videos_delete, name="tools_get_videos_delete"),
+    path("tools/get-videos/clear-all/", views.tools_get_videos_clear_all, name="tools_get_videos_clear_all"),
 ]
