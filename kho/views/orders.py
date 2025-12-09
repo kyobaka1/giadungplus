@@ -25,7 +25,11 @@ from PyPDF2 import PdfReader, PdfWriter  # pip install PyPDF2
 from orders.services.sapo_service import SapoMarketplaceService
 from orders.services.dto import MarketplaceConfirmOrderDTO
 from core.system_settings import is_geleximco_address
-from orders.services.shopee_print_service import generate_label_pdf_for_channel_order, extract_customer_info
+from orders.services.shopee_print_service import (
+    generate_label_pdf_for_channel_order, 
+    extract_customer_info,
+    set_debug_mode,
+)
 from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_GET
 import json
@@ -1734,12 +1738,17 @@ def _process_single_order(
     original_shopee_debug = shopee_print_service.DEBUG if hasattr(shopee_print_service, 'DEBUG') else True
     original_sapo_debug = sapo_service.DEBUG_PRINT if hasattr(sapo_service, 'DEBUG_PRINT') else True
     
-    # Tắt log tạm thời
+    # Tắt log tạm thời (chỉ nếu không phải debug mode)
     def disable_logs():
         if hasattr(promotion_service, 'debug_print'):
             promotion_service.debug_print = lambda *args, **kwargs: None
         if hasattr(shopee_print_service, 'DEBUG'):
-            shopee_print_service.DEBUG = False
+            # Chỉ tắt debug nếu không phải debug mode
+            if not debug_mode:
+                shopee_print_service.DEBUG = False
+            else:
+                # Nếu debug mode, đảm bảo DEBUG = True
+                shopee_print_service.DEBUG = True
         if hasattr(sapo_service, 'DEBUG_PRINT'):
             sapo_service.DEBUG_PRINT = False
     
