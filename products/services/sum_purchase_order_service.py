@@ -188,8 +188,8 @@ class SumPurchaseOrderService:
         spo = SumPurchaseOrder.objects.get(id=spo_id)
         
         if tag:
-            # Lấy PO có tag từ Sapo
-            response = self.core_api.list_order_suppliers_raw(tags=tag, limit=250)
+            # Lấy PO có tag từ Sapo - chỉ lấy status pending
+            response = self.core_api.list_order_suppliers_raw(tags=tag, statuses="pending", limit=250)
             order_suppliers = response.get('order_suppliers', [])
             po_ids = [os.get('id') for os in order_suppliers if os.get('id')]
         
