@@ -1,0 +1,4 @@
+booking_code,deliverable_title,channel,platform_video_id,url,title,post_date,thumbnail_url,status
+BOOK001,Video 1 - Giới thiệu sản phẩm,tiktok,tiktok_video_001,https://tiktok.com/@creator_a/video/001,Nồi cơm điện cao cấp - Review chi tiết,2024-01-25 18:00:00,https://example.com/thumb1.jpg,posted
+BOOK001,Video 2 - Hướng dẫn sử dụng,tiktok,tiktok_video_002,https://tiktok.com/@creator_a/video/002,Hướng dẫn sử dụng nồi cơm điện,2024-02-01 18:00:00,https://example.com/thumb2.jpg,posted
+

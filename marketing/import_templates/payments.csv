@@ -1,0 +1,5 @@
+booking_code,campaign_code,creator_key,amount,currency,exchange_rate,amount_vnd,payment_date,payment_method,status,invoice_number,note,created_by_username
+BOOK001,CAMP001,creator_a,5000000,VND,1.0,5000000,2024-01-20,bank_transfer,paid,INV001,Thanh toán đợt 1,admin
+BOOK001,CAMP001,creator_a,10000000,VND,1.0,10000000,2024-02-15,bank_transfer,planned,INV002,Thanh toán đợt 2,admin
+BOOK002,CAMP001,creator_b,8000000,VND,1.0,8000000,2024-02-05,bank_transfer,planned,INV003,Thanh toán khi hoàn thành,admin
+

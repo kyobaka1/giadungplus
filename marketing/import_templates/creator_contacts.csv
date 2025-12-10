@@ -1,0 +1,5 @@
+creator_key,contact_type,name,phone,zalo,email,wechat,is_primary,note
+creator_a,owner,Nguyễn Văn A,0900000001,zalo_1,creator_a@example.com,,True,Liên hệ chính
+creator_b,owner,Trần Thị B,0900000002,zalo_2,creator_b@example.com,,True,Liên hệ chính
+creator_c,owner,Lê Văn C,0900000003,zalo_3,creator_c@example.com,,True,Liên hệ chính
+

@@ -1,0 +1,5 @@
+platform,code_type,code_value,order_code,order_id_external,order_date,revenue,currency,source_platform,brand_code,product_code,quantity
+tiktok_shop,voucher,GIADUNG10,ORD001,ext_001,2024-01-26 14:30:00,500000,VND,tiktok_shop,BRAND1,P001,1
+tiktok_shop,referral_code,CREATOR_A_001,ORD002,ext_002,2024-01-27 10:15:00,800000,VND,tiktok_shop,BRAND1,P001,2
+shopee,voucher,BRAND2_20,ORD003,ext_003,2024-02-03 16:45:00,600000,VND,shopee,BRAND2,P004,1
+

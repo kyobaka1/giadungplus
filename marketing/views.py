@@ -541,7 +541,7 @@ def tools_get_videos_api(request):
 
 # ==================== DASHBOARD ====================
 
-@marketing_permission_required("MarketingManager", "MarketingStaff")
+@marketing_permission_required("MarketingManager", "MarketingStaff", "MarketingIntern")
 def dashboard(request):
     """Marketing Dashboard - Trang chủ"""
     context = {

@@ -4,86 +4,166 @@
 
 {% block overview %}
 <section>
-    <h1 class="text-lg font-semibold text-slate-800">
-        Cài đặt hệ thống
+    <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+        Tổng quan Settings
     </h1>
-    <p class="text-xs text-gray-500 mt-1">
-        Quản lý cấu hình Sapo và Shopee
+    <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+        Quản lý và cấu hình hệ thống
     </p>
 </section>
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <!-- Card Sapo -->
-    <a href="{% url 'sapo_config' %}" class="block p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition">
-        <div class="flex items-center gap-4">
-            <div class="p-3 bg-blue-100 text-blue-600 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-semibold text-gray-800">Cấu hình Sapo</h3>
-                <p class="text-sm text-gray-500">Quản lý tài khoản, URL và selectors</p>
-            </div>
+<div class="space-y-8 md:space-y-6">
+    
+    <!-- SYSTEM CONFIG Section -->
+    <section>
+        <div class="mb-4 md:mb-3">
+            <h2 class="text-base md:text-sm font-semibold text-gray-700 uppercase tracking-wide">SYSTEM CONFIG</h2>
+            <p class="text-xs md:text-[11px] text-gray-500 mt-1">Cấu hình hệ thống và tích hợp</p>
         </div>
-    </a>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-3">
+            <!-- Card Sapo Config -->
+            <a href="{% url 'sapo_config' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Sapo Config</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Quản lý tài khoản, URL và selectors</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
 
-    <!-- Card Shopee -->
-    <a href="{% url 'shopee_settings' %}"
-        class="block p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition">
-        <div class="flex items-center gap-4">
-            <div class="p-3 bg-orange-100 text-orange-600 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-semibold text-gray-800">Shopee Cookies</h3>
-                <p class="text-sm text-gray-500">Quản lý cookie cho các shop Shopee</p>
-            </div>
-        </div>
-    </a>
+            <!-- Card Shopee Cookies -->
+            <a href="{% url 'shopee_settings' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-orange-100 text-orange-600 rounded-lg group-hover:bg-orange-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Shopee Cookies</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Quản lý cookie cho các shop Shopee</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
 
-    <!-- Card GIFT -->
-    <a href="{% url 'gift_list' %}" class="block p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition">
-        <div class="flex items-center gap-4">
-            <div class="p-3 bg-green-100 text-green-600 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-semibold text-gray-800">GIFT (Quà tặng)</h3>
-                <p class="text-sm text-gray-500">Quản lý chương trình khuyến mãi</p>
-            </div>
-        </div>
-    </a>
+            <!-- Card Push Notify -->
+            <a href="{% url 'push_notification' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-indigo-100 text-indigo-600 rounded-lg group-hover:bg-indigo-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Push Notify</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Cấu hình và test hệ thống thông báo</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
 
-    <!-- Card Init Data -->
-    <a href="{% url 'init_data' %}" class="block p-6 bg-white border rounded-xl shadow-sm hover:shadow-md transition">
-        <div class="flex items-center gap-4">
-            <div class="p-3 bg-purple-100 text-purple-600 rounded-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-            </div>
-            <div>
-                <h3 class="font-semibold text-gray-800">Init Data</h3>
-                <p class="text-sm text-gray-500">Khởi tạo dữ liệu từ Sapo MP, Shopee</p>
-            </div>
+            <!-- Card Init Data -->
+            <a href="{% url 'init_data' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-purple-100 text-purple-600 rounded-lg group-hover:bg-purple-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Init Data</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Khởi tạo dữ liệu từ Sapo MP, Shopee</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
         </div>
-    </a>
+    </section>
+
+    <!-- PRODUCTS CONFIG Section -->
+    <section>
+        <div class="mb-4 md:mb-3">
+            <h2 class="text-base md:text-sm font-semibold text-gray-700 uppercase tracking-wide">PRODUCTS CONFIG</h2>
+            <p class="text-xs md:text-[11px] text-gray-500 mt-1">Cấu hình sản phẩm và biến thể</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-3">
+            <!-- Card Variants Tag -->
+            <a href="{% url 'variant_tags_list' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-teal-100 text-teal-600 rounded-lg group-hover:bg-teal-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Variants Tag</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Quản lý tags cho biến thể sản phẩm</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <!-- MARKETING CONFIG Section -->
+    <section>
+        <div class="mb-4 md:mb-3">
+            <h2 class="text-base md:text-sm font-semibold text-gray-700 uppercase tracking-wide">MARKETING CONFIG</h2>
+            <p class="text-xs md:text-[11px] text-gray-500 mt-1">Cấu hình marketing và khuyến mãi</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-3">
+            <!-- Card Gifts -->
+            <a href="{% url 'gift_list' %}" class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm hover:shadow-md hover:border-brand transition group">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-green-100 text-green-600 rounded-lg group-hover:bg-green-200 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800 group-hover:text-brand transition">Gifts</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Quản lý chương trình khuyến mãi và quà tặng</p>
+                    </div>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 group-hover:text-brand transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </div>
+            </a>
+        </div>
+    </section>
+
 </div>
 {% endblock %}

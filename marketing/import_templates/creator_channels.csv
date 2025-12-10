@@ -1,0 +1,5 @@
+creator_key,platform,handle,profile_url,external_id,follower_count,avg_view_10,avg_engagement_rate
+creator_a,tiktok,creator_a_tiktok,https://tiktok.com/@creator_a,tiktok_123,500000,50000,5.50
+creator_b,tiktok,creator_b_tiktok,https://tiktok.com/@creator_b,tiktok_456,800000,80000,6.20
+creator_c,tiktok,creator_c_tiktok,https://tiktok.com/@creator_c,tiktok_789,300000,30000,4.80
+

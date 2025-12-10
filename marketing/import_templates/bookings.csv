@@ -1,0 +1,4 @@
+code,campaign_code,brand_code,creator_key,platform,handle,product_code,booking_type,brief_summary,start_date,end_date,total_fee_agreed,currency,deliverables_count_planned,status,internal_note
+BOOK001,CAMP001,BRAND1,creator_a,tiktok,creator_a_tiktok,P001,combo,Tạo 3 video về nồi cơm điện,2024-01-15,2024-02-15,15000000,VND,3,in_progress,Đang quay video
+BOOK002,CAMP001,BRAND1,creator_b,tiktok,creator_b_tiktok,P002,video_only,1 video về máy xay sinh tố,2024-01-20,2024-02-05,8000000,VND,1,confirmed,Đã xác nhận
+

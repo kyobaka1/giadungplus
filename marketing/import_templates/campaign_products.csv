@@ -1,0 +1,5 @@
+campaign_code,brand_code,product_code,priority,note
+CAMP001,BRAND1,P001,1,Sản phẩm chính
+CAMP001,BRAND1,P002,2,Sản phẩm phụ
+CAMP002,BRAND2,P004,1,Sản phẩm launch
+
