@@ -1,5 +1,6 @@
 {% load static %}
 {% load humanize %}
+{% load group_tags %}
 
 <!DOCTYPE html>
 <html lang="vi">
@@ -127,15 +128,22 @@
                 <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-full bg-blue-100 flex justify-center items-center text-xs font-semibold text-blue-600">
                         {% if request.user.is_authenticated %}
-                        {{ request.user.get_full_name|first|upper }}
+                        {{ request.user.first_name|default:request.user.username|first|upper }}
                         {% else %}
                         U
                         {% endif %}
                     </div>
                     <div class="hidden sm:block text-xs leading-tight text-left">
+                        {% if request.user.is_authenticated and request.user.last_name %}
+                            <div class="mb-0.5">
+                                <span class="px-1.5 py-0.5 text-[10px] rounded border font-medium {{ request.user.last_name|position_tag_class }}">
+                                    {{ request.user.last_name }}
+                                </span>
+                            </div>
+                        {% endif %}
                         <div class="font-medium text-sm">
                             {% if request.user.is_authenticated %}
-                            {{ request.user.get_full_name }}
+                            {{ request.user.first_name|default:request.user.username }}
                             {% else %}
                             Guest
                             {% endif %}
