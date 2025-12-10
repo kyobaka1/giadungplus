@@ -1,0 +1,447 @@
+{% extends "marketing/base_marketing.html" %}
+{% load humanize %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <div class="flex items-center justify-between">
+        <div>
+            <div class="flex items-center gap-3">
+                <a href="{% url 'marketing:campaign_list' %}" class="text-gray-500 hover:text-gray-700 text-sm">
+                    ← Quay lại
+                </a>
+                <h1 class="text-lg font-semibold text-slate-800">{{ campaign.code }} - {{ campaign.name }}</h1>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">{{ campaign.brand.name }} • {{ campaign.get_channel_display }} • {{ campaign.get_objective_display }}</p>
+        </div>
+        <div class="flex gap-2">
+            {% if can_edit %}
+            <a href="{% url 'marketing:campaign_edit' campaign.id %}" 
+               class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold">
+                Chỉnh sửa
+            </a>
+            {% endif %}
+            {% if can_edit %}
+            <a href="{% url 'marketing:campaign_duplicate' campaign.id %}" 
+               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                Duplicate
+            </a>
+            {% endif %}
+            <a href="{% url 'marketing:campaign_export' campaign.id %}" 
+               class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                Export
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<!-- Status Badge & Health Flags -->
+<div class="bg-white border rounded-xl shadow-sm p-4 mb-4">
+    <div class="flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
+            <div>
+                <span class="text-xs text-gray-600">Status:</span>
+                <span class="ml-2 px-2 py-0.5 text-[11px] rounded-full font-medium
+                    {% if campaign.status == 'draft' %}bg-slate-50 text-slate-700 border border-slate-200
+                    {% elif campaign.status == 'planned' %}bg-blue-50 text-blue-700 border border-blue-200
+                    {% elif campaign.status == 'running' %}bg-green-50 text-green-700 border border-green-200
+                    {% elif campaign.status == 'paused' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                    {% elif campaign.status == 'finished' %}bg-gray-100 text-gray-800 border border-gray-300
+                    {% elif campaign.status == 'canceled' %}bg-red-50 text-red-700 border border-red-200
+                    {% endif %}">
+                    {{ campaign.get_status_display }}
+                </span>
+            </div>
+            {% if health_flags %}
+            <div>
+                <span class="text-xs text-gray-600">Health:</span>
+                <div class="flex gap-1 mt-1 flex-wrap">
+                    {% for flag in health_flags %}
+                    <span class="px-2 py-0.5 text-[10px] rounded-full font-medium
+                        {% if flag.severity == 'error' %}bg-red-50 text-red-700 border border-red-200
+                        {% elif flag.severity == 'warning' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                        {% else %}bg-slate-50 text-slate-700 border border-slate-200{% endif %}"
+                        title="{{ flag.message }}">
+                        {{ flag.code }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% if can_finish_cancel and campaign.status not in 'finished,canceled' %}
+        <div class="flex gap-2">
+            <form method="post" action="{% url 'marketing:campaign_change_status' campaign.id %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="finished">
+                <button type="submit" onclick="return confirm('Xác nhận finish campaign?')" 
+                        class="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 font-medium">
+                    Finish
+                </button>
+            </form>
+            <form method="post" action="{% url 'marketing:campaign_change_status' campaign.id %}" class="inline">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="canceled">
+                <button type="submit" onclick="return confirm('Xác nhận cancel campaign?')" 
+                        class="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 font-medium">
+                    Cancel
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="bg-white border rounded-xl shadow-sm mb-4">
+    <div class="border-b border-gray-200">
+        <nav class="flex -mb-px">
+            <a href="?tab=overview" 
+               class="px-4 py-3 text-xs font-medium border-b-2 {% if tab == 'overview' %}border-brand text-brand{% else %}border-transparent text-gray-500 hover:text-gray-700{% endif %}">
+                Overview
+            </a>
+            <a href="?tab=creators" 
+               class="px-4 py-3 text-xs font-medium border-b-2 {% if tab == 'creators' %}border-brand text-brand{% else %}border-transparent text-gray-500 hover:text-gray-700{% endif %}">
+                Creators ({{ creators|length }})
+            </a>
+            <a href="?tab=products" 
+               class="px-4 py-3 text-xs font-medium border-b-2 {% if tab == 'products' %}border-brand text-brand{% else %}border-transparent text-gray-500 hover:text-gray-700{% endif %}">
+                Products ({{ products|length }})
+            </a>
+            <a href="?tab=brief" 
+               class="px-4 py-3 text-xs font-medium border-b-2 {% if tab == 'brief' %}border-brand text-brand{% else %}border-transparent text-gray-500 hover:text-gray-700{% endif %}">
+                Brief
+            </a>
+            <a href="?tab=insights" 
+               class="px-4 py-3 text-xs font-medium border-b-2 {% if tab == 'insights' %}border-brand text-brand{% else %}border-transparent text-gray-500 hover:text-gray-700{% endif %}">
+                Insights
+            </a>
+        </nav>
+    </div>
+
+    <div class="p-4">
+        <!-- Tab: Overview -->
+        {% if tab == 'overview' %}
+        <div class="space-y-4">
+            <!-- Basic Info -->
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">Thông tin cơ bản</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">Brand</div>
+                        <div class="text-sm font-medium">{{ campaign.brand.name }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">Channel</div>
+                        <div class="text-sm font-medium">{{ campaign.get_channel_display }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">Objective</div>
+                        <div class="text-sm font-medium">{{ campaign.get_objective_display }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">Owner</div>
+                        <div class="text-sm font-medium">{{ campaign.owner.username if campaign.owner else 'N/A' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">Start Date</div>
+                        <div class="text-sm font-medium">{{ campaign.start_date|date:"d/m/Y" if campaign.start_date else 'N/A' }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600 mb-0.5">End Date</div>
+                        <div class="text-sm font-medium">{{ campaign.end_date|date:"d/m/Y" if campaign.end_date else 'N/A' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Budget Widget -->
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">Budget</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <div class="text-[11px] text-gray-600 mb-1">Planned</div>
+                        <div class="text-lg font-bold text-blue-900">{{ campaign.budget_planned|floatformat:0|intcomma }}</div>
+                    </div>
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <div class="text-[11px] text-gray-600 mb-1">Committed</div>
+                        <div class="text-lg font-bold text-green-900">{{ metrics.budget_committed|floatformat:0|intcomma }}</div>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div class="text-[11px] text-gray-600 mb-1">Actual Paid</div>
+                        <div class="text-lg font-bold text-purple-900">{{ metrics.budget_actual_paid|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Widget -->
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">KPI</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="text-[11px] text-gray-600 mb-1">Views Target</div>
+                        <div class="text-lg font-bold">{{ campaign.kpi_view|intcomma }}</div>
+                        <div class="text-[11px] text-gray-500 mt-1">Actual: {{ metrics.views_latest_total|intcomma }}</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="text-[11px] text-gray-600 mb-1">Orders Target</div>
+                        <div class="text-lg font-bold">{{ campaign.kpi_order|intcomma }}</div>
+                        <div class="text-[11px] text-gray-500 mt-1">Actual: {{ metrics.orders_attributed|intcomma }}</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="text-[11px] text-gray-600 mb-1">Revenue Target</div>
+                        <div class="text-lg font-bold">{{ campaign.kpi_revenue|floatformat:0|intcomma }}</div>
+                        <div class="text-[11px] text-gray-500 mt-1">Actual: {{ metrics.revenue_attributed|floatformat:0|intcomma }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">Progress</h3>
+                <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium">Overall Progress</span>
+                        <span class="text-sm font-bold">{{ metrics.progress_percent }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-brand h-2 rounded-full transition-all" style="width: {{ metrics.progress_percent }}%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Summary -->
+            <div>
+                <h3 class="text-sm font-semibold text-gray-900 mb-3">Metrics Summary</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                        <div class="text-[11px] text-gray-600">Creators</div>
+                        <div class="font-semibold text-lg">{{ metrics.creators_count }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600">Products</div>
+                        <div class="font-semibold text-lg">{{ metrics.products_count }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600">Videos Posted</div>
+                        <div class="font-semibold text-lg">{{ metrics.videos_posted }}</div>
+                    </div>
+                    <div>
+                        <div class="text-[11px] text-gray-600">Deliverables</div>
+                        <div class="font-semibold text-lg">{{ metrics.deliverables_posted }}/{{ metrics.deliverables_total }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Tab: Creators -->
+        {% if tab == 'creators' %}
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-900">Creators ({{ creators|length }})</h3>
+                {% if can_edit %}
+                <button onclick="document.getElementById('addCreatorModal').classList.remove('hidden')" 
+                        class="px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-semibold">
+                    + Thêm Creator
+                </button>
+                {% endif %}
+            </div>
+            {% if creators %}
+            <div class="space-y-2">
+                {% for cc in creators %}
+                <div class="p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="font-semibold text-sm">{{ cc.creator.name }}</h4>
+                                <span class="px-2 py-0.5 text-[11px] rounded-full font-medium
+                                    {% if cc.creator.status == 'active' %}bg-green-50 text-green-700 border border-green-200
+                                    {% elif cc.creator.status == 'watchlist' %}bg-yellow-50 text-yellow-700 border border-yellow-200
+                                    {% elif cc.creator.status == 'blacklist' %}bg-red-50 text-red-700 border border-red-200
+                                    {% endif %}">
+                                    {{ cc.creator.get_status_display }}
+                                </span>
+                                <span class="px-2 py-0.5 text-[11px] bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-medium">
+                                    {{ cc.get_role_display }}
+                                </span>
+                            </div>
+                            {% if cc.note %}
+                            <p class="text-xs text-gray-600 mt-1">{{ cc.note }}</p>
+                            {% endif %}
+                        </div>
+                        {% if can_edit %}
+                        <form method="post" action="{% url 'marketing:campaign_creator_remove' campaign.id cc.creator.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirm('Xóa creator khỏi campaign?')" 
+                                    class="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50">Xóa</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8 text-sm">Chưa có creator nào</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Tab: Products -->
+        {% if tab == 'products' %}
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-semibold text-gray-900">Products ({{ products|length }})</h3>
+                {% if can_edit %}
+                <button onclick="document.getElementById('addProductModal').classList.remove('hidden')" 
+                        class="px-3 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-semibold">
+                    + Thêm Product
+                </button>
+                {% endif %}
+            </div>
+            {% if products %}
+            <div class="space-y-2">
+                {% for cp in products %}
+                <div class="p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="font-semibold text-sm">{{ cp.product.name }}</h4>
+                                <span class="px-2 py-0.5 text-[11px] bg-gray-100 text-gray-700 border border-gray-300 rounded-full font-medium">
+                                    Priority: {{ cp.priority }}
+                                </span>
+                            </div>
+                            <p class="text-xs text-gray-600 mt-0.5">{{ cp.product.code }}</p>
+                            {% if cp.note %}
+                            <p class="text-xs text-gray-600 mt-1">{{ cp.note }}</p>
+                            {% endif %}
+                        </div>
+                        {% if can_edit %}
+                        <form method="post" action="{% url 'marketing:campaign_product_remove' campaign.id cp.product.id %}" class="inline">
+                            {% csrf_token %}
+                            <button type="submit" onclick="return confirm('Xóa product khỏi campaign?')" 
+                                    class="text-red-600 hover:text-red-800 text-xs px-2 py-1 rounded hover:bg-red-50">Xóa</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8 text-sm">Chưa có product nào</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Tab: Brief -->
+        {% if tab == 'brief' %}
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Campaign Brief</h3>
+            {% if campaign.description %}
+            <div class="prose prose-sm max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm">
+                {{ campaign.description|linebreaks }}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8 text-sm">Chưa có brief</p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Tab: Insights -->
+        {% if tab == 'insights' %}
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900 mb-3">Insights / Postmortem</h3>
+            {% if postmortem_content %}
+            <div class="prose prose-sm max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm">
+                {{ postmortem_content|linebreaks }}
+            </div>
+            {% else %}
+            <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p class="text-xs text-yellow-800 mb-2">
+                    <strong>Lưu ý:</strong> Để finish campaign, cần thêm phần Postmortem vào Brief với format:
+                </p>
+                <pre class="mt-2 text-[11px] bg-white p-3 rounded border border-yellow-300 text-yellow-900 overflow-x-auto"><code>## Postmortem
+- What worked:
+- What didn't:
+- Next time:</code></pre>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Creator Modal -->
+{% if can_edit and tab == 'creators' %}
+<div id="addCreatorModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-semibold mb-3">Thêm Creator</h3>
+        <form method="post" action="{% url 'marketing:campaign_creator_add' campaign.id %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Creator</label>
+                <select name="creator" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="">Chọn creator...</option>
+                    {% for creator in available_creators %}
+                    <option value="{{ creator.id }}">{{ creator.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                <select name="role" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="main">Main</option>
+                    <option value="supporting">Supporting</option>
+                    <option value="trial">Trial</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Note</label>
+                <textarea name="note" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand"></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="document.getElementById('addCreatorModal').classList.add('hidden')" 
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">Hủy</button>
+                <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 text-sm font-semibold">Thêm</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Add Product Modal -->
+{% if can_edit and tab == 'products' %}
+<div id="addProductModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg p-4 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <h3 class="text-sm font-semibold mb-3">Thêm Product</h3>
+        <form method="post" action="{% url 'marketing:campaign_product_add' campaign.id %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Product</label>
+                <select name="product" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+                    <option value="">Chọn product...</option>
+                    {% for product in available_products %}
+                    <option value="{{ product.id }}">{{ product.name }} ({{ product.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Priority</label>
+                <input type="number" name="priority" value="1" min="1" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand">
+            </div>
+            <div class="mb-3">
+                <label class="block text-xs font-medium text-gray-700 mb-1">Note</label>
+                <textarea name="note" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand"></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="document.getElementById('addProductModal').classList.add('hidden')" 
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm">Hủy</button>
+                <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 text-sm font-semibold">Thêm</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

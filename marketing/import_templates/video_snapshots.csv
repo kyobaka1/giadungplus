@@ -1,0 +1,5 @@
+channel,platform_video_id,snapshot_time,view_count,like_count,comment_count,share_count,save_count,engagement_rate
+tiktok,tiktok_video_001,2024-01-26 10:00:00,50000,5000,500,200,1000,14.00
+tiktok,tiktok_video_001,2024-01-27 10:00:00,120000,12000,1200,500,2500,12.50
+tiktok,tiktok_video_002,2024-02-02 10:00:00,30000,3000,300,100,600,13.00
+

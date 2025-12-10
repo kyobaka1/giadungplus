@@ -1,0 +1,5 @@
+booking_code,deliverable_type,title,script_link,requirements,deadline_shoot,deadline_post,quantity,fee,status
+BOOK001,video_feed,Video 1 - Giới thiệu sản phẩm,https://docs.google.com/doc/script1,Thời lượng 30-60s,2024-01-20 10:00:00,2024-01-25 18:00:00,1,5000000,shooting
+BOOK001,video_feed,Video 2 - Hướng dẫn sử dụng,https://docs.google.com/doc/script2,Thời lượng 45s,2024-01-25 10:00:00,2024-02-01 18:00:00,1,5000000,planned
+BOOK002,video_feed,Video review máy xay,https://docs.google.com/doc/script3,Thời lượng 60s,2024-01-25 10:00:00,2024-02-02 18:00:00,1,8000000,waiting_approve
+

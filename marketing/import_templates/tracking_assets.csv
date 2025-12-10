@@ -1,0 +1,5 @@
+campaign_code,booking_code,creator_key,code_type,code_value,platform,target_url,note,is_active
+CAMP001,BOOK001,creator_a,voucher,GIADUNG10,tiktok_shop,https://tiktokshop.com/product/123,Voucher giảm 10%,True
+CAMP001,BOOK001,creator_a,referral_code,CREATOR_A_001,tiktok_shop,https://tiktokshop.com/product/123,Mã giới thiệu,True
+CAMP002,BOOK002,creator_b,voucher,BRAND2_20,shopee,https://shopee.vn/product/456,Voucher giảm 20%,True
+

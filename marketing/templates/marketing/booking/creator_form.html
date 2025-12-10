@@ -1,0 +1,110 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section class="px-4 mb-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">{{ title }}</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">{% if creator %}Chỉnh sửa{% else %}Tạo mới{% endif %} Creator</p>
+        </div>
+        <div>
+            <a href="{% if creator %}{% url 'marketing:booking_creator_detail' creator.id %}{% else %}{% url 'marketing:booking_creator_list' %}{% endif %}" 
+               class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                ← Quay lại
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="flex-1 min-w-0 overflow-x-hidden">
+    <div class="bg-white border rounded-xl shadow-sm p-6">
+        <form method="post" action="{% if creator %}{% url 'marketing:booking_creator_edit' creator.id %}{% else %}{% url 'marketing:booking_creator_create' %}{% endif %}">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Tên *</label>
+                    <input type="text" name="name" value="{% if creator %}{{ creator.name }}{% endif %}" required 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Alias</label>
+                    <input type="text" name="alias" value="{% if creator %}{{ creator.alias }}{% endif %}" 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Giới tính</label>
+                    <select name="gender" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <option value="">-- Chọn --</option>
+                        <option value="male" {% if creator and creator.gender == 'male' %}selected{% endif %}>Nam</option>
+                        <option value="female" {% if creator and creator.gender == 'female' %}selected{% endif %}>Nữ</option>
+                        <option value="other" {% if creator and creator.gender == 'other' %}selected{% endif %}>Khác</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Ngày sinh</label>
+                    <input type="date" name="dob" value="{% if creator and creator.dob %}{{ creator.dob|date:'Y-m-d' }}{% endif %}" 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Địa điểm</label>
+                    <input type="text" name="location" value="{% if creator %}{{ creator.location }}{% endif %}" 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Niche</label>
+                    <input type="text" name="niche" value="{% if creator %}{{ creator.niche }}{% endif %}" 
+                           placeholder="beauty, fashion, tech..." 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Priority Score (1-10)</label>
+                    <input type="number" name="priority_score" value="{% if creator %}{{ creator.priority_score }}{% else %}5{% endif %}" 
+                           min="1" max="10" required 
+                           class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                    <select name="status" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                            {% if creator and creator.status == 'blacklist' and not can_blacklist %}disabled{% endif %}>
+                        <option value="active" {% if creator and creator.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="watchlist" {% if creator and creator.status == 'watchlist' %}selected{% endif %}>Watchlist</option>
+                        <option value="blacklist" {% if creator and creator.status == 'blacklist' %}selected{% endif %} {% if not can_blacklist %}disabled{% endif %}>Blacklist</option>
+                    </select>
+                    {% if creator and creator.status == 'blacklist' and not can_blacklist %}
+                    <p class="text-xs text-red-600 mt-1">Bạn không có quyền thay đổi status blacklist</p>
+                    {% endif %}
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Ghi chú nội bộ</label>
+                    <textarea name="note_internal" rows="3" 
+                              class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">{% if creator %}{{ creator.note_internal }}{% endif %}</textarea>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex gap-2">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                    {% if creator %}Cập nhật{% else %}Tạo mới{% endif %}
+                </button>
+                <a href="{% if creator %}{% url 'marketing:booking_creator_detail' creator.id %}{% else %}{% url 'marketing:booking_creator_list' %}{% endif %}" 
+                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                    Hủy
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,583 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section class="px-4 mb-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">{{ creator.name }}</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">
+                {% if creator.alias %}{{ creator.alias }} • {% endif %}
+                {% if creator.location %}{{ creator.location }}{% endif %}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'marketing:booking_creator_list' %}" 
+               class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm">
+                ← Quay lại
+            </a>
+            <a href="{% url 'marketing:booking_creator_edit' creator.id %}" 
+               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                Chỉnh sửa
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="flex-1 min-w-0 overflow-x-hidden space-y-4">
+    
+    <!-- Overview Section -->
+    <div class="bg-white border rounded-xl shadow-sm">
+        <div class="border-b px-6 py-3">
+            <h2 class="text-lg font-semibold text-gray-800">Overview</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Basic Info -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-800">Thông tin cơ bản</h3>
+                    <dl class="space-y-2.5 text-sm">
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Tên:</dt>
+                            <dd class="font-medium text-slate-800">{{ creator.name }}</dd>
+                        </div>
+                        {% if creator.alias %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Alias:</dt>
+                            <dd class="text-slate-700">{{ creator.alias }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if creator.gender %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Giới tính:</dt>
+                            <dd class="text-slate-700">{{ creator.get_gender_display }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if creator.dob %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Ngày sinh:</dt>
+                            <dd class="text-slate-700">{{ creator.dob|date:"d/m/Y" }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if creator.location %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Địa điểm:</dt>
+                            <dd class="text-slate-700">{{ creator.location }}</dd>
+                        </div>
+                        {% endif %}
+                        {% if creator.niche %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Niche:</dt>
+                            <dd class="text-slate-700">{{ creator.niche }}</dd>
+                        </div>
+                        {% endif %}
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Status:</dt>
+                            <dd>
+                                {% if creator.status == 'active' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
+                                    Active
+                                </span>
+                                {% elif creator.status == 'watchlist' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">
+                                    Watchlist
+                                </span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
+                                    Blacklist
+                                </span>
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div class="flex">
+                            <dt class="w-28 text-gray-600">Priority:</dt>
+                            <dd>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-semibold text-slate-800">{{ creator.priority_score }}/10</span>
+                                    <div class="w-20 h-1.5 bg-gray-200 rounded-full">
+                                        <div class="h-1.5 bg-blue-600 rounded-full priority-bar" data-priority="{{ creator.priority_score }}"></div>
+                                    </div>
+                                </div>
+                            </dd>
+                        </div>
+                    </dl>
+                    
+                    {% if creator.note_internal %}
+                    <div class="mt-4 pt-4 border-t">
+                        <h4 class="text-xs font-semibold text-gray-700 mb-2">Ghi chú nội bộ</h4>
+                        <div class="p-3 bg-gray-50 rounded-lg text-xs text-slate-700 whitespace-pre-wrap">{{ creator.note_internal }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Tags & Quick Actions -->
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 mb-3">Tags</h3>
+                        <div class="flex flex-wrap gap-1.5 mb-3">
+                            {% for tag_map in tags %}
+                            <span class="px-2 py-0.5 text-[11px] rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+                                {{ tag_map.tag.name }}
+                            </span>
+                            {% empty %}
+                            <span class="text-xs text-gray-400">Chưa có tag</span>
+                            {% endfor %}
+                        </div>
+                        <form method="post" action="{% url 'marketing:booking_tag_assign' creator.id %}">
+                            {% csrf_token %}
+                            <select name="tags" multiple class="w-full px-3 py-2 border rounded-lg text-sm mb-2">
+                                {% for tag in all_tags %}
+                                <option value="{{ tag.id }}" {% if tag.id in current_tag_ids %}selected{% endif %}>{{ tag.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
+                                Cập nhật Tags
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-800 mb-3">Quick Actions</h3>
+                        <div class="space-y-2">
+                            {% if primary_contact %}
+                            {% if primary_contact.phone %}
+                            <button onclick="copyToClipboard('{{ primary_contact.phone }}')" 
+                                    class="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-left transition flex items-center gap-2">
+                                <span>📋</span>
+                                <span>Copy Phone: {{ primary_contact.phone }}</span>
+                            </button>
+                            {% endif %}
+                            {% if primary_contact.email %}
+                            <button onclick="copyToClipboard('{{ primary_contact.email }}')" 
+                                    class="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-left transition flex items-center gap-2">
+                                <span>📧</span>
+                                <span>Copy Email: {{ primary_contact.email }}</span>
+                            </button>
+                            {% endif %}
+                            {% endif %}
+                            {% if primary_tiktok %}
+                            <a href="{{ primary_tiktok.profile_url }}" target="_blank" 
+                               class="block w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-left transition flex items-center gap-2">
+                                <span>🔗</span>
+                                <span>Mở TikTok Profile</span>
+                            </a>
+                            {% endif %}
+                            {% if creator.status == 'blacklist' %}
+                            <div class="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                                ⚠️ Creator này đã bị blacklist. Không thể tạo booking.
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Channels Section -->
+    <div class="bg-white border rounded-xl shadow-sm">
+        <div class="border-b px-6 py-3">
+            <h2 class="text-lg font-semibold text-gray-800">Channels</h2>
+        </div>
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-semibold text-gray-800">Channels</h3>
+                <button onclick="document.getElementById('channelForm').classList.toggle('hidden')" 
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
+                    + Thêm Channel
+                </button>
+            </div>
+            
+            <!-- Add Channel Form -->
+            <form id="channelForm" method="post" action="{% url 'marketing:booking_channel_create' creator.id %}" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Platform</label>
+                        <select name="platform" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="tiktok">TikTok</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="shopee_live">Shopee Live</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Handle</label>
+                        <input type="text" name="handle" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Profile URL</label>
+                        <input type="url" name="profile_url" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">External ID</label>
+                        <input type="text" name="external_id" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Followers</label>
+                        <input type="number" name="follower_count" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Avg View (10 videos)</label>
+                        <input type="number" name="avg_view_10" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Engagement Rate (%)</label>
+                        <input type="number" name="avg_engagement_rate" step="0.01" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                </div>
+                <button type="submit" class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">
+                    Thêm Channel
+                </button>
+            </form>
+            
+            <!-- Channels List -->
+            <div class="space-y-2">
+                {% for channel in channels %}
+                <div class="p-3 border rounded-lg flex items-center justify-between hover:bg-gray-50 transition">
+                    <div class="flex-1">
+                        <div class="font-medium text-sm text-slate-800">{{ channel.get_platform_display }} / {{ channel.handle }}</div>
+                        <div class="text-xs text-gray-600 mt-1">
+                            Followers: {{ channel.follower_count|floatformat:0|intcomma }} • 
+                            Avg View: {{ channel.avg_view_10|floatformat:0|intcomma }} • 
+                            Engagement: {{ channel.avg_engagement_rate }}%
+                        </div>
+                        {% if channel.profile_url %}
+                        <a href="{{ channel.profile_url }}" target="_blank" class="text-xs text-blue-600 hover:underline mt-1 inline-block">Mở profile</a>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{% url 'marketing:booking_channel_delete' creator.id channel.id %}" 
+                          onsubmit="return confirm('Xóa channel này?')">
+                        {% csrf_token %}
+                        <button type="submit" class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs hover:bg-red-100 transition">
+                            Xóa
+                        </button>
+                    </form>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-400 text-center py-4">Chưa có channel nào</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contacts Section -->
+    <div class="bg-white border rounded-xl shadow-sm">
+        <div class="border-b px-6 py-3">
+            <h2 class="text-lg font-semibold text-gray-800">Contacts</h2>
+        </div>
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-semibold text-gray-800">Contacts</h3>
+                <button onclick="document.getElementById('contactForm').classList.toggle('hidden')" 
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
+                    + Thêm Contact
+                </button>
+            </div>
+            
+            <!-- Add Contact Form -->
+            <form id="contactForm" method="post" action="{% url 'marketing:booking_contact_create' creator.id %}" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Loại</label>
+                        <select name="contact_type" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="owner">Owner</option>
+                            <option value="manager">Manager</option>
+                            <option value="agency">Agency</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Tên</label>
+                        <input type="text" name="name" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label>
+                        <input type="text" name="phone" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Zalo</label>
+                        <input type="text" name="zalo" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                        <input type="email" name="email" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">WeChat</label>
+                        <input type="text" name="wechat" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Note</label>
+                        <textarea name="note" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm"></textarea>
+                    </div>
+                    <div>
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" name="is_primary">
+                            <span class="text-xs text-gray-700">Đặt làm primary contact</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">
+                    Thêm Contact
+                </button>
+            </form>
+            
+            <!-- Contacts List -->
+            <div class="space-y-2">
+                {% for contact in contacts %}
+                <div class="p-3 border rounded-lg {% if contact.is_primary %}border-blue-300 bg-blue-50{% endif %} hover:bg-gray-50 transition">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-medium text-sm text-slate-800">{{ contact.name }}</span>
+                                <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-700 border border-gray-200">
+                                    {{ contact.get_contact_type_display }}
+                                </span>
+                                {% if contact.is_primary %}
+                                <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium">
+                                    Primary
+                                </span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-600 space-x-3">
+                                {% if contact.phone %}
+                                <span>📱 <button onclick="copyToClipboard('{{ contact.phone }}')" class="hover:underline">{{ contact.phone }}</button></span>
+                                {% endif %}
+                                {% if contact.zalo %}
+                                <span>💬 <button onclick="copyToClipboard('{{ contact.zalo }}')" class="hover:underline">{{ contact.zalo }}</button></span>
+                                {% endif %}
+                                {% if contact.email %}
+                                <span>📧 <button onclick="copyToClipboard('{{ contact.email }}')" class="hover:underline">{{ contact.email }}</button></span>
+                                {% endif %}
+                                {% if contact.wechat %}
+                                <span>WeChat: {{ contact.wechat }}</span>
+                                {% endif %}
+                            </div>
+                            {% if contact.note %}
+                            <div class="text-xs text-gray-500 mt-1">{{ contact.note }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="flex gap-2">
+                            {% if not contact.is_primary %}
+                            <form method="post" action="{% url 'marketing:booking_contact_set_primary' creator.id contact.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs hover:bg-blue-100 transition">
+                                    Set Primary
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'marketing:booking_contact_delete' creator.id contact.id %}" 
+                                  onsubmit="return confirm('Xóa contact này?')">
+                                {% csrf_token %}
+                                <button type="submit" class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs hover:bg-red-100 transition">
+                                    Xóa
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-400 text-center py-4">Chưa có contact nào</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Rate Card Section -->
+    <div class="bg-white border rounded-xl shadow-sm">
+        <div class="border-b px-6 py-3">
+            <h2 class="text-lg font-semibold text-gray-800">Rate Card</h2>
+        </div>
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-semibold text-gray-800">Rate Card</h3>
+                <button onclick="document.getElementById('ratecardForm').classList.toggle('hidden')" 
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
+                    + Thêm Rate Card
+                </button>
+            </div>
+            
+            <!-- Add Rate Card Form -->
+            <form id="ratecardForm" method="post" action="{% url 'marketing:booking_ratecard_create' creator.id %}" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                {% csrf_token %}
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Channel (optional)</label>
+                        <select name="channel_id" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="">General</option>
+                            {% for channel in channels %}
+                            <option value="{{ channel.id }}">{{ channel.get_platform_display }}/{{ channel.handle }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Deliverable Type</label>
+                        <select name="deliverable_type" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="video_single">Video Single</option>
+                            <option value="series">Series</option>
+                            <option value="live">Live</option>
+                            <option value="combo">Combo</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Price</label>
+                        <input type="number" name="price" step="0.01" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Currency</label>
+                        <select name="currency" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="VND">VND</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Valid From</label>
+                        <input type="date" name="valid_from" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Valid To</label>
+                        <input type="date" name="valid_to" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Description</label>
+                        <textarea name="description" rows="2" class="w-full px-3 py-2 border rounded-lg text-sm"></textarea>
+                    </div>
+                </div>
+                <button type="submit" class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">
+                    Thêm Rate Card
+                </button>
+            </form>
+            
+            <!-- Rate Cards List -->
+            <div class="space-y-2">
+                {% for rate_card in rate_cards %}
+                <div class="p-3 border rounded-lg hover:bg-gray-50 transition">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-medium text-sm text-slate-800">{{ rate_card.get_deliverable_type_display }}</div>
+                            <div class="text-base font-bold text-green-600 mt-1">{{ rate_card.price|floatformat:0|intcomma }} {{ rate_card.currency }}</div>
+                            {% if rate_card.channel %}
+                            <div class="text-xs text-gray-500 mt-1">Channel: {{ rate_card.channel.get_platform_display }}/{{ rate_card.channel.handle }}</div>
+                            {% endif %}
+                            {% if rate_card.valid_from or rate_card.valid_to %}
+                            <div class="text-xs text-gray-500 mt-1">
+                                Valid: {{ rate_card.valid_from|date:"d/m/Y"|default:"-" }} - {{ rate_card.valid_to|date:"d/m/Y"|default:"-" }}
+                            </div>
+                            {% endif %}
+                            {% if rate_card.description %}
+                            <div class="text-xs text-gray-600 mt-1">{{ rate_card.description }}</div>
+                            {% endif %}
+                        </div>
+                        <form method="post" action="{% url 'marketing:booking_ratecard_delete' creator.id rate_card.id %}" 
+                              onsubmit="return confirm('Xóa rate card này?')">
+                            {% csrf_token %}
+                            <button type="submit" class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs hover:bg-red-100 transition">
+                                Xóa
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-400 text-center py-4">Chưa có rate card nào</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notes Section -->
+    <div class="bg-white border rounded-xl shadow-sm">
+        <div class="border-b px-6 py-3">
+            <h2 class="text-lg font-semibold text-gray-800">Notes/Timeline</h2>
+        </div>
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-sm font-semibold text-gray-800">Notes/Timeline</h3>
+                <button onclick="document.getElementById('noteForm').classList.toggle('hidden')" 
+                        class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition">
+                    + Thêm Note
+                </button>
+            </div>
+            
+            <!-- Add Note Form -->
+            <form id="noteForm" method="post" action="{% url 'marketing:booking_note_create' creator.id %}" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                {% csrf_token %}
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Title</label>
+                        <input type="text" name="title" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Type</label>
+                        <select name="note_type" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="call">Call</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="complaint">Complaint</option>
+                            <option value="compliment">Compliment</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Content</label>
+                        <textarea name="content" rows="4" required class="w-full px-3 py-2 border rounded-lg text-sm"></textarea>
+                    </div>
+                </div>
+                <button type="submit" class="mt-3 px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition">
+                    Thêm Note
+                </button>
+            </form>
+            
+            <!-- Notes Timeline -->
+            <div class="space-y-3">
+                {% for note in notes %}
+                <div class="p-3 border-l-4 {% if note.note_type == 'complaint' %}border-red-500{% elif note.note_type == 'compliment' %}border-green-500{% else %}border-blue-500{% endif %} bg-gray-50 rounded">
+                    <div class="flex items-center justify-between mb-1.5">
+                        <div class="flex items-center gap-2">
+                            <span class="font-medium text-sm text-slate-800">{{ note.title }}</span>
+                            <span class="px-1.5 py-0.5 text-[10px] rounded-full bg-gray-200 text-gray-700 border border-gray-300">
+                                {{ note.get_note_type_display }}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            {{ note.created_at|date:"d/m/Y H:i" }}
+                            {% if note.user %} • {{ note.user.username }}{% endif %}
+                        </div>
+                    </div>
+                    <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ note.content }}</div>
+                    <form method="post" action="{% url 'marketing:booking_note_delete' creator.id note.id %}" 
+                          onsubmit="return confirm('Xóa note này?')" class="mt-2">
+                        {% csrf_token %}
+                        <button type="submit" class="text-xs text-red-600 hover:underline">Xóa</button>
+                    </form>
+                </div>
+                {% empty %}
+                <p class="text-sm text-gray-400 text-center py-4">Chưa có note nào</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Đã copy: ' + text);
+    });
+}
+
+// Set priority bar width
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.priority-bar').forEach(function(bar) {
+        const priority = parseInt(bar.getAttribute('data-priority')) || 0;
+        bar.style.width = (priority * 10) + '%';
+    });
+});
+</script>
+{% endblock %}

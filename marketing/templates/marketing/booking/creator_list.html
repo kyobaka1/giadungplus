@@ -1,0 +1,284 @@
+{% extends "marketing/base_marketing.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section class="px-4 mb-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">KOC/KOL Database</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ creators.paginator.count|default:0 }} creators</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'marketing:booking_import_export' %}" 
+               class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium">
+                Import/Export
+            </a>
+            <a href="{% url 'marketing:booking_creator_create' %}" 
+               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                + Tạo Creator
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="flex-1 min-w-0 overflow-x-hidden">
+    
+    <!-- Bộ lọc -->
+    <form method="get" action="{% url 'marketing:booking_creator_list' %}" class="bg-white border rounded-xl p-4 shadow-sm mb-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-end">
+            <!-- Tìm kiếm -->
+            <div class="md:col-span-2 lg:col-span-1">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Tìm kiếm</label>
+                <input type="text" name="search" value="{{ filters.search }}" 
+                       placeholder="Tên, alias, handle, phone, email..." 
+                       class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+            
+            <!-- Status -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Status</label>
+                <select name="status" multiple class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="active" {% if 'active' in filters.status %}selected{% endif %}>Active</option>
+                    <option value="watchlist" {% if 'watchlist' in filters.status %}selected{% endif %}>Watchlist</option>
+                    <option value="blacklist" {% if 'blacklist' in filters.status %}selected{% endif %}>Blacklist</option>
+                </select>
+            </div>
+            
+            <!-- Platform -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Platform</label>
+                <select name="platform" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">Tất cả</option>
+                    {% for platform in platforms %}
+                    <option value="{{ platform }}" {% if filters.platform == platform %}selected{% endif %}>{{ platform|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Tags -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Tags</label>
+                <select name="tags" multiple class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    {% for tag in all_tags %}
+                    <option value="{{ tag.id }}" {% if tag.id in filters.tags %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <!-- Location -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Location</label>
+                <input type="text" name="location" value="{{ filters.location }}" 
+                       placeholder="Hà Nội, TP.HCM..." 
+                       class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+            
+            <!-- Niche -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Niche</label>
+                <input type="text" name="niche" value="{{ filters.niche }}" 
+                       placeholder="beauty, fashion..." 
+                       class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+            
+            <!-- Priority Score Range -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Priority Score</label>
+                <div class="flex gap-2">
+                    <input type="number" name="priority_min" value="{{ filters.priority_min }}" min="1" max="10" 
+                           placeholder="Min" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <input type="number" name="priority_max" value="{{ filters.priority_max }}" min="1" max="10" 
+                           placeholder="Max" class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+            </div>
+            
+            <!-- Follower Range -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Followers</label>
+                <div class="flex gap-2">
+                    <input type="number" name="follower_min" value="{{ filters.follower_min }}" 
+                           placeholder="Min" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    <input type="number" name="follower_max" value="{{ filters.follower_max }}" 
+                           placeholder="Max" class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="flex gap-2 md:justify-end">
+                <button type="submit" class="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                    Lọc
+                </button>
+                <a href="{% url 'marketing:booking_creator_list' %}" 
+                   class="flex-1 md:flex-none px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
+                    Xóa lọc
+                </a>
+                <a href="{% url 'marketing:booking_export' %}?{{ request.GET.urlencode }}" 
+                   class="flex-1 md:flex-none px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm text-center">
+                    Export
+                </a>
+            </div>
+        </div>
+    </form>
+    
+    <!-- Table -->
+    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Creator</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Channel</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Followers</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Avg View</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Tags</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Priority</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    {% for creator in creators %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-4 py-3">
+                            <div>
+                                <a href="{% url 'marketing:booking_creator_detail' creator.id %}" 
+                                   class="text-sm font-semibold text-blue-700 hover:text-blue-900">
+                                    {{ creator.name }}
+                                </a>
+                                {% if creator.alias %}
+                                <span class="text-xs text-gray-500">({{ creator.alias }})</span>
+                                {% endif %}
+                            </div>
+                            <div class="flex gap-1.5 mt-1">
+                                {% if creator.status == 'active' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">
+                                    Active
+                                </span>
+                                {% elif creator.status == 'watchlist' %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200 font-medium">
+                                    Watchlist
+                                </span>
+                                {% else %}
+                                <span class="px-2 py-0.5 text-[11px] rounded-full bg-red-50 text-red-700 border border-red-200 font-medium">
+                                    Blacklist
+                                </span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-[13px] text-slate-700">
+                            {% with primary_channel=creator.channels.all|first %}
+                            {% if primary_channel %}
+                            <div>{{ primary_channel.get_platform_display }}/{{ primary_channel.handle }}</div>
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3 text-[13px] text-slate-700">
+                            {% with primary_channel=creator.channels.all|first %}
+                            {% if primary_channel %}
+                            {{ primary_channel.follower_count|floatformat:0|intcomma }}
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3 text-[13px] text-slate-700">
+                            {% with primary_channel=creator.channels.all|first %}
+                            {% if primary_channel %}
+                            {{ primary_channel.avg_view_10|floatformat:0|intcomma }}
+                            {% else %}
+                            <span class="text-gray-400">-</span>
+                            {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex flex-wrap gap-1">
+                                {% for tag_map in creator.tag_maps.all|slice:":3" %}
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                                    {{ tag_map.tag.name }}
+                                </span>
+                                {% endfor %}
+                                {% if creator.tag_maps.count > 3 %}
+                                <span class="text-[10px] text-gray-500">+{{ creator.tag_maps.count|add:"-3" }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">{{ creator.priority_score }}</span>
+                                <div class="w-16 h-1.5 bg-gray-200 rounded-full">
+                                    <div class="h-1.5 bg-blue-600 rounded-full priority-bar" data-priority="{{ creator.priority_score }}"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <div class="flex items-center gap-2 justify-end">
+                                {% with primary_contact=creator.contacts.all|first %}
+                                {% if primary_contact and primary_contact.phone %}
+                                <button onclick="copyToClipboard('{{ primary_contact.phone }}')" 
+                                        class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-50 transition" 
+                                        title="Copy phone">
+                                    📋
+                                </button>
+                                {% endif %}
+                                {% endwith %}
+                                <a href="{% url 'marketing:booking_creator_detail' creator.id %}" 
+                                   class="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50 transition">
+                                    Xem
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">
+                            Không tìm thấy creator nào
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if creators.has_other_pages %}
+        <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+            <div class="text-sm text-gray-600">
+                Trang {{ creators.number }} / {{ creators.paginator.num_pages }}
+            </div>
+            <div class="flex gap-2">
+                {% if creators.has_previous %}
+                <a href="?{{ request.GET.urlencode }}&page={{ creators.previous_page_number }}" 
+                   class="px-3 py-1 border rounded text-sm hover:bg-white transition">Trước</a>
+                {% endif %}
+                {% if creators.has_next %}
+                <a href="?{{ request.GET.urlencode }}&page={{ creators.next_page_number }}" 
+                   class="px-3 py-1 border rounded text-sm hover:bg-white transition">Sau</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert('Đã copy: ' + text);
+    });
+}
+
+// Set priority bar width
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.priority-bar').forEach(function(bar) {
+        const priority = parseInt(bar.getAttribute('data-priority')) || 0;
+        bar.style.width = (priority * 10) + '%';
+    });
+});
+</script>
+{% endblock %}

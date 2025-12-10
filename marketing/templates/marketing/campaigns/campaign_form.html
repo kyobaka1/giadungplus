@@ -1,0 +1,199 @@
+{% extends "marketing/base_marketing.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">
+        {% if action == 'create' %}
+            Tạo campaign mới cho chiến dịch marketing
+        {% else %}
+            Chỉnh sửa thông tin campaign
+        {% endif %}
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white border rounded-xl shadow-sm p-4">
+    <form method="post" class="space-y-4">
+        {% csrf_token %}
+        
+        {% if form.non_field_errors %}
+        <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+            {% for error in form.non_field_errors %}
+            <p class="text-xs text-red-700">{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Basic Info -->
+        <div>
+            <h2 class="text-sm font-semibold text-gray-900 mb-3">Thông tin cơ bản</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Code *</label>
+                    {{ form.code }}
+                    {% if form.code.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.code.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Tên *</label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Brand *</label>
+                    {{ form.brand }}
+                    {% if form.brand.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.brand.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Channel *</label>
+                    {{ form.channel }}
+                    {% if form.channel.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.channel.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Objective *</label>
+                    {{ form.objective }}
+                    {% if form.objective.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.objective.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                    {{ form.status }}
+                    {% if form.status.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.status.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Owner</label>
+                    {{ form.owner }}
+                    {% if form.owner.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.owner.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Dates -->
+        <div>
+            <h2 class="text-sm font-semibold text-gray-900 mb-3">Thời gian</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
+                    {{ form.start_date }}
+                    {% if form.start_date.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.start_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                    {{ form.end_date }}
+                    {% if form.end_date.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.end_date.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Budget & KPI -->
+        <div>
+            <h2 class="text-sm font-semibold text-gray-900 mb-3">Budget & KPI</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Budget Planned</label>
+                    {{ form.budget_planned }}
+                    {% if form.budget_planned.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.budget_planned.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">KPI Views</label>
+                    {{ form.kpi_view }}
+                    {% if form.kpi_view.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.kpi_view.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">KPI Orders</label>
+                    {{ form.kpi_order }}
+                    {% if form.kpi_order.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.kpi_order.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">KPI Revenue</label>
+                    {{ form.kpi_revenue }}
+                    {% if form.kpi_revenue.errors %}
+                    <p class="text-[11px] text-red-600 mt-0.5">{{ form.kpi_revenue.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Brief -->
+        <div>
+            <h2 class="text-sm font-semibold text-gray-900 mb-3">Brief</h2>
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Mô tả / Brief tổng</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                <p class="text-[11px] text-red-600 mt-0.5">{{ form.description.errors.0 }}</p>
+                {% endif %}
+                <p class="text-[11px] text-gray-500 mt-1">
+                    Hỗ trợ Markdown. Gợi ý: Key message, Do/Don't, Hashtags, CTA
+                </p>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-between pt-3 border-t border-gray-200">
+            <a href="{% if action == 'edit' %}{% url 'marketing:campaign_detail' campaign.id %}{% else %}{% url 'marketing:campaign_list' %}{% endif %}" 
+               class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                Hủy
+            </a>
+            <div class="flex gap-2">
+                {% if action == 'create' %}
+                <button type="submit" name="save_as_draft" value="1" 
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-semibold">
+                    Lưu Draft
+                </button>
+                <button type="submit" name="save_and_plan" value="1" 
+                        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                    Lưu & Set Planned
+                </button>
+                {% else %}
+                <button type="submit" 
+                        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                    Lưu thay đổi
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: #db0d29;
+    ring: 2px solid #db0d29;
+}
+</style>
+{% endblock %}

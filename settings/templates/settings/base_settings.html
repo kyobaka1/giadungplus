@@ -171,22 +171,24 @@
                    text-[13px] sm:text-[14px] md:text-[15px] lg:text-[16px]">
                 <nav class="py-4 space-y-4">
 
-                    <!-- GROUP: Cài đặt -->
+                    <!-- Dashboard (Tổng quan) - Standalone -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <a href="{% url 'settings_dashboard' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                              hover:bg-brandlight hover:text-brand sidebar-link">
+                            <span class="truncate">Tổng quan</span>
+                        </a>
+                    </div>
+
+                    <!-- GROUP: SYSTEM CONFIG -->
                     <div class="px-3 md:px-4 mb-2 md:mb-1">
                         <button type="button" class="w-full flex items-center justify-between
                                text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
-                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-settings">
-                            <span>Cài đặt</span>
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-system-config">
+                            <span>SYSTEM CONFIG</span>
                             <span
                                 class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                         </button>
-                        <ul id="menu-settings" class="space-y-1">
-                            <li>
-                                <a href="{% url 'settings_dashboard' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
-                                      hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Tổng quan</span>
-                                </a>
-                            </li>
+                        <ul id="menu-system-config" class="space-y-1">
                             <li>
                                 <a href="{% url 'sapo_config' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
@@ -200,9 +202,9 @@
                                 </a>
                             </li>
                             <li>
-                                <a href="{% url 'gift_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                <a href="{% url 'push_notification' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">GIFT (Quà tặng)</span>
+                                    <span class="truncate">Push Notify</span>
                                 </a>
                             </li>
                             <li>
@@ -211,22 +213,46 @@
                                     <span class="truncate">Init Data</span>
                                 </a>
                             </li>
-                            <li>
-                                <a href="{% url 'push_notification' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
-                                      hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Push Notification</span>
-                                </a>
-                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- GROUP: PRODUCTS CONFIG -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-products-config">
+                            <span>PRODUCTS CONFIG</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-products-config" class="space-y-1">
                             <li>
                                 <a href="{% url 'variant_tags_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
                                       hover:bg-brandlight hover:text-brand sidebar-link">
-                                    <span class="truncate">Variant Tags</span>
+                                    <span class="truncate">Variants Tag</span>
                                 </a>
                             </li>
                         </ul>
                     </div>
 
-                    
+                    <!-- GROUP: MARKETING CONFIG -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-marketing-config">
+                            <span>MARKETING CONFIG</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-marketing-config" class="space-y-1">
+                            <li>
+                                <a href="{% url 'gift_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Gifts</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
 
                 </nav>
             </aside>
