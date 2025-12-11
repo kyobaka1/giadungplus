@@ -161,9 +161,15 @@ def _build_mvd_overlay_page(
         core_service = SapoCoreOrderService()
         try:
             order_dto: OrderDTO = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+            if order_dto is None:
+                raise RuntimeError(f"get_order_dto_from_shopee_sn returned None for {channel_order_number}")
         except Exception as e:
             debug(f"[MVD] Lỗi get_order_dto_from_shopee_sn({channel_order_number}): {e}")
             raise
+
+    # Kiểm tra order_dto không được None trước khi sử dụng
+    if order_dto is None:
+        raise RuntimeError(f"order_dto is None for {channel_order_number}")
 
     debug("→ Build MVD overlay:", channel_order_number)
 

@@ -28,48 +28,40 @@
 {% block main_content %}
 <div class="flex-1 min-w-0 overflow-x-hidden">
 
-    <!-- Nút hiện bộ lọc (chỉ hiện trên mobile) -->
-    <div class="md:hidden mb-2">
-        <button type="button" id="toggleFilterBtn" 
-                class="w-full px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-semibold flex items-center justify-center gap-2">
-            <span>Hiện bộ lọc</span>
-            <svg class="w-4 h-4 transition-transform" id="filterIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-        </button>
-    </div>
-
-    <!-- Bộ lọc lồng nhau -->
-    <form method="GET" id="filterForm" class="bg-white border rounded-xl p-4 shadow-sm mb-2 hidden md:block">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 items-end">
-            <!-- Thời gian (nhỏ gọn) -->
-            <div class="md:col-span-2 lg:col-span-1">
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Thời gian tạo</label>
-                <div class="flex gap-2">
-                    <input type="date" name="start_date" value="{{ start_date }}"
-                           class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm"
-                           placeholder="Từ ngày">
-                    <input type="date" name="end_date" value="{{ end_date }}"
-                           class="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm"
-                           placeholder="Đến ngày">
-                </div>
+    <!-- Bộ lọc -->
+    <form method="GET" id="filterForm" class="bg-white border rounded-xl p-4 shadow-sm mb-4">
+        <!-- Main Filter Row -->
+        <div class="flex flex-wrap items-end gap-3">
+            <!-- Tìm kiếm -->
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Tìm kiếm</label>
+                <input type="text" id="ticketQuickSearch" name="search" value="{{ request.GET.search }}" 
+                       placeholder="Mã đơn, mã vận đơn, tên khách, SĐT, tags..." 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
             </div>
-
-            <!-- Nguồn tạo -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Nguồn tạo</label>
-                <select name="source_ticket" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả nguồn</option>
-                    {% for value, label in source_ticket_choices %}
-                    <option value="{{ value }}" {% if source_ticket_filter == value %}selected{% endif %}>{{ label }}</option>
+            
+            <!-- Ngày tạo -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Ngày tạo</label>
+                <input type="date" name="start_date" value="{{ start_date }}"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+            </div>
+            
+            <!-- Trạng thái -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Trạng thái</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                    <option value="">Tất cả trạng thái</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
-
-            <!-- Người tạo -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Người tạo</label>
-                <select name="created_by" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+            
+            <!-- Nhân viên phụ trách -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Nhân viên phụ trách</label>
+                <select name="created_by" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
                     <option value="">Tất cả người tạo</option>
                     {% for user in created_by_users %}
                     <option value="{{ user.id }}" {% if created_by_filter|stringformat:"s" == user.id|stringformat:"s" %}selected{% endif %}>
@@ -78,62 +70,74 @@
                     {% endfor %}
                 </select>
             </div>
-
-            <!-- Loại ticket -->
+            
+            <!-- Bộ lọc khác Button -->
             <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Loại ticket</label>
-                <select name="ticket_type" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả loại ticket</option>
-                    {% for value, label in ticket_type_choices %}
-                    <option value="{{ value }}" {% if ticket_type_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+                <button type="button" id="toggleAdvancedFilters" 
+                        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                    </svg>
+                    Bộ lọc khác
+                </button>
             </div>
-
-            <!-- Trạng thái -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Trạng thái</label>
-                <select name="status" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả trạng thái</option>
-                    {% for value, label in status_choices %}
-                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+        </div>
+        
+        <!-- Advanced Filters Panel (Hidden by default) -->
+        <div id="advancedFiltersPanel" class="hidden mt-4 pt-4 border-t border-gray-200">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Nguồn tạo -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nguồn tạo</label>
+                    <select name="source_ticket" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả nguồn</option>
+                        {% for value, label in source_ticket_choices %}
+                        <option value="{{ value }}" {% if source_ticket_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Loại ticket -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Loại ticket</label>
+                    <select name="ticket_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả loại ticket</option>
+                        {% for value, label in ticket_type_choices %}
+                        <option value="{{ value }}" {% if ticket_type_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Bộ phận xử lý -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Bộ phận xử lý</label>
+                    <select name="depart" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả bộ phận</option>
+                        {% for value, label in depart_choices %}
+                        <option value="{{ value }}" {% if depart_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Đến ngày -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Đến ngày</label>
+                    <input type="date" name="end_date" value="{{ end_date }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                </div>
             </div>
-
-            <!-- Bộ phận xử lý -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Bộ phận xử lý</label>
-                <select name="depart" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả bộ phận</option>
-                    {% for value, label in depart_choices %}
-                    <option value="{{ value }}" {% if depart_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <!-- Nút hành động -->
-            <div class="flex gap-2 md:justify-end">
-                <button type="submit"
-                        class="flex-1 md:flex-none px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+            
+            <!-- Action buttons -->
+            <div class="flex gap-2 justify-end mt-4">
+                <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
                     Lọc
                 </button>
-                <a href="{% url 'cskh:ticket_list' %}"
-                   class="flex-1 md:flex-none px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
-                    Xoá lọc
+                <a href="{% url 'cskh:ticket_list' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
+                    Xóa bộ lọc
                 </a>
             </div>
         </div>
     </form>
-
-    <!-- Tìm kiếm nhanh theo nội dung hiển thị -->
-    <div class="bg-white border rounded-xl p-3 shadow-sm mb-4">
-        <div class="flex items-center gap-2">
-            <label for="ticketQuickSearch" class="text-xs font-semibold text-gray-700 whitespace-nowrap">Tìm nhanh:</label>
-            <input id="ticketQuickSearch" type="text" placeholder="Nhập từ khoá để tìm (mã đơn, mã vận đơn, tên khách, SĐT, tags...)"
-                   class="flex-1 px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-        </div>
-    </div>
 
     <!-- Table -->
     <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
@@ -418,6 +422,40 @@
 </div>
 
 <script>
+// Advanced filters panel toggle
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButton = document.getElementById('toggleAdvancedFilters');
+    const filterPanel = document.getElementById('advancedFiltersPanel');
+    const filterForm = document.getElementById('filterForm');
+    
+    // Check if any advanced filters are active
+    const hasAdvancedFilters = {% if source_ticket_filter or ticket_type_filter or depart_filter or end_date %}true{% else %}false{% endif %};
+    
+    // Show panel if advanced filters are active
+    if (hasAdvancedFilters && filterPanel) {
+        filterPanel.classList.remove('hidden');
+    }
+    
+    // Toggle panel
+    if (toggleButton && filterPanel) {
+        toggleButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filterPanel.classList.toggle('hidden');
+        });
+        
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            if (filterForm && !filterForm.contains(e.target) && !filterPanel.contains(e.target)) {
+                filterPanel.classList.add('hidden');
+            }
+        });
+        
+        // Prevent closing when clicking inside the panel
+        filterPanel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+});
 // Hàm xóa ticket - phải định nghĩa ở global scope để có thể gọi từ onclick
 async function deleteTicket(ticketId, ticketNumber) {
     if (!confirm(`Bạn có chắc muốn xóa ticket ${ticketNumber}?\n\nHành động này không thể hoàn tác!`)) {

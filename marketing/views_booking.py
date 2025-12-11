@@ -53,7 +53,7 @@ def booking_creator_list(request):
     """
     # Get filter parameters
     search = request.GET.get('search', '').strip()
-    status_filter = request.GET.getlist('status', [])
+    status_filter = request.GET.get('status', '')
     platform_filter = request.GET.get('platform', '')
     tag_ids = request.GET.getlist('tags', [])
     location_filter = request.GET.get('location', '').strip()
@@ -86,7 +86,7 @@ def booking_creator_list(request):
     
     # Status filter
     if status_filter:
-        queryset = queryset.filter(status__in=status_filter)
+        queryset = queryset.filter(status=status_filter)
     
     # Platform filter
     if platform_filter:
@@ -532,7 +532,7 @@ def booking_tag_create(request):
     
     if not name:
         messages.error(request, 'Tên tag là bắt buộc.')
-        return redirect('marketing:booking_tag_list')
+        return redirect('booking_tag_list')
     
     # Check duplicate (case-insensitive)
     existing = CreatorTag.objects.filter(
@@ -543,7 +543,7 @@ def booking_tag_create(request):
     
     if existing:
         messages.warning(request, f'Tag "{name}" đã tồn tại (tương tự: {existing.name}).')
-        return redirect('marketing:booking_tag_list')
+        return redirect('booking_tag_list')
     
     tag = CreatorTag.objects.create(
         name=name,
@@ -551,7 +551,7 @@ def booking_tag_create(request):
     )
     
     messages.success(request, f'Tag "{tag.name}" đã được tạo.')
-    return redirect('marketing:booking_tag_list')
+    return redirect('booking_tag_list')
 
 
 @marketing_permission_required("MarketingManager", "MarketingStaff")
@@ -560,21 +560,21 @@ def booking_tag_delete(request, tag_id):
     """Delete tag (admin only)"""
     if not can_manage_tags(request.user):
         messages.error(request, 'Bạn không có quyền xóa tag.')
-        return redirect('marketing:booking_tag_list')
+        return redirect('booking_tag_list')
     
     tag = get_object_or_404(CreatorTag, id=tag_id, is_active=True, deleted_at__isnull=True)
     
     usage_count = tag.creator_maps.count()
     if usage_count > 0:
         messages.warning(request, f'Tag "{tag.name}" đang được sử dụng bởi {usage_count} creator. Không thể xóa.')
-        return redirect('marketing:booking_tag_list')
+        return redirect('booking_tag_list')
     
     tag.is_active = False
     tag.deleted_at = timezone.now()
     tag.save()
     
     messages.success(request, f'Tag "{tag.name}" đã được xóa.')
-    return redirect('marketing:booking_tag_list')
+    return redirect('booking_tag_list')
 
 
 @marketing_permission_required("MarketingManager", "MarketingStaff")

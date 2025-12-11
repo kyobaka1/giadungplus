@@ -26,7 +26,7 @@
         <!-- Add Tag Form -->
         <div class="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Thêm Tag mới</h3>
-            <form method="post" action="{% url 'marketing:booking_tag_create' %}">
+            <form method="post" action="{% url 'booking_tag_create' %}">
                 {% csrf_token %}
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
@@ -64,7 +64,7 @@
                     {% endif %}
                 </div>
                 {% if can_manage_tags %}
-                <form method="post" action="{% url 'marketing:booking_tag_delete' tag.id %}" 
+                <form method="post" action="{% url 'booking_tag_delete' tag.id %}" 
                       onsubmit="return confirm('Xóa tag này? Nếu tag đang được sử dụng sẽ không thể xóa.')">
                     {% csrf_token %}
                     <button type="submit" class="px-2 py-1 bg-red-50 text-red-700 rounded text-xs hover:bg-red-100 transition">

@@ -21,70 +21,43 @@
 {% endblock %}
 
 {% block content %}
+<!-- Filters - Single Row -->
 <div class="bg-white border rounded-xl shadow-sm p-4 mb-4">
-    <!-- Filters -->
-    <form method="get" class="space-y-3">
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <!-- Search -->
-            <div class="md:col-span-2 lg:col-span-1">
+    <form method="get" id="filterForm">
+        <!-- Main Filter Row -->
+        <div class="flex flex-wrap items-end gap-3">
+            <!-- Tìm kiếm -->
+            <div class="flex-1 min-w-[200px]">
                 <label class="block text-xs font-semibold text-gray-700 mb-1">Tìm kiếm</label>
                 <input type="text" name="search" value="{{ filters.search }}" 
                        placeholder="Code, tên..." 
                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
             </div>
             
-            <!-- Brand -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Brand</label>
-                <select name="brand" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+            <!-- Ngày tạo -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Ngày tạo</label>
+                <input type="date" name="start_date_from" value="{{ filters.start_date_from }}" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+            </div>
+            
+            <!-- Trạng thái -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Trạng thái</label>
+                <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
                     <option value="">Tất cả</option>
-                    {% for brand in brands %}
-                    <option value="{{ brand.id }}" {% if filters.brand_id == brand.id|stringformat:"s" %}selected{% endif %}>
-                        {{ brand.name }}
-                    </option>
-                    {% endfor %}
+                    <option value="draft" {% if filters.status == 'draft' %}selected{% endif %}>Draft</option>
+                    <option value="planned" {% if filters.status == 'planned' %}selected{% endif %}>Planned</option>
+                    <option value="running" {% if filters.status == 'running' %}selected{% endif %}>Running</option>
+                    <option value="paused" {% if filters.status == 'paused' %}selected{% endif %}>Paused</option>
+                    <option value="finished" {% if filters.status == 'finished' %}selected{% endif %}>Finished</option>
+                    <option value="canceled" {% if filters.status == 'canceled' %}selected{% endif %}>Canceled</option>
                 </select>
             </div>
             
-            <!-- Channel -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Channel</label>
-                <select name="channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả</option>
-                    <option value="tiktok" {% if filters.channel == 'tiktok' %}selected{% endif %}>TikTok</option>
-                    <option value="multi" {% if filters.channel == 'multi' %}selected{% endif %}>Multi-platform</option>
-                </select>
-            </div>
-            
-            <!-- Objective -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Objective</label>
-                <select name="objective" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả</option>
-                    <option value="awareness" {% if filters.objective == 'awareness' %}selected{% endif %}>Awareness</option>
-                    <option value="traffic" {% if filters.objective == 'traffic' %}selected{% endif %}>Traffic</option>
-                    <option value="sale" {% if filters.objective == 'sale' %}selected{% endif %}>Sale</option>
-                    <option value="launch" {% if filters.objective == 'launch' %}selected{% endif %}>Launch</option>
-                    <option value="clearance" {% if filters.objective == 'clearance' %}selected{% endif %}>Clearance</option>
-                </select>
-            </div>
-            
-            <!-- Status -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Status</label>
-                <select name="status" multiple class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="draft" {% if 'draft' in filters.status %}selected{% endif %}>Draft</option>
-                    <option value="planned" {% if 'planned' in filters.status %}selected{% endif %}>Planned</option>
-                    <option value="running" {% if 'running' in filters.status %}selected{% endif %}>Running</option>
-                    <option value="paused" {% if 'paused' in filters.status %}selected{% endif %}>Paused</option>
-                    <option value="finished" {% if 'finished' in filters.status %}selected{% endif %}>Finished</option>
-                    <option value="canceled" {% if 'canceled' in filters.status %}selected{% endif %}>Canceled</option>
-                </select>
-            </div>
-            
-            <!-- Owner -->
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Owner</label>
+            <!-- Nhân viên phụ trách -->
+            <div class="w-[180px]">
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Nhân viên phụ trách</label>
                 <select name="owner" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
                     <option value="">Tất cả</option>
                     {% for owner in owners %}
@@ -95,34 +68,87 @@
                 </select>
             </div>
             
-            <!-- Has Creators/Products -->
+            <!-- Bộ lọc khác Button -->
             <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Has Creators</label>
-                <select name="has_creators" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả</option>
-                    <option value="yes" {% if filters.has_creators == 'yes' %}selected{% endif %}>Có</option>
-                    <option value="no" {% if filters.has_creators == 'no' %}selected{% endif %}>Không</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 mb-1">Has Products</label>
-                <select name="has_products" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
-                    <option value="">Tất cả</option>
-                    <option value="yes" {% if filters.has_products == 'yes' %}selected{% endif %}>Có</option>
-                    <option value="no" {% if filters.has_products == 'no' %}selected{% endif %}>Không</option>
-                </select>
+                <button type="button" id="toggleAdvancedFilters" 
+                        class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                    </svg>
+                    Bộ lọc khác
+                </button>
             </div>
         </div>
         
-        <!-- Action buttons -->
-        <div class="flex gap-2 justify-end">
-            <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
-                Lọc
-            </button>
-            <a href="{% url 'marketing:campaign_list' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
-                Xóa lọc
-            </a>
+        <!-- Advanced Filters Panel (Hidden by default) -->
+        <div id="advancedFiltersPanel" class="hidden mt-4 pt-4 border-t border-gray-200">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Brand -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Brand</label>
+                    <select name="brand" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả</option>
+                        {% for brand in brands %}
+                        <option value="{{ brand.id }}" {% if filters.brand_id == brand.id|stringformat:"s" %}selected{% endif %}>
+                            {{ brand.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Channel -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Channel</label>
+                    <select name="channel" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả</option>
+                        <option value="tiktok" {% if filters.channel == 'tiktok' %}selected{% endif %}>TikTok</option>
+                        <option value="multi" {% if filters.channel == 'multi' %}selected{% endif %}>Multi-platform</option>
+                    </select>
+                </div>
+                
+                <!-- Objective -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Objective</label>
+                    <select name="objective" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả</option>
+                        <option value="awareness" {% if filters.objective == 'awareness' %}selected{% endif %}>Awareness</option>
+                        <option value="traffic" {% if filters.objective == 'traffic' %}selected{% endif %}>Traffic</option>
+                        <option value="sale" {% if filters.objective == 'sale' %}selected{% endif %}>Sale</option>
+                        <option value="launch" {% if filters.objective == 'launch' %}selected{% endif %}>Launch</option>
+                        <option value="clearance" {% if filters.objective == 'clearance' %}selected{% endif %}>Clearance</option>
+                    </select>
+                </div>
+                
+                <!-- Has Creators -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Has Creators</label>
+                    <select name="has_creators" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả</option>
+                        <option value="yes" {% if filters.has_creators == 'yes' %}selected{% endif %}>Có</option>
+                        <option value="no" {% if filters.has_creators == 'no' %}selected{% endif %}>Không</option>
+                    </select>
+                </div>
+                
+                <!-- Has Products -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Has Products</label>
+                    <select name="has_products" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="">Tất cả</option>
+                        <option value="yes" {% if filters.has_products == 'yes' %}selected{% endif %}>Có</option>
+                        <option value="no" {% if filters.has_products == 'no' %}selected{% endif %}>Không</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Action buttons -->
+            <div class="flex gap-2 justify-end mt-4">
+                <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                    Lọc
+                </button>
+                <a href="{% url 'marketing:campaign_list' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
+                    Xóa bộ lọc
+                </a>
+            </div>
         </div>
     </form>
 </div>
@@ -268,4 +294,40 @@
         Export CSV
     </a>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButton = document.getElementById('toggleAdvancedFilters');
+    const filterPanel = document.getElementById('advancedFiltersPanel');
+    const filterForm = document.getElementById('filterForm');
+    
+    // Check if any advanced filters are active
+    const hasAdvancedFilters = {% if filters.brand_id or filters.channel or filters.objective or filters.has_creators or filters.has_products %}true{% else %}false{% endif %};
+    
+    // Show panel if advanced filters are active
+    if (hasAdvancedFilters && filterPanel) {
+        filterPanel.classList.remove('hidden');
+    }
+    
+    // Toggle panel
+    if (toggleButton && filterPanel) {
+        toggleButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filterPanel.classList.toggle('hidden');
+        });
+        
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            if (filterForm && !filterForm.contains(e.target) && !filterPanel.contains(e.target)) {
+                filterPanel.classList.add('hidden');
+            }
+        });
+        
+        // Prevent closing when clicking inside the panel
+        filterPanel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+});
+</script>
 {% endblock %}

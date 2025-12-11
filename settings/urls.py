@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import settings_views, gift_views, variant_tags_views
+from marketing import views_booking
 
 urlpatterns = [
     path('', settings_views.settings_dashboard, name='settings_dashboard'),
@@ -25,6 +26,11 @@ urlpatterns = [
     path('variant-tags/<int:tag_id>/edit/', variant_tags_views.variant_tag_edit, name='variant_tag_edit'),
     path('variant-tags/<int:tag_id>/delete/', variant_tags_views.variant_tag_delete, name='variant_tag_delete'),
     path('variant-tags/api/list/', variant_tags_views.variant_tags_api_list, name='variant_tags_api_list'),
+
+    # Marketing Booking Tags routes
+    path('marketing/booking/tags/', views_booking.booking_tag_list, name='booking_tag_list'),
+    path('marketing/booking/tags/create/', views_booking.booking_tag_create, name='booking_tag_create'),
+    path('marketing/booking/tags/<int:tag_id>/delete/', views_booking.booking_tag_delete, name='booking_tag_delete'),
 
     # Test route
     path('test/', settings_views.test_view, name='settings_test'),

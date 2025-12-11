@@ -38,10 +38,7 @@ urlpatterns = [
     path("booking/creators/<int:creator_id>/contacts/<int:contact_id>/set-primary/", views_booking.booking_contact_set_primary, name="booking_contact_set_primary"),
     path("booking/creators/<int:creator_id>/contacts/<int:contact_id>/delete/", views_booking.booking_contact_delete, name="booking_contact_delete"),
     
-    # Tags
-    path("booking/tags/", views_booking.booking_tag_list, name="booking_tag_list"),
-    path("booking/tags/create/", views_booking.booking_tag_create, name="booking_tag_create"),
-    path("booking/tags/<int:tag_id>/delete/", views_booking.booking_tag_delete, name="booking_tag_delete"),
+    # Tags (tag assignment only - tag management moved to settings)
     path("booking/creators/<int:creator_id>/tags/assign/", views_booking.booking_tag_assign, name="booking_tag_assign"),
     
     # Notes
