@@ -7,14 +7,14 @@
 
 {% block overview %}
 <section>
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
         <div>
-            <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+            <h1 class="text-base sm:text-lg font-semibold text-slate-800">{{ title }}</h1>
             {% if supplier %}
             <p class="text-xs text-gray-500 mt-1">Nhà cung cấp: <strong>{{ supplier.name }}</strong> ({{ supplier.code }})</p>
             {% endif %}
         </div>
-        <a href="{% url 'products:supplier_list' %}" class="text-sm text-slate-600 hover:text-slate-800">
+        <a href="{% url 'products:supplier_list' %}" class="text-xs sm:text-sm text-slate-600 hover:text-slate-800 self-start sm:self-auto">
             ← Quay lại danh sách NSX
         </a>
     </div>
@@ -31,37 +31,37 @@
 
     {% if supplier %}
     <!-- Supplier Info với thông tin đơn hàng nháp -->
-    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-3 sm:p-4">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Cột 1: Thông tin NSX -->
             <div class="flex items-center gap-3">
                 {% if supplier.logo_path %}
-                <img src="{{ supplier.logo_path }}" alt="{{ supplier.name }}" class="w-16 h-16 object-contain rounded-md border border-slate-200">
+                <img src="{{ supplier.logo_path }}" alt="{{ supplier.name }}" class="w-12 h-12 sm:w-16 sm:h-16 object-contain rounded-md border border-slate-200">
                 {% endif %}
                 <div>
-                    <h2 class="text-base font-semibold text-slate-800">{{ supplier.name }}</h2>
+                    <h2 class="text-sm sm:text-base font-semibold text-slate-800">{{ supplier.name }}</h2>
                     <p class="text-xs text-slate-500">Mã: {{ supplier.code }}</p>
                 </div>
             </div>
             
             <!-- Cột 2: Thông tin đơn hàng nháp -->
             {% if draft_po_summary %}
-            <div class="border-l border-slate-200 pl-4 md:pl-6">
+            <div class="border-t md:border-t-0 md:border-l border-slate-200 pt-4 md:pt-0 md:pl-4 md:pl-6">
                 <div class="text-xs text-slate-500 font-medium mb-2 uppercase">Đơn hàng nháp</div>
-                <div class="grid grid-cols-3 gap-3">
+                <div class="grid grid-cols-3 gap-2 sm:gap-3">
                     <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-2 border border-blue-200">
                         <div class="text-[9px] text-blue-600 font-semibold mb-0.5 uppercase">Số lượng</div>
-                        <div class="text-sm font-bold text-blue-700">{{ draft_po_summary.total_quantity_pcs|intcomma }}</div>
+                        <div class="text-xs sm:text-sm font-bold text-blue-700">{{ draft_po_summary.total_quantity_pcs|intcomma }}</div>
                         <div class="text-[8px] text-blue-500 mt-0.5">pcs</div>
                     </div>
                     <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-2 border border-purple-200">
                         <div class="text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Số thùng</div>
-                        <div class="text-sm font-bold text-purple-700">{{ draft_po_summary.total_quantity_boxes|intcomma }}</div>
+                        <div class="text-xs sm:text-sm font-bold text-purple-700">{{ draft_po_summary.total_quantity_boxes|intcomma }}</div>
                         <div class="text-[8px] text-purple-500 mt-0.5">thùng</div>
                     </div>
                     <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-2 border border-emerald-200">
                         <div class="text-[9px] text-emerald-600 font-semibold mb-0.5 uppercase">Số khối</div>
-                        <div class="text-sm font-bold text-emerald-700">{{ draft_po_summary.total_volume_cbm|floatformat:2 }}</div>
+                        <div class="text-xs sm:text-sm font-bold text-emerald-700">{{ draft_po_summary.total_volume_cbm|floatformat:2 }}</div>
                         <div class="text-[8px] text-emerald-500 mt-0.5">m³</div>
                     </div>
                 </div>
@@ -76,42 +76,56 @@
         <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
         
         <!-- CONTROL PANEL -->
-        <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="text-sm font-semibold text-slate-700">Điều khiển</h2>
+        <div class="mb-6 bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6">
+            <!-- Hàng đầu tiên: Tiêu đề + Nút tạo đơn -->
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                <div class="flex-1">
+                    <h2 class="text-xl sm:text-2xl font-semibold text-slate-900 mb-1.5">Điều phối nhập kho</h2>
+                    <p class="text-sm text-slate-600 leading-relaxed">Chọn kho nhận hàng và tìm sản phẩm để tạo đơn nháp.</p>
+                </div>
+                {% if variants %}
+                <button type="button" id="submit-po-btn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-all text-sm font-medium shadow-sm hover:shadow-md touch-manipulation whitespace-nowrap">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    Tạo đơn nháp
+                </button>
+                {% endif %}
             </div>
             
-            <!-- Chọn kho nhận hàng và nút tạo đơn -->
-            <div class="mb-4">
-                <label class="block text-xs text-slate-600 font-medium mb-2">Kho nhận hàng:</label>
-                <div class="flex gap-2 mb-3">
+            <!-- Hàng thứ hai: Chọn kho nhận hàng -->
+            <div class="mb-5">
+                <label class="block text-xs font-medium text-slate-600 mb-2.5">Chọn kho nhận hàng</label>
+                <div class="inline-flex w-full p-1 bg-slate-100 rounded-lg border border-slate-200">
                     <label class="flex-1 cursor-pointer">
                         <input type="radio" name="location_id" value="241737" checked class="sr-only location-radio">
-                        <div class="location-card px-3 py-2 rounded-md border border-slate-300 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition-all text-center" data-location="241737">
-                            <div class="text-xs font-semibold text-slate-700">Gele - Hà Nội</div>
+                        <div class="location-card px-4 py-2.5 rounded-md text-center transition-all touch-manipulation" data-location="241737">
+                            <div class="text-sm font-medium text-slate-700">KHO GELEXIMCO • Hà Nội</div>
                         </div>
                     </label>
                     <label class="flex-1 cursor-pointer">
                         <input type="radio" name="location_id" value="548744" class="sr-only location-radio">
-                        <div class="location-card px-3 py-2 rounded-md border border-slate-300 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition-all text-center" data-location="548744">
-                            <div class="text-xs font-semibold text-slate-700">Toky - Hồ Chí Minh</div>
+                        <div class="location-card px-4 py-2.5 rounded-md text-center transition-all touch-manipulation" data-location="548744">
+                            <div class="text-sm font-medium text-slate-700">KHO TÔ KÝ • Hồ Chí Minh</div>
                         </div>
                     </label>
                 </div>
-                <!-- Nút tạo đơn nháp -->
-                {% if variants %}
-                <div class="flex justify-end">
-                    <button type="button" id="submit-po-btn" class="px-6 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-semibold shadow-sm">
-                        📦 Tạo đơn nháp
-                    </button>
-                </div>
-                {% endif %}
             </div>
             
-            <!-- Tìm kiếm nhanh -->
+            <!-- Hàng thứ ba: Tìm kiếm -->
             <div>
-                <label class="text-xs text-slate-600 font-medium mb-1 block">Tìm kiếm:</label>
-                <input type="text" id="search-input" placeholder="Tìm theo SKU, tên sản phẩm, phân loại..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <label class="block text-xs font-medium text-slate-600 mb-2.5">Tìm sản phẩm</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    <input type="text" 
+                           id="search-input" 
+                           placeholder="Nhập SKU hoặc tên sản phẩm để lọc..." 
+                           class="w-full pl-10 pr-4 py-2.5 text-sm text-slate-900 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:shadow-sm transition-all">
+                </div>
             </div>
         </div>
 
@@ -128,178 +142,188 @@
             <div id="forecast-container" class="divide-y divide-slate-200">
                 {% if variants %}
                     {% for variant in variants %}
-                    <div class="js-variant-row hover:bg-slate-50 transition p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}" data-abc-category="{% if variant.forecast_30 and variant.forecast_30.abc_category %}{{ variant.forecast_30.abc_category }}{% else %}{% endif %}" data-abc-rank="{% if variant.forecast_30 and variant.forecast_30.abc_rank %}{{ variant.forecast_30.abc_rank }}{% else %}0{% endif %}">
-                        <div class="flex gap-4">
+                    <div class="js-variant-row hover:bg-slate-50 transition p-3 sm:p-4" data-sku="{{ variant.sku|upper }}" data-name="{{ variant.name|upper }}" data-product-name="{{ variant.product_name|upper }}" data-opt1="{{ variant.opt1|upper }}" data-brand="{{ variant.brand|upper }}" data-total-sold-30="{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold }}{% else %}0{% endif %}" data-total-sold-10="{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold }}{% else %}0{% endif %}" data-sales-rate="{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate }}{% else %}0{% endif %}" data-growth-percentage-30="{{ variant.growth_percentage_30|default:0 }}" data-growth-percentage-10="{{ variant.growth_percentage_10|default:0 }}" data-inventory-hn="{{ variant.inventory_hn }}" data-inventory-sg="{{ variant.inventory_sg }}" data-total-inventory="{{ variant.total_inventory }}" data-days-remaining="{{ variant.days_remaining|default:0 }}" data-is-infinite="{{ variant.is_infinite }}" data-suggested-purchase-qty="{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty }}{% else %}0{% endif %}" data-abc-category="{% if variant.forecast_30 and variant.forecast_30.abc_category %}{{ variant.forecast_30.abc_category }}{% else %}{% endif %}" data-abc-rank="{% if variant.forecast_30 and variant.forecast_30.abc_rank %}{{ variant.forecast_30.abc_rank }}{% else %}0{% endif %}">
+                        <div class="flex gap-3 mb-3">
                             <!-- Hình ảnh -->
                             <div class="flex-shrink-0">
-                                {% if variant.image_url %}<img src="{{ variant.image_url }}" alt="{{ variant.name }}" class="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 object-cover rounded-xl border-2 border-slate-200">{% else %}<div class="w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28 bg-slate-100 rounded-xl border-2 border-slate-200 flex items-center justify-center"><span class="text-[10px] sm:text-xs text-slate-400">No img</span></div>{% endif %}
+                                {% if variant.image_url %}<img src="{{ variant.image_url }}" alt="{{ variant.name }}" class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 object-cover rounded-xl border-2 border-slate-200">{% else %}<div class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-slate-100 rounded-xl border-2 border-slate-200 flex items-center justify-center"><span class="text-[10px] sm:text-xs text-slate-400">No img</span></div>{% endif %}
                             </div>
                             <!-- Thông tin chính -->
                             <div class="flex-1 min-w-0">
-                                <div class="flex items-start justify-between mb-2">
-                                    <div class="flex-1">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{{ variant.brand|default:"N/A" }}</span>
-                                            <span class="text-xs font-mono text-slate-600 bg-blue-50 px-2 py-0.5 rounded">{{ variant.sku }}</span>
+                                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+                                            <span class="text-[10px] sm:text-xs font-semibold text-slate-500 bg-slate-100 px-1.5 sm:px-2 py-0.5 rounded">{{ variant.brand|default:"N/A" }}</span>
+                                            <span class="text-[10px] sm:text-xs font-mono text-slate-600 bg-blue-50 px-1.5 sm:px-2 py-0.5 rounded">{{ variant.sku }}</span>
                                             {% if variant.forecast_30 and variant.forecast_30.abc_category %}
                                                 {% if variant.forecast_30.abc_category == "A" %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-300">Nhóm A</span>
+                                                    <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-red-100 text-red-700 border border-red-300">Nhóm A</span>
                                                 {% elif variant.forecast_30.abc_category == "B" %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">Nhóm B</span>
+                                                    <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">Nhóm B</span>
                                                 {% else %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Nhóm C</span>
+                                                    <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-green-100 text-green-700">Nhóm C</span>
                                                 {% endif %}
                                             {% endif %}
                                             {% if variant.forecast_30 and variant.forecast_30.abc_rank %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-300">Top {{ variant.forecast_30.abc_rank }}</span>
+                                                <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-indigo-100 text-indigo-700 border border-indigo-300">Top {{ variant.forecast_30.abc_rank }}</span>
                                             {% endif %}
                                             {% if variant.forecast_30 and variant.forecast_30.priority_score is not None %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-300" title="Priority Score: {{ variant.forecast_30.priority_score|floatformat:2 }}">PS: {{ variant.forecast_30.priority_score|floatformat:1 }}</span>
+                                                <span class="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-purple-100 text-purple-700 border border-purple-300" title="Priority Score: {{ variant.forecast_30.priority_score|floatformat:2 }}">PS: {{ variant.forecast_30.priority_score|floatformat:1 }}</span>
                                             {% endif %}
                                         </div>
-                                        <h4 class="text-sm font-medium text-slate-800 truncate" title="{{ variant.product_name }}">{{ variant.product_name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
+                                        <h4 class="text-xs sm:text-sm font-medium text-slate-800 break-words" title="{{ variant.product_name }}">{{ variant.product_name }}{% if variant.opt1 %} - {{ variant.opt1 }}{% endif %}</h4>
                                     </div>
-                                    <div class="flex-shrink-0 ml-2">
-                                        {% if variant.warning_color == "red" %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border-2 border-red-300">⚠️ &lt; 30 ngày</span>{% elif variant.warning_color == "yellow" %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">⚡ 30-60 ngày</span>{% else %}<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">✓ &gt; 60 ngày</span>{% endif %}
+                                    <div class="flex-shrink-0 self-start">
+                                        {% if variant.warning_color == "red" %}<span class="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold bg-red-100 text-red-700 border-2 border-red-300">⚠️ &lt; 30 ngày</span>{% elif variant.warning_color == "yellow" %}<span class="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-semibold bg-yellow-100 text-yellow-700 border border-yellow-300">⚡ 30-60 ngày</span>{% else %}<span class="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium bg-green-100 text-green-700">✓ &gt; 60 ngày</span>{% endif %}
                                     </div>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 mt-3">
-                                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-1.5 border border-blue-200">
-                                        <div class="text-[9px] text-blue-600 font-semibold mb-0.5 uppercase">Tốc độ bán/ngày</div>
-                                        <div class="text-sm font-bold text-blue-700">{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate|floatformat:1 }}{% else %}-{% endif %}</div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2">
+                                    <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-1.5 sm:p-1.5 border border-blue-200">
+                                        <div class="text-[8px] sm:text-[9px] text-blue-600 font-semibold mb-0.5 uppercase">Tốc độ bán/ngày</div>
+                                        <div class="text-xs sm:text-sm font-bold text-blue-700">{% if variant.forecast_30 %}{{ variant.forecast_30.sales_rate|floatformat:1 }}{% else %}-{% endif %}</div>
                                     </div>
-                                    <div class="{% if variant.warning_color == 'red' %}bg-gradient-to-br from-red-50 to-red-100 border-red-300{% elif variant.warning_color == 'yellow' %}bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300{% else %}bg-gradient-to-br from-green-50 to-green-100 border-green-200{% endif %} rounded-lg p-1.5 border-2">
-                                        <div class="text-[9px] {% if variant.warning_color == 'red' %}text-red-600{% elif variant.warning_color == 'yellow' %}text-yellow-600{% else %}text-green-600{% endif %} font-semibold mb-0.5 uppercase">Số ngày còn</div>
-                                        <div class="text-sm font-bold {% if variant.warning_color == 'red' %}text-red-700{% elif variant.warning_color == 'yellow' %}text-yellow-700{% else %}text-green-700{% endif %}">{% if variant.is_infinite %}∞{% else %}{{ variant.days_remaining|floatformat:0 }}{% endif %}</div>
+                                    <div class="{% if variant.warning_color == 'red' %}bg-gradient-to-br from-red-50 to-red-100 border-red-300{% elif variant.warning_color == 'yellow' %}bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-300{% else %}bg-gradient-to-br from-green-50 to-green-100 border-green-200{% endif %} rounded-lg p-1.5 sm:p-1.5 border-2">
+                                        <div class="text-[8px] sm:text-[9px] {% if variant.warning_color == 'red' %}text-red-600{% elif variant.warning_color == 'yellow' %}text-yellow-600{% else %}text-green-600{% endif %} font-semibold mb-0.5 uppercase">Số ngày còn</div>
+                                        <div class="text-xs sm:text-sm font-bold {% if variant.warning_color == 'red' %}text-red-700{% elif variant.warning_color == 'yellow' %}text-yellow-700{% else %}text-green-700{% endif %}">{% if variant.is_infinite %}∞{% else %}{{ variant.days_remaining|floatformat:0 }}{% endif %}</div>
                                     </div>
-                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-1.5 border border-purple-200">
-                                        <div class="text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Tổng tồn</div>
-                                        <div class="text-sm font-bold text-purple-700">{{ variant.total_inventory|intcomma }}</div>
-                                        <div class="text-[8px] text-purple-500 mt-0.5">HN: {{ variant.inventory_hn|intcomma }} | SG: {{ variant.inventory_sg|intcomma }}</div>
+                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-1.5 sm:p-1.5 border border-purple-200">
+                                        <div class="text-[8px] sm:text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Tổng tồn</div>
+                                        <div class="text-xs sm:text-sm font-bold text-purple-700">{{ variant.total_inventory|intcomma }}</div>
+                                        <div class="text-[7px] sm:text-[8px] text-purple-500 mt-0.5 hidden sm:block">HN: {{ variant.inventory_hn|intcomma }} | SG: {{ variant.inventory_sg|intcomma }}</div>                                        <div class="text-[7px] sm:text-[8px] text-purple-500 mt-0.5 block sm:hidden">HN: {{ variant.inventory_hn|intcomma }}<br>SG: {{ variant.inventory_sg|intcomma }}</div>
                                     </div>
-                                    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-1.5 border border-emerald-200">
-                                        <div class="text-[9px] text-emerald-600 font-semibold mb-0.5 uppercase">Bán (30N)</div>
-                                        <div class="grid grid-cols-2 gap-1">
+                                    <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-1.5 sm:p-1.5 border border-emerald-200">
+                                        <div class="text-[8px] sm:text-[9px] text-emerald-600 font-semibold mb-0.5 uppercase">Bán (30N)</div>
+                                        <div class="grid grid-cols-2 gap-0.5 sm:gap-1">
                                             <div>
-                                                <div class="text-sm font-bold text-emerald-700">{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                                <div class="text-xs sm:text-sm font-bold text-emerald-700">{% if variant.forecast_30 %}{{ variant.forecast_30.total_sold|intcomma }}{% else %}-{% endif %}</div>
                                             </div>
                                             <div>
                                                 {% if variant.forecast_30 and variant.forecast_30.revenue %}
-                                                    <div class="text-sm font-bold text-emerald-700">{{ variant.forecast_30.revenue|format_kmb }}</div>
+                                                    <div class="text-xs sm:text-sm font-bold text-emerald-700">{{ variant.forecast_30.revenue|format_kmb }}</div>
                                                 {% else %}
-                                                    <div class="text-sm font-bold text-emerald-700">-</div>
+                                                    <div class="text-xs sm:text-sm font-bold text-emerald-700">-</div>
                                                 {% endif %}
                                             </div>
                                         </div>
                                         {% if variant.forecast_30 and variant.forecast_30.total_sold_previous_period > 0 and variant.growth_percentage_30 is not None %}
-                                            <div class="text-[8px] text-emerald-500 mt-0.5">
-                                                Kỳ trước: {{ variant.forecast_30.total_sold_previous_period|intcomma }} 
+                                            <div class="text-[7px] sm:text-[8px] text-emerald-500 mt-0.5">
+                                                Ss:{{ variant.forecast_30.total_sold_previous_period|intcomma }} 
                                                 <span class="{% if variant.growth_percentage_30 > 0 %}text-green-600{% elif variant.growth_percentage_30 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
                                                     {% if variant.growth_percentage_30 > 0 %}▲ +{{ variant.growth_percentage_30|floatformat:1 }}%{% elif variant.growth_percentage_30 < 0 %}▼ {{ variant.growth_percentage_30|floatformat:1 }}%{% else %}→ 0%{% endif %}
                                                 </span>
                                             </div>
                                         {% elif variant.forecast_30 and variant.forecast_30.total_sold_previous_period > 0 %}
-                                            <div class="text-[8px] text-emerald-500 mt-0.5">Kỳ trước: {{ variant.forecast_30.total_sold_previous_period|intcomma }}</div>
+                                            <div class="text-[7px] sm:text-[8px] text-emerald-500 mt-0.5">Ss:{{ variant.forecast_30.total_sold_previous_period|intcomma }}</div>
                                         {% elif variant.growth_percentage_30 is not None %}
-                                            <div class="text-[8px] mt-0.5 {% if variant.growth_percentage_30 > 0 %}text-green-600{% elif variant.growth_percentage_30 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
+                                            <div class="text-[7px] sm:text-[8px] mt-0.5 {% if variant.growth_percentage_30 > 0 %}text-green-600{% elif variant.growth_percentage_30 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
                                                 {% if variant.growth_percentage_30 > 0 %}▲ +{{ variant.growth_percentage_30|floatformat:1 }}%{% elif variant.growth_percentage_30 < 0 %}▼ {{ variant.growth_percentage_30|floatformat:1 }}%{% else %}→ 0%{% endif %}
                                             </div>
                                         {% endif %}
                                     </div>
-                                    <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-1.5 border border-amber-200">
-                                        <div class="text-[9px] text-amber-600 font-semibold mb-0.5 uppercase">Bán (10N)</div>
-                                        <div class="grid grid-cols-2 gap-1">
+                                    <div class="bg-gradient-to-br from-amber-50 to-amber-100 rounded-lg p-1.5 sm:p-1.5 border border-amber-200">
+                                        <div class="text-[8px] sm:text-[9px] text-amber-600 font-semibold mb-0.5 uppercase">Bán (10N)</div>
+                                        <div class="grid grid-cols-2 gap-0.5 sm:gap-1">
                                             <div>
-                                                <div class="text-sm font-bold text-amber-700">{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold|intcomma }}{% else %}-{% endif %}</div>
+                                                <div class="text-xs sm:text-sm font-bold text-amber-700">{% if variant.forecast_10 %}{{ variant.forecast_10.total_sold|intcomma }}{% else %}-{% endif %}</div>
                                             </div>
                                             <div>
                                                 {% if variant.forecast_10 and variant.forecast_10.revenue %}
-                                                    <div class="text-sm font-bold text-amber-700">{{ variant.forecast_10.revenue|format_kmb }} VNĐ</div>
+                                                    <div class="text-xs sm:text-sm font-bold text-amber-700">{{ variant.forecast_10.revenue|format_kmb }}</div>
                                                 {% else %}
-                                                    <div class="text-sm font-bold text-amber-700">-</div>
+                                                    <div class="text-xs sm:text-sm font-bold text-amber-700">-</div>
                                                 {% endif %}
                                             </div>
                                         </div>
                                         {% if variant.forecast_10 and variant.forecast_10.total_sold_previous_period > 0 and variant.growth_percentage_10 is not None %}
-                                            <div class="text-[8px] text-amber-500 mt-0.5">
-                                                Kỳ trước: {{ variant.forecast_10.total_sold_previous_period|intcomma }} 
+                                            <div class="text-[7px] sm:text-[8px] text-amber-500 mt-0.5">
+                                                Ss:{{ variant.forecast_10.total_sold_previous_period|intcomma }} 
                                                 <span class="{% if variant.growth_percentage_10 > 0 %}text-green-600{% elif variant.growth_percentage_10 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
                                                     {% if variant.growth_percentage_10 > 0 %}▲ +{{ variant.growth_percentage_10|floatformat:1 }}%{% elif variant.growth_percentage_10 < 0 %}▼ {{ variant.growth_percentage_10|floatformat:1 }}%{% else %}→ 0%{% endif %}
                                                 </span>
                                             </div>
                                         {% elif variant.forecast_10 and variant.forecast_10.total_sold_previous_period > 0 %}
-                                            <div class="text-[8px] text-amber-500 mt-0.5">Kỳ trước: {{ variant.forecast_10.total_sold_previous_period|intcomma }}</div>
+                                            <div class="text-[7px] sm:text-[8px] text-amber-500 mt-0.5">Ss:{{ variant.forecast_10.total_sold_previous_period|intcomma }}</div>
                                         {% elif variant.growth_percentage_10 is not None %}
-                                            <div class="text-[8px] mt-0.5 {% if variant.growth_percentage_10 > 0 %}text-green-600{% elif variant.growth_percentage_10 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
+                                            <div class="text-[7px] sm:text-[8px] mt-0.5 {% if variant.growth_percentage_10 > 0 %}text-green-600{% elif variant.growth_percentage_10 < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
                                                 {% if variant.growth_percentage_10 > 0 %}▲ +{{ variant.growth_percentage_10|floatformat:1 }}%{% elif variant.growth_percentage_10 < 0 %}▼ {{ variant.growth_percentage_10|floatformat:1 }}%{% else %}→ 0%{% endif %}
                                             </div>
                                         {% endif %}
                                     </div>
-                                    <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-1.5 border border-indigo-200">
-                                        <div class="text-[9px] text-indigo-600 font-semibold mb-0.5 uppercase">Gợi ý nhập (45N)</div>
-                                        <div class="text-sm font-bold text-indigo-700">{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty|floatformat:0|intcomma }}{% else %}-{% endif %}</div>
-                                        {% if variant.min_stock is not None and variant.sfuture is not None %}
-                                        <div class="text-[8px] text-indigo-500 mt-0.5">Minstock: {{ variant.min_stock|intcomma }} pcs - Sfuture: {{ variant.sfuture|intcomma }} pcs</div>
-                                        {% else %}
-                                        <div class="text-[8px] text-indigo-500 mt-0.5">Dựa trên 30N</div>
-                                        {% endif %}
-                                    </div>
                                     {% if variant.forecast_30 and variant.forecast_30.asp_value %}
-                                    <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-1.5 border border-cyan-200">
-                                        <div class="text-[9px] text-cyan-600 font-semibold mb-0.5 uppercase">ASP (30N)</div>
-                                        <div class="text-sm font-bold text-cyan-700">{{ variant.forecast_30.asp_value|floatformat:0|intcomma }}</div>
-                                        <div class="text-[8px] text-cyan-500 mt-0.5">Giá bán TB</div>
+                                    <div class="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-lg p-1.5 sm:p-1.5 border border-cyan-200">
+                                        <div class="text-[8px] sm:text-[9px] text-cyan-600 font-semibold mb-0.5 uppercase">ASP (30N)</div>
+                                        <div class="text-xs sm:text-sm font-bold text-cyan-700">{{ variant.forecast_30.asp_value|floatformat:0|intcomma }}</div>
+                                        <div class="text-[7px] sm:text-[8px] text-cyan-500 mt-0.5">Giá bán TB</div>
                                     </div>
                                     {% endif %}
                                     {% if variant.forecast_30 and variant.forecast_30.priority_score is not None %}
-                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-1.5 border border-purple-200">
-                                        <div class="text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Priority Score</div>
-                                        <div class="text-sm font-bold text-purple-700">{{ variant.forecast_30.priority_score|floatformat:2 }}</div>
-                                        <div class="text-[8px] text-purple-500 mt-0.5">
+                                    <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-1.5 sm:p-1.5 border border-purple-200">
+                                        <div class="text-[8px] sm:text-[9px] text-purple-600 font-semibold mb-0.5 uppercase">Priority Score</div>
+                                        <div class="text-xs sm:text-sm font-bold text-purple-700">{{ variant.forecast_30.priority_score|floatformat:2 }}</div>
+                                        <div class="text-[7px] sm:text-[8px] text-purple-500 mt-0.5">
                                             V:{{ variant.forecast_30.velocity_score|default:"-" }} 
                                             A:{{ variant.forecast_30.asp_score|default:"-" }} 
                                             R:{{ variant.forecast_30.revenue_contribution_score|default:"-" }}
                                         </div>
                                     </div>
                                     {% endif %}
-                                </div>
-                            </div>
-                            <!-- Input số lượng nhập (bên phải) -->
-                            <div class="flex-shrink-0 w-48 sm:w-56 md:w-64">
-                                <div class="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 border-2 border-emerald-200">
-                                    <label class="block text-xs font-semibold text-emerald-700 mb-2 uppercase">Số lượng nhập</label>
-                                    <div class="space-y-2">
-                                        <div class="flex items-center gap-2">
-                                            <input type="number" 
-                                                   name="quantity_{{ variant.variant_id }}" 
-                                                   id="qty_{{ variant.variant_id }}"
-                                                   value="{% if variant.draft_quantity_boxes %}{{ variant.draft_quantity_boxes }}{% elif variant.suggested_boxes %}{{ variant.suggested_boxes }}{% else %}0{% endif %}"
-                                                   min="0"
-                                                   step="1"
-                                                   class="flex-1 px-2 py-1.5 text-sm font-semibold border-2 border-emerald-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-                                                   data-variant-id="{{ variant.variant_id }}"
-                                                   data-full-box="{{ variant.full_box }}"
-                                                   onchange="updateQuantity({{ variant.variant_id }})">
-                                            <span class="text-xs font-medium text-emerald-700">thùng</span>
-                                        </div>
-                                        <div class="text-xs text-emerald-600 font-medium text-center">
-                                            <span id="pcs_{{ variant.variant_id }}" data-initial-boxes="{% if variant.suggested_boxes %}{{ variant.suggested_boxes }}{% else %}0{% endif %}">
-                                                0 pcs
-                                            </span>
-                                        </div>
-                                        {% if variant.draft_quantity_boxes and variant.draft_quantity_boxes > 0 %}
-                                        <button type="button" 
-                                                onclick="setSuggestedQuantity({{ variant.variant_id }}, {{ variant.draft_quantity_boxes }})"
-                                                class="w-full px-2 py-1 text-xs font-medium text-blue-700 bg-blue-200 hover:bg-blue-300 rounded-md transition">
-                                            Dùng từ PO
-                                        </button>
-                                        {% elif variant.suggested_boxes and variant.suggested_boxes > 0 %}
-                                        <button type="button" 
-                                                onclick="setSuggestedQuantity({{ variant.variant_id }}, {{ variant.suggested_boxes }})"
-                                                class="w-full px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-200 hover:bg-emerald-300 rounded-md transition">
-                                            Dùng gợi ý
-                                        </button>
+                                    <!-- Gợi ý nhập (45N) - đặt cuối cùng -->
+                                    <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-lg p-1.5 sm:p-1.5 border border-indigo-200">
+                                        <div class="text-[8px] sm:text-[9px] text-indigo-600 font-semibold mb-0.5 uppercase">Gợi ý nhập (45N)</div>
+                                        <div class="text-xs sm:text-sm font-bold text-indigo-700">{% if variant.suggested_purchase_qty is not None %}{{ variant.suggested_purchase_qty|floatformat:0|intcomma }}{% else %}-{% endif %}</div>
+                                        {% if variant.min_stock is not None and variant.sfuture is not None %}
+                                        <div class="text-[7px] sm:text-[8px] text-indigo-500 mt-0.5 hidden sm:block">Minstock: {{ variant.min_stock|intcomma }} pcs - Sfuture: {{ variant.sfuture|intcomma }} pcs</div>
+                                        {% else %}
+                                        <div class="text-[7px] sm:text-[8px] text-indigo-500 mt-0.5">Dựa trên 30N</div>
                                         {% endif %}
+                                    </div>
+                                    <!-- Input số lượng nhập - nổi bật, đặt cuối cùng -->
+                                    <div class="bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-lg p-2 sm:p-2.5 border-2 sm:border-4 border-emerald-500 shadow-md">
+                                        <div class="flex items-center justify-between mb-1.5 gap-2">
+                                            <div class="text-[9px] sm:text-[10px] text-emerald-800 font-bold uppercase">Số lượng nhập</div>
+                                            {% if variant.draft_quantity_boxes and variant.draft_quantity_boxes > 0 %}
+                                            <button type="button" 
+                                                    onclick="setSuggestedQuantity({{ variant.variant_id }}, {{ variant.draft_quantity_boxes }})"
+                                                    class="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[9px] font-medium text-blue-700 bg-blue-200 hover:bg-blue-300 active:bg-blue-400 rounded-full transition touch-manipulation whitespace-nowrap">
+                                                Dùng từ PO
+                                            </button>
+                                            {% elif variant.suggested_boxes and variant.suggested_boxes > 0 %}
+                                            <button type="button" 
+                                                    onclick="setSuggestedQuantity({{ variant.variant_id }}, {{ variant.suggested_boxes }})"
+                                                    class="inline-flex items-center px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[9px] font-medium text-emerald-700 bg-emerald-200 hover:bg-emerald-300 active:bg-emerald-400 rounded-full transition touch-manipulation whitespace-nowrap">
+                                                Dùng gợi ý
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                        <!-- Layout: Số thùng (input) -> mũi tên -> Số pcs (hiển thị) trên cùng 1 hàng -->
+                                        <div class="flex items-center gap-1 sm:gap-1.5 md:gap-2 overflow-hidden">
+                                            <div class="flex items-center gap-0.5 sm:gap-1 min-w-0 flex-shrink">
+                                                <input type="number" 
+                                                       name="quantity_{{ variant.variant_id }}" 
+                                                       id="qty_{{ variant.variant_id }}"
+                                                       value="{% if variant.draft_quantity_boxes %}{{ variant.draft_quantity_boxes }}{% elif variant.suggested_boxes %}{{ variant.suggested_boxes }}{% else %}0{% endif %}"
+                                                       min="0"
+                                                       step="1"
+                                                       class="w-12 sm:w-16 md:w-20 px-1.5 sm:px-2 md:px-2.5 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base font-bold border-2 border-emerald-600 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white touch-manipulation"
+                                                       data-variant-id="{{ variant.variant_id }}"
+                                                       data-full-box="{{ variant.full_box }}"
+                                                       onchange="updateQuantity({{ variant.variant_id }})">
+                                                <span class="text-[9px] sm:text-[10px] md:text-xs font-semibold text-emerald-800 whitespace-nowrap flex-shrink-0">thùng</span>
+                                            </div>
+                                            <div class="flex-shrink-0 text-emerald-600 hidden sm:block">
+                                                <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                                                </svg>
+                                            </div>
+                                            <div class="flex-shrink-0 text-right min-w-[45px] sm:min-w-[60px] md:min-w-[70px]">
+                                                <div class="text-[10px] sm:text-xs md:text-sm font-bold text-emerald-800">
+                                                    <span id="pcs_{{ variant.variant_id }}" data-initial-boxes="{% if variant.suggested_boxes %}{{ variant.suggested_boxes }}{% else %}0{% endif %}">
+                                                        0
+                                                    </span>
+                                                </div>
+                                                <div class="text-[8px] sm:text-[9px] md:text-[10px] text-emerald-700 font-medium">pcs</div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -331,7 +355,7 @@
         <!-- Nút quay lại -->
         {% if variants %}
         <div class="mt-4 flex justify-end gap-3">
-            <a href="{% url 'products:supplier_list' %}" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
+            <a href="{% url 'products:supplier_list' %}" class="px-4 py-2.5 sm:py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 active:bg-slate-400 transition text-xs sm:text-sm font-medium touch-manipulation">
                 ← Quay lại danh sách NSX
             </a>
         </div>
@@ -342,7 +366,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // ========== LOCATION SELECTION (Styled Radio Buttons) ==========
+    // ========== LOCATION SELECTION (Segmented Control) ==========
     const locationRadios = document.querySelectorAll('.location-radio');
     const locationCards = document.querySelectorAll('.location-card');
     
@@ -352,18 +376,20 @@ document.addEventListener('DOMContentLoaded', function() {
             const textEl = card.querySelector('div');
             
             if (radio.checked) {
-                card.classList.remove('border-slate-300', 'bg-white');
-                card.classList.add('border-emerald-500', 'bg-emerald-50', 'shadow-sm');
+                // Tab đang chọn: nền xanh lá nhẹ, viền rõ, chữ đậm
+                card.classList.remove('bg-white', 'hover:bg-slate-50');
+                card.classList.add('bg-emerald-50', 'border', 'border-emerald-200', 'shadow-sm');
                 if (textEl) {
-                    textEl.classList.remove('text-slate-700');
-                    textEl.classList.add('text-emerald-700');
+                    textEl.classList.remove('text-slate-700', 'font-medium');
+                    textEl.classList.add('text-emerald-900', 'font-semibold');
                 }
             } else {
-                card.classList.remove('border-emerald-500', 'bg-emerald-50', 'shadow-sm');
-                card.classList.add('border-slate-300', 'bg-white');
+                // Tab chưa chọn: nền trắng, chữ xám đậm
+                card.classList.remove('bg-emerald-50', 'border', 'border-emerald-200', 'shadow-sm');
+                card.classList.add('bg-white', 'hover:bg-slate-50');
                 if (textEl) {
-                    textEl.classList.remove('text-emerald-700');
-                    textEl.classList.add('text-slate-700');
+                    textEl.classList.remove('text-emerald-900', 'font-semibold');
+                    textEl.classList.add('text-slate-700', 'font-medium');
                 }
             }
         });
@@ -462,7 +488,8 @@ function updateQuantity(variantId) {
     
     const pcsSpan = document.getElementById(`pcs_${variantId}`);
     if (pcsSpan) {
-        pcsSpan.textContent = `${pcs.toLocaleString('vi-VN')} pcs`;
+        // Chỉ hiển thị số, không có "pcs" vì đã có label riêng
+        pcsSpan.textContent = pcs.toLocaleString('vi-VN');
     }
 }
 
