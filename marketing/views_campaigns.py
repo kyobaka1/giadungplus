@@ -60,7 +60,7 @@ def campaign_list(request):
     brand_id = request.GET.get('brand', '')
     channel_filter = request.GET.get('channel', '')
     objective_filter = request.GET.get('objective', '')
-    status_filter = request.GET.getlist('status', [])
+    status_filter = request.GET.get('status', '')
     owner_id = request.GET.get('owner', '')
     has_creators = request.GET.get('has_creators', '')
     has_products = request.GET.get('has_products', '')
@@ -99,7 +99,7 @@ def campaign_list(request):
     
     # Status filter
     if status_filter:
-        queryset = queryset.filter(status__in=status_filter)
+        queryset = queryset.filter(status=status_filter)
     
     # Owner filter
     if owner_id:

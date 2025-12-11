@@ -18,49 +18,72 @@
 <section class="space-y-4">
     <!-- Bộ lọc -->
     <div class="bg-white border rounded-xl p-4 shadow-sm">
-        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end text-xs md:text-sm">
-            <div>
-                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Từ ngày thanh toán</label>
-                <input type="date" name="payment_from" value="{{ filter_payment_from }}"
-                       class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
+        <form method="get" id="filterForm" class="text-xs md:text-sm">
+            <!-- Main Filter Row -->
+            <div class="flex flex-wrap items-end gap-3">
+                <!-- Ngày thanh toán -->
+                <div class="w-[180px]">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Ngày thanh toán</label>
+                    <input type="date" name="payment_from" value="{{ filter_payment_from }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                </div>
+                
+                <!-- Nhân viên phụ trách -->
+                <div class="w-[180px]">
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Nhân viên phụ trách</label>
+                    <select name="person_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                        <option value="" {% if not filter_person_id %}selected{% endif %}>Tất cả</option>
+                        {% for p in person_options %}
+                        <option value="{{ p.id }}"{% if filter_person_id and filter_person_id|add:'' == p.id|add:'' %} selected{% endif %}>
+                            {{ p.first_name|default:p.username }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Bộ lọc khác Button -->
+                <div>
+                    <button type="button" id="toggleAdvancedFilters" 
+                            class="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm font-medium flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                        </svg>
+                        Bộ lọc khác
+                    </button>
+                </div>
             </div>
-            <div>
-                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Đến ngày thanh toán</label>
-                <input type="date" name="payment_to" value="{{ filter_payment_to }}"
-                       class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
-            </div>
-            <div>
-                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Loại chi phí</label>
-                <select name="cost_type"
-                        multiple
-                        class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-[11px]">
-                    <option value="" disabled>Giữ Ctrl để chọn nhiều</option>
-                    {% for ct in cost_type_options %}
-                    <option value="{{ ct }}" {% if ct in filter_cost_types %}selected{% endif %}>{{ ct }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label class="block text-[11px] font-semibold text-gray-700 mb-1">Người thanh toán</label>
-                <select name="person_id"
-                        class="w-full px-3 py-1.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand">
-                    <option value="" {% if not filter_person_id %}selected{% endif %}>Tất cả</option>
-                    {% for p in person_options %}
-                    <option value="{{ p.id }}"{% if filter_person_id and filter_person_id|add:'' == p.id|add:'' %} selected{% endif %}>
-                        {{ p.first_name|default:p.username }}
-                    </option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="md:col-span-4 flex justify-end gap-2">
-                <button type="submit"
-                        class="px-4 py-1.5 bg-brand text-white rounded-lg hover:bg-red-700 transition text-xs font-semibold">
-                    Lọc
-                </button>
-                <a href="{% url 'cskh:ticket_cost_overview' %}"
-                   class="px-4 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-xs font-semibold">
-                    Xoá lọc
-                </a>
+            
+            <!-- Advanced Filters Panel (Hidden by default) -->
+            <div id="advancedFiltersPanel" class="hidden mt-4 pt-4 border-t border-gray-200">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Đến ngày thanh toán -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Đến ngày thanh toán</label>
+                        <input type="date" name="payment_to" value="{{ filter_payment_to }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                    </div>
+                    
+                    <!-- Loại chi phí -->
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Loại chi phí</label>
+                        <select name="cost_type" multiple class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand text-sm">
+                            <option value="" disabled>Giữ Ctrl để chọn nhiều</option>
+                            {% for ct in cost_type_options %}
+                            <option value="{{ ct }}" {% if ct in filter_cost_types %}selected{% endif %}>{{ ct }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Action buttons -->
+                <div class="flex gap-2 justify-end mt-4">
+                    <button type="submit" class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
+                        Lọc
+                    </button>
+                    <a href="{% url 'cskh:ticket_cost_overview' %}" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm text-center">
+                        Xóa bộ lọc
+                    </a>
+                </div>
             </div>
         </form>
     </div>
@@ -378,7 +401,34 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 });
-</script>
 
+// Advanced filters panel toggle
+document.addEventListener('DOMContentLoaded', function() {
+    const toggleButton = document.getElementById('toggleAdvancedFilters');
+    const filterPanel = document.getElementById('advancedFiltersPanel');
+    const filterForm = document.getElementById('filterForm');
+    
+    // Panel mặc định là ẩn, chỉ hiện khi bấm button
+    // Toggle panel
+    if (toggleButton && filterPanel) {
+        toggleButton.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filterPanel.classList.toggle('hidden');
+        });
+        
+        // Close panel when clicking outside
+        document.addEventListener('click', function(e) {
+            if (filterForm && !filterForm.contains(e.target) && !filterPanel.contains(e.target)) {
+                filterPanel.classList.add('hidden');
+            }
+        });
+        
+        // Prevent closing when clicking inside the panel
+        filterPanel.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+});
+</script>
 
 {% endblock %}

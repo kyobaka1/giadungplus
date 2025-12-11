@@ -1835,6 +1835,17 @@ def _process_single_order(
         if not pdf_bytes:
             try:
                 shipping_carrier = meta.get("shipping_carrier") or ""
+                
+                # Kiểm tra dto trước khi truyền vào
+                if dto is None:
+                    # Thử lấy lại DTO một lần nữa
+                    try:
+                        dto = core_service.get_order_dto_from_shopee_sn(channel_order_number)
+                        if dto is None:
+                            raise RuntimeError(f"Could not get OrderDTO for {channel_order_number}")
+                    except Exception as dto_err:
+                        raise RuntimeError(f"Failed to get OrderDTO for {channel_order_number}: {dto_err}")
+                
                 pdf_bytes = generate_label_pdf_for_channel_order(
                     connection_id=connection_id,
                     channel_order_number=channel_order_number,
@@ -2005,10 +2016,20 @@ def _process_order_batch(
         result["mp_order_id"] = mp_order_id
         result["meta"] = meta
         
-        if result["success"]:
+        if result.get("success"):
+            channel_order_number = result.get("channel_order_number", "unknown")
+            pdf_bytes = result.get("pdf_bytes")
+            has_pdf = pdf_bytes is not None and len(pdf_bytes) > 0
+            if debug_mode:
+                debug_print(f"✅ Order {channel_order_number}: PDF generated successfully, size: {len(pdf_bytes) if pdf_bytes else 0} bytes")
             batch_result["results"].append(result)
         else:
-            batch_result["errors"].append(result.get("error", {}))
+            error_info = result.get("error", {})
+            channel_order_number = result.get("channel_order_number", "unknown")
+            reason = error_info.get("reason", "unknown")
+            if debug_mode:
+                debug_print(f"❌ Order {channel_order_number}: Failed - {reason}")
+            batch_result["errors"].append(error_info)
     
     return batch_result
 
@@ -2399,6 +2420,7 @@ def print_now(request: HttpRequest):
     # MERGE TẤT CẢ PDF ĐÃ TẠO THÀNH CÔNG
     # =====================================================================
     successfully_merged_orders = []  # Track các đơn đã merge thành công để gửi packing_status
+    total_pages_before_merge = len(writer.pages)  # Track số trang trước khi merge
     
     for result in all_pdf_results:
         pdf_bytes = result["pdf_bytes"]
@@ -2415,6 +2437,13 @@ def print_now(request: HttpRequest):
         merge_success = False
         try:
             reader = PdfReader(BytesIO(pdf_bytes))
+            pages_to_add = len(reader.pages)
+            
+            if pages_to_add == 0:
+                if debug_mode:
+                    debug_print(f"⚠️ PDF {channel_order_number} has 0 pages, skipping merge")
+                continue
+            
             for page in reader.pages:
                 writer.add_page(page)
             
@@ -2422,8 +2451,10 @@ def print_now(request: HttpRequest):
             
             if debug_mode:
                 file_size_kb = len(pdf_bytes) / 1024
-                page_count = len(reader.pages)
-                debug_print(f"📄 Merged PDF: {channel_order_number} - {page_count} pages, {file_size_kb:.1f} KB")
+                total_pages_after = len(writer.pages)
+                pages_added = total_pages_after - total_pages_before_merge
+                debug_print(f"📄 Merged PDF: {channel_order_number} - {pages_to_add} pages added, total pages now: {total_pages_after}, {file_size_kb:.1f} KB")
+                total_pages_before_merge = total_pages_after
         except Exception as e:
             error_info = {
                 "channel_order_number": channel_order_number,
@@ -2544,12 +2575,18 @@ def print_now(request: HttpRequest):
     pdf_data = output_buffer.read()
     output_buffer.close()  # Giải phóng buffer sớm
     
-    # Log kích thước để debug (nếu debug mode)
+    # Log kích thước và số trang để debug (nếu debug mode)
+    total_pages_final = len(writer.pages)
     if debug_mode:
         file_size_mb = len(pdf_data) / (1024 * 1024)
-        debug_print(f"📦 Merged PDF size: {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
+        debug_print(f"📦 Final merged PDF: {total_pages_final} pages, {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
         debug_info["merged_pdf_size_bytes"] = len(pdf_data)
         debug_info["merged_pdf_size_mb"] = round(file_size_mb, 2)
+        debug_info["total_pages_merged"] = total_pages_final
+        debug_info["total_orders_merged"] = len(successfully_merged_orders)
+    
+    # Thêm header để browser biết số trang
+    response["X-PDF-Total-Pages"] = str(total_pages_final)
 
     response = HttpResponse(
         pdf_data,
@@ -2570,18 +2607,29 @@ def print_now_pdf(request: HttpRequest):
     - Nếu format=json: trả JSON với thông tin chính xác về số đơn thành công/thất bại
     - Nếu không có format=json: trả PDF trực tiếp
     """
-    ids_raw = request.GET.get("ids", "")
-    do_print = request.GET.get("print", "no") == "yes"
-    debug_mode = request.GET.get("debug", "1") in ("1", "true", "yes")
-    format_json = request.GET.get("format") == "json"
-
-    if not ids_raw:
-        return JsonResponse({"error": "missing ids"}, status=400)
-
+    logger.info(f"print_now_pdf called with ids: {request.GET.get('ids', '')}")
+    
     try:
-        order_ids: List[int] = [int(i.strip()) for i in ids_raw.split(",") if i.strip()]
-    except ValueError:
-        return JsonResponse({"error": "invalid ids"}, status=400)
+        ids_raw = request.GET.get("ids", "")
+        do_print = request.GET.get("print", "no") == "yes"
+        debug_mode = request.GET.get("debug", "1") in ("1", "true", "yes")
+        format_json = request.GET.get("format") == "json"
+
+        logger.info(f"print_now_pdf: ids_raw={ids_raw}, do_print={do_print}, debug_mode={debug_mode}")
+
+        if not ids_raw:
+            logger.warning("print_now_pdf: missing ids")
+            return JsonResponse({"error": "missing ids"}, status=400)
+
+        try:
+            order_ids: List[int] = [int(i.strip()) for i in ids_raw.split(",") if i.strip()]
+            logger.info(f"print_now_pdf: parsed {len(order_ids)} order IDs")
+        except ValueError as e:
+            logger.error(f"print_now_pdf: invalid ids format: {e}")
+            return JsonResponse({"error": "invalid ids"}, status=400)
+    except Exception as e:
+        logger.error(f"Error in print_now_pdf (initialization): {str(e)}", exc_info=True)
+        return JsonResponse({"error": f"Initialization error: {str(e)}"}, status=500)
 
     mp_service = SapoMarketplaceService()
     core_service = SapoCoreOrderService()
@@ -2768,7 +2816,12 @@ def print_now_pdf(request: HttpRequest):
     # ------------------------------------------------------------------
     # B3: TẠO PDF
     # ------------------------------------------------------------------
-    os.makedirs(BILL_DIR, exist_ok=True)
+    try:
+        os.makedirs(BILL_DIR, exist_ok=True)
+    except Exception as e:
+        if debug_mode:
+            debug_print(f"⚠️ Error creating BILL_DIR: {e}")
+    
     writer = PdfWriter()
     debug_info["step"] = "start_generate_pdf"
     debug_info["generated_files"] = []
@@ -2808,8 +2861,12 @@ def print_now_pdf(request: HttpRequest):
             try:
                 batch_result = future.result()
                 with lock:
+                    results_count = len(batch_result["results"])
+                    errors_count = len(batch_result["errors"])
                     all_pdf_results.extend(batch_result["results"])
                     all_errors.extend(batch_result["errors"])
+                    if debug_mode:
+                        debug_print(f"📦 Batch {batch_num}/{total_batches} completed: {results_count} PDFs, {errors_count} errors")
             except Exception as e:
                 with lock:
                     all_errors.append({
@@ -2818,32 +2875,86 @@ def print_now_pdf(request: HttpRequest):
                         "exception": str(e),
                         "traceback": traceback.format_exc() if debug_mode else "",
                     })
+                if debug_mode:
+                    debug_print(f"❌ Batch {batch_num}/{total_batches} failed: {str(e)}")
     
     debug_info["pdf_errors"] = all_errors
     total_orders = len(order_ids)
+    
+    if debug_mode:
+        debug_print(f"📊 Processing complete: {len(all_pdf_results)} PDFs generated, {len(all_errors)} errors")
+    
+    # Kiểm tra nếu không có PDF nào được tạo thành công
+    if not all_pdf_results:
+        if debug_mode:
+            debug_print(f"⚠️ No PDFs were generated successfully. Total errors: {len(all_errors)}")
+            logger.error(f"No PDFs generated. Errors: {all_errors}")
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "message": "Không tạo được PDF nào để in",
+                    "reason": "no_pdf_results",
+                    "errors": all_errors,
+                    "debug": debug_info,
+                },
+                status=500,
+            )
+        logger.error(f"No PDFs generated. Errors: {all_errors}")
+        return JsonResponse(
+            {"status": "error", "message": "Không tạo được PDF nào để in"}, status=500
+        )
     
     # Merge PDF và tính lại số đơn thành công/thất bại chính xác
     pdf_success_count = 0
     pdf_failed_count = len(all_errors)  # Bắt đầu với số lỗi đã có
     successfully_merged_orders = []  # Track các đơn đã merge thành công để gửi packing_status
+    total_pages_before_merge = len(writer.pages)  # Track số trang trước khi merge
     
     for result in all_pdf_results:
-        pdf_bytes = result["pdf_bytes"]
-        channel_order_number = result["channel_order_number"]
-        bill_path = result["bill_path"]
+        pdf_bytes = result.get("pdf_bytes")
+        channel_order_number = result.get("channel_order_number", "unknown")
+        bill_path = result.get("bill_path", "")
         mp_order_id = result.get("mp_order_id")
         meta = result.get("meta", {})
+        
+        if not pdf_bytes:
+            if debug_mode:
+                debug_print(f"⚠️ PDF bytes is None or empty for {channel_order_number}")
+            pdf_failed_count += 1
+            continue
+        
         debug_info["generated_files"].append(bill_path)
         
         reader = None
         merge_success = False
         try:
-            reader = PdfReader(BytesIO(pdf_bytes))
+            if debug_mode:
+                debug_print(f"🔄 Attempting to merge PDF for {channel_order_number}, size: {len(pdf_bytes)} bytes")
+            
+            reader = PdfReader(BytesIO(pdf_bytes), strict=False)
+            pages_to_add = len(reader.pages)
+            
+            if pages_to_add == 0:
+                if debug_mode:
+                    debug_print(f"⚠️ PDF {channel_order_number} has 0 pages, skipping merge")
+                pdf_failed_count += 1
+                continue
+            
+            if debug_mode:
+                debug_print(f"📄 Adding {pages_to_add} pages from {channel_order_number} to writer")
+            
             for page in reader.pages:
                 writer.add_page(page)
+            
             # Nếu merge thành công, tăng số đơn thành công
             pdf_success_count += 1
             merge_success = True
+            
+            if debug_mode:
+                total_pages_after = len(writer.pages)
+                file_size_kb = len(pdf_bytes) / 1024
+                debug_print(f"✅ Merged PDF: {channel_order_number} - {pages_to_add} pages added, total pages now: {total_pages_after}, {file_size_kb:.1f} KB")
+                total_pages_before_merge = total_pages_after
         except Exception as e:
             # Nếu merge thất bại, tăng số đơn thất bại
             pdf_failed_count += 1
@@ -2855,6 +2966,10 @@ def print_now_pdf(request: HttpRequest):
             }
             debug_info["pdf_errors"].append(error_info)
             all_errors.append(error_info)
+            if debug_mode:
+                debug_print(f"❌ Failed to merge PDF for {channel_order_number}: {str(e)}")
+                debug_print(f"   Traceback: {traceback.format_exc()}")
+            logger.error(f"Failed to merge PDF for {channel_order_number}: {str(e)}", exc_info=True)
         finally:
             if reader is not None:
                 del reader
@@ -2909,6 +3024,15 @@ def print_now_pdf(request: HttpRequest):
     # Cập nhật debug_info với số liệu chính xác
     debug_info["successful_orders"] = pdf_success_count
     debug_info["failed_orders"] = pdf_failed_count
+    
+    if debug_mode:
+        debug_print(f"📊 Merge summary: {pdf_success_count} orders merged successfully, {pdf_failed_count} failed")
+        debug_print(f"📄 Total pages in writer: {len(writer.pages)}")
+        debug_print(f"📋 Expected: {len(all_pdf_results)} PDFs, Got: {pdf_success_count} merged")
+        if pdf_success_count < len(all_pdf_results):
+            missing_count = len(all_pdf_results) - pdf_success_count
+            debug_print(f"⚠️ WARNING: {missing_count} PDFs were NOT merged successfully!")
+            debug_print(f"   This means {missing_count} orders will NOT appear in the final PDF!")
 
     if not writer.pages:
         if debug_mode:
@@ -2925,26 +3049,76 @@ def print_now_pdf(request: HttpRequest):
             {"status": "error", "message": "Không tạo được PDF để in"}, status=500
         )
 
-    output_buffer = BytesIO()
-    writer.write(output_buffer)
-    output_buffer.seek(0)
-    pdf_data = output_buffer.read()
-    output_buffer.close()
+    total_pages_final = len(writer.pages)
     
     if debug_mode:
-        file_size_mb = len(pdf_data) / (1024 * 1024)
-        debug_print(f"📦 Merged PDF size: {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
-        debug_info["merged_pdf_size_bytes"] = len(pdf_data)
-        debug_info["merged_pdf_size_mb"] = round(file_size_mb, 2)
+        debug_print(f"📊 Before writing PDF: {total_pages_final} pages, {pdf_success_count} orders merged successfully")
+    
+    try:
+        if debug_mode:
+            debug_print(f"🔄 Starting to write PDF to buffer...")
+        
+        output_buffer = BytesIO()
+        writer.write(output_buffer)
+        output_buffer.seek(0)
+        pdf_data = output_buffer.read()
+        output_buffer.close()
+        
+        if not pdf_data or len(pdf_data) == 0:
+            raise ValueError("PDF data is empty after writing")
+        
+        if debug_mode:
+            file_size_mb = len(pdf_data) / (1024 * 1024)
+            debug_print(f"✅ PDF written successfully: {total_pages_final} pages, {file_size_mb:.2f} MB ({len(pdf_data)} bytes)")
+            debug_info["merged_pdf_size_bytes"] = len(pdf_data)
+            debug_info["merged_pdf_size_mb"] = round(file_size_mb, 2)
+            debug_info["total_pages_merged"] = total_pages_final
+            debug_info["total_orders_merged"] = len(successfully_merged_orders)
 
-    response = HttpResponse(
-        pdf_data,
-        content_type="application/pdf",
-    )
-    response["Content-Disposition"] = 'inline; filename="shipping_labels.pdf"'
-    response["Content-Length"] = str(len(pdf_data))
-    response["Cache-Control"] = "no-store"
-    return response
+        if debug_mode:
+            debug_print(f"🔄 Creating HTTP response...")
+        
+        response = HttpResponse(
+            pdf_data,
+            content_type="application/pdf",
+        )
+        response["Content-Disposition"] = 'inline; filename="shipping_labels.pdf"'
+        response["Content-Length"] = str(len(pdf_data))
+        response["Cache-Control"] = "no-store"
+        response["X-PDF-Total-Pages"] = str(total_pages_final)
+        response["X-PDF-Success-Count"] = str(pdf_success_count)
+        response["X-PDF-Failed-Count"] = str(pdf_failed_count)
+        response["X-PDF-Total-Count"] = str(len(order_ids))
+        
+        if debug_mode:
+            debug_print(f"✅ HTTP response created successfully")
+        
+        return response
+    except Exception as e:
+        error_msg = str(e)
+        error_traceback = traceback.format_exc()
+        
+        if debug_mode:
+            debug_print(f"❌ Error writing PDF: {error_msg}")
+            debug_print(f"   Traceback: {error_traceback}")
+        
+        # Log to Django logger as well
+        logger.error(f"Error in print_now_pdf (writing PDF): {error_msg}", exc_info=True)
+        
+        if debug_mode:
+            return JsonResponse(
+                {
+                    "status": "error",
+                    "message": "Lỗi khi tạo PDF",
+                    "exception": error_msg,
+                    "traceback": error_traceback,
+                    "debug": debug_info,
+                },
+                status=500,
+            )
+        return JsonResponse(
+            {"status": "error", "message": f"Lỗi khi tạo PDF: {error_msg}"}, status=500
+        )
 
 
 @group_required("WarehousePacker")
