@@ -1984,31 +1984,77 @@ def _process_order_batch(
     """
     Xử lý một batch các đơn hàng (5 đơn).
     
+    LƯU Ý: Mỗi thread sẽ dùng chung core_service (có thể dùng chung SapoClient singleton).
+    Để tránh race conditions, mỗi thread sẽ tạo SapoCoreOrderService riêng nếu cần.
+    
     Returns:
         Dict với keys:
             - "batch_num": int
             - "results": List[Dict] - kết quả từ _process_single_order
             - "errors": List[Dict] - các lỗi
     """
+    # Tạo core_service riêng cho thread này để tránh race conditions
+    # Mặc dù SapoClient là singleton, nhưng việc tạo service riêng giúp giảm conflicts
+    try:
+        thread_local_core_service = SapoCoreOrderService()
+    except Exception as e:
+        # Nếu không tạo được, dùng service được truyền vào
+        if debug_mode:
+            debug_print(f"⚠️ Batch {batch_num}: Could not create thread-local service, using shared: {e}")
+        thread_local_core_service = core_service
     batch_result = {
         "batch_num": batch_num,
         "results": [],
         "errors": [],
     }
     
-    for mp_order_id in batch_order_ids:
+    for idx, mp_order_id in enumerate(batch_order_ids):
+        # Thêm delay nhỏ giữa các đơn trong cùng một batch để tránh rate limiting
+        if idx > 0:
+            time.sleep(0.1)  # 100ms delay giữa các đơn
+        
         meta = order_meta.get(mp_order_id)
         if not meta:
-            batch_result["errors"].append({
-                "mp_order_id": mp_order_id,
-                "reason": "order_meta_not_found",
-            })
-            continue
+            # Nếu không có meta, vẫn cố gắng xử lý với meta mặc định
+            # Lấy thông tin cơ bản từ core service
+            try:
+                # Thử lấy channel_order_number từ DTO
+                dto = core_service.get_order_dto(mp_order_id)
+                if dto and dto.reference_number:
+                    # Tạo meta tạm thời
+                    meta = {
+                        "connection_id": 0,  # Sẽ được lấy từ DTO nếu có
+                        "channel_order_number": dto.reference_number,
+                        "shipping_carrier": dto.shipping_carrier_name or "",
+                        "shipping_carrier_id": None,
+                        "address_id": None,
+                        "source": "fallback_from_dto",
+                    }
+                    # Thử lấy connection_id từ DTO nếu có
+                    if hasattr(dto, 'connection_id') and dto.connection_id:
+                        meta["connection_id"] = dto.connection_id
+                else:
+                    # Không lấy được thông tin, đánh dấu lỗi
+                    batch_result["errors"].append({
+                        "mp_order_id": mp_order_id,
+                        "reason": "order_meta_not_found_and_cannot_fallback",
+                        "channel_order_number": f"MP_{mp_order_id}",
+                    })
+                    continue
+            except Exception as e:
+                # Không lấy được thông tin, đánh dấu lỗi
+                batch_result["errors"].append({
+                    "mp_order_id": mp_order_id,
+                    "reason": "order_meta_not_found_and_fallback_failed",
+                    "exception": str(e),
+                    "channel_order_number": f"MP_{mp_order_id}",
+                })
+                continue
         
         result = _process_single_order(
             mp_order_id=mp_order_id,
             meta=meta,
-            core_service=core_service,
+            core_service=thread_local_core_service,
             debug_mode=debug_mode,
             BILL_DIR=BILL_DIR,
         )
@@ -2027,6 +2073,11 @@ def _process_order_batch(
             error_info = result.get("error", {})
             channel_order_number = result.get("channel_order_number", "unknown")
             reason = error_info.get("reason", "unknown")
+            # Đảm bảo error_info có đầy đủ thông tin
+            if "mp_order_id" not in error_info:
+                error_info["mp_order_id"] = mp_order_id
+            if "channel_order_number" not in error_info:
+                error_info["channel_order_number"] = channel_order_number
             if debug_mode:
                 debug_print(f"❌ Order {channel_order_number}: Failed - {reason}")
             batch_result["errors"].append(error_info)
@@ -2248,6 +2299,46 @@ def print_now(request: HttpRequest):
                 )
             # Nếu phân tích init_data lỗi, bỏ qua confirm, nhưng vẫn cố in ở bước sau
             confirm_items = []
+    
+    # ------------------------------------------------------------------
+    # BỔ SUNG order_meta CHO CÁC ĐƠN KHÔNG CÓ TRONG init_data
+    # ------------------------------------------------------------------
+    # Nếu có đơn không có trong order_meta, thử lấy thông tin từ core service
+    missing_order_ids = [oid for oid in order_ids if oid not in order_meta]
+    if missing_order_ids:
+        if debug_mode:
+            debug_info["missing_order_ids_count"] = len(missing_order_ids)
+            debug_info["missing_order_ids"] = missing_order_ids
+            debug_print(f"⚠️ {len(missing_order_ids)} đơn không có trong order_meta, đang thử lấy từ core service...")
+        
+        for mp_order_id in missing_order_ids:
+            try:
+                # Thử lấy DTO từ mp_order_id
+                dto = core_service.get_order_dto(mp_order_id)
+                if dto and dto.reference_number:
+                    # Tạo meta tạm thời
+                    order_meta[mp_order_id] = {
+                        "connection_id": getattr(dto, 'connection_id', 0) or 0,
+                        "channel_order_number": dto.reference_number,
+                        "shipping_carrier": dto.shipping_carrier_name or "",
+                        "shipping_carrier_id": None,
+                        "address_id": None,
+                        "source": "fallback_from_core_service",
+                    }
+                    if debug_mode:
+                        debug_print(f"✓ Đã lấy meta cho đơn {mp_order_id} từ core service: {dto.reference_number}")
+            except Exception as e:
+                if debug_mode:
+                    debug_print(f"⚠️ Không thể lấy meta cho đơn {mp_order_id} từ core service: {e}")
+                # Vẫn tạo meta tạm thời với thông tin tối thiểu
+                order_meta[mp_order_id] = {
+                    "connection_id": 0,
+                    "channel_order_number": f"MP_{mp_order_id}",
+                    "shipping_carrier": "",
+                    "shipping_carrier_id": None,
+                    "address_id": None,
+                    "source": "fallback_minimal",
+                }
 
     # ------------------------------------------------------------------
     # B2: CONFIRM_ORDERS (chuẩn bị hàng) – chỉ chạy nếu có confirm_items
@@ -2359,18 +2450,33 @@ def print_now(request: HttpRequest):
     debug_info["total_batches"] = total_batches
     debug_info["orders_per_batch"] = ORDERS_PER_BATCH
     
+    # GIỚI HẠN SỐ LƯỢNG THREADS ĐỒNG THỜI để tránh:
+    # 1. Race conditions với singleton SapoClient
+    # 2. Rate limiting từ API
+    # 3. Memory issues
+    # 4. Session conflicts
+    MAX_CONCURRENT_THREADS = min(5, total_batches)  # Tối đa 5 threads đồng thời
+    debug_info["max_concurrent_threads"] = MAX_CONCURRENT_THREADS
+    
     if debug_mode:
         debug_print(f"🚀 Starting multi-threaded processing: {len(order_ids)} orders in {total_batches} batches")
+        debug_print(f"   Max concurrent threads: {MAX_CONCURRENT_THREADS} (to avoid thread safety issues)")
     
     # Thread-safe collections
     all_pdf_results = []  # List of successful PDF results
     all_errors = []  # List of errors
     lock = threading.Lock()
     
-    # Xử lý song song các batch
-    with ThreadPoolExecutor(max_workers=total_batches) as executor:
+    # Xử lý song song các batch với giới hạn số threads đồng thời
+    with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_THREADS) as executor:
         futures = {}
         for batch_num, batch_order_ids in batches:
+            # Thêm delay nhỏ giữa các batch để tránh tất cả threads cùng bắt đầu cùng lúc
+            # Delay tăng dần: batch 1 = 0s, batch 2 = 0.2s, batch 3 = 0.4s, ...
+            if batch_num > 1:
+                delay = (batch_num - 1) * 0.2
+                time.sleep(delay)
+            
             future = executor.submit(
                 _process_order_batch,
                 batch_order_ids,
@@ -2585,16 +2691,16 @@ def print_now(request: HttpRequest):
         debug_info["total_pages_merged"] = total_pages_final
         debug_info["total_orders_merged"] = len(successfully_merged_orders)
     
-    # Thêm header để browser biết số trang
-    response["X-PDF-Total-Pages"] = str(total_pages_final)
-
+    # Tạo response với PDF data
     response = HttpResponse(
         pdf_data,
         content_type="application/pdf",
     )
+    # Thêm headers
     response["Content-Disposition"] = 'inline; filename="shipping_labels.pdf"'
     response["Content-Length"] = str(len(pdf_data))  # Giúp browser biết trước kích thước
     response["Cache-Control"] = "no-store"
+    response["X-PDF-Total-Pages"] = str(total_pages_final)  # Thêm header để browser biết số trang
     return response
 
 
@@ -2838,13 +2944,22 @@ def print_now_pdf(request: HttpRequest):
     debug_info["total_batches"] = total_batches
     debug_info["orders_per_batch"] = ORDERS_PER_BATCH
     
+    # GIỚI HẠN SỐ LƯỢNG THREADS ĐỒNG THỜI (giống như print_now)
+    MAX_CONCURRENT_THREADS = min(5, total_batches)
+    debug_info["max_concurrent_threads"] = MAX_CONCURRENT_THREADS
+    
     all_pdf_results = []
     all_errors = []
     lock = threading.Lock()
     
-    with ThreadPoolExecutor(max_workers=total_batches) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_THREADS) as executor:
         futures = {}
         for batch_num, batch_order_ids in batches:
+            # Thêm delay nhỏ giữa các batch để tránh tất cả threads cùng bắt đầu cùng lúc
+            if batch_num > 1:
+                delay = (batch_num - 1) * 0.2
+                time.sleep(delay)
+            
             future = executor.submit(
                 _process_order_batch,
                 batch_order_ids,
