@@ -11,8 +11,9 @@ import io
 import os
 import requests
 from PIL import Image
-from openpyxl import Workbook
-from openpyxl.styles import Font, Alignment
+from openpyxl import load_workbook
+from openpyxl.styles import Font, Alignment, Border, Side
+from openpyxl.drawing.image import Image as XLSXImage
 try:
     import xlsxwriter
 except ImportError:
@@ -3728,15 +3729,11 @@ def delete_po_payment(request: HttpRequest, po_id: int, payment_id: int):
 def export_po_excel(request: HttpRequest, po_id: int):
     """
     Xuất Excel PO để gửi cho NSX.
-    Bao gồm: Ảnh, SKU, Tên VN, Tên TQ, Giá, Số lượng, Số thùng, Kích thước thùng, CBM, Tổng tiền.
+    Bắt đầu từ file template PO_TEMPLATE.xlsx và ghi dữ liệu từ hàng 11.
+    Cấu trúc cột: Image (B), SKU (C), NSX SKU (D), Description (E), Quantity (F), 
+    Unit Price (G), Total (RMB) (H), Total (Box) (I), Total (CPM) (J)
     """
     try:
-        if not xlsxwriter:
-            return JsonResponse({
-                "status": "error",
-                "message": "Thư viện xlsxwriter chưa được cài đặt"
-            }, status=500)
-        
         # Get PO
         po = get_object_or_404(PurchaseOrder, id=po_id)
         
@@ -3757,47 +3754,85 @@ def export_po_excel(request: HttpRequest, po_id: int):
         # Tạo thư mục nếu chưa có
         excel_dir = "assets/excel_po"
         os.makedirs(excel_dir, exist_ok=True)
-        os.makedirs("assets/saveimage", exist_ok=True)
         
-        # Tên file
-        supplier_name = po_data.get('supplier_name', 'Supplier').replace('/', '_').replace('\\', '_')
-        po_code = po_data.get('code', f'PO-{po_id}').replace('/', '_').replace('\\', '_')
-        filename = f"{supplier_name}-{po_code}.xlsx"
-        filepath = os.path.join(excel_dir, filename)
+        # Load template file
+        template_path = os.path.join("products", "PO_TEMPLATE.xlsx")
+        if not os.path.exists(template_path):
+            return JsonResponse({
+                "status": "error",
+                "message": f"Template file không tồn tại: {template_path}"
+            }, status=404)
         
-        # Tạo workbook
-        workbook = xlsxwriter.Workbook(filepath)
-        worksheet = workbook.add_worksheet()
-        worksheet.set_default_row(60)
-        worksheet.set_row(0, 20)
-        worksheet.set_column('A:A', 5)
-        worksheet.set_column('B:B', 40)
-        worksheet.set_column('C:C', 15)
-        worksheet.set_column('D:D', 20)
-        worksheet.set_column('E:E', 20)
-        worksheet.set_column('F:F', 12)
-        worksheet.set_column('G:G', 12)
-        worksheet.set_column('H:H', 12)
-        worksheet.set_column('I:I', 20)
-        worksheet.set_column('J:J', 12)
-        worksheet.set_column('K:K', 15)
+        # Load workbook từ template
+        workbook = load_workbook(template_path)
+        worksheet = workbook.active
         
-        # Formats
-        cell_text_wrap = workbook.add_format({'text_wrap': True, 'align': 'center', 'valign': 'vcenter'})
-        cell_align = workbook.add_format({'align': 'center', 'valign': 'vcenter'})
-        cell_first = workbook.add_format({'bold': True, 'bg_color': "#D8E4BC"})
+        # Thiết lập độ rộng cột (tùy chọn, có thể điều chỉnh)
+        worksheet.column_dimensions['B'].width = 15  # Image
+        worksheet.column_dimensions['C'].width = 20  # SKU
+        worksheet.column_dimensions['D'].width = 25  # NSX SKU
+        worksheet.column_dimensions['E'].width = 30  # Description
+        worksheet.column_dimensions['F'].width = 12  # Quantity
+        worksheet.column_dimensions['G'].width = 15  # Unit Price
+        worksheet.column_dimensions['H'].width = 15  # Total (RMB)
+        worksheet.column_dimensions['I'].width = 12  # Total (Box)
+        worksheet.column_dimensions['J'].width = 15  # Total (CPM)
         
-        # Headers
-        row = 0
-        col = 0
-        headers = ["#", "Image", "SKU", "VN_Variant", "名称", "单价", "数量", "箱数", "装箱数", "外箱尺寸", "总体积", "总价"]
-        for i, header in enumerate(headers):
-            worksheet.write(row, col + i, header, cell_first)
+        # Alignment format
+        center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        left_align = Alignment(horizontal='left', vertical='center', wrap_text=True)
+        
+        # ========== LOAD TOÀN BỘ SẢN PHẨM TRƯỚC ==========
+        logger.info("Loading all products to create variant map...")
+        product_service = SapoProductService(sapo_client)
+        
+        # Tạo map variant_id -> ProductVariantDTO
+        variant_map: Dict[int, ProductVariantDTO] = {}
+        
+        # Lấy tất cả products với pagination
+        all_products = []
+        page = 1
+        limit = 250  # Max limit theo Sapo API
+        max_pages = 100  # Giới hạn an toàn
+        
+        while page <= max_pages:
+            try:
+                products = product_service.list_products(page=page, limit=limit, status="active")
+                if not products:
+                    break
+                
+                all_products.extend(products)
+                logger.info(f"Loaded page {page}: {len(products)} products (total: {len(all_products)})")
+                
+                # Nếu số products < limit thì đã hết
+                if len(products) < limit:
+                    break
+                
+                page += 1
+            except Exception as e:
+                logger.error(f"Error loading products page {page}: {e}", exc_info=True)
+                break
+        
+        # Tạo map variant_id -> ProductVariantDTO từ tất cả products
+        for product in all_products:
+            for variant in product.variants:
+                variant_map[variant.id] = variant
+        
+        logger.info(f"Created variant map with {len(variant_map)} variants")
+        
+        # Bắt đầu từ hàng 11 (index 10 trong 0-based)
+        start_row = 11
+        current_row = start_row
+        
+        # Tạo border style với màu #A6A6A6
+        border_style = Border(
+            left=Side(style='thin', color='A6A6A6'),
+            right=Side(style='thin', color='A6A6A6'),
+            top=Side(style='thin', color='A6A6A6'),
+            bottom=Side(style='thin', color='A6A6A6')
+        )
         
         # Process line items
-        row = 1
-        count = 0
-        
         for item in line_items:
             variant_id = item.get('variant_id')
             quantity = item.get('quantity', 0)
@@ -3806,109 +3841,174 @@ def export_po_excel(request: HttpRequest, po_id: int):
             if quantity <= 0:
                 continue
             
-            # Lấy thông tin variant từ Sapo để có ảnh và metadata
+            # Lấy thông tin variant từ map đã load trước
             try:
-                variant_data = sapo_client.core.get_variant_raw(variant_id)
-                if not variant_data:
-                    logger.warning(f"Variant {variant_id} not found")
+                # Tra cứu variant từ map
+                variant_dto = variant_map.get(variant_id)
+                if not variant_dto:
+                    logger.warning(f"Variant {variant_id} not found in variant map")
                     continue
                 
-                # Lấy product để có metadata
-                product_id = variant_data.get('product_id')
-                product_dto = None
-                variant_meta = None
+                # Lấy metadata từ variant_dto
+                variant_meta = variant_dto.gdp_metadata
                 
-                if product_id:
-                    product_dto = SapoProductService(sapo_client).get_product(product_id)
-                    if product_dto and product_dto.gdp_metadata:
-                        # Tìm variant metadata
-                        for v_meta in product_dto.gdp_metadata.variants:
-                            if v_meta.id == variant_id:
-                                variant_meta = v_meta
-                                break
+                # Lấy ảnh từ variant_dto.images (ProductVariantDTO có images)
+                image_url = None
+                if variant_dto.images and len(variant_dto.images) > 0:
+                    image_url = variant_dto.images[0].full_path
+                    logger.info(f"Variant {variant_id} has image: {image_url}")
+                else:
+                    logger.warning(f"Variant {variant_id} has no images")
                 
-                # Lấy ảnh
-                images = variant_data.get('images', [])
-                image_url = images[0].get('full_path') if images else None
-                
-                # Tính toán thông tin
-                price_cny = item.get('price_cny', 0)
+                # Lấy thông tin từ metadata
                 box_info = variant_meta.box_info if variant_meta else None
+                tq_price = variant_meta.price_tq if variant_meta and variant_meta.price_tq else 0
+                tq_name = variant_meta.name_tq if variant_meta and variant_meta.name_tq else ""
+                tq_sku = variant_meta.sku_tq if variant_meta and variant_meta.sku_tq else ""
                 
                 # Tính số thùng và CBM
                 full_box = box_info.full_box if box_info and box_info.full_box else 1
-                num_boxes = round(float(quantity) / full_box, 1) if full_box > 0 else quantity
+                num_boxes = round(float(quantity) / full_box, 2) if full_box > 0 else quantity
                 
-                box_size_str = ""
-                total_cbm = 0.0
+                # Tính Total CPM (mét khối)
+                total_cpm = 0.0
+                description = ""
                 if box_info and box_info.length_cm and box_info.width_cm and box_info.height_cm:
-                    box_size_str = f"{box_info.height_cm} * {box_info.length_cm} * {box_info.width_cm} cm"
-                    # CBM = (dài * rộng * cao * quantity) / 1,000,000 / full_box
-                    total_cbm = (box_info.length_cm * box_info.width_cm * box_info.height_cm * quantity) / 1000000 / full_box
+                    # Description: "Box: 60 pcs (56 x 64 x 54cm)"
+                    description = f"Box: {full_box} pcs ({int(box_info.length_cm)} x {int(box_info.width_cm)} x {int(box_info.height_cm)}cm)"
+                    # CPM = (dài * rộng * cao * số thùng) / 1,000,000
+                    total_cpm = (box_info.length_cm * box_info.width_cm * box_info.height_cm * num_boxes) / 1000000
+                else:
+                    description = f"Box: {full_box} pcs" if full_box > 0 else ""
                 
-                # Tên TQ
-                name_tq = variant_meta.name_tq if variant_meta and variant_meta.name_tq else ""
+                # NSX SKU: tq_name + tq_sku
+                nsx_sku = f"{tq_name} {tq_sku}".strip() if tq_name or tq_sku else ""
                 
-                # Tên VN variant
-                variant_name = item.get('variant_name', '')
-                opt1 = variant_data.get('opt1', '')
+                # Total (RMB) = quantity * tq_price
+                total_rmb = quantity * tq_price
                 
-                # Download và lưu ảnh
-                image_path = None
+                # Set row height để hình vuông
+                # Column width 15 characters ≈ 112 pixels ≈ 84 points
+                # Set row height tương ứng để tạo hình vuông
+                row_height_points = 84  # points (Excel uses points for row height)
+                worksheet.row_dimensions[current_row].height = row_height_points
+                
+                # Cột B: Image - Xử lý trong memory, không lưu file
                 if image_url:
                     try:
-                        image_path = f"assets/saveimage/{variant_id}.jpg"
-                        if not os.path.exists(image_path):
-                            r = requests.get(image_url, allow_redirects=True, timeout=10)
-                            if r.status_code == 200:
-                                os.makedirs(os.path.dirname(image_path), exist_ok=True)
-                                with open(image_path, 'wb') as f:
-                                    f.write(r.content)
-                    except Exception as e:
-                        logger.warning(f"Error downloading image for variant {variant_id}: {e}")
-                
-                # Write row
-                worksheet.write(row, col, count, cell_align)
-                
-                # Insert image nếu có
-                if image_path and os.path.exists(image_path):
-                    try:
-                        with Image.open(image_path) as img:
-                            img_width, img_height = img.size
-                            cell_width = 75
-                            cell_height = 75
-                            x_scale = float(cell_width) / float(img_width)
-                            y_scale = float(cell_height) / float(img_height)
+                        logger.info(f"Downloading and inserting image for variant {variant_id} from {image_url}")
+                        # Download ảnh vào memory
+                        r = requests.get(image_url, allow_redirects=True, timeout=10)
+                        if r.status_code == 200:
+                            # Xử lý ảnh trong memory
+                            img = Image.open(io.BytesIO(r.content))
                             
-                            image_options = {
-                                'x_offset': 5,
-                                'y_offset': 5,
-                                'x_scale': x_scale,
-                                'y_scale': y_scale,
-                            }
-                            worksheet.insert_image(row, col + 1, image_path, image_options)
+                            # Resize để fit vào cell vuông (giữ tỷ lệ, max 100px)
+                            max_size = 100  # pixels
+                            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                            
+                            # Lưu ảnh đã resize vào BytesIO
+                            img_bytes = io.BytesIO()
+                            img.save(img_bytes, format='JPEG')
+                            img_bytes.seek(0)  # Reset pointer về đầu
+                            
+                            # Insert image vào cell B từ memory
+                            img_obj = XLSXImage(img_bytes)
+                            # Set kích thước ảnh (openpyxl uses pixels)
+                            img_size = 100  # pixels
+                            img_obj.width = img_size
+                            img_obj.height = img_size
+                            
+                            # Anchor image vào cell B
+                            cell_ref = f'B{current_row}'
+                            worksheet.add_image(img_obj, cell_ref)
+                            logger.info(f"Image inserted into {cell_ref}")
+                        else:
+                            logger.warning(f"Failed to download image: HTTP {r.status_code}")
                     except Exception as e:
-                        logger.warning(f"Error inserting image: {e}")
+                        logger.error(f"Error processing image for variant {variant_id}: {e}", exc_info=True)
+                else:
+                    logger.warning(f"No image URL for variant {variant_id}")
                 
-                worksheet.write(row, col + 2, sku, cell_align)
-                worksheet.write(row, col + 3, opt1 or variant_name, cell_align)
-                worksheet.write(row, col + 4, name_tq, cell_text_wrap)
-                worksheet.write(row, col + 5, price_cny, cell_align)
-                worksheet.write(row, col + 6, quantity, cell_align)
-                worksheet.write(row, col + 7, num_boxes, cell_align)
-                worksheet.write(row, col + 8, f"{full_box} pcs/box", cell_align)
-                worksheet.write(row, col + 9, box_size_str, cell_align)
-                worksheet.write(row, col + 10, round(total_cbm * 1.05, 2), cell_align)  # Thêm 5% buffer
-                worksheet.write(row, col + 11, float(quantity * price_cny), cell_align)
+                # Cột C: SKU
+                cell = worksheet.cell(row=current_row, column=3, value=sku)
+                cell.alignment = center_align
+                cell.border = border_style
                 
-                row += 1
-                count += 1
+                # Cột D: NSX SKU
+                cell = worksheet.cell(row=current_row, column=4, value=nsx_sku)
+                cell.alignment = left_align
+                cell.border = border_style
+                
+                # Cột E: Description
+                cell = worksheet.cell(row=current_row, column=5, value=description)
+                cell.alignment = left_align
+                cell.border = border_style
+                
+                # Cột F: Quantity
+                cell = worksheet.cell(row=current_row, column=6, value=quantity)
+                cell.alignment = center_align
+                cell.border = border_style
+                
+                # Cột G: Unit Price (tq_price)
+                cell = worksheet.cell(row=current_row, column=7, value=tq_price)
+                cell.alignment = center_align
+                cell.border = border_style
+                
+                # Cột H: Total (RMB)
+                cell = worksheet.cell(row=current_row, column=8, value=total_rmb)
+                cell.alignment = center_align
+                cell.border = border_style
+                
+                # Cột I: Total (Box)
+                cell = worksheet.cell(row=current_row, column=9, value=num_boxes)
+                cell.alignment = center_align
+                cell.border = border_style
+                
+                # Cột J: Total (CPM)
+                cell = worksheet.cell(row=current_row, column=10, value=round(total_cpm, 4))
+                cell.alignment = center_align
+                cell.border = border_style
+                
+                # Cột B: Image - cũng cần border
+                cell_b = worksheet.cell(row=current_row, column=2)
+                cell_b.border = border_style
+                
+                current_row += 1
                 
             except Exception as e:
                 logger.error(f"Error processing line item {variant_id}: {e}", exc_info=True)
                 continue
         
-        workbook.close()
+        # Thêm border cho tất cả các hàng từ 8 đến hàng cuối cùng (current_row - 1)
+        # Áp dụng border cho các cột B đến J
+        last_row = current_row - 1  # Hàng cuối cùng có dữ liệu
+        for row_num in range(8, last_row + 1):
+            for col_num in range(2, 11):  # Cột B (2) đến J (10)
+                cell = worksheet.cell(row=row_num, column=col_num)
+                if cell.border is None or not any([cell.border.left, cell.border.right, cell.border.top, cell.border.bottom]):
+                    cell.border = border_style
+        
+        # Sửa công thức SUM nếu có trong template (từ hàng 12 thành 11)
+        # Tìm các cell có công thức SUM và sửa nếu cần
+        for row in worksheet.iter_rows(min_row=1, max_row=20, min_col=1, max_col=15):
+            for cell in row:
+                if cell.data_type == 'f' and cell.value:  # Công thức
+                    formula = str(cell.value)
+                    # Sửa SUM từ hàng 12 thành 11
+                    if 'SUM' in formula and ':12:' in formula:
+                        new_formula = formula.replace(':12:', ':11:')
+                        cell.value = new_formula
+                        logger.info(f"Updated SUM formula in {cell.coordinate}: {formula} -> {new_formula}")
+        
+        # Tên file output
+        supplier_name = po_data.get('supplier_name', 'Supplier').replace('/', '_').replace('\\', '_')
+        po_code = po_data.get('code', f'PO-{po_id}').replace('/', '_').replace('\\', '_')
+        filename = f"{supplier_name}-{po_code}.xlsx"
+        filepath = os.path.join(excel_dir, filename)
+        
+        # Save workbook
+        workbook.save(filepath)
         
         # Return file
         with open(filepath, 'rb') as f:
