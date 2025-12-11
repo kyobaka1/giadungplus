@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import user_passes_test
 from django.shortcuts import redirect
+from django.http import JsonResponse
 from functools import wraps
 
 def is_admin_or_group(user, *group_names):
@@ -19,7 +20,9 @@ def is_admin_or_group(user, *group_names):
 def group_required(*group_names):
     """
     Decorator yêu cầu user phải là Admin hoặc thuộc một trong các groups được chỉ định.
-    Nếu không có quyền, redirect về trang thông báo.
+    Nếu không có quyền:
+    - Với JSON request (format=json hoặc Accept: application/json): trả JSON error
+    - Với HTML request: redirect về trang chủ với thông báo
     """
     def decorator(view_func):
         @wraps(view_func)
@@ -27,19 +30,51 @@ def group_required(*group_names):
             if is_admin_or_group(request.user, *group_names):
                 return view_func(request, *args, **kwargs)
             else:
-                # Redirect về trang thông báo không có quyền
-                return redirect('permission_denied')
+                # Kiểm tra nếu là JSON request
+                is_json_request = (
+                    request.GET.get('format') == 'json' or
+                    request.headers.get('Accept', '').startswith('application/json')
+                )
+                
+                if is_json_request:
+                    return JsonResponse({
+                        'error': 'Không có quyền truy cập',
+                        'message': 'Bạn không có quyền truy cập tính năng này. Vui lòng liên hệ Admin để được cấp quyền.'
+                    }, status=403)
+                else:
+                    # Redirect về trang chủ
+                    from django.contrib import messages
+                    messages.error(request, 'Bạn không có quyền truy cập tính năng này.')
+                    return redirect('/')
         return wrapped_view
     return decorator
 
 def admin_only(view_func):
     """
     Decorator chỉ cho phép Admin (superuser hoặc group Admin) truy cập.
+    Nếu không có quyền:
+    - Với JSON request (format=json hoặc Accept: application/json): trả JSON error
+    - Với HTML request: redirect về trang chủ với thông báo
     """
     @wraps(view_func)
     def wrapped_view(request, *args, **kwargs):
         if is_admin_or_group(request.user, "Admin"):
             return view_func(request, *args, **kwargs)
         else:
-            return redirect('permission_denied')
+            # Kiểm tra nếu là JSON request
+            is_json_request = (
+                request.GET.get('format') == 'json' or
+                request.headers.get('Accept', '').startswith('application/json')
+            )
+            
+            if is_json_request:
+                return JsonResponse({
+                    'error': 'Không có quyền truy cập',
+                    'message': 'Bạn không có quyền truy cập tính năng này. Vui lòng liên hệ Admin để được cấp quyền.'
+                }, status=403)
+            else:
+                # Redirect về trang chủ
+                from django.contrib import messages
+                messages.error(request, 'Bạn không có quyền truy cập tính năng này.')
+                return redirect('/')
     return wrapped_view
