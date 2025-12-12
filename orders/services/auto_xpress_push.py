@@ -6,11 +6,14 @@ Service tự động xử lý đơn hoả tốc:
 """
 
 import logging
+import time
+import requests
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 
-from core.sapo_client import BaseFilter
+from core.sapo_client import BaseFilter, get_sapo_client
+from core.sapo_client.exceptions import SeleniumLoginInProgressException
 from core import shopee_client
 from core.system_settings import get_connection_ids, HOME_PARAM, KHO_GELEXIMCO, KHO_TOKY
 from orders.services.sapo_service import SapoMarketplaceService, SapoCoreOrderService
@@ -23,6 +26,151 @@ EXPRESS_CARRIER_IDS = "134097,1285481,108346,17426,60176,1283785,1285470,1292451
 
 # Connection IDs
 connection_ids = get_connection_ids()
+
+
+def _handle_sapo_api_error(func: Callable, *args, max_retries: int = 2, **kwargs) -> Any:
+    """
+    Wrapper để xử lý lỗi SAPO API và khởi động Selenium nếu cần.
+    
+    Args:
+        func: Function cần gọi (API call)
+        *args: Arguments cho function
+        max_retries: Số lần retry tối đa
+        **kwargs: Keyword arguments cho function
+        
+    Returns:
+        Kết quả từ function
+        
+    Raises:
+        Exception: Nếu vẫn lỗi sau khi retry
+    """
+    last_exception = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            return func(*args, **kwargs)
+        except (requests.HTTPError, requests.RequestException) as e:
+            last_exception = e
+            response = getattr(e, 'response', None)
+            status_code = response.status_code if response else None
+            
+            # Kiểm tra nếu là lỗi authentication (401, 403) hoặc response không hợp lệ
+            is_auth_error = status_code in (401, 403)
+            is_invalid_response = (
+                response is not None and 
+                len(response.text) < 200  # Response quá ngắn có thể là error page
+            )
+            
+            if is_auth_error or is_invalid_response:
+                logger.warning(
+                    f"[AUTO_XPRESS] SAPO API error (attempt {attempt + 1}/{max_retries + 1}): "
+                    f"status={status_code}, error={str(e)}"
+                )
+                
+                if attempt < max_retries:
+                    logger.info("[AUTO_XPRESS] Invalidating token and triggering Selenium login...")
+                    
+                    try:
+                        # Lấy SapoClient instance và invalidate token
+                        sapo_client = get_sapo_client()
+                        
+                        # Invalidate cả core và marketplace tokens
+                        sapo_client._invalidate_token()
+                        sapo_client.tmdt_valid = False
+                        sapo_client.tmdt_loaded = False
+                        
+                        # Trigger login bằng cách gọi _ensure_logged_in() và _ensure_tmdt_headers()
+                        try:
+                            sapo_client._ensure_logged_in()
+                        except SeleniumLoginInProgressException:
+                            # Login đang chạy trong background, đợi cho đến khi hoàn tất
+                            logger.info("[AUTO_XPRESS] Selenium login in progress, waiting...")
+                            
+                            max_wait = 120  # 2 phút
+                            check_interval = 2
+                            elapsed = 0
+                            
+                            while elapsed < max_wait:
+                                if not sapo_client._check_selenium_lock_status():
+                                    # Lock đã được release, đợi thêm để token được commit
+                                    time.sleep(2)
+                                    
+                                    # Thử lại _ensure_logged_in()
+                                    try:
+                                        sapo_client._ensure_logged_in()
+                                        logger.info("[AUTO_XPRESS] Core login completed, token ready")
+                                        break
+                                    except SeleniumLoginInProgressException:
+                                        pass
+                                
+                                time.sleep(check_interval)
+                                elapsed += check_interval
+                                
+                                if elapsed % 10 == 0:
+                                    logger.info(f"[AUTO_XPRESS] Still waiting for login... ({elapsed}/{max_wait}s)")
+                            
+                            if elapsed >= max_wait:
+                                logger.warning(f"[AUTO_XPRESS] Timeout waiting for login ({max_wait}s)")
+                                raise Exception("Timeout waiting for Selenium login")
+                        
+                        # Đảm bảo marketplace token cũng được refresh
+                        try:
+                            sapo_client._ensure_tmdt_headers()
+                            logger.info("[AUTO_XPRESS] Marketplace token refreshed")
+                        except SeleniumLoginInProgressException:
+                            # Marketplace login đang chạy, đợi tương tự
+                            logger.info("[AUTO_XPRESS] Marketplace login in progress, waiting...")
+                            max_wait = 120
+                            check_interval = 2
+                            elapsed = 0
+                            
+                            while elapsed < max_wait:
+                                if not sapo_client._check_selenium_lock_status():
+                                    time.sleep(2)
+                                    try:
+                                        sapo_client._ensure_tmdt_headers()
+                                        logger.info("[AUTO_XPRESS] Marketplace login completed")
+                                        break
+                                    except SeleniumLoginInProgressException:
+                                        pass
+                                
+                                time.sleep(check_interval)
+                                elapsed += check_interval
+                                
+                                if elapsed % 10 == 0:
+                                    logger.info(f"[AUTO_XPRESS] Still waiting for marketplace login... ({elapsed}/{max_wait}s)")
+                            
+                            if elapsed >= max_wait:
+                                logger.warning(f"[AUTO_XPRESS] Timeout waiting for marketplace login ({max_wait}s)")
+                                # Không raise, vì core token đã OK, có thể tiếp tục
+                        
+                        # Đợi một chút để token được apply vào session
+                        time.sleep(2)
+                        
+                        logger.info("[AUTO_XPRESS] Token refreshed, retrying API call...")
+                        continue  # Retry request
+                        
+                    except Exception as login_error:
+                        logger.error(f"[AUTO_XPRESS] Error during token refresh: {login_error}", exc_info=True)
+                        if attempt == max_retries:
+                            raise
+                        continue
+                else:
+                    # Đã retry hết, raise error
+                    logger.error(f"[AUTO_XPRESS] Failed after {max_retries + 1} attempts")
+                    raise
+            else:
+                # Không phải lỗi authentication, raise ngay
+                raise
+        except Exception as e:
+            # Các lỗi khác (không phải HTTPError/RequestException)
+            last_exception = e
+            logger.error(f"[AUTO_XPRESS] Unexpected error: {e}", exc_info=True)
+            raise
+    
+    # Should not reach here, but just in case
+    if last_exception:
+        raise last_exception
 
 
 def is_express_order(order: Dict[str, Any]) -> bool:
@@ -144,8 +292,8 @@ def prepare_order_via_marketplace(
         if not mp_order_id:
             return {"success": False, "message": "Không có marketplace order ID"}
         
-        # Init confirm để lấy pickup time slots
-        init_result = mp_service.init_confirm([mp_order_id])
+        # Init confirm để lấy pickup time slots (với error handling)
+        init_result = _handle_sapo_api_error(mp_service.init_confirm, [mp_order_id])
         
         # Parse init_result để lấy thông tin cần thiết
         data_root = init_result.get("data", {}) if isinstance(init_result, dict) else {}
@@ -188,8 +336,8 @@ def prepare_order_via_marketplace(
             address_id=address_id or 0,
         )
         
-        # Confirm order
-        confirm_result = mp_service.confirm_orders([confirm_item])
+        # Confirm order (với error handling)
+        confirm_result = _handle_sapo_api_error(mp_service.confirm_orders, [confirm_item])
         
         # Kiểm tra kết quả
         if isinstance(confirm_result, dict):
@@ -241,7 +389,8 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
         "orderBy": "desc",
     })
     
-    mp_resp = mp_service.list_orders(mp_filter)
+    # Gọi API với error handling
+    mp_resp = _handle_sapo_api_error(mp_service.list_orders, mp_filter)
     mp_orders = mp_resp.get("orders", [])
     
     if not mp_orders:
@@ -273,7 +422,8 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
             continue
         
         try:
-            order_dto = core_service.get_order_dto(sapo_order_id)
+            # Gọi API với error handling
+            order_dto = _handle_sapo_api_error(core_service.get_order_dto, sapo_order_id)
             
             # Bỏ qua filter location_id - xử lý cho cả 2 location (HN và HCM)
             
@@ -346,7 +496,6 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
                 logger.error(f"[AUTO_XPRESS] Tìm lại shipper thất bại cho đơn {order.get('channel_order_number')}: {result['message']}")
             
             # Delay giữa các request
-            import time
             time.sleep(2)
             
         except Exception as e:
@@ -368,7 +517,6 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
                 logger.error(f"[AUTO_XPRESS] Chuẩn bị hàng thất bại cho đơn {order.get('channel_order_number')}: {result['message']}")
             
             # Delay giữa các request
-            import time
             time.sleep(2)
             
         except Exception as e:
