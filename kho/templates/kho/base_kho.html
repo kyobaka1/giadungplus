@@ -367,8 +367,8 @@
             </aside>
 
             <!-- █▀ MAIN CONTENT -->
-            <main class="flex-1 overflow-y-auto">
-                <div class="px-4 md:px-6 lg:px-8 py-4 md:py-6 space-y-4 md:space-y-6">
+            <main class="flex-1 overflow-y-auto overflow-x-hidden">
+                <div class="pl-2 md:pl-6 lg:pl-8 pr-2 md:pr-4 lg:pr-6 py-3 md:py-6 space-y-3 md:space-y-6 max-w-full">
 
                     <!-- █▀ OVERVIEW BLOCK -->
                     {% block overview %}
@@ -384,7 +384,7 @@
 
                     <!-- █▀ CONTENT LAYOUT: 2 CỘT (CONTENT GIỮA + PANEL PHẢI) -->
                     {% block content_layout %}
-                    <div class="flex gap-4 md:gap-6">
+                    <div class="flex gap-2 md:gap-4 lg:gap-6">
                         <!-- █▀ MAIN CONTENT BLOCK (Content giữa - ví dụ: Danh sách đơn hàng) - ĐẶT TRƯỚC -->
                         {% block main_content %}
                         <div class="flex-1 min-w-0">

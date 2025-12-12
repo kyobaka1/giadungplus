@@ -13,38 +13,40 @@
 {% endblock %}
 
 {% block main_content %}
-<div class="min-h-screen bg-slate-100 space-y-6 p-4">
+<div class="min-h-screen bg-slate-100 space-y-3 md:space-y-6 p-2 md:p-4 overflow-x-hidden max-w-full">
     
     <!-- Form chọn thời gian -->
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-        <form method="get" id="myform" class="flex flex-wrap items-center gap-3">
-            <label class="text-sm text-slate-600 whitespace-nowrap">Bắt đầu:</label>
-            <input name="time" type="datetime-local" 
-                   class="px-4 py-2 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
-                   value="{% if start_date %}{{ start_date|date:'Y-m-d' }}T{{ start_date|date:'H:i' }}{% endif %}">
-            <label class="text-sm text-slate-600 whitespace-nowrap">Kết thúc:</label>
-            <input name="end_time" type="datetime-local" 
-                   class="px-4 py-2 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" 
-                   value="{% if end_date %}{{ end_date|date:'Y-m-d' }}T{{ end_date|date:'H:i' }}{% endif %}">
-            <button class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium whitespace-nowrap" type="submit">
-                Xem báo cáo
-            </button>
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-3 md:p-4 overflow-x-hidden">
+        <form method="get" id="myform" class="flex flex-col md:flex-row md:flex-wrap items-stretch md:items-center gap-3">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 min-w-0">
+                <label class="text-sm text-slate-600 whitespace-nowrap flex-shrink-0">Bắt đầu:</label>
+                <input name="time" type="datetime-local" 
+                       class="flex-1 min-w-0 px-3 md:px-4 py-2 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500" 
+                       value="{% if start_date %}{{ start_date|date:'Y-m-d' }}T{{ start_date|date:'H:i' }}{% endif %}">
+                <label class="text-sm text-slate-600 whitespace-nowrap flex-shrink-0">Kết thúc:</label>
+                <input name="end_time" type="datetime-local" 
+                       class="flex-1 min-w-0 px-3 md:px-4 py-2 border border-slate-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500" 
+                       value="{% if end_date %}{{ end_date|date:'Y-m-d' }}T{{ end_date|date:'H:i' }}{% endif %}">
+                <button class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium whitespace-nowrap flex-shrink-0" type="submit">
+                    Xem báo cáo
+                </button>
+            </div>
             
-            <div class="flex items-center gap-2 ml-auto">
+            <div class="flex items-center gap-2 flex-wrap md:ml-auto">
                 <a href="?time=today" 
-                   class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap {% if time_filter == 'today' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                   class="px-2 md:px-3 py-1.5 text-xs md:text-sm border border-slate-300 rounded-md hover:bg-red-50 whitespace-nowrap flex-shrink-0 {% if time_filter == 'today' %}bg-red-50 border-red-500 text-red-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
                     Ngày hôm nay
                 </a>
                 <a href="?time=yesterday" 
-                   class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap {% if time_filter == 'yesterday' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                   class="px-2 md:px-3 py-1.5 text-xs md:text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap flex-shrink-0 {% if time_filter == 'yesterday' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
                     Ngày hôm qua
                 </a>
                 <a href="?time=7days" 
-                   class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap {% if time_filter == '7days' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                   class="px-2 md:px-3 py-1.5 text-xs md:text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap flex-shrink-0 {% if time_filter == '7days' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
                     7 ngày
                 </a>
                 <a href="?time=30days" 
-                   class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap {% if time_filter == '30days' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                   class="px-2 md:px-3 py-1.5 text-xs md:text-sm border border-slate-300 rounded-md hover:bg-slate-50 whitespace-nowrap flex-shrink-0 {% if time_filter == '30days' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
                     30 ngày
                 </a>
             </div>
@@ -53,10 +55,10 @@
 
     <!-- HÀNG NGANG ĐẦU TIÊN - 4 CỘT -->
     {% if stats %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 md:p-6">
         <div class="mb-4">
             <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                <i class="text-emerald-600">📊</i>
+                <i class="text-red-600">📊</i>
                 Kết quả hoạt động kho hàng
             </h2>
         </div>
@@ -91,7 +93,7 @@
             
             <!-- Cột 3: Hiệu suất làm việc -->
             <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div class="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                     <span class="text-xs">⚡</span>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -122,8 +124,8 @@
 
     <!-- HÀNG NGANG THỨ HAI - 2 CỘT -->
     {% if stats %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 md:p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <!-- Cột 1: Xử lý đơn -->
             <div>
                 <h3 class="text-base font-semibold text-slate-800 mb-2">Xử lý đơn</h3>
@@ -137,7 +139,7 @@
                         <div class="text-lg font-bold text-slate-800">{{ total_don|intcomma }} đơn</div>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-3">
-                        <div class="bg-emerald-600 h-3 rounded-full transition-all duration-300" 
+                        <div class="bg-red-600 h-3 rounded-full transition-all duration-300" 
                              style="width: {{ stats.don_da_goi.percent|default:0 }}%">
                         </div>
                     </div>
@@ -150,7 +152,7 @@
                 
                 <!-- Deadline stats - 1 hàng -->
                 <div class="grid grid-cols-3 gap-2">
-                    <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-center">
+                    <div class="p-2 md:p-3 bg-slate-50 rounded-lg border border-slate-200 text-center">
                         <div class="text-xs text-slate-600 mb-1">Giao trước 12H</div>
                         <div class="text-sm font-bold text-slate-800">{{ stats.deadline_stats.before_12h.sodonhang|default:0|intcomma }}</div>
                         <div class="text-xs text-slate-500 mt-1">{{ stats.deadline_stats.before_12h.doanhso|default:0|format_currency }} ₫</div>
@@ -184,8 +186,8 @@
 
     <!-- HÀNG DỮ LIỆU THỨ 3 - 3 CỘT -->
     {% if stats %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 md:p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 md:gap-6">
             <!-- Cột 1: Categories (2/5) -->
             <div class="lg:col-span-2">
                 <h3 class="text-base font-semibold text-slate-800 mb-2">Categories</h3>
@@ -218,7 +220,7 @@
                             </div>
                             <!-- Label TOP cho category đầu tiên -->
                             {% if forloop.first %}
-                            <span class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-blue-500 rounded-full whitespace-nowrap ml-1">TOP</span>
+                            <span class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-red-500 rounded-full whitespace-nowrap ml-1">TOP</span>
                             {% endif %}
                         </div>
                         <!-- Doanh số và số sản phẩm -->
@@ -259,12 +261,12 @@
                     </div>
                     
                     <!-- Giao đúng hạn ✅ -->
-                    <div class="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <div class="p-3 bg-red-50 rounded-lg border border-red-200">
                         <div class="flex items-center justify-between mb-1">
-                            <span class="text-sm font-medium text-emerald-800">Giao đúng hạn ✅</span>
-                            <span class="text-sm font-bold text-emerald-800">{{ stats.delivery_stats.shipped_on_time.percent|default:0|floatformat:2 }}%</span>
+                            <span class="text-sm font-medium text-red-800">Giao đúng hạn ✅</span>
+                            <span class="text-sm font-bold text-red-800">{{ stats.delivery_stats.shipped_on_time.percent|default:0|floatformat:2 }}%</span>
                         </div>
-                        <div class="text-xs text-emerald-600">{{ stats.delivery_stats.shipped_on_time.sodonhang|default:0|intcomma }} đơn</div>
+                        <div class="text-xs text-red-600">{{ stats.delivery_stats.shipped_on_time.sodonhang|default:0|intcomma }} đơn</div>
                     </div>
                 </div>
             </div>
@@ -306,13 +308,13 @@
 
     <!-- HÀNG DỮ LIỆU THỨ 4 - Hiệu suất nhân sự (1/2 cột) -->
     {% if stats %}
-    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 md:p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             <!-- Cột 1: Hiệu suất nhân sự -->
             <div>
                 <div class="mb-4">
                     <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                        <i class="text-emerald-600">👥</i>
+                        <i class="text-red-600">👥</i>
                         Hiệu suất nhân sự
                     </h2>
                     <p class="text-xs text-slate-600 mt-1">Giám sát hiệu quả sử dụng nhân sự</p>
@@ -322,9 +324,9 @@
                 <div class="space-y-2">
                     {% for user_name, user_data in stats.per_user.items %}
                     <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 {% if user_name == stats.top1_doanhso_user|default:'' or user_name == stats.top1_hieu_suat_user|default:'' %}ring-2 ring-yellow-400 ring-opacity-50 shadow-md{% endif %}">
-                        <div class="grid grid-cols-10 gap-3">
+                        <div class="grid grid-cols-1 md:grid-cols-10 gap-3">
                             <!-- Cột 1: Thông tin và chỉ số (70% = 7/10) -->
-                            <div class="col-span-7">
+                            <div class="md:col-span-7">
                                 <!-- Header: Avatar và tên nhân sự -->
                                 <div class="flex items-center gap-2 mb-2">
                                     <!-- Avatar -->
@@ -338,7 +340,7 @@
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-1.5 flex-wrap">
                                             {% if user_data.kho_name %}
-                                            <span class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-blue-500 rounded">{{ user_data.kho_name }}</span>
+                                            <span class="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-red-500 rounded">{{ user_data.kho_name }}</span>
                                             {% endif %}
                                             <span class="text-sm font-semibold text-slate-800">{{ user_data.real_name|default:user_name }}</span>
                                             
@@ -352,7 +354,7 @@
                                             
                                             {% comment %} Badge TOP 1 HIỆU SUẤT {% endcomment %}
                                             {% if user_name == stats.top1_hieu_suat_user|default:'' %}
-                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-white rounded-full bg-gradient-to-r from-emerald-400 via-emerald-500 to-emerald-600 shadow-lg transform hover:scale-105 transition-all duration-200 animate-pulse">
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-white rounded-full bg-gradient-to-r from-red-400 via-red-500 to-red-600 shadow-lg transform hover:scale-105 transition-all duration-200 animate-pulse">
                                                 <span class="text-xs">⚡</span>
                                                 <span>TOP 1 HIỆU SUẤT</span>
                                             </span>
@@ -361,29 +363,29 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Thông tin chính: Giờ làm, Gói được, Doanh số, Hiệu suất -->
-                                <div class="grid grid-cols-4 gap-2">
+                                <!-- Thông tin chính: Hiệu suất, Doanh số, Gói được, Giờ làm -->
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                                     <div>
-                                        <div class="text-[10px] text-slate-600 mb-0.5">Giờ làm</div>
-                                        <div class="text-xs font-bold text-slate-800">{{ user_data.working_hours|default:0|floatformat:1 }}h</div>
-                                    </div>
-                                    <div>
-                                        <div class="text-[10px] text-slate-600 mb-0.5">Gói được</div>
-                                        <div class="text-xs font-bold text-slate-800">{{ user_data.total_order|default:0|intcomma }}</div>
+                                        <div class="text-[10px] text-slate-600 mb-0.5">Hiệu suất</div>
+                                        <div class="text-xs font-bold text-red-600">{{ user_data.efficiency|default:0|format_currency }}₫/h</div>
                                     </div>
                                     <div>
                                         <div class="text-[10px] text-slate-600 mb-0.5">Doanh số</div>
                                         <div class="text-xs font-bold text-slate-800">{{ user_data.total_money|default:0|format_currency }}₫</div>
                                     </div>
                                     <div>
-                                        <div class="text-[10px] text-slate-600 mb-0.5">Hiệu suất</div>
-                                        <div class="text-xs font-bold text-emerald-600">{{ user_data.efficiency|default:0|intcomma }}₫/h</div>
+                                        <div class="text-[10px] text-slate-600 mb-0.5">Gói được</div>
+                                        <div class="text-xs font-bold text-slate-800">{{ user_data.total_order|default:0|intcomma }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-[10px] text-slate-600 mb-0.5">Giờ làm</div>
+                                        <div class="text-xs font-bold text-slate-800">{{ user_data.working_hours|default:0|floatformat:1 }}h</div>
                                     </div>
                                 </div>
                             </div>
                             
                             <!-- Cột 2: Xu hướng phân loại gói (30% = 3/10) -->
-                            <div class="col-span-3 border-l border-slate-300 pl-3">
+                            <div class="md:col-span-3 md:border-l md:border-slate-300 md:pl-3 pt-3 md:pt-0 border-t md:border-t-0 border-slate-300">
                                 {% if user_data.top3_categories %}
                                 <div class="space-y-1.5">
                                     {% for cat in user_data.top3_categories %}
@@ -407,8 +409,160 @@
                 </div>
             </div>
             
-            <!-- Cột 2: Để trống -->
-            <div></div>
+            <!-- Cột 2: Tồn kho và Hiệu quả Shop -->
+            <div class="space-y-4 md:space-y-6">
+                <!-- Phần 1: Giá trị tồn kho -->
+                <div>
+                    <div class="mb-4">
+                        <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                            <i class="text-red-600">📦</i>
+                            Giá trị tồn kho (KMB)
+                        </h3>
+                        <p class="text-xs text-slate-600 mt-1">Tổng giá trị tồn kho hiện tại</p>
+                    </div>
+                    
+                    {% if inventory_data %}
+                    <div class="grid grid-cols-3 gap-3">
+                        <!-- Tổng tồn kho -->
+                        <div class="p-4 bg-gradient-to-br from-red-50 to-red-100 rounded-lg border-2 border-red-200">
+                            <div class="text-xs text-slate-600 uppercase font-medium mb-2">TỔNG</div>
+                            <div class="text-xl md:text-2xl font-bold text-red-700 mb-1">{{ inventory_data.sum.amount|default:0|format_currency }} ₫</div>
+                            <div class="text-xs text-red-600">{{ inventory_data.sum.onhand|default:0|intcomma }} sp</div>
+                        </div>
+                        
+                        <!-- Hà Nội -->
+                        <div class="p-4 bg-red-50 rounded-lg border border-red-200">
+                            <div class="text-xs text-slate-600 uppercase font-medium mb-2">HÀ NỘI</div>
+                            <div class="text-xl md:text-2xl font-bold text-red-700 mb-1">{{ inventory_data.gele.amount|default:0|format_currency }} ₫</div>
+                            <div class="text-xs text-red-600">{{ inventory_data.gele.onhand|default:0|intcomma }} sp</div>
+                        </div>
+                        
+                        <!-- Sài Gòn -->
+                        <div class="p-4 bg-red-100 rounded-lg border border-red-300">
+                            <div class="text-xs text-slate-600 uppercase font-medium mb-2">SÀI GÒN</div>
+                            <div class="text-xl md:text-2xl font-bold text-red-800 mb-1">{{ inventory_data.toky.amount|default:0|format_currency }} ₫</div>
+                            <div class="text-xs text-red-700">{{ inventory_data.toky.onhand|default:0|intcomma }} sp</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-slate-500 text-sm">Đang tải dữ liệu...</div>
+                    {% endif %}
+                </div>
+                
+                <!-- Phần 2: Hiệu quả hoạt động Shop Shopee -->
+                <div>
+                    <div class="mb-4">
+                        <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                            <i class="text-red-600">🏪</i>
+                            Hiệu quả Shop Shopee
+                        </h3>
+                        <p class="text-xs text-slate-600 mt-1">Thống kê hiệu quả hoạt động các shop</p>
+                    </div>
+                    
+                    {% if shop_performance %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                        {% for shop_name, shop_data in shop_performance.items %}
+                            {% if shop_data %}
+                            <div class="p-3 md:p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                <!-- Tên shop với logo và điểm phạt -->
+                                <div class="flex items-center gap-2 mb-3">
+                                    <!-- Logo shop -->
+                                    {% with shop_lower=shop_name|lower %}
+                                    <img src="{% if 'lteng' in shop_lower %}
+                                                    /static/logo-lteng.jpg
+                                                  {% elif 'phaledo' in shop_lower %}
+                                                    /static/logo-phaledo.jpg
+                                                  {% else %}
+                                                    /static/giaodiensang.png
+                                                  {% endif %}" 
+                                         alt="{{ shop_data.shop_name }}"
+                                         class="w-6 h-6 md:w-7 md:h-7 rounded object-contain border border-slate-200 bg-white flex-shrink-0">
+                                    {% endwith %}
+                                    
+                                    <!-- Tên shop -->
+                                    <div class="flex items-center gap-1.5 flex-1">
+                                        <span class="text-xs md:text-sm font-semibold text-slate-800">{{ shop_data.shop_name|upper }}</span>
+                                        <!-- Tag Shopee Mall -->
+                                        {% if shop_data.is_mall %}
+                                        <span class="inline-flex items-center px-1.5 py-0.5 text-[9px] md:text-[10px] font-bold text-white bg-red-500 border border-red-400 rounded whitespace-nowrap">
+                                            MALL
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <!-- Điểm phạt -->
+                                    {% if shop_data.total_points %}
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] md:text-xs font-bold text-red-700 bg-red-50 border-2 border-red-400 rounded-md whitespace-nowrap">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M10 2a8 8 0 108 8 8 8 0 00-8-8zm0 12a1.5 1.5 0 110-3 1.5 1.5 0 010 3zm.25-4.75h-.5a.75.75 0 010-1.5h.5a.75.75 0 010 1.5z" clip-rule="evenodd"/>
+                                        </svg>
+                                        {{ shop_data.total_points|intcomma }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- 3 metrics theo hàng ngang -->
+                                {% if shop_data.shop_performance %}
+                                <div class="space-y-1.5">
+                                    {% with metrics=shop_data.shop_performance %}
+                                    <!-- Fast Handover Rate (sd) -->
+                                    {% if metrics.sd %}
+                                    <div class="flex items-center justify-between text-xs text-slate-700">
+                                        <span class="text-slate-600">Fast Handover Rate</span>
+                                        <span class="font-bold text-slate-800 flex items-center gap-1">
+                                            {{ metrics.sd.value }}
+                                            {% if metrics.sd.status == 1 %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.588c.75 1.334-.213 2.988-1.742 2.988H3.48c-1.529 0-2.492-1.654-1.742-2.988L8.257 3.1zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a.75.75 0 00-.75.75v4.5a.75.75 0 001.5 0v-4.5A.75.75 0 0010 5z" clip-rule="evenodd"/>
+                                            </svg>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Đơn Không Thành Công (nfr) -->
+                                    {% if metrics.nfr %}
+                                    <div class="flex items-center justify-between text-xs text-slate-700">
+                                        <span class="text-slate-600">Đơn Không Thành Công</span>
+                                        <span class="font-bold text-slate-800 flex items-center gap-1">
+                                            {{ metrics.nfr.value }}
+                                            {% if metrics.nfr.status == 1 %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.588c.75 1.334-.213 2.988-1.742 2.988H3.48c-1.529 0-2.492-1.654-1.742-2.988L8.257 3.1zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a.75.75 0 00-.75.75v4.5a.75.75 0 001.5 0v-4.5A.75.75 0 0010 5z" clip-rule="evenodd"/>
+                                            </svg>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Lệ Giao Hàng Trễ (lsr) -->
+                                    {% if metrics.lsr %}
+                                    <div class="flex items-center justify-between text-xs text-slate-700">
+                                        <span class="text-slate-600">Lệ Giao Hàng Trễ</span>
+                                        <span class="font-bold text-slate-800 flex items-center gap-1">
+                                            {{ metrics.lsr.value }}
+                                            {% if metrics.lsr.status == 1 %}
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.72-1.36 3.485 0l6.518 11.588c.75 1.334-.213 2.988-1.742 2.988H3.48c-1.529 0-2.492-1.654-1.742-2.988L8.257 3.1zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a.75.75 0 00-.75.75v4.5a.75.75 0 001.5 0v-4.5A.75.75 0 0010 5z" clip-rule="evenodd"/>
+                                            </svg>
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    {% endwith %}
+                                </div>
+                                {% else %}
+                                <div class="text-xs text-slate-500 text-center py-2">Chưa có dữ liệu</div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-slate-500 text-sm">Đang tải dữ liệu...</div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -479,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 show: false
             }
         },
-        colors: ['#10b981'],
+        colors: ['#dc2626'],
         dataLabels: {
             enabled: true,
         },

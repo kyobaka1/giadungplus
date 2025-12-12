@@ -7,10 +7,11 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from kho.utils import group_required
 from kho.models import WarehousePackingSetting
-from core.system_settings import get_connection_ids, SAPO_TMDT
+from core.system_settings import get_connection_ids, SAPO_TMDT, load_shopee_shops, load_shopee_shops_detail
 from core.sapo_client import get_sapo_client, BaseFilter
 from orders.services.sapo_service import SapoMarketplaceService, SapoCoreOrderService
 from kho.services.dashboard_service import calculate_dashboard_stats
+from core.shopee_client import ShopeeClient
 
 import logging
 import threading
@@ -327,6 +328,120 @@ def dashboard(request):
     if stats:
         stats['category_chart_data'] = category_chart_data_json
     
+    # Lấy dữ liệu tồn kho (inventory)
+    inventory_data = None
+    try:
+        sapo = get_sapo_client()
+        # Lấy tồn kho cho cả 2 kho
+        def fetch_onhand(location_id):
+            try:
+                url = f"https://sisapsan.mysapogo.com/admin/reports/inventories/onhand.json?page=1&limit=1&location_ids={location_id}"
+                response = sapo.core_session.get(url)
+                if response.status_code == 200:
+                    return response.json().get("summary", {})
+                return {}
+            except Exception as e:
+                logger.error(f"[Dashboard] Error fetching inventory for location {location_id}: {e}")
+                return {}
+        
+        gele_inv = fetch_onhand(241737)  # Hà Nội
+        toky_inv = fetch_onhand(548744)  # Sài Gòn
+        
+        gele_onhand = int(gele_inv.get("total_local_onhand", 0))
+        gele_amount = int(gele_inv.get("total_local_amount", 0))
+        toky_onhand = int(toky_inv.get("total_local_onhand", 0))
+        toky_amount = int(toky_inv.get("total_local_amount", 0))
+        
+        sum_onhand = gele_onhand + toky_onhand
+        sum_amount = (gele_amount or 0) + (toky_amount or 0)
+        
+        inventory_data = {
+            "gele": {"onhand": gele_onhand, "amount": gele_amount},
+            "toky": {"onhand": toky_onhand, "amount": toky_amount},
+            "sum": {"onhand": sum_onhand, "amount": sum_amount},
+        }
+        logger.info(f"[Dashboard] Loaded inventory data: sum={sum_onhand} items, {sum_amount} VND")
+    except Exception as e:
+        logger.error(f"[Dashboard] Error loading inventory data: {e}", exc_info=True)
+        inventory_data = None
+    
+    # Lấy dữ liệu hiệu quả shop Shopee
+    shop_performance = {}
+    try:
+        # Lấy tất cả shops từ config (bao gồm detail để có field mall)
+        shops_detail = load_shopee_shops_detail()
+        shops_map = load_shopee_shops()
+        
+        # Lấy tất cả shop names từ config
+        all_shops = list(shops_map.keys())
+        
+        for shop_name in all_shops:
+            # Lấy thông tin chi tiết shop (để có field mall)
+            shop_info = shops_detail.get(shop_name, {})
+            is_mall = shop_info.get("mall", 0) == 1
+                
+            try:
+                # Khởi tạo ShopeeClient với shop
+                client = ShopeeClient(shop_key=shop_name)
+                
+                # API 1: Lấy shop performance metrics
+                url_1 = "https://banhang.shopee.vn/api/sellergrowth/v2/ps/landing_page/"
+                params_1 = {
+                    "SPC_CDS": "fa75a215-26fc-4960-8efc-1b1d87508841",
+                    "SPC_CDS_VER": "2"
+                }
+                response_1 = client.session.get(url_1, params=params_1, timeout=10)
+                if response_1.status_code == 200:
+                    data_1 = response_1.json()
+                    metrics = data_1.get("metrics", [])  # metrics là array
+                else:
+                    metrics = []
+                
+                # API 2: Lấy ongoing points
+                url_2 = "https://banhang.shopee.vn/api/v2/shops/sellerCenter/ongoingPoints/"
+                params_2 = {
+                    "SPC_CDS": "fa75a215-26fc-4960-8efc-1b1d87508841",
+                    "SPC_CDS_VER": "2"
+                }
+                response_2 = client.session.get(url_2, params=params_2, timeout=10)
+                if response_2.status_code == 200:
+                    data_2 = response_2.json()
+                    ongoing_points = data_2.get("data", {})
+                else:
+                    ongoing_points = {}
+                
+                # Format tên shop để hiển thị (replace _ bằng space và title case)
+                shop_display_name = shop_name.replace("_", " ").title()
+                
+                # Tìm 3 metrics cần thiết: sd, nfr, lsr
+                metrics_dict = {}
+                for metric in metrics:
+                    metric_key = metric.get("metric_key")
+                    if metric_key in ["sd", "nfr", "lsr"]:
+                        metrics_dict[metric_key] = {
+                            "value": metric.get("metric_value"),
+                            "status": metric.get("status")  # 1 = bad (warning), 0 = good
+                        }
+                
+                shop_performance[shop_name] = {
+                    "shop_name": shop_display_name,
+                    "shop_performance": metrics_dict,
+                    "total_points": ongoing_points.get("totalPoints", 0),
+                    "is_mall": is_mall
+                }
+                
+                logger.info(f"[Dashboard] Loaded shop performance for {shop_name}")
+            except Exception as e:
+                logger.error(f"[Dashboard] Error loading shop performance for {shop_name}: {e}", exc_info=True)
+                shop_performance[shop_name] = None
+        
+        if not shop_performance:
+            shop_performance = None
+            
+    except Exception as e:
+        logger.error(f"[Dashboard] Error loading shop performance: {e}", exc_info=True)
+        shop_performance = None
+    
     # Context
     context = {
         "title": "Kho – Overview",
@@ -341,6 +456,8 @@ def dashboard(request):
         "calc_time": round(calc_time, 2),
         "hourly_data_json": hourly_data_json,
         "hourly_categories_json": hourly_categories_json,
+        "inventory_data": inventory_data,
+        "shop_performance": shop_performance,
     }
     
     return render(request, "kho/overview.html", context)
