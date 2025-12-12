@@ -127,8 +127,11 @@ def _fetch_orders_multi_thread(
     tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
     
     # Mở rộng window để lấy đủ orders (có thể có time_packing trong khoảng nhưng created_on ngoài khoảng)
-    window_start = start_date - timedelta(days=3)
+    # Khi time=today: lấy orders từ 2 ngày trước đến hôm nay (vì có thể có đơn tạo 2 ngày trước nhưng gói hôm nay)
+    window_start = start_date - timedelta(days=2)
     window_end = end_date + timedelta(days=1)
+    
+    logger.info(f"[Dashboard] Fetch orders window: {window_start.strftime('%Y-%m-%d %H:%M:%S')} to {window_end.strftime('%Y-%m-%d %H:%M:%S')} (filter range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
     
     created_on_min = window_start.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
     created_on_max = window_end.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -245,9 +248,33 @@ def dashboard(request):
             current_kho = kho
             location_id = LOCATION_BY_KHO.get(current_kho, 241737)
     
-    # Lấy time filter (mặc định: today)
+    # Lấy time filter hoặc datetime từ form
     time_filter = request.GET.get("time", "today")
-    start_date, end_date = _get_date_range(time_filter)
+    time_str = request.GET.get("time")
+    end_time_str = request.GET.get("end_time")
+    
+    tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+    
+    # Nếu có datetime từ form và không phải là filter preset, ưu tiên dùng datetime
+    if time_str and end_time_str and time_str not in ["today", "yesterday", "7days", "30days"]:
+        try:
+            # Parse datetime từ form (format: YYYY-MM-DDTHH:mm hoặc YYYY-MM-DD)
+            if "T" in time_str:
+                start_date = datetime.strptime(time_str, "%Y-%m-%dT%H:%M").replace(tzinfo=tz_vn)
+            else:
+                start_date = datetime.strptime(time_str, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=tz_vn)
+            
+            if "T" in end_time_str:
+                end_date = datetime.strptime(end_time_str, "%Y-%m-%dT%H:%M").replace(tzinfo=tz_vn)
+            else:
+                end_date = datetime.strptime(end_time_str, "%Y-%m-%d").replace(hour=23, minute=59, second=59, microsecond=0, tzinfo=tz_vn)
+        except (ValueError, TypeError) as e:
+            logger.warning(f"[Dashboard] Error parsing datetime: {e}, fallback to time_filter")
+            # Nếu parse lỗi, fallback về time_filter
+            start_date, end_date = _get_date_range(time_filter)
+    else:
+        # Dùng time_filter
+        start_date, end_date = _get_date_range(time_filter)
     
     # Service layer
     core_service = SapoCoreOrderService()
@@ -291,6 +318,14 @@ def dashboard(request):
     # Serialize hourly data for JavaScript
     hourly_data_json = json.dumps(stats.get('hourly_data', [])) if stats else '[]'
     hourly_categories_json = json.dumps(stats.get('hourly_categories', [])) if stats else '[]'
+    
+    # Serialize category chart data for JavaScript
+    category_chart_data = stats.get('category_chart_data', {}) if stats else {}
+    category_chart_data_json = json.dumps(category_chart_data) if category_chart_data else '{}'
+    
+    # Update stats with serialized data for template
+    if stats:
+        stats['category_chart_data'] = category_chart_data_json
     
     # Context
     context = {
