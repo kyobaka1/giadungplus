@@ -158,6 +158,12 @@
             <!-- SKU (TO ĐẬM) -->
             <div class="label-barcode-section">
                 <div class="label-sku">{{ label.sku }}</div>
+                {% if label.tq_name or label.tq_sku %}
+                <div class="label-opt"><b>
+                    {% if label.tq_name %}【{{ label.tq_name }}】{% endif %}
+                    {% if label.tq_sku %}【{{ label.tq_sku }}】{% endif %}</b>
+                </div>
+                {% endif %}
                 {% if label.opt1 %}
                 <div class="label-opt">【{{ label.opt1 }}】</div>
                 {% endif %}
