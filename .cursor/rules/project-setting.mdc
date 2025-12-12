@@ -1,7 +1,5 @@
 ---
 alwaysApply: true
 ---
-- Đang chạy song song test / deloy 2 nền tảng.
-+ Tôi test trên máy windows 10 - python/django với GIADUNGPLUS/settings
-+ Tôi deloy trên Ubuntu tại thư mục /var/www/giadungplus với GIADUNGPLUS/production-settings
-    + Unicorn + Suporvisor
+*GDPMETA PRODUCT* Nếu tôi nói lấy thông tin sản phẩm trên GDPMETA PRODUCT, có nghĩa là lấy thông tin từ Sapo API -> xem ở products/readme-product.md
+*GIAO DIỆN TEMPALTE* phải thiết kế kĩ càng và cẩn thận theo yêu cầu là gọn gàng, tinh tế, sang trọng, các nút có bo viền nhẹ.
