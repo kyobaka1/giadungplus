@@ -2,259 +2,262 @@
 {% load static %}
 {% load humanize %}
 
-{% block title %}Overview Kho - Gia Dụng Plus {% endblock %}
+{% block title %}Thống Kê Kho - Gia Dụng Plus {% endblock %}
 
 {% block overview %}
 <section>
-    <h1 class="text-lg font-semibold text-slate-800">Tổng quan kho hàng</h1>
-    <p class="text-xs text-gray-500 mt-1">Dashboard với công việc cần xử lý, doanh số đơn gói, toplist hiệu suất, KPI</p>
+    <h1 class="text-lg font-semibold text-slate-800">Thống kê kho hàng</h1>
+    <p class="text-xs text-gray-500 mt-1">Dashboard thống kê hoạt động kho hàng, doanh số đơn gói, hiệu suất nhân viên</p>
 </section>
 {% endblock %}
 
 {% block main_content %}
-<div class="min-h-screen bg-slate-100 space-y-6">
+<div class="min-h-screen bg-slate-100 space-y-6 p-4">
+    
+    <!-- Form chọn thời gian -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <form method="get" id="myform" class="flex flex-wrap items-center gap-3">
+            <input name="time" type="text" class="px-4 py-2 border border-slate-300 rounded-md bg-white text-sm" 
+                   autocomplete="off" data-toggle="datepicker" placeholder="Bắt đầu" readonly>
+            <input name="end_time" type="text" class="px-4 py-2 border border-slate-300 rounded-md bg-white text-sm" 
+                   autocomplete="off" data-toggle="datepicker" placeholder="Kết thúc" readonly>
+            <button class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium" type="submit">
+                Xem báo cáo
+            </button>
+        </form>
         
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                <div class="text-xs text-gray-500 mb-1">Đơn hôm nay</div>
-                <div class="text-2xl font-bold text-slate-800">{{ kpi.orders_today|default:0 }}</div>
-                <div class="text-xs text-gray-400 mt-1">Theo kho hiện tại</div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                <div class="text-xs text-gray-500 mb-1">Đã đóng gói</div>
-                <div class="text-2xl font-bold text-emerald-600">{{ kpi.orders_packed|default:0 }}</div>
-                <div class="text-xs text-gray-400 mt-1">Hôm nay</div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                <div class="text-xs text-gray-500 mb-1">Hoả tốc chưa xử lý</div>
-                <div class="text-2xl font-bold text-red-600">{{ kpi.orders_express|default:0 }}</div>
-                <div class="text-xs text-gray-400 mt-1">Cần xử lý gấp</div>
-            </div>
-            
-            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-                <div class="text-xs text-gray-500 mb-1">Chờ pickup</div>
-                <div class="text-2xl font-bold text-orange-600">{{ kpi.orders_pickup|default:0 }}</div>
-                <div class="text-xs text-gray-400 mt-1">Đã gói, chờ lấy</div>
-            </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <a href="?time=today" 
+               class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 {% if time_filter == 'today' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                Ngày hôm nay
+            </a>
+            <a href="?time=yesterday" 
+               class="px-3 py-1.5 text-sm border border-slate-300 rounded-md hover:bg-slate-50 {% if time_filter == 'yesterday' %}bg-emerald-50 border-emerald-500 text-emerald-700 font-semibold{% else %}bg-white text-slate-700{% endif %}">
+                Ngày hôm qua
+            </a>
         </div>
+    </div>
 
-        <!-- Công việc cần xử lý -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <h2 class="text-sm font-semibold text-slate-800 mb-3">Công việc cần xử lý</h2>
-            <div class="space-y-2 text-sm">
-                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
-                    <span>Đơn Shopee chưa xử lý</span>
-                    <span class="text-red-600 font-semibold">0</span>
+    <!-- Kết quả hoạt động kho hàng - Tổng quan -->
+    {% if stats %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <i class="text-emerald-600">📊</i>
+                Kết quả hoạt động kho hàng
+            </h2>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- Số đơn đã gói -->
+            <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                    <span class="text-2xl">📦</span>
                 </div>
-                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
-                    <span>Đơn Sapo chưa xử lý</span>
-                    <span class="text-red-600 font-semibold">0</span>
-                </div>
-                <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded">
-                    <span>Ticket chưa xử lý</span>
-                    <span class="text-red-600 font-semibold">0</span>
+                <div class="flex-1">
+                    <div class="text-xs text-slate-600 uppercase font-medium mb-1">SỐ ĐƠN ĐÃ GÓI</div>
+                    <div class="text-2xl font-bold text-slate-800">{{ stats.sum_data.sodonhang|default:0|intcomma }}</div>
+                    <div class="text-xs text-slate-500 mt-1">đơn hàng</div>
                 </div>
             </div>
-        </div>
-
-        <!-- Toplist hiệu suất -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <h2 class="text-sm font-semibold text-slate-800 mb-3">Toplist hiệu suất</h2>
-            <div class="text-sm text-gray-500">
-                <p>Dữ liệu sẽ được cập nhật sau khi có logic tính toán.</p>
-            </div>
-        </div>
-
-        <!-- Danh sách đơn theo trạng thái -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <h2 class="text-sm font-semibold text-slate-800 mb-3">Đơn hàng theo trạng thái</h2>
-            <div class="text-sm text-gray-500">
-                <p>Dữ liệu sẽ được cập nhật sau khi có logic lấy đơn từ Sapo.</p>
-            </div>
-        </div>
-
-        <!-- Quản trị nhân viên gói hàng -->
-        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
-            <h2 class="text-sm font-semibold text-slate-800 mb-4">Quản trị nhân viên gói hàng</h2>
-            <p class="text-xs text-gray-500 mb-4">Bật/tắt tính năng đóng gói hàng cho nhân viên thông thường (WarehousePacker) theo từng kho</p>
             
-            <div class="space-y-4">
-                <!-- Kho HCM -->
-                <div class="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
-                    <div class="flex-1">
-                        <div class="text-sm font-semibold text-slate-800">Kho HCM (Geleximco & Toky)</div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            <span id="status-hcm" class="inline-block px-2 py-1 rounded text-xs font-medium {% if packing_settings.KHO_HCM.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-700{% endif %}">
-                                {% if packing_settings.KHO_HCM.is_active %}Hoạt động{% else %}Tạm dừng{% endif %}
-                            </span>
+            <!-- Tổng doanh số -->
+            <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                    <span class="text-2xl">💰</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs text-slate-600 uppercase font-medium mb-1">TỔNG DOANH SỐ</div>
+                    <div class="text-2xl font-bold text-slate-800">{{ stats.sum_data.doanhso|default:0|intcomma }}</div>
+                    <div class="text-xs text-slate-500 mt-1">việt nam đồng</div>
+                </div>
+            </div>
+            
+            <!-- Tổng sản phẩm -->
+            <div class="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
+                <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <span class="text-2xl">🎁</span>
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs text-slate-600 uppercase font-medium mb-1">TỔNG SẢN PHẨM</div>
+                    <div class="text-2xl font-bold text-emerald-600">{{ stats.sum_data.sosanpham|default:0|intcomma }}</div>
+                    <div class="text-xs text-slate-500 mt-1">sản phẩm</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thống kê theo kho -->
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <i class="text-emerald-600">🏢</i>
+                {% if current_kho == 'geleximco' %}KHO GELEXIMCO - HÀ NỘI{% else %}KHO TÔ KÝ - SÀI GÒN{% endif %}
+            </h2>
+        </div>
+        
+        <!-- Cần gói -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div class="text-sm text-slate-700 mb-1">Cần gói hôm nay</div>
+                <div class="text-2xl font-bold text-emerald-700">
+                    {{ stats.pending_sum.sodonhang|default:0|intcomma }}
+                </div>
+                <div class="text-xs text-slate-600 mt-1">Số đơn</div>
+            </div>
+            
+            <div class="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div class="text-sm text-slate-700 mb-1">Cần gói (đơn sau 18h)</div>
+                <div class="text-2xl font-bold text-amber-600">
+                    {{ stats.pending_deadlines.after_18.sodonhang|default:0|intcomma }}
+                </div>
+                <div class="text-xs text-slate-600 mt-1">Số đơn</div>
+            </div>
+        </div>
+        
+        <!-- Tổng đơn, doanh số, sản phẩm -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="p-4 border border-slate-200 rounded-lg">
+                <div class="text-xs text-slate-600 uppercase font-medium mb-2">TỔNG ĐƠN</div>
+                <div class="text-xl font-bold text-slate-800">{{ stats.sum_data.sodonhang|default:0|intcomma }}</div>
+            </div>
+            
+            <div class="p-4 border border-slate-200 rounded-lg">
+                <div class="text-xs text-slate-600 uppercase font-medium mb-2">TỔNG DOANH SỐ</div>
+                <div class="text-xl font-bold text-slate-800">{{ stats.sum_data.doanhso|default:0|intcomma }}</div>
+            </div>
+            
+            <div class="p-4 border border-slate-200 rounded-lg">
+                <div class="text-xs text-slate-600 uppercase font-medium mb-2">TỔNG SẢN PHẨM</div>
+                <div class="text-xl font-bold text-slate-800">{{ stats.sum_data.sosanpham|default:0|intcomma }}</div>
+            </div>
+        </div>
+        
+        <hr class="my-6">
+        
+        <!-- Biểu đồ theo giờ -->
+        <div class="mb-6">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3">Biểu đồ đóng gói theo giờ</h3>
+            <div id="hourlyChart" style="width: 100%; height: 300px;"></div>
+        </div>
+        
+        <!-- Bảng thống kê người gói -->
+        <div class="mt-6">
+            <h3 class="text-sm font-semibold text-slate-700 mb-3 uppercase">Bảng thống kê người gói</h3>
+            <div class="space-y-2">
+                {% for key, value in stats.per_user.items %}
+                <div class="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50">
+                    <div class="flex items-center gap-3 flex-1">
+                        <img width="42" height="42" class="rounded-full" src="/static/22185873824_536529798.jpg" alt="">
+                        <div class="flex-1">
+                            <div class="font-semibold text-slate-800">{{ key }}</div>
+                            <div class="text-xs text-slate-600">
+                                {{ value.total_order|default:0|intcomma }} đơn - {{ value.total_quantity|default:0|intcomma }} sản phẩm
+                            </div>
+                            {% if value.cato %}
+                            <div class="text-xs text-slate-500 mt-1">
+                                {% for lv_key, lv_value in value.cato.items %}
+                                    <span class="inline-block mr-2">{{ lv_key }}: {{ lv_value|floatformat:0 }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            class="sr-only peer" 
-                            id="toggle-hcm"
-                            data-warehouse="KHO_HCM"
-                            {% if packing_settings.KHO_HCM.is_active %}checked{% endif %}
-                        >
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                    </label>
-                </div>
-
-                <!-- Kho HN -->
-                <div class="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
-                    <div class="flex-1">
-                        <div class="text-sm font-semibold text-slate-800">Kho Hà Nội (Geleximco)</div>
-                        <div class="text-xs text-gray-500 mt-1">
-                            <span id="status-hn" class="inline-block px-2 py-1 rounded text-xs font-medium {% if packing_settings.KHO_HN.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-700{% endif %}">
-                                {% if packing_settings.KHO_HN.is_active %}Hoạt động{% else %}Tạm dừng{% endif %}
-                            </span>
-                        </div>
+                    <div class="text-right">
+                        <div class="text-lg font-bold text-slate-800">{{ value.total_money|default:0|intcomma }}</div>
+                        <div class="text-xs text-slate-500">VNĐ</div>
                     </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input 
-                            type="checkbox" 
-                            class="sr-only peer" 
-                            id="toggle-hn"
-                            data-warehouse="KHO_HN"
-                            {% if packing_settings.KHO_HN.is_active %}checked{% endif %}
-                        >
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                    </label>
                 </div>
+                {% empty %}
+                <div class="text-center py-8 text-slate-500">
+                    <p>Chưa có dữ liệu thống kê</p>
+                </div>
+                {% endfor %}
             </div>
         </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-8 text-center">
+        <p class="text-slate-500">Chưa có dữ liệu thống kê. Vui lòng chọn khoảng thời gian để xem báo cáo.</p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
-// Get CSRF token function - try multiple methods
-function getCSRFToken() {
-    // Method 1: Try from cookie
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-    
-    // Try cookie first
-    let token = getCookie('csrftoken');
-    if (token) {
-        return token;
-    }
-    
-    // Method 2: Try from hidden input (if csrf_token tag was used)
-    const csrfInput = document.querySelector('[name=csrfmiddlewaretoken]');
-    if (csrfInput) {
-        token = csrfInput.value;
-        return token;
-    }
-    
-    console.error('[CSRF] Token not found!');
-    return null;
-}
-
-// Toggle packing setting function
-async function togglePackingSetting(warehouseCode, isActive) {
-    
-    // Map warehouse code to element ID suffix (hcm or hn)
-    const idSuffix = warehouseCode === 'KHO_HCM' ? 'hcm' : 'hn';
-    
-    const statusElement = document.getElementById(`status-${idSuffix}`);
-    const toggleElement = document.getElementById(`toggle-${idSuffix}`);
-    
-    if (!statusElement || !toggleElement) {
-        console.error(`[PackingSettings] Cannot find elements for ${warehouseCode}`);
-        return;
-    }
-    
-    // Disable toggle while processing
-    toggleElement.disabled = true;
-    
-    // Get CSRF token
-    const csrftoken = getCSRFToken();
-    
-    if (!csrftoken) {
-        alert('Lỗi: Không tìm thấy CSRF token. Vui lòng tải lại trang.');
-        toggleElement.checked = !isActive;
-        toggleElement.disabled = false;
-        return;
-    }
-    
-    try {
-        const response = await fetch('/kho/management/packing_settings/toggle/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrftoken
-            },
-            body: JSON.stringify({
-                warehouse_code: warehouseCode,
-                is_active: isActive
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Update status badge
-            if (isActive) {
-                statusElement.textContent = 'Hoạt động';
-                statusElement.className = 'inline-block px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700';
-            } else {
-                statusElement.textContent = 'Tạm dừng';
-                statusElement.className = 'inline-block px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700';
-            }
-        } else {
-            // Revert toggle on error
-            toggleElement.checked = !isActive;
-            alert('Lỗi: ' + (data.error || 'Không thể cập nhật cài đặt'));
-            console.error(`[PackingSettings] Error:`, data.error);
-        }
-    } catch (error) {
-        // Revert toggle on error
-        toggleElement.checked = !isActive;
-        alert('Lỗi: Không thể kết nối đến server');
-        console.error('[PackingSettings] Exception:', error);
-    } finally {
-        // Re-enable toggle
-        toggleElement.disabled = false;
-    }
-}
-
-// Initialize event listeners when DOM is ready
+// Biểu đồ theo giờ
+{% if stats and hourly_data_json %}
 document.addEventListener('DOMContentLoaded', function() {
+    var hourlyData = {{ hourly_data_json|safe }};
+    var hourlyCategories = {{ hourly_categories_json|safe }};
     
-    // Setup toggle for KHO_HCM
-    const toggleHcm = document.getElementById('toggle-hcm');
-    if (toggleHcm) {
-        toggleHcm.addEventListener('change', function() {
-            togglePackingSetting('KHO_HCM', this.checked);
-        });
-    } else {
-    }
-    
-    // Setup toggle for KHO_HN
-    const toggleHn = document.getElementById('toggle-hn');
-    if (toggleHn) {
-        toggleHn.addEventListener('change', function() {
-            togglePackingSetting('KHO_HN', this.checked);
-        });
-    } else {
-    }
+    var options = {
+        series: [{
+            name: "Đã gói",
+            data: hourlyData
+        }],
+        chart: {
+            height: 300,
+            type: 'line',
+            dropShadow: {
+                enabled: true,
+                color: '#000',
+                top: 18,
+                left: 7,
+                blur: 10,
+                opacity: 0.2
+            },
+            zoom: {
+                enabled: false
+            },
+            toolbar: {
+                show: false
+            }
+        },
+        colors: ['#10b981'],
+        dataLabels: {
+            enabled: true,
+        },
+        stroke: {
+            curve: 'smooth',
+            width: 2
+        },
+        grid: {
+            borderColor: '#e7e7e7',
+            row: {
+                colors: ['#f3f3f3', 'transparent'],
+                opacity: 0.5
+            },
+        },
+        markers: {
+            size: 4
+        },
+        xaxis: {
+            categories: hourlyCategories,
+            title: {
+                text: 'Theo giờ'
+            }
+        },
+        yaxis: {
+            title: {
+                text: 'Số đơn đã gói'
+            },
+            min: 0
+        },
+        legend: {
+            position: 'top',
+            horizontalAlign: 'right',
+            floating: true,
+            offsetY: -25,
+            offsetX: -5
+        }
+    };
+
+    var chart = new ApexCharts(document.querySelector("#hourlyChart"), options);
+    chart.render();
 });
+{% endif %}
 </script>
 {% endblock %}
