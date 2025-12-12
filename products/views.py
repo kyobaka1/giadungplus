@@ -4100,6 +4100,7 @@ def export_po_labels(request: HttpRequest, po_id: int):
         
         # ===== BƯỚC 3: Load toàn bộ variants của NSX (theo brand_id) =====
         variant_sku_xnk_map = {}  # Map: variant_id -> sku_model_xnk
+        variant_metadata_map = {}  # Map: variant_id -> variant_metadata (để lấy tq_name, tq_sku)
         
         if brand_id:
             logger.info(f"[export_po_labels] [BƯỚC 3] Loading all variants for brand_id={brand_id}...")
@@ -4147,17 +4148,19 @@ def export_po_labels(request: HttpRequest, po_id: int):
                 try:
                     product_dto = product_service.get_product(product_id)
                     if product_dto and product_dto.gdp_metadata:
-                        # Lấy sku_model_xnk từ tất cả variants
+                        # Lấy sku_model_xnk và variant metadata từ tất cả variants
                         for v_meta in product_dto.gdp_metadata.variants:
                             variant_id = v_meta.id
                             sku_model_xnk = v_meta.sku_model_xnk
                             if sku_model_xnk:
                                 variant_sku_xnk_map[variant_id] = sku_model_xnk.strip()
+                            # Lưu variant metadata để lấy tq_name và tq_sku
+                            variant_metadata_map[variant_id] = v_meta
                 except Exception as e:
                     logger.warning(f"[export_po_labels] Error parsing product {product_id}: {e}")
                     continue
             
-            logger.info(f"[export_po_labels] [BƯỚC 3] ✅ Loaded {len(variant_sku_xnk_map)} variants with sku_model_xnk")
+            logger.info(f"[export_po_labels] [BƯỚC 3] ✅ Loaded {len(variant_sku_xnk_map)} variants with sku_model_xnk, {len(variant_metadata_map)} variants with metadata")
         else:
             logger.warning(f"[export_po_labels] [BƯỚC 3] ⚠️ No brand_id found, skipping variant loading")
         
@@ -4244,6 +4247,14 @@ def export_po_labels(request: HttpRequest, po_id: int):
                         if len(parts) > 1:
                             opt1 = parts[1].strip()
                 
+                # Lấy tq_name và tq_sku từ variant metadata
+                tq_name = ''
+                tq_sku = ''
+                variant_meta = variant_metadata_map.get(variant_id)
+                if variant_meta:
+                    tq_name = variant_meta.name_tq or ''
+                    tq_sku = variant_meta.sku_tq or ''
+                
                 # Tạo label data cho mỗi sản phẩm (1 label = 1 SKU)
                 label_data = {
                     'sku': sku,
@@ -4259,6 +4270,9 @@ def export_po_labels(request: HttpRequest, po_id: int):
                     'nsx_name': nsx_name,
                     'nsx_address': nsx_address,
                     'unit': unit,
+                    # Thông tin nhà sản xuất (tq_name / tq_sku)
+                    'tq_name': tq_name,
+                    'tq_sku': tq_sku,
                     # Debug info
                     'sku_model_xnk': sku_model_xnk_value or '',
                 }
