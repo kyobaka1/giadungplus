@@ -1,0 +1,918 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Thanh toán XNK - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<div class="flex items-center justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">Thanh toán XNK</h1>
+        <p class="text-sm text-slate-500 mt-1">Quản lý số dư và lịch sử giao dịch</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- CỘT 1: Số dư và giao dịch -->
+        <div class="space-y-6">
+            <!-- Hàng 1: Số dư hiện tại -->
+            <div class="bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-lg p-6 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90 mb-1">Số dư hiện tại</p>
+                        <h2 class="text-3xl font-bold">{{ total_balance|floatformat:0|intcomma }} CNY</h2>
+                        {% if total_balance_vnd %}
+                        <p class="text-sm opacity-75 mt-1">{{ total_balance_vnd|intcomma }} VNĐ</p>
+                        {% endif %}
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm opacity-90 mb-1">Tỷ giá hiện tại</p>
+                        <h3 class="text-2xl font-bold">
+                            {% if current_exchange_rate %}
+                                {{ current_exchange_rate|floatformat:0|intcomma }}
+                            {% else %}
+                                Chưa có
+                            {% endif %}
+                        </h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hàng 2: Nạp số dư và Tạo kỳ -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="openAddDepositModal()" class="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+                        + Nạp
+                    </button>
+                    <button onclick="openCreatePeriodModal()" class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+                        Tạo kỳ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hàng 3: Lịch sử giao dịch -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-200 flex items-center justify-between">
+                    <h3 class="font-bold text-slate-700">Lịch sử giao dịch</h3>
+                    <div class="flex items-center gap-2">
+                        <a href="?type=deposit" class="px-3 py-1.5 rounded-lg text-xs {% if filter_type == 'deposit' %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                            Nạp
+                        </a>
+                        <a href="?type=withdraw" class="px-3 py-1.5 rounded-lg text-xs {% if filter_type == 'withdraw' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                            Rút
+                        </a>
+                        <a href="?" class="px-3 py-1.5 rounded-lg text-xs {% if not filter_type %}bg-indigo-100 text-indigo-700{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                            Tất cả
+                        </a>
+                    </div>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+                    {% for txn in transactions %}
+                    <div class="p-3 hover:bg-slate-50 transition group/item border-b border-slate-100 last:border-b-0 {% if txn.transaction_type == 'deposit_bank' %}bg-blue-50/20{% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-900/3{% elif txn.is_withdraw %}bg-red-50/20{% endif %}">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex-1 min-w-0">
+                                <!-- Hàng 1: Ngày giờ + Loại + Số tiền (gộp thành 1 hàng) -->
+                                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 timeline-date" 
+                                          data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                          data-time="{{ txn.created_at|date:'H:i' }}">
+                                        {{ txn.transaction_date|date:"d/m/Y" }} {{ txn.created_at|date:"H:i" }}
+                                    </span>
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold 
+                                        {% if txn.transaction_type == 'deposit_bank' %}bg-blue-100 text-blue-700
+                                        {% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-800 text-white
+                                        {% else %}bg-red-100 text-red-700{% endif %}">
+                                        {{ txn.transaction_type_display }}
+                                    </span>
+                                    <span class="text-sm font-bold {% if txn.is_deposit %}text-emerald-700{% else %}text-red-700{% endif %}">
+                                        {% if txn.is_deposit %}+{% else %}-{% endif %}{{ txn.amount_cny|floatformat:0|intcomma }} CNY
+                                    </span>
+                                    {% if txn.exchange_rate %}
+                                    <span class="text-[10px] text-slate-500">
+                                        (Tỷ giá: {{ txn.exchange_rate|floatformat:0|intcomma }})
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Hàng 2: Thông tin chi tiết -->
+                                <div class="text-[10px] text-slate-500 space-y-0.5">
+                                    {% if txn.bank_name %}
+                                    <p>Ngân hàng: {{ txn.bank_name }}</p>
+                                    {% endif %}
+                                    {% if txn.description %}
+                                    <p class="truncate">{{ txn.description }}</p>
+                                    {% endif %}
+                                    {% if txn.payment_period %}
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-slate-500 text-[10px]">Kỳ:</span>
+                                        <button onclick="showPeriodDetail({{ txn.payment_period.id }})" 
+                                                class="text-indigo-600 hover:text-indigo-800 font-medium text-[10px] underline decoration-dotted hover:decoration-solid transition">
+                                            {{ txn.payment_period.code }}{% if txn.payment_period.name %} - {{ txn.payment_period.name }}{% endif %}
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                    {% if txn.withdraw_info %}
+                                    <div class="mt-1 p-1.5 bg-slate-100 rounded text-[10px]">
+                                        <p class="font-semibold mb-0.5">Rút để thanh toán:</p>
+                                        {% if txn.withdraw_info.type == 'PO' %}
+                                        <p>PO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a></p>
+                                        <p>NSX: {{ txn.withdraw_info.supplier_name|default:"-" }}</p>
+                                        <p>SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                        {% elif txn.withdraw_info.type == 'SPO Cost' %}
+                                        <p>Chi phí SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                        <p>Tên: {{ txn.withdraw_info.cost_name }}</p>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                                {% if txn.is_deposit and not txn.payment_period %}
+                                <input type="checkbox" class="deposit-checkbox" value="{{ txn.id }}" 
+                                       data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                       data-created-at="{{ txn.created_at|date:'Y-m-d H:i:s' }}"
+                                       title="Chọn để tạo kỳ thanh toán" class="w-4 h-4">
+                                {% endif %}
+                                {% if not txn.payment_period %}
+                                <button onclick="openAddToPeriodModal({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Thêm vào KTT">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
+                                {% endif %}
+                                <button onclick="editTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Sửa">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                                <button onclick="deleteTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition" title="Xóa">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="p-8 text-center text-slate-500">
+                        <p class="text-sm">Chưa có giao dịch nào</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- CỘT 2: Quản trị kỳ thanh toán -->
+        <div class="space-y-6">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-200">
+                    <h3 class="font-bold text-slate-700">Quản trị kỳ thanh toán</h3>
+                </div>
+                <div class="divide-y divide-slate-100 max-h-[800px] overflow-y-auto">
+                    {% if periods %}
+                        {% for period in periods %}
+                        <div class="p-3 hover:bg-slate-50 transition border-b border-slate-100 last:border-b-0 group/period">
+                            <!-- Hàng 1: Thông tin và tỷ giá -->
+                            <div class="flex items-center justify-between mb-2.5">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <h4 class="text-sm font-bold text-slate-800">{{ period.code }}</h4>
+                                        {% if period.is_current %}
+                                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">HIỆN TẠI</span>
+                                        {% endif %}
+                                        {% if period.name %}
+                                        <span class="text-xs text-slate-500">• {{ period.name }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">
+                                        {{ period.start_date|date:"d/m/Y" }} - {{ period.end_date|date:"d/m/Y" }}
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="text-right ml-3 flex-shrink-0">
+                                        <p class="text-[10px] text-slate-500 mb-0.5">Tỷ giá TB</p>
+                                        <p class="text-sm font-bold text-indigo-600">
+                                            {% if period.avg_exchange_rate %}
+                                                {{ period.avg_exchange_rate|floatformat:0|intcomma }}
+                                            {% else %}
+                                                <span class="text-slate-400">-</span>
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    <button onclick="deletePeriod({{ period.id }}, '{{ period.code }}')" 
+                                            class="p-1.5 text-slate-400 hover:text-red-600 opacity-0 group-hover/period:opacity-100 transition" 
+                                            title="Xóa kỳ thanh toán">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Hàng 2: 4 giá trị số dư -->
+                            <div class="grid grid-cols-4 gap-2">
+                                <div class="bg-slate-50 rounded border border-slate-200 p-2">
+                                    <p class="text-[10px] text-slate-500 mb-0.5">Đầu kỳ</p>
+                                    <p class="text-xs font-bold text-slate-700">{{ period.opening_balance_cny|floatformat:0|intcomma }}</p>
+                                </div>
+                                <div class="bg-emerald-50 rounded border border-emerald-200 p-2">
+                                    <p class="text-[10px] text-emerald-600 mb-0.5">Nạp</p>
+                                    <p class="text-xs font-bold text-emerald-700">+{{ period.total_deposits_cny|floatformat:0|intcomma }}</p>
+                                </div>
+                                <div class="bg-red-50 rounded border border-red-200 p-2">
+                                    <p class="text-[10px] text-red-600 mb-0.5">Rút</p>
+                                    <p class="text-xs font-bold text-red-700">-{{ period.total_withdraws_cny|floatformat:0|intcomma }}</p>
+                                </div>
+                                <div class="bg-indigo-50 rounded border border-indigo-200 p-2">
+                                    <p class="text-[10px] text-indigo-600 mb-0.5">Cuối kỳ</p>
+                                    <p class="text-xs font-bold {% if period.closing_balance_cny >= 0 %}text-indigo-700{% else %}text-red-700{% endif %}">
+                                        {{ period.closing_balance_cny|floatformat:0|intcomma }}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {% if period.note %}
+                            <div class="mt-2 pt-2 border-t border-slate-100">
+                                <p class="text-[10px] text-slate-400 italic">{{ period.note|truncatewords:20 }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="p-8 text-center text-slate-500">
+                        <p class="text-sm mb-2">Chưa có kỳ thanh toán nào</p>
+                        <p class="text-xs text-slate-400">Chọn các giao dịch nạp và tạo kỳ thanh toán</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal nạp số dư -->
+<div id="add-deposit-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Nạp số dư</h3>
+            <form id="add-deposit-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Loại nạp *</label>
+                    <select name="transaction_type" required class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <option value="deposit_bank">Nạp qua ngân hàng</option>
+                        <option value="deposit_black_market">Mua chợ đen</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Số tiền CNY</label>
+                    <input type="number" id="deposit-amount-cny" name="amount_cny" step="0.01" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Số tiền VNĐ</label>
+                    <input type="number" id="deposit-amount-vnd" name="amount_vnd" step="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tỷ giá</label>
+                    <input type="number" id="deposit-exchange-rate" name="exchange_rate" step="0.0001" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div id="deposit-calculated-value" class="hidden p-2 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p class="text-xs text-emerald-700"></p>
+                </div>
+                <div id="bank-name-field" class="hidden">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tên ngân hàng</label>
+                    <input type="text" name="bank_name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Ngày giao dịch</label>
+                    <input type="date" name="transaction_date" value="{% now 'Y-m-d' %}" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Mô tả</label>
+                    <textarea name="description" rows="2" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"></textarea>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium">
+                        Lưu
+                    </button>
+                    <button type="button" onclick="closeAddDepositModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium">
+                        Hủy
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal tạo kỳ thanh toán -->
+<div id="create-period-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Tạo kỳ thanh toán</h3>
+            <form id="create-period-form" class="space-y-4">
+                <!-- Mã kỳ thanh toán - Ẩn hoàn toàn -->
+                <input type="hidden" id="period-code" name="code">
+                
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Tên kỳ thanh toán</label>
+                    <input type="text" name="name" placeholder="Kỳ thanh toán tháng 12/2025" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Ngày đầu kỳ</label>
+                        <input type="date" id="period-start-date" name="start_date" readonly class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed">
+                        <p class="text-xs text-slate-500 mt-1">Tự động từ giao dịch đầu tiên (00:00)</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Ngày cuối kỳ</label>
+                        <input type="date" id="period-end-date" name="end_date" readonly class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-50 text-slate-600 cursor-not-allowed">
+                        <p class="text-xs text-slate-500 mt-1">Tự động từ giao dịch cuối cùng (23:59)</p>
+                    </div>
+                </div>
+                <div id="opening-balance-field" style="display: none;">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Số dư đầu kỳ (CNY) <span class="text-xs text-slate-400">(chỉ cho kỳ đầu tiên)</span></label>
+                    <input type="number" id="period-opening-balance" name="opening_balance_cny" step="0.01" value="0" placeholder="0" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    <p class="text-xs text-slate-500 mt-1" id="opening-balance-hint">Số dư đầu kỳ (chỉ cần nhập cho kỳ đầu tiên, các kỳ sau tự động = số dư cuối kỳ của kỳ trước)</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Ghi chú</label>
+                    <textarea name="note" rows="3" placeholder="Ghi chú về kỳ thanh toán..." class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-3">
+                    <p class="text-xs font-medium text-slate-700 mb-2">Giao dịch đã chọn (đầu và cuối):</p>
+                    <div id="selected-transactions-list" class="text-xs text-slate-600 space-y-1 mb-2">
+                        <!-- Sẽ được cập nhật bởi JavaScript -->
+                    </div>
+                    <p class="text-xs text-slate-500 italic mt-2">
+                        * Tất cả giao dịch nạp nằm giữa giao dịch đầu và cuối sẽ tự động được thêm vào kỳ thanh toán
+                    </p>
+                    <p class="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                        <strong>Lưu ý:</strong> Tất cả các giao dịch nạp trong khoảng thời gian từ ngày đầu đến ngày cuối kỳ sẽ được tự động thêm vào kỳ thanh toán (liền mạch, không đứt quãng).
+                    </p>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                        Tạo kỳ thanh toán
+                    </button>
+                    <button type="button" onclick="closeCreatePeriodModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium">
+                        Hủy
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal thêm giao dịch vào kỳ thanh toán -->
+<div id="add-to-period-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm giao dịch vào kỳ thanh toán</h3>
+            <form id="add-to-period-form" class="space-y-4">
+                <input type="hidden" id="add-to-period-txn-id" name="txn_id">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Mã kỳ thanh toán *</label>
+                    <input type="text" id="add-to-period-code" name="period_code" 
+                           placeholder="KTT2025-001" 
+                           class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                           required>
+                    <p class="text-xs text-slate-500 mt-1">Nhập mã kỳ thanh toán (ví dụ: KTT2025-001)</p>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                        Thêm vào KTT
+                    </button>
+                    <button type="button" onclick="closeAddToPeriodModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 font-medium">
+                        Hủy
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chi tiết kỳ thanh toán -->
+<div id="period-detail-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-bold text-slate-800">Chi tiết kỳ thanh toán</h3>
+                <button onclick="closePeriodDetailModal()" class="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="period-detail-content" class="space-y-4">
+                <!-- Nội dung sẽ được load bởi JavaScript -->
+                <div class="text-center py-8 text-slate-400">
+                    <p>Đang tải thông tin...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Format timeline cho ngày giờ giao dịch
+function formatTimelineDates() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    document.querySelectorAll('.timeline-date').forEach(el => {
+        const dateStr = el.getAttribute('data-date');
+        const timeStr = el.getAttribute('data-time');
+        if (!dateStr) return;
+        
+        const txDate = new Date(dateStr + 'T00:00:00');
+        txDate.setHours(0, 0, 0, 0);
+        
+        let label = '';
+        if (txDate.getTime() === today.getTime()) {
+            label = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Hôm nay</span>';
+        } else if (txDate.getTime() === yesterday.getTime()) {
+            label = '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">Hôm qua</span>';
+        } else {
+            const day = String(txDate.getDate()).padStart(2, '0');
+            const month = String(txDate.getMonth() + 1).padStart(2, '0');
+            const year = txDate.getFullYear();
+            label = `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">${day}/${month}/${year}</span>`;
+        }
+        
+        el.innerHTML = label + ' <span class="text-[10px] text-slate-400 ml-1">' + timeStr + '</span>';
+    });
+}
+
+// Chạy khi trang load
+document.addEventListener('DOMContentLoaded', function() {
+    formatTimelineDates();
+});
+
+function openAddDepositModal() {
+    document.getElementById('add-deposit-modal').classList.remove('hidden');
+    // Reset form
+    document.getElementById('add-deposit-form').reset();
+    document.getElementById('deposit-calculated-value').classList.add('hidden');
+}
+
+function closeAddDepositModal() {
+    document.getElementById('add-deposit-modal').classList.add('hidden');
+}
+
+// Tính toán realtime cho form nạp số dư
+function calculateDepositValue() {
+    const amountCny = parseFloat(document.getElementById('deposit-amount-cny').value) || 0;
+    const exchangeRate = parseFloat(document.getElementById('deposit-exchange-rate').value) || 0;
+    const amountVnd = parseFloat(document.getElementById('deposit-amount-vnd').value) || 0;
+    const calculatedDiv = document.getElementById('deposit-calculated-value');
+    
+    let calculatedText = '';
+    let hasValue = 0;
+    
+    if (amountCny > 0) hasValue++;
+    if (exchangeRate > 0) hasValue++;
+    if (amountVnd > 0) hasValue++;
+    
+    if (hasValue === 2) {
+        if (amountCny > 0 && exchangeRate > 0 && amountVnd === 0) {
+            const calculatedVnd = Math.round(amountCny * exchangeRate);
+            document.getElementById('deposit-amount-vnd').value = calculatedVnd;
+            calculatedText = `Số tiền VNĐ: ${calculatedVnd.toLocaleString('vi-VN')} đ`;
+        } else if (amountCny > 0 && amountVnd > 0 && exchangeRate === 0) {
+            const calculatedRate = amountVnd / amountCny;
+            document.getElementById('deposit-exchange-rate').value = calculatedRate.toFixed(4);
+            calculatedText = `Tỷ giá: ${calculatedRate.toLocaleString('vi-VN', {maximumFractionDigits: 4})}`;
+        } else if (exchangeRate > 0 && amountVnd > 0 && amountCny === 0) {
+            const calculatedCny = amountVnd / exchangeRate;
+            document.getElementById('deposit-amount-cny').value = calculatedCny.toFixed(2);
+            calculatedText = `Số tiền CNY: ${calculatedCny.toLocaleString('vi-VN', {maximumFractionDigits: 2})} CNY`;
+        }
+    }
+    
+    if (calculatedText) {
+        calculatedDiv.querySelector('p').textContent = calculatedText;
+        calculatedDiv.classList.remove('hidden');
+    } else {
+        calculatedDiv.classList.add('hidden');
+    }
+}
+
+document.getElementById('deposit-amount-cny')?.addEventListener('input', calculateDepositValue);
+document.getElementById('deposit-exchange-rate')?.addEventListener('input', calculateDepositValue);
+document.getElementById('deposit-amount-vnd')?.addEventListener('input', calculateDepositValue);
+
+// Hiển thị/ẩn trường tên ngân hàng
+document.querySelector('select[name="transaction_type"]')?.addEventListener('change', function() {
+    const bankField = document.getElementById('bank-name-field');
+    if (this.value === 'deposit_bank') {
+        bankField.classList.remove('hidden');
+    } else {
+        bankField.classList.add('hidden');
+    }
+});
+
+// Submit form nạp số dư
+document.getElementById('add-deposit-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    
+    // Validate: phải có ít nhất 2 trong 3 giá trị
+    const amountCny = parseFloat(data.amount_cny) || 0;
+    const exchangeRate = parseFloat(data.exchange_rate) || 0;
+    const amountVnd = parseFloat(data.amount_vnd) || 0;
+    
+    let hasValue = 0;
+    if (amountCny > 0) hasValue++;
+    if (exchangeRate > 0) hasValue++;
+    if (amountVnd > 0) hasValue++;
+    
+    if (hasValue < 2) {
+        alert('Vui lòng nhập ít nhất 2 trong 3 giá trị: Số tiền CNY, Tỷ giá, Số tiền VNĐ');
+        return;
+    }
+    
+    try {
+        const response = await fetch('{% url "products:add_balance_transaction" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+            window.location.reload();
+        } else {
+            alert(result.message);
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    }
+});
+
+function openCreatePeriodModal() {
+    const checked = Array.from(document.querySelectorAll('.deposit-checkbox:checked'));
+    if (checked.length === 0) {
+        alert('Vui lòng chọn ít nhất một giao dịch nạp');
+        return;
+    }
+    
+    // Lấy thông tin từ các giao dịch đã chọn (theo created_at để có thời gian chính xác)
+    const transactions = checked.map(cb => ({
+        id: cb.value,
+        date: cb.getAttribute('data-date'),
+        created_at: cb.getAttribute('data-created-at')
+    }));
+    
+    // Sort theo created_at để lấy giao dịch đầu tiên và cuối cùng theo thời gian thực tế
+    transactions.sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateA - dateB;
+    });
+    
+    // Lấy ngày từ giao dịch đầu tiên và cuối cùng (theo created_at)
+    const startDate = transactions[0].date;  // Ngày của giao dịch đầu tiên (theo thời gian tạo)
+    const endDate = transactions[transactions.length - 1].date;  // Ngày của giao dịch cuối cùng (theo thời gian tạo)
+    
+    // Tự động điền ngày đầu kỳ và cuối kỳ (từ giao dịch đầu tiên và cuối cùng)
+    document.getElementById('period-start-date').value = startDate;
+    document.getElementById('period-end-date').value = endDate;
+    
+    // Tự động tạo mã kỳ: KTT<năm>-STT (ẩn, chỉ để gửi lên server)
+    const startDateObj = new Date(startDate);
+    const year = startDateObj.getFullYear();
+    document.getElementById('period-code').value = `KTT${year}-001`; // Server sẽ tự động tính lại
+    
+    // Kiểm tra xem có kỳ trước không (dựa vào start_date)
+    // Nếu có kỳ trước -> ẩn input opening_balance_cny (sẽ tự động tính từ kỳ trước)
+    // Nếu không có -> hiển thị input (kỳ đầu tiên)
+    const openingBalanceField = document.getElementById('opening-balance-field');
+    const openingBalanceInput = document.getElementById('period-opening-balance');
+    const openingBalanceHint = document.getElementById('opening-balance-hint');
+    
+    // Kiểm tra xem có kỳ thanh toán nào đã tồn tại chưa
+    // Nếu có kỳ nào -> ẩn input (số dư đầu kỳ sẽ tự động = số dư cuối kỳ của kỳ trước)
+    // Nếu chưa có kỳ nào -> hiển thị input (kỳ đầu tiên)
+    const hasPeriods = {{ periods|length }} > 0;
+    
+    if (hasPeriods) {
+        // Đã có kỳ thanh toán -> ẩn input (số dư đầu kỳ tự động tính từ kỳ trước)
+        openingBalanceField.style.display = 'none';
+    } else {
+        // Chưa có kỳ nào -> hiển thị input (kỳ đầu tiên, cần nhập số dư đầu kỳ)
+        openingBalanceField.style.display = 'block';
+        openingBalanceInput.value = '0';
+        openingBalanceHint.textContent = 'Số dư đầu kỳ (chỉ cần nhập cho kỳ đầu tiên, các kỳ sau tự động = số dư cuối kỳ của kỳ trước)';
+    }
+    
+    updateSelectedTransactionsList(checked);
+    document.getElementById('create-period-modal').classList.remove('hidden');
+}
+
+function closeCreatePeriodModal() {
+    document.getElementById('create-period-modal').classList.add('hidden');
+}
+
+function updateSelectedTransactionsList(checkedBoxes) {
+    const listContainer = document.getElementById('selected-transactions-list');
+    if (!listContainer) return;
+    
+    const transactions = checkedBoxes.map(cb => {
+        // Tìm row chứa checkbox (có thể là .p-3 hoặc .p-4)
+        const row = cb.closest('[class*="p-"]') || cb.closest('div');
+        if (!row) {
+            return { id: cb.value, amount: '', date: cb.getAttribute('data-date') || '', type: '' };
+        }
+        
+        // Tìm số tiền (text-emerald-700 hoặc text-red-700)
+        const amountEl = row.querySelector('span.text-emerald-700, span.text-red-700');
+        const amount = amountEl ? amountEl.textContent.trim() : '';
+        
+        // Tìm loại giao dịch (tag với px-1.5 hoặc px-2)
+        const typeEl = row.querySelector('span[class*="px-"]');
+        const type = typeEl ? typeEl.textContent.trim() : '';
+        
+        const date = cb.getAttribute('data-date') || '';
+        return { id: cb.value, amount, date, type };
+    });
+    
+    if (transactions.length === 0) {
+        listContainer.innerHTML = '<p class="text-slate-400">Chưa chọn giao dịch nào</p>';
+        return;
+    }
+    
+    listContainer.innerHTML = transactions.map(txn => 
+        `<div class="flex items-center justify-between p-2 bg-white rounded border border-slate-200">
+            <div>
+                <span class="font-medium">${txn.type}</span>
+                <span class="text-emerald-600 ml-2">${txn.amount}</span>
+            </div>
+            <span class="text-slate-500">${txn.date}</span>
+        </div>`
+    ).join('');
+}
+
+document.getElementById('create-period-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const checked = Array.from(document.querySelectorAll('.deposit-checkbox:checked')).map(cb => parseInt(cb.value));
+    
+    if (checked.length === 0) {
+        alert('Vui lòng chọn ít nhất một giao dịch nạp');
+        return;
+    }
+    
+    const data = {
+        ...Object.fromEntries(formData),
+        transaction_ids: checked
+    };
+    
+    try {
+        const response = await fetch('{% url "products:create_payment_period" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert('Tạo kỳ thanh toán thành công!');
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + result.message);
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    }
+});
+
+document.querySelectorAll('.deposit-checkbox').forEach(cb => {
+    cb.addEventListener('change', function() {
+        if (document.getElementById('create-period-modal') && !document.getElementById('create-period-modal').classList.contains('hidden')) {
+            const checked = Array.from(document.querySelectorAll('.deposit-checkbox:checked'));
+            updateSelectedTransactionsList(checked);
+        }
+    });
+});
+
+function editTransaction(id) {
+    // TODO: Implement edit modal
+    alert('Tính năng sửa giao dịch đang được phát triển');
+}
+
+async function deleteTransaction(id) {
+    if (!confirm('Bạn có chắc muốn xóa giao dịch này?')) return;
+    
+    try {
+        const response = await fetch(`{% url "products:delete_balance_transaction" 0 %}`.replace('0', id), {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert('Xóa giao dịch thành công!');
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + result.message);
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    }
+}
+
+// Hiển thị chi tiết kỳ thanh toán
+function showPeriodDetail(periodId) {
+    const modal = document.getElementById('period-detail-modal');
+    const content = document.getElementById('period-detail-content');
+    
+    // Parse periods_json từ template
+    const periodsJson = {{ periods_json|safe }};
+    const period = periodsJson.find(p => p.id === periodId);
+    
+    if (!period) {
+        content.innerHTML = '<div class="text-center py-8 text-red-500"><p>Không tìm thấy thông tin kỳ thanh toán</p></div>';
+        modal.classList.remove('hidden');
+        return;
+    }
+    
+    // Format số tiền
+    const formatNumber = (num) => {
+        if (num === null || num === undefined) return '0';
+        return parseFloat(num).toLocaleString('vi-VN', {maximumFractionDigits: 0});
+    };
+    
+    // Format ngày
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+    
+    // Escape HTML để tránh XSS
+    const escapeHtml = (text) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+    
+    // Tạo HTML cho chi tiết kỳ thanh toán
+    const html = `
+        <div class="space-y-6">
+            <!-- Header -->
+            <div class="border-b border-slate-200 pb-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <h4 class="text-lg font-bold text-slate-800">${escapeHtml(period.code)}</h4>
+                    ${period.is_current ? '<span class="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-700">HIỆN TẠI</span>' : ''}
+                </div>
+                ${period.name ? `<p class="text-sm text-slate-600">${escapeHtml(period.name)}</p>` : ''}
+                <p class="text-xs text-slate-500 mt-1">
+                    ${formatDate(period.start_date)} - ${formatDate(period.end_date)}
+                </p>
+            </div>
+            
+            <!-- Tỷ giá trung bình -->
+            <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-indigo-600 mb-1">Tỷ giá trung bình</p>
+                        <p class="text-2xl font-bold text-indigo-700">
+                            ${period.avg_exchange_rate ? formatNumber(period.avg_exchange_rate) : '<span class="text-slate-400">-</span>'}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 4 giá trị số dư -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                    <p class="text-xs text-slate-500 mb-1">Số dư đầu kỳ</p>
+                    <p class="text-lg font-bold text-slate-700">${formatNumber(period.opening_balance_cny)} CNY</p>
+                </div>
+                <div class="bg-indigo-50 rounded-lg border border-indigo-200 p-4">
+                    <p class="text-xs text-indigo-600 mb-1">Số dư cuối kỳ</p>
+                    <p class="text-lg font-bold ${period.closing_balance_cny >= 0 ? 'text-indigo-700' : 'text-red-700'}">
+                        ${formatNumber(period.closing_balance_cny)} CNY
+                    </p>
+                </div>
+                <div class="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
+                    <p class="text-xs text-emerald-600 mb-1">Tổng nạp</p>
+                    <p class="text-lg font-bold text-emerald-700">+${formatNumber(period.total_deposits_cny)} CNY</p>
+                </div>
+                <div class="bg-red-50 rounded-lg border border-red-200 p-4">
+                    <p class="text-xs text-red-600 mb-1">Tổng rút</p>
+                    <p class="text-lg font-bold text-red-700">-${formatNumber(period.total_withdraws_cny)} CNY</p>
+                </div>
+            </div>
+            
+            ${period.note ? `
+            <div class="bg-slate-50 rounded-lg border border-slate-200 p-4">
+                <p class="text-xs text-slate-500 mb-1">Ghi chú</p>
+                <p class="text-sm text-slate-700">${escapeHtml(period.note)}</p>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    content.innerHTML = html;
+    modal.classList.remove('hidden');
+}
+
+// Đóng modal chi tiết kỳ thanh toán
+function closePeriodDetailModal() {
+    document.getElementById('period-detail-modal').classList.add('hidden');
+}
+
+async function deletePeriod(id, code) {
+    if (!confirm(`Bạn có chắc muốn xóa kỳ thanh toán "${code}"?\n\nLưu ý: Các giao dịch trong kỳ này sẽ không bị xóa, chỉ bỏ liên kết với kỳ.`)) return;
+    
+    try {
+        const response = await fetch(`{% url "products:delete_payment_period" 0 %}`.replace('0', id), {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert('Xóa kỳ thanh toán thành công!');
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + result.message);
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    }
+}
+
+// Mở modal thêm giao dịch vào kỳ thanh toán
+function openAddToPeriodModal(txnId) {
+    document.getElementById('add-to-period-txn-id').value = txnId;
+    document.getElementById('add-to-period-code').value = '';
+    document.getElementById('add-to-period-modal').classList.remove('hidden');
+    // Focus vào input
+    setTimeout(() => {
+        document.getElementById('add-to-period-code').focus();
+    }, 100);
+}
+
+// Đóng modal thêm giao dịch vào kỳ thanh toán
+function closeAddToPeriodModal() {
+    document.getElementById('add-to-period-modal').classList.add('hidden');
+}
+
+// Submit form thêm giao dịch vào kỳ thanh toán
+document.getElementById('add-to-period-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const txnId = document.getElementById('add-to-period-txn-id').value;
+    const periodCode = document.getElementById('add-to-period-code').value.trim();
+    
+    if (!periodCode) {
+        alert('Vui lòng nhập mã kỳ thanh toán');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`{% url "products:add_transaction_to_period" 0 %}`.replace('0', txnId), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                period_code: periodCode
+            })
+        });
+        
+        const result = await response.json();
+        if (result.status === 'success') {
+            alert(`Đã thêm giao dịch vào kỳ thanh toán ${result.period_code}${result.period_name ? ' - ' + result.period_name : ''}`);
+            window.location.reload();
+        } else {
+            alert('Lỗi: ' + result.message);
+        }
+    } catch (error) {
+        alert('Lỗi: ' + error.message);
+    }
+});
+</script>
+{% endblock %}

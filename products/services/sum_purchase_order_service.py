@@ -206,6 +206,8 @@ class SumPurchaseOrderService:
                 sapo_order_supplier_id=po_id,
                 defaults={
                     'supplier_id': 0,  # Sẽ cập nhật sau từ Sapo API
+                    'supplier_name': '',  # Sẽ cập nhật sau từ Sapo API
+                    'supplier_code': '',  # Sẽ cập nhật sau từ Sapo API
                     'delivery_status': 'ordered',
                     'product_amount_cny': Decimal('0'),
                     'total_amount_cny': Decimal('0'),
@@ -213,10 +215,22 @@ class SumPurchaseOrderService:
                 }
             )
             
+            # Sync thông tin supplier từ Sapo API nếu chưa có hoặc đã tạo mới
+            if po_created or not purchase_order.supplier_name:
+                try:
+                    po_data = self.spo_po_service.get_po_from_sapo(po_id)
+                    purchase_order.supplier_id = po_data.get('supplier_id', 0)
+                    purchase_order.supplier_name = po_data.get('supplier_name', '')
+                    purchase_order.supplier_code = po_data.get('supplier_code', '')
+                    purchase_order.sapo_code = po_data.get('code', '')
+                except Exception as e:
+                    logger.warning(f"[SumPurchaseOrderService] Error syncing supplier info for PO {po_id}: {e}")
+            
             # Cập nhật expected_delivery_date nếu có
             if expected_delivery_date:
                 purchase_order.expected_delivery_date = expected_delivery_date
-                purchase_order.save()
+            
+            purchase_order.save()
             
             # Tạo hoặc cập nhật PurchaseOrderCost cho domestic_shipping_cn nếu có
             if domestic_shipping_cn and domestic_shipping_cn > 0:

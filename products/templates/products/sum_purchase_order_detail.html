@@ -57,6 +57,39 @@
                     <div class="text-[10px] text-slate-400 uppercase">Cảng đến</div>
                 </div>
             </div>
+            <!-- Thông tin tàu -->
+            <div class="mb-3 space-y-2">
+                {% if spo.ship_name or spo.ship_tracking_link %}
+                <div class="bg-blue-50 rounded-lg p-2.5 border border-blue-100">
+                    {% if spo.ship_name %}
+                    <div class="flex items-center gap-2 mb-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <span class="text-xs font-semibold text-blue-800">Tàu: {{ spo.ship_name }}</span>
+                    </div>
+                    {% endif %}
+                    {% if spo.ship_tracking_link %}
+                    <div class="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <a href="{{ spo.ship_tracking_link }}" target="_blank" class="text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                            Tracking tàu
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <button onclick="document.getElementById('add-ship-modal').classList.remove('hidden')" 
+                        class="w-full bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-lg p-2.5 flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Thêm thông tin tàu
+                </button>
+                {% endif %}
+            </div>
             <div class="bg-slate-50 rounded-lg p-3 border border-slate-100 flex items-center gap-3">
                 <div class="bg-white p-2 rounded border border-slate-200 shadow-sm">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -116,9 +149,25 @@
             <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Tài chính (Ước tính)</h3>
             <div class="space-y-4">
                 <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <div>
+                    <div class="flex-1">
                         <div class="text-[10px] text-indigo-500 uppercase font-bold">Giá trị hàng</div>
-                        <div class="text-lg font-bold text-indigo-700">{{ total_amount|default:0|floatformat:0|intcomma }} đ</div>
+                        <div class="text-lg font-bold text-indigo-700">
+                            {% if total_amount_vnd %}
+                                {{ total_amount_vnd|floatformat:0|intcomma }} đ
+                            {% else %}
+                                {{ total_product_amount_cny|default:0|floatformat:0|intcomma }} CNY
+                            {% endif %}
+                        </div>
+                        {% if total_product_amount_cny and total_amount_vnd %}
+                        <div class="text-[10px] text-indigo-400 mt-0.5">
+                            ({{ total_product_amount_cny|floatformat:0|intcomma }} CNY
+                            {% if avg_exchange_rate %}
+                                × {{ avg_exchange_rate|floatformat:0|intcomma }})
+                            {% else %}
+                                )
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="bg-white p-1.5 rounded-full text-indigo-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -603,9 +652,13 @@
                         {% for doc in spo_documents %}
                         <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg hover:bg-slate-100 transition group/item">
                             <div class="flex items-center gap-2 flex-1 min-w-0">
+                                {% if doc.file_icon %}
+                                <img src="{{ doc.file_icon }}" alt="File icon" class="h-4 w-4 flex-shrink-0">
+                                {% else %}
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
+                                {% endif %}
                                 <div class="flex-1 min-w-0">
                                     <a href="{{ doc.file_url }}" target="_blank" class="text-xs font-medium text-slate-700 hover:text-emerald-600 truncate block">
                                         {{ doc.name }}
@@ -630,18 +683,7 @@
                 </div>
             </div>
 
-            <!-- Notes -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-                <h3 class="font-bold text-slate-700 text-sm mb-3 flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Ghi chú
-                </h3>
-                <div class="bg-amber-50 rounded-lg border border-amber-100 p-3 text-xs text-slate-700 min-h-[80px]">
-                    {{ spo.note|default:"Chưa có ghi chú."|linebreaksbr }}
-                </div>
-            </div>
+            
         </div>
     </div>
 </div>
@@ -702,6 +744,32 @@
     </div>
 </div>
 
+<!-- Add Ship Info Modal -->
+<div id="add-ship-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
+        <div class="p-6">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm thông tin tàu</h3>
+            <form id="add-ship-form">
+                <input type="hidden" name="spo_id" value="{{ spo.id }}">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Tên tàu</label>
+                        <input type="text" name="ship_name" value="{{ spo.ship_name|default:'' }}" placeholder="Ví dụ: MV Ever Given" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Link tracking tàu</label>
+                        <input type="url" name="ship_tracking_link" value="{{ spo.ship_tracking_link|default:'' }}" placeholder="https://..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" onclick="document.getElementById('add-ship-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Add PO Modal -->
 <div id="add-po-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
@@ -724,9 +792,11 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">PO IDs</label>
-                        <input type="text" name="po_ids" placeholder="12345, 67890" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
-                        <p class="text-[10px] text-slate-500 mt-1">Nhập Sapo Order ID, cách nhau bởi dấu phẩy</p>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Chọn PO từ danh sách</label>
+                        <div id="valid-pos-list" class="max-h-60 overflow-y-auto border border-slate-300 rounded-lg divide-y divide-slate-200">
+                            <div class="p-3 text-center text-xs text-slate-400">Đang tải danh sách PO...</div>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Danh sách PO hợp lệ: chưa thuộc SPO, status pending, NSX thuộc Container Template</p>
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
@@ -793,6 +863,7 @@
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (CNY) *</label>
                         <input type="number" id="cost-amount-cny" name="amount_cny" step="0.01" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <input type="hidden" id="cost-total-cbm" value="0">
                         <div id="cost-price-per-cbm" class="mt-2 text-xs text-emerald-600 font-medium hidden">
                             Chi phí trên mỗi m³ là: <span class="font-bold" id="cost-price-value">0</span> CNY/m³
                         </div>
@@ -827,17 +898,13 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (CNY)</label>
-                        <input type="number" name="amount_cny" step="0.01" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền VNĐ (tùy chọn)</label>
-                        <input type="number" name="amount_vnd" step="0.01" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
-                        <p class="text-[10px] text-slate-400 mt-1">Tỷ giá sẽ được tự động tính</p>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (CNY) *</label>
+                        <input type="number" id="payment-amount-cny" name="amount_cny" step="0.01" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[10px] text-slate-400 mt-1">Số tiền sẽ tự động trừ từ số dư nhân dân tệ</p>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Ngày thanh toán</label>
-                        <input type="date" name="payment_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <input type="date" id="payment-date" name="payment_date" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Mô tả</label>
@@ -1061,13 +1128,78 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 3. Add PO & Sync PO Buttons
-    document.getElementById('add-po-btn')?.addEventListener('click', () => {
-        document.getElementById('add-po-modal').classList.remove('hidden');
+    document.getElementById('add-po-btn')?.addEventListener('click', async () => {
+        const modal = document.getElementById('add-po-modal');
+        const validPosList = document.getElementById('valid-pos-list');
+        
+        // Load valid POs
+        validPosList.innerHTML = '<div class="p-3 text-center text-xs text-slate-400">Đang tải danh sách PO...</div>';
+        modal.classList.remove('hidden');
+        
+        try {
+            const response = await fetch(`/products/sum-purchase-orders/${spoId}/get-valid-pos/`);
+            const data = await response.json();
+            
+            if (data.status === 'success' && data.valid_pos && data.valid_pos.length > 0) {
+                validPosList.innerHTML = data.valid_pos.map(po => `
+                    <label class="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+                        <input type="checkbox" name="po_ids" value="${po.sapo_order_supplier_id}" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                        <div class="flex-1">
+                            <div class="text-xs font-semibold text-slate-800">${po.code || 'N/A'}</div>
+                            <div class="text-[10px] text-slate-500">${po.supplier_name || 'N/A'}</div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">
+                                ${po.total_amount_cny.toLocaleString('vi-VN')} CNY • ${po.total_cbm.toFixed(2)} CBM • ${po.total_quantity} sản phẩm
+                            </div>
+                        </div>
+                    </label>
+                `).join('');
+            } else {
+                validPosList.innerHTML = '<div class="p-3 text-center text-xs text-slate-400">Không có PO hợp lệ nào</div>';
+            }
+        } catch (error) {
+            validPosList.innerHTML = '<div class="p-3 text-center text-xs text-red-500">Lỗi khi tải danh sách PO</div>';
+        }
     });
     
-    document.getElementById('sync-po-btn')?.addEventListener('click', () => {
-        if(!confirm('Bạn có chắc chắn muốn đồng bộ dữ liệu tất cả PO từ Sapo không?')) return;
-        alert('Tính năng đang được cập nhật để sync toàn bộ.'); 
+    document.getElementById('sync-po-btn')?.addEventListener('click', async () => {
+        if(!confirm('Bạn có chắc chắn muốn đồng bộ dữ liệu tất cả PO từ Sapo không? (Chỉ lấy PO có tag trùng với SPO và status pending/partial/completed)')) return;
+        
+        // Lấy tag từ SPO (ví dụ: SPO-2025-001)
+        const spoTag = '{{ spo.code }}';
+        
+        try {
+            const response = await fetch('{% url "products:sync_po_from_sapo" %}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                body: JSON.stringify({tag: spoTag})
+            });
+            const data = await response.json();
+            
+            if(data.status === 'success') {
+                // Sau khi sync, tự động thêm các PO vào SPO
+                if(data.po_list && data.po_list.length > 0) {
+                    const poIds = data.po_list.map(po => po.sapo_order_supplier_id);
+                    const addResponse = await fetch('{% url "products:add_po_to_spo" %}', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify({spo_id: spoId, po_ids: poIds})
+                    });
+                    const addData = await addResponse.json();
+                    if(addData.status === 'success') {
+                        alert(`Đã sync và thêm ${addData.added_count || poIds.length} PO vào SPO`);
+                        window.location.reload();
+                    } else {
+                        alert('Đã sync nhưng có lỗi khi thêm PO: ' + addData.message);
+                    }
+                } else {
+                    alert('Không tìm thấy PO nào có tag ' + spoTag);
+                }
+            } else {
+                alert('Lỗi khi sync: ' + data.message);
+            }
+        } catch (error) {
+            alert('Lỗi: ' + error.message);
+        }
     });
 
     // Form: Add PO
@@ -1075,8 +1207,15 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         const fd = new FormData(e.target);
         const data = Object.fromEntries(fd.entries());
-        // Handle PO IDs array
-        if(data.po_ids) data.po_ids = data.po_ids.split(',').map(s => s.trim()).filter(s => s);
+        
+        // Handle PO IDs from checkboxes
+        const checkboxes = document.querySelectorAll('input[name="po_ids"]:checked');
+        if (checkboxes.length > 0) {
+            data.po_ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        } else if (data.po_ids) {
+            // Fallback: handle comma-separated string
+            data.po_ids = data.po_ids.split(',').map(s => s.trim()).filter(s => s).map(s => parseInt(s));
+        }
         
         fetch('{% url "products:add_po_to_spo" %}', {
             method: 'POST', body: JSON.stringify(data),
@@ -1084,6 +1223,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(r => r.json()).then(d => {
             if(d.status === 'success') { alert(d.message); window.location.reload(); }
             else alert(d.message);
+        });
+    });
+    
+    // Form: Add Ship Info
+    document.getElementById('add-ship-form')?.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target));
+        
+        fetch(`/products/sum-purchase-orders/${spoId}/update-ship-info/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(d.message);
+            }
         });
     });
 
@@ -1154,10 +1311,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const totalCbm = parseFloat(poCard.getAttribute('data-po-total-cbm')) || 0;
             
             document.getElementById('modal-cost-po-id').value = poId;
-            document.getElementById('cost-total-cbm').textContent = totalCbm.toFixed(3);
+            document.getElementById('cost-total-cbm').value = totalCbm.toFixed(3);
             document.getElementById('cost-amount-cny').value = '';
-            document.getElementById('cost-price-value').textContent = '0';
-            document.getElementById('cost-price-per-cbm').classList.add('hidden');
+            const priceValue = document.getElementById('cost-price-value');
+            if (priceValue) priceValue.textContent = '0';
+            const pricePerCbmDiv = document.getElementById('cost-price-per-cbm');
+            if (pricePerCbmDiv) pricePerCbmDiv.classList.add('hidden');
             document.getElementById('add-cost-modal').classList.remove('hidden');
         });
     });
@@ -1165,15 +1324,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Tính giá/m³ khi nhập số tiền
     document.getElementById('cost-amount-cny')?.addEventListener('input', function() {
         const amount = parseFloat(this.value) || 0;
-        const totalCbm = parseFloat(document.getElementById('cost-total-cbm').textContent) || 0;
+        const totalCbmInput = document.getElementById('cost-total-cbm');
+        const totalCbm = totalCbmInput ? parseFloat(totalCbmInput.value) || 0 : 0;
         const pricePerCbmDiv = document.getElementById('cost-price-per-cbm');
         const priceValue = document.getElementById('cost-price-value');
         
-        if (amount > 0 && totalCbm > 0) {
+        if (amount > 0 && totalCbm > 0 && priceValue && pricePerCbmDiv) {
             const pricePerCbm = (amount / totalCbm).toFixed(2);
             priceValue.textContent = pricePerCbm;
             pricePerCbmDiv.classList.remove('hidden');
-        } else {
+        } else if (pricePerCbmDiv) {
             pricePerCbmDiv.classList.add('hidden');
         }
     });
@@ -1228,21 +1388,51 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const poId = this.getAttribute('data-po-id');
             document.getElementById('modal-payment-po-id').value = poId;
+            
+            // Set ngày thanh toán mặc định là hôm nay
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('payment-date').value = today;
+            
+            // Reset các trường
+            document.getElementById('payment-amount-cny').value = '';
+            
             document.getElementById('add-payment-modal').classList.remove('hidden');
         });
     });
     
+    // Không cần tính toán real-time nữa vì chỉ nhập số tiền CNY
+    
     document.getElementById('add-payment-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
-        data.amount_cny = parseFloat(data.amount_cny);
-        if(data.amount_vnd) data.amount_vnd = parseFloat(data.amount_vnd);
-        if(!data.payment_date) data.payment_date = new Date().toISOString().split('T')[0];
+        
+        // Parse số tiền CNY
+        const amountCny = parseFloat(data.amount_cny) || 0;
+        
+        // Validate: phải có số tiền CNY
+        if (amountCny <= 0) {
+            alert('Vui lòng nhập số tiền nhân dân tệ (CNY) lớn hơn 0');
+            return;
+        }
+        
+        // Set ngày thanh toán mặc định nếu chưa có
+        if (!data.payment_date) {
+            data.payment_date = new Date().toISOString().split('T')[0];
+        }
+        
+        // Gửi dữ liệu (chỉ gửi amount_cny và payment_date)
+        const submitData = {
+            po_id: data.po_id,
+            payment_type: data.payment_type,
+            amount_cny: amountCny,
+            payment_date: data.payment_date,
+            description: data.description || ''
+        };
         
         fetch(`/products/purchase-orders/${data.po_id}/payments/`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-            body: JSON.stringify(data)
+            body: JSON.stringify(submitData)
         }).then(r => r.json()).then(d => {
             if(d.status === 'success') window.location.reload();
             else alert(d.message);
