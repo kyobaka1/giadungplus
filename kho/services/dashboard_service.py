@@ -582,17 +582,25 @@ def calculate_dashboard_stats(
     hieu_suat_don_h = sum_data['sodonhang'] / tong_gio_lam if tong_gio_lam > 0 else 0
     
     # Lấy thống kê ticket từ CSKH
+    # Chỉ lấy ticket của bộ phận KHO, có location_id của kho hiện tại, và trạng thái không phải Đóng
     try:
         from cskh.models import Ticket
         from django.db.models import Q
         
-        # Tổng ticket
-        total_tickets = Ticket.objects.count()
+        # Filter ticket:
+        # 1. depart = 'warehouse' (bộ phận xử lý là KHO)
+        # 2. location_id = location_id hiện tại (kho đang thiết lập)
+        # 3. ticket_status != 'closed' (trạng thái không phải Đóng)
+        ticket_query = Ticket.objects.filter(
+            depart='warehouse',
+            location_id=location_id
+        ).exclude(ticket_status='closed')
         
-        # Chưa xử lý: status != 'resolved' và != 'closed'
-        unprocessed_tickets = Ticket.objects.filter(
-            ~Q(ticket_status__in=['resolved', 'closed'])
-        ).count()
+        # Tổng ticket thỏa điều kiện
+        total_tickets = ticket_query.count()
+        
+        # Chưa xử lý: tất cả ticket không phải 'closed' (đã filter ở trên)
+        unprocessed_tickets = total_tickets
     except Exception as e:
         logger.warning(f"[Dashboard] Error getting ticket stats: {e}")
         total_tickets = 0

@@ -1,5 +1,6 @@
 from django.urls import path
 from products import views
+from products import views_payment_spo
 
 app_name = "products"
 
@@ -71,6 +72,8 @@ urlpatterns = [
     path("sum-purchase-orders/create/", views.create_sum_purchase_order, name="create_sum_purchase_order"),
     path("sum-purchase-orders/add-po/", views.add_po_to_spo, name="add_po_to_spo"),
     path("sum-purchase-orders/sync-po/", views.sync_po_from_sapo, name="sync_po_from_sapo"),
+    path("sum-purchase-orders/<int:spo_id>/get-valid-pos/", views.get_valid_pos_for_spo, name="get_valid_pos_for_spo"),
+    path("sum-purchase-orders/<int:spo_id>/update-ship-info/", views.update_ship_info, name="update_ship_info"),
     path("sum-purchase-orders/update-status/", views.update_spo_status, name="update_spo_status"),
     path("sum-purchase-orders/update-planned-date/", views.update_timeline_planned_date, name="update_timeline_planned_date"),
     path("sum-purchase-orders/allocate-costs/", views.allocate_costs, name="allocate_costs"),
@@ -92,5 +95,15 @@ urlpatterns = [
     path("purchase-orders/<int:po_id>/payments/<int:payment_id>/", views.delete_po_payment, name="delete_po_payment"),
     path("purchase-orders/<int:po_id>/export-excel/", views.export_po_excel, name="export_po_excel"),
     path("purchase-orders/<int:po_id>/export-labels/", views.export_po_labels, name="export_po_labels"),
+    
+    # Payment SPO (Thanh toán XNK)
+    path("payment-spo/", views_payment_spo.payment_spo_list, name="payment_spo_list"),
+    path("payment-spo/periods/", views_payment_spo.payment_periods, name="payment_periods"),
+    path("payment-spo/transactions/add/", views_payment_spo.add_balance_transaction, name="add_balance_transaction"),
+    path("payment-spo/transactions/<int:txn_id>/edit/", views_payment_spo.edit_balance_transaction, name="edit_balance_transaction"),
+    path("payment-spo/transactions/<int:txn_id>/delete/", views_payment_spo.delete_balance_transaction, name="delete_balance_transaction"),
+    path("payment-spo/periods/create/", views_payment_spo.create_payment_period, name="create_payment_period"),
+    path("payment-spo/periods/<int:period_id>/delete/", views_payment_spo.delete_payment_period, name="delete_payment_period"),
+    path("payment-spo/transactions/<int:txn_id>/add-to-period/", views_payment_spo.add_transaction_to_period, name="add_transaction_to_period"),
 ]
 

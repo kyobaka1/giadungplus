@@ -31,7 +31,10 @@ from products.models import (
     SPODocument,
     PurchaseOrder,
     PurchaseOrderCost,
-    PurchaseOrderPayment
+    PurchaseOrderPayment,
+    BalanceTransaction,
+    PaymentPeriod,
+    PaymentPeriodTransaction,
 )
 from products.brand_settings import (
     get_disabled_brands,
@@ -2668,16 +2671,66 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
                 purchase_orders_data.append(po_data)
                 all_line_items.extend(po_data.get('line_items', []))
                 total_quantity += po_data.get('total_quantity', 0)
-                total_amount += po_data.get('total_amount', Decimal('0'))
-                total_packages += po_data.get('total_quantity', 0)  # Giả định 1 item = 1 package
+                # Tính total_packages từ box_info.full_box
+                po_packages = 0
+                for line_item in po_data.get('line_items', []):
+                    quantity = line_item.get('quantity', 0)
+                    full_box = line_item.get('full_box', 1)  # Số cái/thùng, mặc định 1
+                    if full_box > 0:
+                        # Số kiện = quantity / full_box (làm tròn lên)
+                        import math
+                        boxes = math.ceil(quantity / full_box)
+                        po_packages += boxes
+                    else:
+                        # Nếu không có full_box, mặc định 1 item = 1 package
+                        po_packages += quantity
+                total_packages += po_packages
             except Exception as e:
                 logger.warning(f"Error getting PO {po_id}: {e}")
+        
+        # Tính tổng giá trị hàng từ CNY của tất cả PO
+        total_product_amount_cny = Decimal('0')
+        for po_data in purchase_orders_data:
+            total_product_amount_cny += Decimal(str(po_data.get('product_amount_cny', 0)))
+        
+        # Tính tỷ giá trung bình từ các payment của các PO
+        all_exchange_rates = []
+        for po_data in purchase_orders_data:
+            for payment in po_data.get('payments', []):
+                if payment.get('exchange_rate'):
+                    all_exchange_rates.append(float(payment.get('exchange_rate')))
+        
+        # Nếu chưa có tỷ giá từ payments, lấy từ 3 PO gần nhất
+        if not all_exchange_rates:
+            # Lấy 3 PO gần nhất có payments
+            recent_pos = PurchaseOrder.objects.filter(
+                id__in=[po.get('po_id') for po in purchase_orders_data if po.get('po_id')]
+            ).order_by('-created_at')[:3]
+            
+            for po in recent_pos:
+                payments = po.payments.all().order_by('-payment_date')[:3]
+                for payment in payments:
+                    if payment.exchange_rate:
+                        all_exchange_rates.append(float(payment.exchange_rate))
+        
+        # Tính tỷ giá trung bình
+        avg_exchange_rate = None
+        if all_exchange_rates:
+            avg_exchange_rate = sum(all_exchange_rates) / len(all_exchange_rates)
+        
+        # Tính giá trị VND (làm tròn thành số nguyên)
+        total_amount_vnd = None
+        if avg_exchange_rate and total_product_amount_cny > 0:
+            total_amount_vnd = Decimal(str(round(float(total_product_amount_cny * Decimal(str(avg_exchange_rate))))))
         
         context["purchase_orders"] = purchase_orders_data
         context["line_items"] = all_line_items
         context["total_packages"] = total_packages
         context["total_quantity"] = total_quantity
-        context["total_amount"] = total_amount
+        context["total_amount"] = total_amount_vnd if total_amount_vnd else total_amount  # Ưu tiên VND, fallback về total_amount cũ
+        context["total_product_amount_cny"] = total_product_amount_cny
+        context["avg_exchange_rate"] = avg_exchange_rate
+        context["total_amount_vnd"] = total_amount_vnd
         
         # Tính lại total_cbm của SPO
         spo_service = SumPurchaseOrderService(sapo_client)
@@ -2801,9 +2854,10 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         context["spo_documents"] = [
             {
                 'id': doc.id,
-                'name': doc.name or doc.file.name.split('/')[-1],
+                'name': doc.name or (doc.file.name.split('/')[-1] if doc.file else ''),
                 'file': doc.file,
-                'file_url': doc.file.url if doc.file else None,
+                'file_url': doc.get_file_url() if hasattr(doc, 'get_file_url') else (f'/static/{doc.file.name}' if doc.file else None),
+                'file_icon': doc.get_file_icon() if hasattr(doc, 'get_file_icon') else None,
                 'uploaded_at': doc.uploaded_at,
                 'uploaded_by': doc.uploaded_by.username if doc.uploaded_by else None,
             }
@@ -3014,10 +3068,27 @@ def sync_po_from_sapo(request: HttpRequest):
                     "message": str(e)
                 }, status=400)
         elif tag:
-            # Lấy tất cả PO có tag từ Sapo
-            response = sapo_client.core.list_order_suppliers_raw(tags=tag, limit=250)
-            order_suppliers = response.get('order_suppliers', [])
-            po_ids = [os.get('id') for os in order_suppliers if os.get('id')]
+            # Lấy tất cả PO có tag từ Sapo, chỉ chấp nhận status pending, partial, completed
+            # Sapo API chỉ hỗ trợ filter 1 status tại một thời điểm, nên lấy tất cả rồi filter
+            all_order_suppliers = []
+            for status in ['pending', 'partial', 'completed']:
+                try:
+                    response = sapo_client.core.list_order_suppliers_raw(tags=tag, status=status, limit=250)
+                    order_suppliers = response.get('order_suppliers', [])
+                    all_order_suppliers.extend(order_suppliers)
+                except Exception as e:
+                    logger.warning(f"Error getting PO with status {status}: {e}")
+                    continue
+            
+            # Lọc và loại bỏ trùng lặp
+            seen_ids = set()
+            po_ids = []
+            for os in all_order_suppliers:
+                os_id = os.get('id')
+                if os_id and os_id not in seen_ids:
+                    seen_ids.add(os_id)
+                    if os.get('status') in ['pending', 'partial', 'completed']:
+                        po_ids.append(os_id)
             
             po_list = []
             for po_id in po_ids:
@@ -3277,7 +3348,7 @@ def add_spo_cost(request: HttpRequest):
         
         spo_id = int(data.get('spo_id'))
         name = data.get('name', '').strip()
-        amount_vnd = Decimal(str(data.get('amount_vnd', 0)))
+        amount_vnd = Decimal(str(round(float(data.get('amount_vnd', 0)))))  # Làm tròn VNĐ thành số nguyên
         note = data.get('note', '').strip()
         
         if not name:
@@ -3288,10 +3359,55 @@ def add_spo_cost(request: HttpRequest):
         
         spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
         
+        # Kiểm tra nếu có amount_cny thì trừ từ số dư
+        amount_cny = data.get('amount_cny')
+        amount_cny_decimal = None
+        balance_txn = None
+        
+        if amount_cny:
+            amount_cny_decimal = Decimal(str(amount_cny))
+            
+            # Kiểm tra số dư
+            from products.models import BalanceTransaction
+            from django.db.models import Sum
+            
+            current_balance = BalanceTransaction.objects.aggregate(
+                total=Sum('amount_cny')
+            )['total'] or Decimal('0')
+            
+            if current_balance < amount_cny_decimal:
+                return JsonResponse({
+                    "status": "error",
+                    "message": f"Số dư không đủ. Số dư hiện tại: {current_balance} CNY, cần: {amount_cny_decimal} CNY"
+                }, status=400)
+            
+            # Tạo giao dịch số dư (rút)
+            balance_txn = BalanceTransaction.objects.create(
+                transaction_type='withdraw_spo_cost',
+                amount_cny=-amount_cny_decimal,  # Số âm vì là rút
+                transaction_date=timezone.now().date(),
+                description=f"Chi phí SPO {spo.code}: {name}",
+                created_by=request.user if request.user.is_authenticated else None
+            )
+            
+            # Tự động liên kết với PaymentPeriod dựa trên datetime (tính cả giờ)
+            from products.models import PaymentPeriod, PaymentPeriodTransaction
+            # Sử dụng created_at của balance_txn để có datetime chính xác
+            period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at)
+            
+            if period:
+                PaymentPeriodTransaction.objects.get_or_create(
+                    payment_period=period,
+                    balance_transaction=balance_txn
+                )
+                # Số dư cuối kỳ tính realtime, không cần lưu
+        
         cost = SPOCost.objects.create(
             sum_purchase_order=spo,
             name=name,
-            amount_vnd=amount_vnd,
+            amount_vnd=Decimal(str(round(float(amount_vnd)))),  # Làm tròn VNĐ thành số nguyên
+            amount_cny=amount_cny_decimal,  # Lưu số tiền CNY nếu có
+            balance_transaction=balance_txn,  # Liên kết với giao dịch số dư
             note=note,
             created_by=request.user if request.user.is_authenticated else None
         )
@@ -3363,9 +3479,29 @@ def upload_spo_document(request: HttpRequest):
         
         spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
         
+        # Lưu file vào static/spo_documents
+        from django.conf import settings
+        from datetime import datetime
+        
+        # Tạo thư mục nếu chưa có
+        year_month = datetime.now().strftime('%Y/%m')
+        static_dir = os.path.join(settings.BASE_DIR, 'assets', 'spo_documents', year_month)
+        os.makedirs(static_dir, exist_ok=True)
+        
+        # Lưu file
+        filename = file.name
+        file_path = os.path.join(static_dir, filename)
+        
+        with open(file_path, 'wb+') as destination:
+            for chunk in file.chunks():
+                destination.write(chunk)
+        
+        # Lưu đường dẫn tương đối trong database (để tương thích với FileField)
+        relative_path = f'spo_documents/{year_month}/{filename}'
+        
         document = SPODocument.objects.create(
             sum_purchase_order=spo,
-            file=file,
+            file=relative_path,  # Lưu đường dẫn tương đối
             name=name or file.name,
             uploaded_by=request.user if request.user.is_authenticated else None
         )
@@ -3375,7 +3511,7 @@ def upload_spo_document(request: HttpRequest):
             "message": "Upload chứng từ thành công",
             "document_id": document.id,
             "document_name": document.name,
-            "document_url": document.file.url if document.file else None
+            "document_url": document.get_file_url() if hasattr(document, 'get_file_url') else f'/static/spo_documents/{year_month}/{filename}'
         })
         
     except Exception as e:
@@ -3630,8 +3766,7 @@ def add_po_payment(request: HttpRequest, po_id: int):
             data = request.POST.dict()
         
         payment_type = data.get('payment_type', '').strip()
-        amount_cny = Decimal(str(data.get('amount_cny', 0)))
-        amount_vnd = data.get('amount_vnd')
+        amount_cny = data.get('amount_cny')
         payment_date_str = data.get('payment_date', '').strip()
         description = data.get('description', '').strip()
         
@@ -3641,10 +3776,14 @@ def add_po_payment(request: HttpRequest, po_id: int):
                 "message": "Loại thanh toán không được để trống"
             }, status=400)
         
-        if amount_cny <= 0:
+        # Parse số tiền CNY
+        amount_cny_decimal = Decimal(str(amount_cny)) if amount_cny else Decimal('0')
+        
+        # Validate: phải có số tiền CNY
+        if amount_cny_decimal <= 0:
             return JsonResponse({
                 "status": "error",
-                "message": "Số tiền phải lớn hơn 0"
+                "message": "Số tiền nhân dân tệ (CNY) phải lớn hơn 0"
             }, status=400)
         
         # Parse date
@@ -3661,21 +3800,61 @@ def add_po_payment(request: HttpRequest, po_id: int):
         # Get PO
         po = get_object_or_404(PurchaseOrder, id=po_id)
         
-        # Parse amount_vnd
-        amount_vnd_decimal = None
-        if amount_vnd:
-            amount_vnd_decimal = Decimal(str(amount_vnd))
+        # Kiểm tra số dư hiện tại
+        from products.models import BalanceTransaction
+        from django.db.models import Sum
         
-        # Create payment
+        current_balance = BalanceTransaction.objects.aggregate(
+            total=Sum('amount_cny')
+        )['total'] or Decimal('0')
+        
+        if current_balance < amount_cny_decimal:
+            return JsonResponse({
+                "status": "error",
+                "message": f"Số dư không đủ. Số dư hiện tại: {current_balance} CNY, cần: {amount_cny_decimal} CNY"
+            }, status=400)
+        
+        # Tự động liên kết với PaymentPeriod dựa trên ngày thanh toán (theo logic mới: khoảng trống thuộc kỳ cũ)
+        payment_date_for_period = payment_date or timezone.now().date()
+        from products.models import PaymentPeriod, PaymentPeriodTransaction
+        
+        # Create payment trước (chỉ lưu amount_cny, không lưu amount_vnd và exchange_rate)
         payment = PurchaseOrderPayment.objects.create(
             purchase_order=po,
             payment_type=payment_type,
-            amount_cny=amount_cny,
-            amount_vnd=amount_vnd_decimal,
+            amount_cny=amount_cny_decimal,
+            amount_vnd=None,  # Không lưu VNĐ nữa
+            exchange_rate=None,  # Không lưu tỷ giá nữa
             payment_date=payment_date or timezone.now().date(),
             description=description,
+            balance_transaction=None,  # Sẽ cập nhật sau
             created_by=request.user if request.user.is_authenticated else None
         )
+        
+        # Tạo giao dịch số dư (rút) - tự động tạo khi thanh toán
+        balance_txn = BalanceTransaction.objects.create(
+            transaction_type='withdraw_po',
+            amount_cny=-amount_cny_decimal,  # Số âm vì là rút
+            transaction_date=payment_date or timezone.now().date(),
+            description=f"Thanh toán PO {po.sapo_order_supplier_id}: {description}" if description else f"Thanh toán PO {po.sapo_order_supplier_id}",
+            purchase_order_payment=payment,  # Liên kết với thanh toán PO
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        
+        # Cập nhật payment với balance_transaction
+        payment.balance_transaction = balance_txn
+        payment.save()
+        
+        # Liên kết với PaymentPeriod dựa trên datetime (tính cả giờ)
+        # Sử dụng created_at của balance_txn để có datetime chính xác
+        period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at)
+        
+        if period:
+            PaymentPeriodTransaction.objects.get_or_create(
+                payment_period=period,
+                balance_transaction=balance_txn
+            )
+            # Số dư cuối kỳ tính realtime, không cần lưu
         
         # Update PO paid_amount
         po.calculate_paid_amount()
@@ -3699,6 +3878,7 @@ def add_po_payment(request: HttpRequest, po_id: int):
 def delete_po_payment(request: HttpRequest, po_id: int, payment_id: int):
     """
     API endpoint để xóa thanh toán PO.
+    Sẽ xóa cả BalanceTransaction tương ứng.
     
     Returns:
         JSON: {status, message}
@@ -3706,6 +3886,17 @@ def delete_po_payment(request: HttpRequest, po_id: int, payment_id: int):
     try:
         payment = get_object_or_404(PurchaseOrderPayment, id=payment_id, purchase_order_id=po_id)
         po = payment.purchase_order
+        
+        # Xóa BalanceTransaction tương ứng nếu có
+        if payment.balance_transaction:
+            balance_txn = payment.balance_transaction
+            # Xóa liên kết với PaymentPeriod trước
+            from products.models import PaymentPeriodTransaction
+            PaymentPeriodTransaction.objects.filter(balance_transaction=balance_txn).delete()
+            # Xóa BalanceTransaction
+            balance_txn.delete()
+        
+        # Xóa payment
         payment.delete()
         
         # Update PO paid_amount
@@ -4385,7 +4576,134 @@ def delete_sum_purchase_order(request: HttpRequest, spo_id: int):
 
 
 @admin_only
-@require_http_methods(["DELETE", "POST"])
+@require_http_methods(["GET"])
+def get_valid_pos_for_spo(request: HttpRequest, spo_id: int):
+    """
+    API endpoint để lấy danh sách PO hợp lệ có thể thêm vào SPO.
+    
+    Điều kiện:
+    - PO chưa thuộc SPO nào
+    - statuses=pending
+    - Có nhà sản xuất (NSX) thuộc SPO Template của SPO này
+    
+    Returns:
+        JSON: {status, valid_pos: List[Dict]}
+    """
+    try:
+        from products.models import SumPurchaseOrder, SPOPurchaseOrder, PurchaseOrder, ContainerTemplateSupplier
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        container_template = spo.container_template
+        
+        # Lấy danh sách supplier_ids thuộc container template
+        template_suppliers = ContainerTemplateSupplier.objects.filter(
+            container_template=container_template
+        ).values_list('supplier_id', flat=True)
+        
+        if not template_suppliers:
+            return JsonResponse({
+                "status": "success",
+                "valid_pos": [],
+                "message": "Container template chưa có NSX nào"
+            })
+        
+        # Lấy tất cả PO đã thuộc SPO nào đó
+        po_ids_in_spo = SPOPurchaseOrder.objects.values_list('purchase_order_id', flat=True).distinct()
+        
+        # Lấy PO chưa thuộc SPO nào, có status pending, và có supplier thuộc template
+        valid_pos_db = PurchaseOrder.objects.filter(
+            supplier_id__in=template_suppliers,
+            delivery_status='ordered'  # pending status
+        ).exclude(
+            id__in=po_ids_in_spo
+        ).order_by('-created_at')[:50]  # Giới hạn 50 PO gần nhất
+        
+        # Lấy thông tin từ Sapo API
+        sapo_client = get_sapo_client()
+        from products.services.spo_po_service import SPOPOService
+        spo_po_service = SPOPOService(sapo_client)
+        
+        valid_pos = []
+        for po_db in valid_pos_db:
+            try:
+                # Lấy thông tin từ Sapo để kiểm tra status
+                po_data = spo_po_service.get_po_from_sapo(po_db.sapo_order_supplier_id)
+                sapo_status = po_data.get('status', '')
+                
+                # Chỉ lấy PO có status pending trong Sapo
+                if sapo_status == 'pending':
+                    valid_pos.append({
+                        'sapo_order_supplier_id': po_db.sapo_order_supplier_id,
+                        'code': po_data.get('code', ''),
+                        'supplier_name': po_data.get('supplier_name', ''),
+                        'total_amount_cny': float(po_data.get('product_amount_cny', 0)),
+                        'total_cbm': float(po_data.get('total_cbm', 0)),
+                        'total_quantity': po_data.get('total_quantity', 0),
+                    })
+            except Exception as e:
+                logger.warning(f"Error getting PO {po_db.sapo_order_supplier_id} from Sapo: {e}")
+                continue
+        
+        return JsonResponse({
+            "status": "success",
+            "valid_pos": valid_pos,
+            "count": len(valid_pos)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in get_valid_pos_for_spo: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
+@admin_only
+@require_POST
+def update_ship_info(request: HttpRequest, spo_id: int):
+    """
+    API endpoint để cập nhật thông tin tàu và tracking link.
+    
+    POST data:
+    - ship_name: str (optional)
+    - ship_tracking_link: str (optional)
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        import json
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        ship_name = data.get('ship_name', '').strip() or None
+        ship_tracking_link = data.get('ship_tracking_link', '').strip() or None
+        
+        if ship_name:
+            spo.ship_name = ship_name
+        if ship_tracking_link:
+            spo.ship_tracking_link = ship_tracking_link
+        
+        spo.save()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Đã cập nhật thông tin tàu"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in update_ship_info: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)
+
+
 def remove_po_from_spo(request: HttpRequest, spo_id: int, po_id: int):
     """
     API endpoint để xóa PO khỏi SPO (không xóa PO, chỉ xóa quan hệ).

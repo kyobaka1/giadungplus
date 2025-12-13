@@ -166,6 +166,17 @@ class SPOPOService:
                 total_product_amount_cny += item_amount_cny
                 self.debug_print(f"    Price CNY: {item_price_cny}, Amount CNY: {item_amount_cny}")
                 
+                # Lấy full_box từ box_info để tính số kiện hàng
+                full_box = 1  # Mặc định 1 item = 1 package
+                if product_metadata:
+                    variant_meta = None
+                    for v_meta in product_metadata.variants:
+                        if v_meta.id == variant_id:
+                            variant_meta = v_meta
+                            break
+                    if variant_meta and variant_meta.box_info and variant_meta.box_info.full_box:
+                        full_box = variant_meta.box_info.full_box
+                
                 processed_line_items.append({
                     'sapo_line_item_id': item_data.get('id'),
                     'variant_id': variant_id,
@@ -180,6 +191,7 @@ class SPOPOService:
                     'total_amount': Decimal(str(item_data.get('total_line_amount_after_tax', 0))),
                     'cpm': item_cpm,  # CPM tính theo công thức mới
                     'cbm': item_cpm,  # Giữ cbm để tương thích với code cũ
+                    'full_box': full_box,  # Số cái/thùng để tính số kiện hàng
                     'unit': item_data.get('unit', ''),
                     'variant_options': item_data.get('variant_options', ''),
                 })
