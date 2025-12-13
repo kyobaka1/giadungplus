@@ -96,6 +96,10 @@
                         💡 <strong>Lưu ý:</strong> Bạn đã là superuser, không cần dùng <code>sudo</code>. 
                         Nếu lệnh có <code>sudo</code>, hệ thống sẽ tự động loại bỏ.
                     </p>
+                    <p class="text-xs text-green-600 mt-1">
+                        ✅ <strong>Tự động:</strong> Hệ thống sẽ tự động thêm <code>cd /var/www/giadungplus && source venv/bin/activate &&</code> 
+                        trước lệnh của bạn (trừ khi lệnh đã có prefix này hoặc là lệnh <code>cd</code> vào thư mục khác).
+                    </p>
                     <p class="text-xs text-amber-600 mt-1">
                         📝 <strong>Script:</strong> Khi chạy script (.sh, .py), dùng đường dẫn đầy đủ hoặc <code>./script.sh</code> 
                         (ví dụ: <code>./update-git.sh</code> hoặc <code>/var/www/giadungplus/update-git.sh</code>).

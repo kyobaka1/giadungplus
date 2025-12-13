@@ -294,22 +294,22 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
             )
         
         # Tự động thêm prefix: cd vào thư mục project và activate virtualenv
-        # Trừ khi lệnh đã bắt đầu bằng cd hoặc đã có prefix này
+        # Trừ khi lệnh đã có prefix này hoặc là lệnh cd vào thư mục khác
         project_prefix = "cd /var/www/giadungplus && source venv/bin/activate && "
         
         # Kiểm tra xem lệnh đã có prefix chưa
-        if not command.startswith("cd /var/www/giadungplus") and not command.startswith("cd /var/www/giadungplus"):
-            # Kiểm tra xem có phải lệnh cd đơn giản không (cd mà không phải vào project)
-            if command.startswith("cd ") and "/var/www/giadungplus" not in command:
-                # Lệnh cd khác, không thêm prefix
-                pass
-            else:
-                # Thêm prefix để đảm bảo chạy trong môi trường project
-                command = project_prefix + command
-                logger.info(
-                    "[ServerLogsExecuteCmd] Tự động thêm prefix project: %s",
-                    command[:200]
-                )
+        has_project_prefix = command.startswith("cd /var/www/giadungplus") and "source venv/bin/activate" in command
+        
+        # Kiểm tra xem có phải lệnh cd vào thư mục khác không
+        is_cd_other_dir = command.startswith("cd ") and "/var/www/giadungplus" not in command
+        
+        # Chỉ thêm prefix nếu chưa có và không phải lệnh cd vào thư mục khác
+        if not has_project_prefix and not is_cd_other_dir:
+            command = project_prefix + command
+            logger.info(
+                "[ServerLogsExecuteCmd] Tự động thêm prefix project: %s",
+                command[:200]
+            )
         
         # Giới hạn timeout tối đa 300 giây (5 phút) để tránh lệnh chạy quá lâu
         timeout = min(timeout, 300)
