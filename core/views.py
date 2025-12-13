@@ -311,6 +311,33 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
                 command[:200]
             )
         
+        # Tự động sửa lệnh chạy script .sh để dùng /bin/bash trực tiếp
+        # Tránh lỗi shebang #!/usr/bin/env bash không tìm thấy bash
+        if '.sh' in command and not command.strip().startswith('bash ') and not command.strip().startswith('/bin/bash '):
+            # Tìm script path trong lệnh
+            import re
+            # Tìm pattern ./script.sh hoặc script.sh hoặc /path/to/script.sh
+            script_pattern = r'\.?/?([^\s&|;]+\.sh)'
+            match = re.search(script_pattern, command)
+            if match:
+                script_path = match.group(1)
+                # Thay thế script.sh bằng bash script.sh hoặc /bin/bash script.sh
+                # Giữ nguyên các phần khác của lệnh (cd, source, &&, etc.)
+                if script_path.startswith('./'):
+                    # ./script.sh -> bash ./script.sh
+                    command = command.replace(script_path, f'bash {script_path}', 1)
+                elif script_path.startswith('/'):
+                    # /path/to/script.sh -> /bin/bash /path/to/script.sh
+                    command = command.replace(script_path, f'/bin/bash {script_path}', 1)
+                else:
+                    # script.sh -> bash ./script.sh (giả định trong thư mục hiện tại)
+                    command = command.replace(script_path, f'bash ./{script_path}', 1)
+                
+                logger.info(
+                    "[ServerLogsExecuteCmd] Tự động sửa lệnh chạy script: %s",
+                    command[:200]
+                )
+        
         # Giới hạn timeout tối đa 300 giây (5 phút) để tránh lệnh chạy quá lâu
         timeout = min(timeout, 300)
         
