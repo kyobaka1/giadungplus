@@ -295,11 +295,13 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
         # Thực thi lệnh
         start_time = time.time()
         
-        # Trên Windows dùng shell=True, trên Linux/Mac dùng shell=False với shlex.split
+        # Dùng shell=True cho cả Windows và Linux để có thể chạy các lệnh shell built-in
+        # (cd, ls, pipe, redirect, etc.)
+        # Vì chỉ superuser mới có quyền, nên security risk được chấp nhận
         is_windows = os.name == 'nt'
         
         if is_windows:
-            # Windows: dùng cmd.exe
+            # Windows: dùng cmd.exe với shell=True
             process = subprocess.Popen(
                 command,
                 shell=True,
@@ -310,17 +312,10 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
                 errors='replace'
             )
         else:
-            # Linux/Mac: dùng shlex để parse command an toàn
-            try:
-                cmd_parts = shlex.split(command)
-            except ValueError:
-                return JsonResponse(
-                    {"success": False, "error": "Lệnh không hợp lệ."},
-                    status=400
-                )
-            
+            # Linux/Mac: dùng /bin/bash -c để chạy lệnh shell
+            # Điều này cho phép chạy các lệnh built-in như cd, ls, và các lệnh có pipe/redirect
             process = subprocess.Popen(
-                cmd_parts,
+                ['/bin/bash', '-c', command],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
