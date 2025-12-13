@@ -1155,17 +1155,28 @@ class PaymentPeriod(models.Model):
         return cls.find_period_for_transaction_datetime(transaction_datetime)
     
     @classmethod
-    def find_period_for_transaction_datetime(cls, transaction_datetime):
+    def find_period_for_transaction_datetime(cls, transaction_datetime, is_withdraw=False):
         """
         Tìm kỳ thanh toán cho một datetime giao dịch (tính cả giờ).
         
         Logic theo MAKE.md:
+        
+        Đối với giao dịch NẠP:
         1. Nếu transaction_datetime nằm trong một kỳ (từ giao dịch nạp đầu tiên đến cuối cùng) -> dùng kỳ đó
         2. Nếu không nằm trong kỳ nào -> tìm kỳ có end_datetime gần nhất trước transaction_datetime (kỳ cũ hơn)
-        3. Khoảng thời gian trống giữa 2 kỳ sẽ thuộc về kỳ cũ hơn (dùng tiền của kỳ cũ)
+        
+        Đối với giao dịch RÚT:
+        1. Lấy thời điểm phát sinh giao dịch NẠP đầu tiên của KTT -> start_datetime của KTT
+        2. Lấy thời điểm phát sinh giao dịch NẠP cuối cùng của KTT -> end_datetime của KTT
+        3. Nếu date RÚT > start_datetime & < end_datetime => thuộc KTT đó (nằm trong KTT)
+        4. Nếu không nằm trong KTT nào (khoảng trống giữa 2 KTT hoặc sau KTT cuối cùng) -> 
+           tìm kỳ có end_datetime gần nhất trước transaction_datetime (dùng tiền của kỳ nạp gần nhất trước đó)
+        
+        *1 giao dịch rút chỉ nằm trong 1 KTT*
         
         Args:
             transaction_datetime: datetime object (có thể là naive hoặc aware)
+            is_withdraw: bool, True nếu là giao dịch rút, False nếu là giao dịch nạp
             
         Returns:
             PaymentPeriod hoặc None nếu không tìm thấy
@@ -1179,7 +1190,8 @@ class PaymentPeriod(models.Model):
         
         # Bước 1: Tìm kỳ có transaction_datetime nằm trong khoảng thời gian của kỳ
         # Khoảng thời gian của kỳ = từ giao dịch nạp đầu tiên đến giao dịch nạp cuối cùng
-        periods = cls.objects.all().prefetch_related('period_transactions__balance_transaction')
+        # Lấy tất cả các kỳ, sắp xếp theo thứ tự thời gian để xử lý đúng
+        periods = cls.objects.all().prefetch_related('period_transactions__balance_transaction').order_by('created_at')
         
         for period in periods:
             # Lấy giao dịch nạp đầu tiên và cuối cùng của kỳ
@@ -1194,12 +1206,20 @@ class PaymentPeriod(models.Model):
                 start_datetime = first_deposit.created_at
                 end_datetime = last_deposit.created_at
                 
-                # Nếu transaction_datetime nằm trong khoảng thời gian này
-                if start_datetime <= transaction_datetime <= end_datetime:
-                    return period
+                # Đối với giao dịch RÚT: Nếu transaction_datetime > start_datetime & < end_datetime => thuộc KTT đó
+                # Đối với giao dịch NẠP: Nếu transaction_datetime >= start_datetime & <= end_datetime => thuộc KTT đó
+                if is_withdraw:
+                    # Rút: > start_datetime và < end_datetime (không bao gồm biên)
+                    if start_datetime < transaction_datetime < end_datetime:
+                        return period
+                else:
+                    # Nạp: >= start_datetime và <= end_datetime (bao gồm biên)
+                    if start_datetime <= transaction_datetime <= end_datetime:
+                        return period
         
         # Bước 2: Nếu không có, tìm kỳ có end_datetime gần nhất trước transaction_datetime
         # (kỳ cũ hơn - khoảng trống thuộc về kỳ cũ, dùng tiền của kỳ cũ)
+        # Logic này áp dụng cho cả nạp và rút khi phát sinh trong khoảng trống
         best_period = None
         best_end_datetime = None
         

@@ -61,16 +61,58 @@ def payment_spo_list(request: HttpRequest):
     
     # Lấy lịch sử giao dịch
     filter_type = request.GET.get('type', '')  # 'deposit' hoặc 'withdraw'
-    transactions = BalanceTransaction.objects.all().order_by('-transaction_date', '-created_at')
+    transactions = BalanceTransaction.objects.all().select_related().prefetch_related('payment_periods__payment_period')
     
     if filter_type == 'deposit':
         transactions = transactions.filter(transaction_type__in=['deposit_bank', 'deposit_black_market'])
     elif filter_type == 'withdraw':
         transactions = transactions.filter(transaction_type__in=['withdraw_po', 'withdraw_spo_cost'])
     
+    # Lấy tất cả giao dịch và xác định KTT realtime cho từng giao dịch
+    # Sau đó sắp xếp theo: KTT gần nhất trước (end_date hoặc created_at giảm dần), sau đó giao dịch gần nhất trước
+    transactions_list = list(transactions)
+    
+    # Xác định KTT realtime cho từng giao dịch và tạo tuple (period_sort_key, transaction, period) để sắp xếp
+    # Lưu lại period để dùng cho hiển thị sau này (tránh tính lại)
+    transactions_with_period = []
+    for txn in transactions_list:
+        # Xác định KTT realtime
+        if txn.is_withdraw:
+            # RÚT: xác định KTT realtime
+            period = PaymentPeriod.find_period_for_transaction_datetime(txn.created_at, is_withdraw=True)
+        else:
+            # NẠP: lấy từ liên kết đã lưu
+            period_txn = txn.payment_periods.first()
+            period = period_txn.payment_period if period_txn else None
+        
+        # Tạo sort key cho KTT: dùng end_date hoặc created_at của kỳ (giảm dần - kỳ gần nhất trước)
+        if period:
+            # Lấy end_datetime từ giao dịch nạp cuối cùng của kỳ
+            period_deposits = period.period_transactions.filter(
+                balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
+            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
+            
+            if period_deposits.exists():
+                period_end_datetime = period_deposits.last().balance_transaction.created_at
+            else:
+                period_end_datetime = period.created_at
+        else:
+            # Giao dịch không có KTT -> đặt ở cuối (datetime rất xa trong quá khứ)
+            period_end_datetime = timezone.make_aware(datetime(1970, 1, 1))
+        
+        # Sort key: (period_end_datetime, transaction.created_at) - cả hai giảm dần
+        # Lưu lại period để dùng cho hiển thị
+        transactions_with_period.append((period_end_datetime, txn.created_at, txn, period))
+    
+    # Sắp xếp: kỳ gần nhất trước (period_end_datetime giảm dần), sau đó giao dịch gần nhất trước (created_at giảm dần)
+    transactions_with_period.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    
+    # Lấy danh sách giao dịch đã sắp xếp cùng với period đã xác định
+    sorted_transactions_with_period = [(txn, period) for _, _, txn, period in transactions_with_period]
+    
     # Format transactions cho template
     transactions_data = []
-    for txn in transactions:
+    for txn, period in sorted_transactions_with_period:
         txn_data = {
             'id': txn.id,
             'transaction_type': txn.transaction_type,
@@ -86,15 +128,26 @@ def payment_spo_list(request: HttpRequest):
             'created_at': txn.created_at,  # Dùng để hiển thị giờ
         }
         
-        # Tìm kỳ thanh toán chứa giao dịch này (nếu có)
-        period_txn = txn.payment_periods.first()
-        if period_txn:
-            period = period_txn.payment_period
+        # Sử dụng period đã xác định từ bước sắp xếp
+        if period:
             txn_data['payment_period'] = {
                 'id': period.id,
                 'code': period.code,
                 'name': period.name,
             }
+            
+            # Đối với giao dịch RÚT: đồng bộ lại liên kết trong DB (cập nhật nếu khác với liên kết cũ)
+            if txn.is_withdraw:
+                old_period_txn = txn.payment_periods.first()
+                if not old_period_txn or old_period_txn.payment_period.id != period.id:
+                    # Xóa liên kết cũ (nếu có)
+                    if old_period_txn:
+                        old_period_txn.delete()
+                    # Tạo liên kết mới
+                    PaymentPeriodTransaction.objects.get_or_create(
+                        payment_period=period,
+                        balance_transaction=txn
+                    )
         
         # Thông tin chi tiết khi rút
         if txn.is_withdraw:
