@@ -3,11 +3,16 @@
 Django management command để tự động xử lý đơn hoả tốc.
 Chạy mỗi 5 phút bằng crontab:
     */5 * * * * cd /path/to/project && python manage.py auto_xpress_push
+
+Thời gian chạy:
+- Thứ 2 đến thứ 7: 8:00 - 20:00
+- Chủ nhật: 10:00 - 18:00
 """
 
 from django.core.management.base import BaseCommand
 from orders.services.auto_xpress_push import auto_process_express_orders
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +28,39 @@ class Command(BaseCommand):
             help='Số đơn tối đa xử lý mỗi lần (default: 50)',
         )
 
+    def _is_within_working_hours(self) -> bool:
+        """
+        Kiểm tra xem thời gian hiện tại có nằm trong giờ làm việc không.
+        
+        Returns:
+            True nếu trong giờ làm việc, False nếu không
+        """
+        now = datetime.now()
+        weekday = now.weekday()  # 0 = Monday, 6 = Sunday
+        hour = now.hour
+        
+        # Chủ nhật (weekday = 6): 10:00 - 18:00
+        if weekday == 6:
+            return 10 <= hour < 18
+        
+        # Thứ 2 đến thứ 7 (weekday 0-5): 8:00 - 20:00
+        return 8 <= hour < 20
+
     def handle(self, *args, **options):
         limit = options['limit']
+        
+        # Kiểm tra thời gian trước khi chạy
+        if not self._is_within_working_hours():
+            now = datetime.now()
+            weekday_name = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'][now.weekday()]
+            self.stdout.write(
+                self.style.WARNING(
+                    f"[AUTO_XPRESS] Ngoài giờ làm việc. "
+                    f"Hiện tại: {weekday_name} {now.strftime('%H:%M:%S')}. "
+                    f"Chỉ chạy từ 8h-20h (Thứ 2-7) hoặc 10h-18h (Chủ nhật)."
+                )
+            )
+            return
         
         self.stdout.write(self.style.SUCCESS(f"[AUTO_XPRESS] Bắt đầu xử lý đơn hoả tốc (limit={limit})..."))
         

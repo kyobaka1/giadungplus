@@ -3393,7 +3393,8 @@ def add_spo_cost(request: HttpRequest):
             # Tự động liên kết với PaymentPeriod dựa trên datetime (tính cả giờ)
             from products.models import PaymentPeriod, PaymentPeriodTransaction
             # Sử dụng created_at của balance_txn để có datetime chính xác
-            period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at)
+            # Đây là giao dịch rút (withdraw_spo_cost), truyền is_withdraw=True
+            period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at, is_withdraw=True)
             
             if period:
                 PaymentPeriodTransaction.objects.get_or_create(
@@ -3847,7 +3848,8 @@ def add_po_payment(request: HttpRequest, po_id: int):
         
         # Liên kết với PaymentPeriod dựa trên datetime (tính cả giờ)
         # Sử dụng created_at của balance_txn để có datetime chính xác
-        period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at)
+        # Đây là giao dịch rút (withdraw_po), truyền is_withdraw=True
+        period = PaymentPeriod.find_period_for_transaction_datetime(balance_txn.created_at, is_withdraw=True)
         
         if period:
             PaymentPeriodTransaction.objects.get_or_create(

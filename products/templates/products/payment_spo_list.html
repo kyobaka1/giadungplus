@@ -69,93 +69,189 @@
                         </a>
                     </div>
                 </div>
-                <div class="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
-                    {% for txn in transactions %}
-                    <div class="p-3 hover:bg-slate-50 transition group/item border-b border-slate-100 last:border-b-0 {% if txn.transaction_type == 'deposit_bank' %}bg-blue-50/20{% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-900/3{% elif txn.is_withdraw %}bg-red-50/20{% endif %}">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="flex-1 min-w-0">
-                                <!-- Hàng 1: Ngày giờ + Loại + Số tiền (gộp thành 1 hàng) -->
-                                <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 timeline-date" 
-                                          data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
-                                          data-time="{{ txn.created_at|date:'H:i' }}">
-                                        {{ txn.transaction_date|date:"d/m/Y" }} {{ txn.created_at|date:"H:i" }}
-                                    </span>
-                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold 
-                                        {% if txn.transaction_type == 'deposit_bank' %}bg-blue-100 text-blue-700
-                                        {% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-800 text-white
-                                        {% else %}bg-red-100 text-red-700{% endif %}">
-                                        {{ txn.transaction_type_display }}
-                                    </span>
-                                    <span class="text-sm font-bold {% if txn.is_deposit %}text-emerald-700{% else %}text-red-700{% endif %}">
-                                        {% if txn.is_deposit %}+{% else %}-{% endif %}{{ txn.amount_cny|floatformat:0|intcomma }} CNY
-                                    </span>
-                                    {% if txn.exchange_rate %}
-                                    <span class="text-[10px] text-slate-500">
-                                        (Tỷ giá: {{ txn.exchange_rate|floatformat:0|intcomma }})
-                                    </span>
-                                    {% endif %}
-                                </div>
-                                
-                                <!-- Hàng 2: Thông tin chi tiết -->
-                                <div class="text-[10px] text-slate-500 space-y-0.5">
-                                    {% if txn.bank_name %}
-                                    <p>Ngân hàng: {{ txn.bank_name }}</p>
-                                    {% endif %}
-                                    {% if txn.description %}
-                                    <p class="truncate">{{ txn.description }}</p>
-                                    {% endif %}
-                                    {% if txn.payment_period %}
-                                    <div class="flex items-center gap-1">
-                                        <span class="text-slate-500 text-[10px]">Kỳ:</span>
-                                        <button onclick="showPeriodDetail({{ txn.payment_period.id }})" 
-                                                class="text-indigo-600 hover:text-indigo-800 font-medium text-[10px] underline decoration-dotted hover:decoration-solid transition">
-                                            {{ txn.payment_period.code }}{% if txn.payment_period.name %} - {{ txn.payment_period.name }}{% endif %}
-                                        </button>
-                                    </div>
-                                    {% endif %}
-                                    {% if txn.withdraw_info %}
-                                    <div class="mt-1 p-1.5 bg-slate-100 rounded text-[10px]">
-                                        <p class="font-semibold mb-0.5">Rút để thanh toán:</p>
-                                        {% if txn.withdraw_info.type == 'PO' %}
-                                        <p>PO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a></p>
-                                        <p>NSX: {{ txn.withdraw_info.supplier_name|default:"-" }}</p>
-                                        <p>SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
-                                        {% elif txn.withdraw_info.type == 'SPO Cost' %}
-                                        <p>Chi phí SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
-                                        <p>Tên: {{ txn.withdraw_info.cost_name }}</p>
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-1 flex-shrink-0">
-                                {% if txn.is_deposit and not txn.payment_period %}
-                                <input type="checkbox" class="deposit-checkbox" value="{{ txn.id }}" 
-                                       data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
-                                       data-created-at="{{ txn.created_at|date:'Y-m-d H:i:s' }}"
-                                       title="Chọn để tạo kỳ thanh toán" class="w-4 h-4">
-                                {% endif %}
-                                {% if not txn.payment_period %}
-                                <button onclick="openAddToPeriodModal({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Thêm vào KTT">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                </button>
-                                {% endif %}
-                                <button onclick="editTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Sửa">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                </button>
-                                <button onclick="deleteTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition" title="Xóa">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
+                <div class="max-h-[600px] overflow-y-auto">
+                    {% regroup transactions by payment_period as transactions_by_period %}
+                    {% for period_group in transactions_by_period %}
+                        {% if period_group.grouper %}
+                        <!-- Header KTT -->
+                        <div class="sticky top-0 z-10 bg-indigo-50 border-b-2 border-indigo-300 px-4 py-2.5">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-sm font-bold text-indigo-800">
+                                    -----{{ period_group.grouper.code }}{% if period_group.grouper.name %} - {{ period_group.grouper.name }}{% endif %}-----
+                                </h4>
+                                <button onclick="showPeriodDetail({{ period_group.grouper.id }})" 
+                                        class="text-xs text-indigo-600 hover:text-indigo-800 underline decoration-dotted hover:decoration-solid transition">
+                                    Chi tiết
                                 </button>
                             </div>
                         </div>
-                    </div>
+                        <!-- Các giao dịch trong KTT -->
+                        <div class="border-l-2 border-r-2 border-b-2 border-indigo-200 bg-indigo-50/30">
+                            {% for txn in period_group.list %}
+                            <div class="p-3 hover:bg-white/50 transition group/item border-b border-indigo-100 last:border-b-0 {% if txn.transaction_type == 'deposit_bank' %}bg-blue-50/20{% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-900/3{% elif txn.is_withdraw %}bg-red-50/20{% endif %}">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <!-- Hàng 1: Ngày giờ + Loại + Số tiền (gộp thành 1 hàng) -->
+                                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 timeline-date" 
+                                                  data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                                  data-time="{{ txn.created_at|date:'H:i' }}">
+                                                {{ txn.transaction_date|date:"d/m/Y" }} {{ txn.created_at|date:"H:i" }}
+                                            </span>
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold 
+                                                {% if txn.transaction_type == 'deposit_bank' %}bg-blue-100 text-blue-700
+                                                {% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-800 text-white
+                                                {% else %}bg-red-100 text-red-700{% endif %}">
+                                                {{ txn.transaction_type_display }}
+                                            </span>
+                                            <span class="text-sm font-bold {% if txn.is_deposit %}text-emerald-700{% else %}text-red-700{% endif %}">
+                                                {% if txn.is_deposit %}+{% else %}-{% endif %}{{ txn.amount_cny|floatformat:0|intcomma }} CNY
+                                            </span>
+                                            {% if txn.exchange_rate %}
+                                            <span class="text-[10px] text-slate-500">
+                                                (Tỷ giá: {{ txn.exchange_rate|floatformat:0|intcomma }})
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Hàng 2: Thông tin chi tiết -->
+                                        <div class="text-[10px] text-slate-500 space-y-0.5">
+                                            {% if txn.bank_name %}
+                                            <p>Ngân hàng: {{ txn.bank_name }}</p>
+                                            {% endif %}
+                                            {% if txn.description %}
+                                            <p class="truncate">{{ txn.description }}</p>
+                                            {% endif %}
+                                            {% if txn.withdraw_info %}
+                                            <div class="mt-1 p-1.5 bg-slate-100 rounded text-[10px]">
+                                                <p class="font-semibold mb-0.5">Rút để thanh toán:</p>
+                                                {% if txn.withdraw_info.type == 'PO' %}
+                                                <p>PO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a></p>
+                                                <p>NSX: {{ txn.withdraw_info.supplier_name|default:"-" }}</p>
+                                                <p>SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                                {% elif txn.withdraw_info.type == 'SPO Cost' %}
+                                                <p>Chi phí SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                                <p>Tên: {{ txn.withdraw_info.cost_name }}</p>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1 flex-shrink-0">
+                                        {% if txn.is_deposit and not txn.payment_period %}
+                                        <input type="checkbox" class="deposit-checkbox" value="{{ txn.id }}" 
+                                               data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                               data-created-at="{{ txn.created_at|date:'Y-m-d H:i:s' }}"
+                                               title="Chọn để tạo kỳ thanh toán" class="w-4 h-4">
+                                        {% endif %}
+                                        {% if not txn.payment_period %}
+                                        <button onclick="openAddToPeriodModal({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Thêm vào KTT">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+                                        {% endif %}
+                                        <button onclick="editTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Sửa">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </button>
+                                        <button onclick="deleteTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition" title="Xóa">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <!-- Giao dịch chưa có KTT -->
+                        <div class="px-4 py-2.5 bg-slate-100 border-b border-slate-200">
+                            <h4 class="text-xs font-semibold text-slate-500">Chưa có kỳ thanh toán</h4>
+                        </div>
+                        <div class="border-l-2 border-r-2 border-b-2 border-slate-200 bg-slate-50/30">
+                            {% for txn in period_group.list %}
+                            <div class="p-3 hover:bg-white/50 transition group/item border-b border-slate-100 last:border-b-0 {% if txn.transaction_type == 'deposit_bank' %}bg-blue-50/20{% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-900/3{% elif txn.is_withdraw %}bg-red-50/20{% endif %}">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <!-- Hàng 1: Ngày giờ + Loại + Số tiền (gộp thành 1 hàng) -->
+                                        <div class="flex items-center gap-2 mb-1.5 flex-wrap">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 timeline-date" 
+                                                  data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                                  data-time="{{ txn.created_at|date:'H:i' }}">
+                                                {{ txn.transaction_date|date:"d/m/Y" }} {{ txn.created_at|date:"H:i" }}
+                                            </span>
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold 
+                                                {% if txn.transaction_type == 'deposit_bank' %}bg-blue-100 text-blue-700
+                                                {% elif txn.transaction_type == 'deposit_black_market' %}bg-slate-800 text-white
+                                                {% else %}bg-red-100 text-red-700{% endif %}">
+                                                {{ txn.transaction_type_display }}
+                                            </span>
+                                            <span class="text-sm font-bold {% if txn.is_deposit %}text-emerald-700{% else %}text-red-700{% endif %}">
+                                                {% if txn.is_deposit %}+{% else %}-{% endif %}{{ txn.amount_cny|floatformat:0|intcomma }} CNY
+                                            </span>
+                                            {% if txn.exchange_rate %}
+                                            <span class="text-[10px] text-slate-500">
+                                                (Tỷ giá: {{ txn.exchange_rate|floatformat:0|intcomma }})
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <!-- Hàng 2: Thông tin chi tiết -->
+                                        <div class="text-[10px] text-slate-500 space-y-0.5">
+                                            {% if txn.bank_name %}
+                                            <p>Ngân hàng: {{ txn.bank_name }}</p>
+                                            {% endif %}
+                                            {% if txn.description %}
+                                            <p class="truncate">{{ txn.description }}</p>
+                                            {% endif %}
+                                            {% if txn.withdraw_info %}
+                                            <div class="mt-1 p-1.5 bg-slate-100 rounded text-[10px]">
+                                                <p class="font-semibold mb-0.5">Rút để thanh toán:</p>
+                                                {% if txn.withdraw_info.type == 'PO' %}
+                                                <p>PO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a></p>
+                                                <p>NSX: {{ txn.withdraw_info.supplier_name|default:"-" }}</p>
+                                                <p>SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                                {% elif txn.withdraw_info.type == 'SPO Cost' %}
+                                                <p>Chi phí SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                                <p>Tên: {{ txn.withdraw_info.cost_name }}</p>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1 flex-shrink-0">
+                                        {% if txn.is_deposit and not txn.payment_period %}
+                                        <input type="checkbox" class="deposit-checkbox" value="{{ txn.id }}" 
+                                               data-date="{{ txn.transaction_date|date:'Y-m-d' }}" 
+                                               data-created-at="{{ txn.created_at|date:'Y-m-d H:i:s' }}"
+                                               title="Chọn để tạo kỳ thanh toán" class="w-4 h-4">
+                                        {% endif %}
+                                        {% if not txn.payment_period %}
+                                        <button onclick="openAddToPeriodModal({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Thêm vào KTT">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+                                        {% endif %}
+                                        <button onclick="editTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-indigo-600 opacity-0 group-hover/item:opacity-100 transition" title="Sửa">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </button>
+                                        <button onclick="deleteTransaction({{ txn.id }})" class="p-1 text-slate-400 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition" title="Xóa">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
                     {% empty %}
                     <div class="p-8 text-center text-slate-500">
                         <p class="text-sm">Chưa có giao dịch nào</p>
