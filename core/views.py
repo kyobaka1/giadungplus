@@ -282,6 +282,35 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
                 status=400
             )
         
+        # Tự động loại bỏ 'sudo' khỏi lệnh vì user đã là superuser
+        # (không cần sudo nữa, và có thể gây lỗi nếu sudo không có trong PATH)
+        original_command = command
+        if command.startswith('sudo '):
+            command = command[5:].strip()  # Loại bỏ 'sudo ' ở đầu
+            logger.info(
+                "[ServerLogsExecuteCmd] Tự động loại bỏ 'sudo' khỏi lệnh (user đã là superuser): %s -> %s",
+                original_command[:100],
+                command[:100]
+            )
+        
+        # Tự động thêm prefix: cd vào thư mục project và activate virtualenv
+        # Trừ khi lệnh đã bắt đầu bằng cd hoặc đã có prefix này
+        project_prefix = "cd /var/www/giadungplus && source venv/bin/activate && "
+        
+        # Kiểm tra xem lệnh đã có prefix chưa
+        if not command.startswith("cd /var/www/giadungplus") and not command.startswith("cd /var/www/giadungplus"):
+            # Kiểm tra xem có phải lệnh cd đơn giản không (cd mà không phải vào project)
+            if command.startswith("cd ") and "/var/www/giadungplus" not in command:
+                # Lệnh cd khác, không thêm prefix
+                pass
+            else:
+                # Thêm prefix để đảm bảo chạy trong môi trường project
+                command = project_prefix + command
+                logger.info(
+                    "[ServerLogsExecuteCmd] Tự động thêm prefix project: %s",
+                    command[:200]
+                )
+        
         # Giới hạn timeout tối đa 300 giây (5 phút) để tránh lệnh chạy quá lâu
         timeout = min(timeout, 300)
         
@@ -314,13 +343,22 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
         else:
             # Linux/Mac: dùng /bin/bash -c để chạy lệnh shell
             # Điều này cho phép chạy các lệnh built-in như cd, ls, và các lệnh có pipe/redirect
+            # Nếu lệnh có chạy script (.sh), đảm bảo dùng /bin/bash để tránh lỗi shebang
+            # Đặt PATH để đảm bảo tìm thấy các lệnh cơ bản
+            env = os.environ.copy()
+            # Đảm bảo /bin và /usr/bin có trong PATH
+            current_path = env.get('PATH', '')
+            if '/bin' not in current_path:
+                env['PATH'] = f"/bin:/usr/bin:/usr/local/bin:{current_path}"
+            
             process = subprocess.Popen(
                 ['/bin/bash', '-c', command],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 encoding='utf-8',
-                errors='replace'
+                errors='replace',
+                env=env
             )
         
         try:
@@ -345,6 +383,19 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
         if stderr:
             output += f"\n[STDERR]\n{stderr}"
         
+        # Cải thiện thông báo lỗi cho một số trường hợp phổ biến
+        error_message = stderr if exit_code != 0 else ""
+        if exit_code == 127 and "command not found" in error_message.lower():
+            # Lệnh không tìm thấy - có thể là script cần đường dẫn đầy đủ
+            suggested_fix = ""
+            if ".sh" in command or ".py" in command:
+                suggested_fix = "\n💡 Gợi ý: Nếu đây là script, hãy dùng đường dẫn đầy đủ hoặc ./script.sh (ví dụ: ./update-git.sh hoặc /var/www/giadungplus/update-git.sh)"
+            elif "cd" in command and "&&" in command:
+                suggested_fix = "\n💡 Gợi ý: Với lệnh có cd &&, hãy đảm bảo script có đường dẫn đầy đủ hoặc ./script.sh"
+            
+            if suggested_fix:
+                error_message += suggested_fix
+        
         # Giới hạn độ dài output (tránh response quá lớn)
         max_output_length = 100000  # 100KB
         if len(output) > max_output_length:
@@ -353,7 +404,7 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
         return JsonResponse({
             "success": exit_code == 0,
             "output": output,
-            "error": stderr if exit_code != 0 else "",
+            "error": error_message,
             "exit_code": exit_code,
             "execution_time": round(execution_time, 2)
         })

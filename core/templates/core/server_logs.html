@@ -87,10 +87,18 @@
                     </label>
                     <input type="text" 
                            id="cmd-input" 
-                           placeholder="Ví dụ: dir, ls -la, python --version..."
+                           placeholder="Ví dụ: ls -la, cd /var/www && ls, ./script.sh, ps aux | grep python..."
                            class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <p class="text-xs text-slate-500 mt-1">
                         ⚠️ Chỉ superuser mới có quyền thực thi lệnh. Lệnh sẽ được log để kiểm tra.
+                    </p>
+                    <p class="text-xs text-blue-600 mt-1">
+                        💡 <strong>Lưu ý:</strong> Bạn đã là superuser, không cần dùng <code>sudo</code>. 
+                        Nếu lệnh có <code>sudo</code>, hệ thống sẽ tự động loại bỏ.
+                    </p>
+                    <p class="text-xs text-amber-600 mt-1">
+                        📝 <strong>Script:</strong> Khi chạy script (.sh, .py), dùng đường dẫn đầy đủ hoặc <code>./script.sh</code> 
+                        (ví dụ: <code>./update-git.sh</code> hoặc <code>/var/www/giadungplus/update-git.sh</code>).
                     </p>
                 </div>
                 
