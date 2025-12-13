@@ -20,4 +20,5 @@ urlpatterns = [
     # Server logs (admin only)
     path("server-logs/", views.server_logs_view, name="server_logs_view"),
     path("api/server-logs/", views.server_logs_api, name="server_logs_api"),
+    path("api/server-logs/execute-cmd/", views.server_logs_execute_cmd_api, name="server_logs_execute_cmd_api"),
 ]

@@ -5,6 +5,8 @@ Core app views.
 
 import logging
 import os
+import subprocess
+import shlex
 from typing import Any, Dict
 
 from django.conf import settings
@@ -234,6 +236,144 @@ def server_logs_view(request: HttpRequest) -> HttpResponse:
         "default_file": default_file,
     }
     return render(request, "core/server_logs.html", context)
+
+
+@login_required
+def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
+    """
+    API endpoint: /core/api/server-logs/execute-cmd/
+    
+    Thực thi lệnh CMD từ xa (chỉ superuser).
+    
+    POST data:
+        - command: str (lệnh cần thực thi)
+        - timeout: int (thời gian timeout, mặc định: 30 giây)
+    
+    Returns:
+        JSON: {
+            "success": bool,
+            "output": str,
+            "error": str,
+            "exit_code": int,
+            "execution_time": float
+        }
+    """
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"success": False, "error": "Bạn không có quyền thực thi lệnh."},
+            status=403
+        )
+    
+    import json
+    import time
+    
+    try:
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        command = data.get('command', '').strip()
+        timeout = int(data.get('timeout', 30))
+        
+        if not command:
+            return JsonResponse(
+                {"success": False, "error": "Lệnh không được để trống."},
+                status=400
+            )
+        
+        # Giới hạn timeout tối đa 300 giây (5 phút) để tránh lệnh chạy quá lâu
+        timeout = min(timeout, 300)
+        
+        # Log lệnh được thực thi (bảo mật)
+        logger.warning(
+            "[ServerLogsExecuteCmd] User %s thực thi lệnh: %s",
+            request.user.username,
+            command[:200]  # Chỉ log 200 ký tự đầu
+        )
+        
+        # Thực thi lệnh
+        start_time = time.time()
+        
+        # Trên Windows dùng shell=True, trên Linux/Mac dùng shell=False với shlex.split
+        is_windows = os.name == 'nt'
+        
+        if is_windows:
+            # Windows: dùng cmd.exe
+            process = subprocess.Popen(
+                command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+        else:
+            # Linux/Mac: dùng shlex để parse command an toàn
+            try:
+                cmd_parts = shlex.split(command)
+            except ValueError:
+                return JsonResponse(
+                    {"success": False, "error": "Lệnh không hợp lệ."},
+                    status=400
+                )
+            
+            process = subprocess.Popen(
+                cmd_parts,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+        
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            execution_time = time.time() - start_time
+            return JsonResponse({
+                "success": False,
+                "error": f"Lệnh đã vượt quá thời gian timeout ({timeout} giây).",
+                "output": "",
+                "exit_code": -1,
+                "execution_time": round(execution_time, 2)
+            })
+        
+        execution_time = time.time() - start_time
+        
+        # Kết hợp stdout và stderr
+        output = stdout
+        if stderr:
+            output += f"\n[STDERR]\n{stderr}"
+        
+        # Giới hạn độ dài output (tránh response quá lớn)
+        max_output_length = 100000  # 100KB
+        if len(output) > max_output_length:
+            output = output[:max_output_length] + f"\n\n... (đã cắt bớt, tổng cộng {len(output)} ký tự)"
+        
+        return JsonResponse({
+            "success": exit_code == 0,
+            "output": output,
+            "error": stderr if exit_code != 0 else "",
+            "exit_code": exit_code,
+            "execution_time": round(execution_time, 2)
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"success": False, "error": "Dữ liệu JSON không hợp lệ."},
+            status=400
+        )
+    except Exception as e:
+        logger.exception("[ServerLogsExecuteCmd] Lỗi khi thực thi lệnh: %s", e)
+        return JsonResponse(
+            {"success": False, "error": f"Lỗi không mong đợi: {str(e)}"},
+            status=500
+        )
 
 
 @api_view(["POST"])
