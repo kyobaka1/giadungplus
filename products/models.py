@@ -750,6 +750,12 @@ class SPOCost(models.Model):
     
     note = models.TextField(blank=True, help_text="Ghi chú chi tiết")
     
+    # Ngày giao dịch (ngày phát sinh chi phí)
+    transaction_date = models.DateField(
+        default=timezone.now,
+        help_text="Ngày giao dịch (ngày phát sinh chi phí)"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)

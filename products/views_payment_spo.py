@@ -689,16 +689,15 @@ def edit_balance_transaction(request: HttpRequest, txn_id: int):
 def delete_balance_transaction(request: HttpRequest, txn_id: int):
     """
     API endpoint để xóa giao dịch số dư.
+    Cho phép xóa ngay cả khi đã thuộc kỳ thanh toán (sẽ tự động xóa liên kết).
     """
     try:
+        from products.models import PaymentPeriodTransaction
+        
         txn = get_object_or_404(BalanceTransaction, id=txn_id)
         
-        # Kiểm tra xem giao dịch đã thuộc kỳ thanh toán chưa
-        if txn.payment_periods.exists():
-            return JsonResponse({
-                "status": "error",
-                "message": "Không thể xóa giao dịch đã thuộc kỳ thanh toán"
-            }, status=400)
+        # Xóa tất cả liên kết với kỳ thanh toán (nếu có)
+        PaymentPeriodTransaction.objects.filter(balance_transaction=txn).delete()
         
         # Xóa giao dịch
         txn.delete()

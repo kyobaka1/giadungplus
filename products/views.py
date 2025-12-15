@@ -2835,8 +2835,8 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         context['stage_analysis'] = stage_analysis
         context['today'] = today
         
-        # Lấy SPO Costs (dynamic costs)
-        spo_costs = spo.costs.all().order_by('-created_at')
+        # Lấy SPO Costs (dynamic costs) - sắp xếp theo transaction_date
+        spo_costs = spo.costs.all().order_by('-transaction_date', '-created_at')
         context["spo_costs"] = [
             {
                 'id': cost.id,
@@ -2846,6 +2846,7 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
                 'amount_cny': float(cost.amount_cny) if cost.amount_cny else None,
                 'balance_transaction': cost.balance_transaction,
                 'note': cost.note,
+                'transaction_date': cost.transaction_date,
                 'created_at': cost.created_at,
             }
             for cost in spo_costs
@@ -3360,6 +3361,7 @@ def add_spo_cost(request: HttpRequest):
         name = data.get('name', '').strip()
         cost_side = data.get('cost_side', 'china').strip()
         note = data.get('note', '').strip()
+        transaction_date_str = data.get('transaction_date', '').strip()
         
         if not name:
             return JsonResponse({
@@ -3416,11 +3418,23 @@ def add_spo_cost(request: HttpRequest):
                     "message": f"Số dư không đủ. Số dư hiện tại: {current_balance} CNY, cần: {amount_cny_decimal} CNY"
                 }, status=400)
             
+            # Parse transaction_date
+            from datetime import datetime
+            transaction_date = timezone.now().date()
+            if transaction_date_str:
+                try:
+                    transaction_date = datetime.strptime(transaction_date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    return JsonResponse({
+                        "status": "error",
+                        "message": "Định dạng ngày giao dịch không hợp lệ. Phải là YYYY-MM-DD"
+                    }, status=400)
+            
             # Tạo giao dịch số dư (rút)
             balance_txn = BalanceTransaction.objects.create(
                 transaction_type='withdraw_spo_cost',
                 amount_cny=-amount_cny_decimal,  # Số âm vì là rút
-                transaction_date=timezone.now().date(),
+                transaction_date=transaction_date,
                 description=f"Chi phí SPO {spo.code}: {name} (Phía Trung Quốc)",
                 created_by=request.user if request.user.is_authenticated else None
             )
@@ -3467,6 +3481,15 @@ def add_spo_cost(request: HttpRequest):
             amount_cny_decimal = None
             balance_txn = None
         
+        # Parse transaction_date cho chi phí phía Việt Nam
+        if not transaction_date_str:
+            transaction_date = timezone.now().date()
+        else:
+            try:
+                transaction_date = datetime.strptime(transaction_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                transaction_date = timezone.now().date()
+        
         cost = SPOCost.objects.create(
             sum_purchase_order=spo,
             name=name,
@@ -3475,6 +3498,7 @@ def add_spo_cost(request: HttpRequest):
             amount_cny=amount_cny_decimal,  # Lưu số tiền CNY nếu có (chỉ cho phía Trung Quốc)
             balance_transaction=balance_txn,  # Liên kết với giao dịch số dư (chỉ cho phía Trung Quốc)
             note=note,
+            transaction_date=transaction_date,
             created_by=request.user if request.user.is_authenticated else None
         )
         
@@ -3493,17 +3517,171 @@ def add_spo_cost(request: HttpRequest):
 
 
 @admin_only
-@require_http_methods(["DELETE"])
-def delete_spo_cost(request: HttpRequest, cost_id: int):
+@require_POST
+def edit_spo_cost(request: HttpRequest, cost_id: int):
     """
-    API endpoint để xóa chi phí SPO.
+    API endpoint để sửa chi phí SPO.
+    
+    POST data:
+    - name: str
+    - cost_side: str ('china' hoặc 'vietnam')
+    - amount: float (CNY nếu cost_side='china', VND nếu cost_side='vietnam')
+    - transaction_date: str (YYYY-MM-DD)
+    - note: str (optional)
     
     Returns:
         JSON: {status, message}
     """
     try:
+        import json
+        from datetime import datetime
+        
         cost = get_object_or_404(SPOCost, id=cost_id)
+        
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            data = request.POST.dict()
+        
+        name = data.get('name', '').strip()
+        cost_side = data.get('cost_side', 'china').strip()
+        note = data.get('note', '').strip()
+        transaction_date_str = data.get('transaction_date', '').strip()
+        
+        if not name:
+            return JsonResponse({
+                "status": "error",
+                "message": "Tên chi phí không được để trống"
+            }, status=400)
+        
+        if cost_side not in ['china', 'vietnam']:
+            return JsonResponse({
+                "status": "error",
+                "message": "Phía chi phí không hợp lệ. Phải là 'china' hoặc 'vietnam'"
+            }, status=400)
+        
+        # Parse transaction_date
+        transaction_date = cost.transaction_date  # Giữ nguyên nếu không có
+        if transaction_date_str:
+            try:
+                transaction_date = datetime.strptime(transaction_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Định dạng ngày giao dịch không hợp lệ. Phải là YYYY-MM-DD"
+                }, status=400)
+        
+        # Cập nhật chi phí
+        cost.name = name
+        cost.cost_side = cost_side
+        cost.note = note
+        cost.transaction_date = transaction_date
+        
+        # Cập nhật số tiền
+        if cost_side == 'china':
+            amount_cny_str = data.get('amount', '').strip().replace(',', '')
+            if not amount_cny_str:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY không được để trống cho chi phí phía Trung Quốc"
+                }, status=400)
+            
+            try:
+                amount_cny_decimal = Decimal(str(amount_cny_str))
+            except (ValueError, InvalidOperation):
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY không hợp lệ"
+                }, status=400)
+            
+            if amount_cny_decimal <= 0:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY phải lớn hơn 0"
+                }, status=400)
+            
+            # Cập nhật balance_transaction nếu có
+            if cost.balance_transaction:
+                # Cập nhật giao dịch số dư
+                cost.balance_transaction.amount_cny = -amount_cny_decimal
+                cost.balance_transaction.transaction_date = transaction_date
+                cost.balance_transaction.description = f"Chi phí SPO {cost.sum_purchase_order.code}: {name} (Phía Trung Quốc)"
+                cost.balance_transaction.save()
+            
+            cost.amount_cny = amount_cny_decimal
+            cost.amount_vnd = Decimal('0')
+        else:
+            amount_vnd_str = data.get('amount', '').strip().replace(',', '')
+            if not amount_vnd_str:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ không được để trống cho chi phí phía Việt Nam"
+                }, status=400)
+            
+            try:
+                amount_vnd_decimal = Decimal(str(round(float(amount_vnd_str))))
+            except (ValueError, InvalidOperation):
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ không hợp lệ"
+                }, status=400)
+            
+            if amount_vnd_decimal <= 0:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ phải lớn hơn 0"
+                }, status=400)
+            
+            cost.amount_vnd = amount_vnd_decimal
+            cost.amount_cny = None
+            # Xóa balance_transaction nếu chuyển từ china sang vietnam
+            if cost.balance_transaction:
+                cost.balance_transaction.delete()
+                cost.balance_transaction = None
+        
+        cost.save()
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Cập nhật chi phí thành công"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in edit_spo_cost: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_http_methods(["DELETE"])
+def delete_spo_cost(request: HttpRequest, cost_id: int):
+    """
+    API endpoint để xóa chi phí SPO.
+    Tự động xóa giao dịch số dư liên quan (nếu có) và liên kết với kỳ thanh toán.
+    
+    Returns:
+        JSON: {status, message}
+    """
+    try:
+        from products.models import PaymentPeriodTransaction
+        
+        cost = get_object_or_404(SPOCost, id=cost_id)
+        
+        # Lấy balance_transaction trước khi xóa cost
+        balance_txn = cost.balance_transaction
+        
+        # Xóa chi phí (sẽ tự động xóa liên kết OneToOne với balance_transaction)
         cost.delete()
+        
+        # Nếu có giao dịch số dư liên quan, xóa nó và liên kết với kỳ thanh toán
+        if balance_txn:
+            # Xóa tất cả liên kết với kỳ thanh toán
+            PaymentPeriodTransaction.objects.filter(balance_transaction=balance_txn).delete()
+            
+            # Xóa giao dịch số dư
+            balance_txn.delete()
         
         return JsonResponse({
             "status": "success",
