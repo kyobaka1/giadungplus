@@ -3,6 +3,10 @@ import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from django.conf import settings
+import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Define paths
 BASE_DIR = Path(settings.BASE_DIR)
@@ -119,3 +123,83 @@ class ShopeeConfigService:
                 f"Không có quyền ghi vào {COOKIE_DIR}. "
                 f"Vui lòng chạy lệnh: sudo chmod -R 775 {COOKIE_DIR} && sudo chown -R www-data:www-data {COOKIE_DIR}"
             ) from e
+
+    @staticmethod
+    def _parse_cookie_to_headers(cookie_content: str) -> Dict[str, str]:
+        """
+        Parse cookie content thành dict headers.
+        Format: 2 dòng cho 1 cặp key-value.
+        """
+        if not cookie_content:
+            return {}
+        
+        lines = [l.strip("\r") for l in cookie_content.splitlines() if l.strip()]
+        headers = {}
+        
+        it = iter(lines)
+        for key in it:
+            try:
+                value = next(it)
+                headers[key] = value
+            except StopIteration:
+                break
+        
+        return headers
+
+    @staticmethod
+    def check_cookie_status(shop_name: str) -> bool:
+        """
+        Kiểm tra trạng thái cookie bằng cách gửi request tới Shopee API.
+        Trả về True nếu cookie còn hoạt động, False nếu không.
+        """
+        cookie_content = ShopeeConfigService.get_cookie_content(shop_name)
+        if not cookie_content:
+            return False
+        
+        try:
+            # Parse cookie thành headers
+            headers = ShopeeConfigService._parse_cookie_to_headers(cookie_content)
+            if not headers:
+                return False
+            
+            # Gửi request tới Shopee API để kiểm tra cookie
+            test_url = "https://chatbot.seller.shopee.vn/chat/v2/get_user_info"
+            
+            response = requests.get(
+                test_url,
+                headers=headers,
+                timeout=10,
+                allow_redirects=False
+            )
+            
+            # Kiểm tra response JSON
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    # Cookie hoạt động nếu:
+                    # - code = 0 (success)
+                    # - msg = "success"
+                    # - có data và có thông tin shop (biz_user_identity hoặc các field khác)
+                    if data.get("code") == 0 and data.get("msg") == "success":
+                        response_data = data.get("data", {})
+                        # Kiểm tra xem có thông tin shop không (biz_user_identity, email, phone, etc.)
+                        if response_data and (response_data.get("biz_user_identity") or 
+                                             response_data.get("email") or 
+                                             response_data.get("phone") or
+                                             response_data.get("biz_user_id")):
+                            return True
+                    # Nếu code != 0 hoặc không có data hợp lệ thì cookie không hoạt động
+                    return False
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"Invalid JSON response for {shop_name}: {e}")
+                    return False
+            else:
+                # Status code khác 200 thì cookie không hoạt động
+                return False
+                
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Error checking cookie status for {shop_name}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error checking cookie status for {shop_name}: {e}")
+            return False

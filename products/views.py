@@ -4,8 +4,9 @@ from django.http import JsonResponse, HttpRequest, HttpResponse
 from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from typing import List, Dict, Any
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import date, datetime
+from django.utils import timezone
 import logging
 import io
 import os
@@ -2840,14 +2841,22 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
             {
                 'id': cost.id,
                 'name': cost.name,
+                'cost_side': cost.cost_side,
                 'amount_vnd': float(cost.amount_vnd),
+                'amount_cny': float(cost.amount_cny) if cost.amount_cny else None,
+                'balance_transaction': cost.balance_transaction,
                 'note': cost.note,
                 'created_at': cost.created_at,
             }
             for cost in spo_costs
         ]
-        total_spo_costs = sum(float(cost.amount_vnd) for cost in spo_costs)
+        # Tính tổng chi phí: VND costs (Vietnam side) + VND equivalent của CNY costs (China side)
+        # Tạm thời chỉ tính tổng VND costs, có thể cải thiện sau để quy đổi CNY sang VND
+        total_spo_costs = sum(float(cost.amount_vnd) for cost in spo_costs if cost.cost_side == 'vietnam')
+        # Có thể thêm tổng CNY costs nếu cần
+        total_spo_costs_cny = sum(float(cost.amount_cny) for cost in spo_costs if cost.cost_side == 'china' and cost.amount_cny)
         context["total_spo_costs"] = total_spo_costs
+        context["total_spo_costs_cny"] = total_spo_costs_cny
         
         # Lấy SPO Documents
         spo_documents = spo.documents.all().order_by('-uploaded_at')
@@ -3332,7 +3341,8 @@ def add_spo_cost(request: HttpRequest):
     POST data:
     - spo_id: int
     - name: str
-    - amount_vnd: float
+    - cost_side: str ('china' hoặc 'vietnam')
+    - amount: float (CNY nếu cost_side='china', VND nếu cost_side='vietnam')
     - note: str (optional)
     
     Returns:
@@ -3348,7 +3358,7 @@ def add_spo_cost(request: HttpRequest):
         
         spo_id = int(data.get('spo_id'))
         name = data.get('name', '').strip()
-        amount_vnd = Decimal(str(round(float(data.get('amount_vnd', 0)))))  # Làm tròn VNĐ thành số nguyên
+        cost_side = data.get('cost_side', 'china').strip()
         note = data.get('note', '').strip()
         
         if not name:
@@ -3357,15 +3367,40 @@ def add_spo_cost(request: HttpRequest):
                 "message": "Tên chi phí không được để trống"
             }, status=400)
         
+        if cost_side not in ['china', 'vietnam']:
+            return JsonResponse({
+                "status": "error",
+                "message": "Phía chi phí không hợp lệ. Phải là 'china' hoặc 'vietnam'"
+            }, status=400)
+        
         spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
         
-        # Kiểm tra nếu có amount_cny thì trừ từ số dư
-        amount_cny = data.get('amount_cny')
         amount_cny_decimal = None
+        amount_vnd_decimal = Decimal('0')
         balance_txn = None
         
-        if amount_cny:
-            amount_cny_decimal = Decimal(str(amount_cny))
+        if cost_side == 'china':
+            # Phía Trung Quốc: dùng CNY, trừ từ số dư
+            amount_cny_str = data.get('amount', '').strip().replace(',', '')
+            if not amount_cny_str:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY không được để trống cho chi phí phía Trung Quốc"
+                }, status=400)
+            
+            try:
+                amount_cny_decimal = Decimal(str(amount_cny_str))
+            except (ValueError, InvalidOperation):
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY không hợp lệ"
+                }, status=400)
+            
+            if amount_cny_decimal <= 0:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền CNY phải lớn hơn 0"
+                }, status=400)
             
             # Kiểm tra số dư
             from products.models import BalanceTransaction
@@ -3386,7 +3421,7 @@ def add_spo_cost(request: HttpRequest):
                 transaction_type='withdraw_spo_cost',
                 amount_cny=-amount_cny_decimal,  # Số âm vì là rút
                 transaction_date=timezone.now().date(),
-                description=f"Chi phí SPO {spo.code}: {name}",
+                description=f"Chi phí SPO {spo.code}: {name} (Phía Trung Quốc)",
                 created_by=request.user if request.user.is_authenticated else None
             )
             
@@ -3402,13 +3437,43 @@ def add_spo_cost(request: HttpRequest):
                     balance_transaction=balance_txn
                 )
                 # Số dư cuối kỳ tính realtime, không cần lưu
+            
+            # Không có amount_vnd cho chi phí phía Trung Quốc (chỉ ghi nhận bằng CNY)
+            amount_vnd_decimal = Decimal('0')
+        else:
+            # Phía Việt Nam: dùng VND, không trừ từ số dư
+            amount_vnd_str = data.get('amount', '').strip().replace(',', '')
+            if not amount_vnd_str:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ không được để trống cho chi phí phía Việt Nam"
+                }, status=400)
+            
+            try:
+                amount_vnd_decimal = Decimal(str(round(float(amount_vnd_str))))
+            except (ValueError, InvalidOperation):
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ không hợp lệ"
+                }, status=400)
+            
+            if amount_vnd_decimal <= 0:
+                return JsonResponse({
+                    "status": "error",
+                    "message": "Số tiền VNĐ phải lớn hơn 0"
+                }, status=400)
+            
+            # Không có amount_cny và balance_txn cho chi phí phía Việt Nam
+            amount_cny_decimal = None
+            balance_txn = None
         
         cost = SPOCost.objects.create(
             sum_purchase_order=spo,
             name=name,
-            amount_vnd=Decimal(str(round(float(amount_vnd)))),  # Làm tròn VNĐ thành số nguyên
-            amount_cny=amount_cny_decimal,  # Lưu số tiền CNY nếu có
-            balance_transaction=balance_txn,  # Liên kết với giao dịch số dư
+            cost_side=cost_side,
+            amount_vnd=amount_vnd_decimal,
+            amount_cny=amount_cny_decimal,  # Lưu số tiền CNY nếu có (chỉ cho phía Trung Quốc)
+            balance_transaction=balance_txn,  # Liên kết với giao dịch số dư (chỉ cho phía Trung Quốc)
             note=note,
             created_by=request.user if request.user.is_authenticated else None
         )
@@ -4683,13 +4748,14 @@ def update_ship_info(request: HttpRequest, spo_id: int):
         
         spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
         
-        ship_name = data.get('ship_name', '').strip() or None
-        ship_tracking_link = data.get('ship_tracking_link', '').strip() or None
+        # Cho phép cập nhật hoặc xóa (set về None nếu rỗng)
+        if 'ship_name' in data:
+            ship_name = data.get('ship_name', '').strip()
+            spo.ship_name = ship_name if ship_name else None
         
-        if ship_name:
-            spo.ship_name = ship_name
-        if ship_tracking_link:
-            spo.ship_tracking_link = ship_tracking_link
+        if 'ship_tracking_link' in data:
+            ship_tracking_link = data.get('ship_tracking_link', '').strip()
+            spo.ship_tracking_link = ship_tracking_link if ship_tracking_link else None
         
         spo.save()
         

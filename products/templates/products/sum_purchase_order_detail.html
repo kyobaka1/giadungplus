@@ -60,28 +60,44 @@
             <!-- Thông tin tàu -->
             <div class="mb-3 space-y-2">
                 {% if spo.ship_name or spo.ship_tracking_link %}
-                <div class="bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-                    {% if spo.ship_name %}
-                    <div class="flex items-center gap-2 mb-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        <span class="text-xs font-semibold text-blue-800">Tàu: {{ spo.ship_name }}</span>
+                <div class="bg-blue-50 rounded-lg p-2.5 border border-blue-100 group/ship">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="flex-1 min-w-0">
+                            {% if spo.ship_name %}
+                            <div class="flex items-center gap-2 mb-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                <span class="text-xs font-semibold text-blue-800">Tàu: {{ spo.ship_name }}</span>
+                            </div>
+                            {% endif %}
+                            {% if spo.ship_tracking_link %}
+                            <div class="flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                <a href="{{ spo.ship_tracking_link }}" target="_blank" class="text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                                    Tracking tàu
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center gap-1 opacity-0 group-hover/ship:opacity-100 transition">
+                            <button onclick="openEditShipModal()" class="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition" title="Sửa">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                            <button onclick="deleteShipInfo()" class="p-1.5 text-red-600 hover:text-red-700 hover:bg-red-100 rounded transition" title="Xóa">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                    {% endif %}
-                    {% if spo.ship_tracking_link %}
-                    <div class="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                        <a href="{{ spo.ship_tracking_link }}" target="_blank" class="text-xs text-blue-600 hover:text-blue-700 hover:underline">
-                            Tracking tàu
-                        </a>
-                    </div>
-                    {% endif %}
                 </div>
                 {% else %}
-                <button onclick="document.getElementById('add-ship-modal').classList.remove('hidden')" 
+                <button onclick="openEditShipModal()" 
                         class="w-full bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-lg p-2.5 flex items-center justify-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -591,14 +607,37 @@
                     <div class="p-3 hover:bg-slate-50/50 transition-colors group/item">
                         <div class="flex items-start justify-between gap-2">
                             <div class="flex-1 min-w-0">
-                                <div class="text-xs font-semibold text-slate-800 mb-0.5">{{ cost.name }}</div>
+                                <div class="flex items-center gap-2 mb-0.5">
+                                    <div class="text-xs font-semibold text-slate-800">{{ cost.name }}</div>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold 
+                                        {% if cost.cost_side == 'china' %}bg-red-100 text-red-700 border border-red-200
+                                        {% else %}bg-blue-100 text-blue-700 border border-blue-200{% endif %}">
+                                        {% if cost.cost_side == 'china' %}Trung Quốc{% else %}Việt Nam{% endif %}
+                                    </span>
+                                </div>
                                 {% if cost.note %}
                                 <div class="text-[10px] text-slate-500 line-clamp-1">{{ cost.note }}</div>
                                 {% endif %}
-                                <div class="text-[10px] text-slate-400 mt-1">{{ cost.created_at|date:"d/m/Y" }}</div>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <div class="text-[10px] text-slate-400">{{ cost.created_at|date:"d/m/Y" }}</div>
+                                    {% if cost.cost_side == 'china' and cost.balance_transaction %}
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                        Đã thanh toán
+                                    </span>
+                                    {% endif %}
+                                </div>
                             </div>
-                            <div class="flex items-center gap-2 flex-shrink-0">
-                                <span class="text-xs font-bold text-indigo-600">{{ cost.amount_vnd|floatformat:0|intcomma }} đ</span>
+                            <div class="flex flex-col items-end gap-1 flex-shrink-0">
+                                {% if cost.cost_side == 'china' %}
+                                    {% if cost.amount_cny %}
+                                    <span class="text-xs font-bold text-red-600">{{ cost.amount_cny|floatformat:0|intcomma }} CNY</span>
+                                    {% endif %}
+                                    {% if cost.amount_vnd and cost.amount_vnd > 0 %}
+                                    <span class="text-[10px] text-slate-500">(≈ {{ cost.amount_vnd|floatformat:0|intcomma }} đ)</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-xs font-bold text-blue-600">{{ cost.amount_vnd|floatformat:0|intcomma }} đ</span>
+                                {% endif %}
                                 <button class="delete-spo-cost-btn text-slate-300 hover:text-red-600 opacity-0 group-hover/item:opacity-100 transition"
                                         data-cost-id="{{ cost.id }}"
                                         title="Xóa">
@@ -744,25 +783,25 @@
     </div>
 </div>
 
-<!-- Add Ship Info Modal -->
+<!-- Add/Edit Ship Info Modal -->
 <div id="add-ship-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl max-w-md w-full animate-scaleIn">
         <div class="p-6">
-            <h3 class="text-lg font-bold text-slate-800 mb-4">Thêm thông tin tàu</h3>
+            <h3 class="text-lg font-bold text-slate-800 mb-4" id="ship-modal-title">Thêm thông tin tàu</h3>
             <form id="add-ship-form">
                 <input type="hidden" name="spo_id" value="{{ spo.id }}">
                 <div class="space-y-4">
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Tên tàu</label>
-                        <input type="text" name="ship_name" value="{{ spo.ship_name|default:'' }}" placeholder="Ví dụ: MV Ever Given" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <input type="text" name="ship_name" id="ship-name-input" value="{{ spo.ship_name|default:'' }}" placeholder="Ví dụ: MV Ever Given" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Link tracking tàu</label>
-                        <input type="url" name="ship_tracking_link" value="{{ spo.ship_tracking_link|default:'' }}" placeholder="https://..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+                        <input type="url" name="ship_tracking_link" id="ship-tracking-input" value="{{ spo.ship_tracking_link|default:'' }}" placeholder="https://..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end gap-3">
-                    <button type="button" onclick="document.getElementById('add-ship-modal').classList.add('hidden')" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
+                    <button type="button" onclick="closeShipModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
                     <button type="submit" class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm">Lưu</button>
                 </div>
             </form>
@@ -933,8 +972,16 @@
                         <input type="text" name="name" required placeholder="Ví dụ: Phí vận chuyển, Phí bảo hiểm..." class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-slate-700 mb-1">Số tiền (VNĐ) *</label>
-                        <input type="number" name="amount_vnd" step="0.01" required placeholder="0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Phía chi phí *</label>
+                        <select name="cost_side" id="cost-side-select" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                            <option value="china">Phía Trung Quốc (CNY - trừ từ số dư)</option>
+                            <option value="vietnam">Phía Việt Nam (VNĐ - không trừ từ số dư)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1" id="amount-label">Số tiền (CNY) *</label>
+                        <input type="text" name="amount" id="amount-input" required placeholder="0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500" autocomplete="off">
+                        <p class="text-[10px] text-slate-500 mt-1" id="amount-hint">Nhập số tiền, dấu phẩy sẽ tự động được thêm</p>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-700 mb-1">Ghi chú</label>
@@ -1226,7 +1273,57 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Form: Add Ship Info
+    // Ship Info Modal Functions
+    function openEditShipModal() {
+        const modal = document.getElementById('add-ship-modal');
+        const title = document.getElementById('ship-modal-title');
+        const shipNameInput = document.getElementById('ship-name-input');
+        const shipTrackingInput = document.getElementById('ship-tracking-input');
+        
+        // Set current values
+        shipNameInput.value = '{{ spo.ship_name|default:""|escapejs }}';
+        shipTrackingInput.value = '{{ spo.ship_tracking_link|default:""|escapejs }}';
+        
+        // Update title based on whether info exists
+        if ('{{ spo.ship_name|default:"" }}' || '{{ spo.ship_tracking_link|default:"" }}') {
+            title.textContent = 'Sửa thông tin tàu';
+        } else {
+            title.textContent = 'Thêm thông tin tàu';
+        }
+        
+        modal.classList.remove('hidden');
+    }
+    
+    function closeShipModal() {
+        document.getElementById('add-ship-modal').classList.add('hidden');
+    }
+    
+    function deleteShipInfo() {
+        if (!confirm('Bạn có chắc muốn xóa thông tin tàu này?')) {
+            return;
+        }
+        
+        const data = {
+            ship_name: '',
+            ship_tracking_link: ''
+        };
+        
+        fetch(`/products/sum-purchase-orders/${spoId}/update-ship-info/`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+            body: JSON.stringify(data)
+        }).then(r => r.json()).then(d => {
+            if(d.status === 'success') {
+                window.location.reload();
+            } else {
+                alert(d.message || 'Lỗi khi xóa thông tin tàu');
+            }
+        }).catch(err => {
+            alert('Lỗi: ' + err.message);
+        });
+    }
+    
+    // Form: Add/Edit Ship Info
     document.getElementById('add-ship-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target));
@@ -1239,8 +1336,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if(d.status === 'success') {
                 window.location.reload();
             } else {
-                alert(d.message);
+                alert(d.message || 'Lỗi khi cập nhật thông tin tàu');
             }
+        }).catch(err => {
+            alert('Lỗi: ' + err.message);
         });
     });
 
@@ -1512,13 +1611,79 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add SPO Cost Button
     document.getElementById('add-spo-cost-btn')?.addEventListener('click', () => {
         document.getElementById('add-spo-cost-modal').classList.remove('hidden');
+        // Reset form
+        document.getElementById('add-spo-cost-form').reset();
+        updateAmountLabel();
+    });
+    
+    // Update amount label based on cost side
+    function updateAmountLabel() {
+        const costSide = document.getElementById('cost-side-select')?.value;
+        const amountLabel = document.getElementById('amount-label');
+        const amountHint = document.getElementById('amount-hint');
+        
+        if (costSide === 'china') {
+            amountLabel.textContent = 'Số tiền (CNY) *';
+            amountHint.textContent = 'Nhập số tiền bằng nhân dân tệ, sẽ trừ từ số dư. Dấu phẩy sẽ tự động được thêm.';
+        } else {
+            amountLabel.textContent = 'Số tiền (VNĐ) *';
+            amountHint.textContent = 'Nhập số tiền bằng đồng Việt Nam, không trừ từ số dư. Dấu phẩy sẽ tự động được thêm.';
+        }
+    }
+    
+    // Format amount input with commas
+    function formatAmountInput(input) {
+        const costSide = document.getElementById('cost-side-select')?.value;
+        // Remove all non-digit characters except decimal point
+        let value = input.value.replace(/[^\d.]/g, '');
+        
+        // Split by decimal point if exists
+        const parts = value.split('.');
+        let integerPart = parts[0];
+        
+        // For CNY (China side), allow 2 decimal places; for VND (Vietnam side), no decimals
+        let decimalPart = '';
+        if (costSide === 'china' && parts.length > 1) {
+            decimalPart = '.' + parts[1].slice(0, 2); // Max 2 decimal places for CNY
+        } else if (costSide === 'vietnam' && parts.length > 1) {
+            // For VND, ignore decimal part
+            decimalPart = '';
+        }
+        
+        // Add commas to integer part
+        integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        
+        // Update input value
+        input.value = integerPart + decimalPart;
+    }
+    
+    // Event listeners for cost side and amount input
+    document.getElementById('cost-side-select')?.addEventListener('change', function() {
+        updateAmountLabel();
+        // Clear and reformat amount when side changes
+        const amountInput = document.getElementById('amount-input');
+        if (amountInput.value) {
+            formatAmountInput(amountInput);
+        }
+    });
+    document.getElementById('amount-input')?.addEventListener('input', function() {
+        formatAmountInput(this);
     });
     
     // Form: Add SPO Cost
     document.getElementById('add-spo-cost-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const data = Object.fromEntries(new FormData(e.target));
-        data.amount_vnd = parseFloat(data.amount_vnd);
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
+        
+        // Remove commas from amount and convert to number
+        const amountStr = data.amount.replace(/,/g, '');
+        if (!amountStr || isNaN(parseFloat(amountStr))) {
+            alert('Vui lòng nhập số tiền hợp lệ');
+            return;
+        }
+        
+        data.amount = amountStr; // Send as string without commas
         
         fetch('{% url "products:add_spo_cost" %}', {
             method: 'POST',
@@ -1530,6 +1695,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 alert(d.message);
             }
+        }).catch(err => {
+            alert('Lỗi: ' + err.message);
         });
     });
     

@@ -72,6 +72,12 @@ def shopee_dashboard_view(request):
         cookie_content = ShopeeConfigService.get_cookie_content(shop['name'])
         shop['has_cookie'] = bool(cookie_content)
         
+        # Kiểm tra cookie có hoạt động hay không bằng cách gửi request tới Shopee
+        if shop['has_cookie']:
+            shop['cookie_active'] = ShopeeConfigService.check_cookie_status(shop['name'])
+        else:
+            shop['cookie_active'] = False
+        
     return render(request, 'settings/shopee_shops.html', {'shops': shops})
 
 @admin_only

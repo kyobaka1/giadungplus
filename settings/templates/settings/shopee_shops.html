@@ -52,15 +52,15 @@
                         <div class="text-sm text-gray-500">{{ shop.shop_connect }}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if shop.has_cookie %}
+                        {% if shop.cookie_active %}
                         <span
                             class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                            Active
+                            Hoạt động
                         </span>
                         {% else %}
                         <span
                             class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                            Missing Cookie
+                            Hết hạn
                         </span>
                         {% endif %}
                     </td>
