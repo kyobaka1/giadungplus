@@ -294,8 +294,9 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
             )
         
         # Tự động thêm prefix: cd vào thư mục project và activate virtualenv
+        # Source profile để có PATH đầy đủ (git, python, etc.)
         # Trừ khi lệnh đã có prefix này hoặc là lệnh cd vào thư mục khác
-        project_prefix = "cd /var/www/giadungplus && source venv/bin/activate && "
+        project_prefix = "source ~/.bashrc 2>/dev/null || source ~/.profile 2>/dev/null || true; cd /var/www/giadungplus && source venv/bin/activate && "
         
         # Kiểm tra xem lệnh đã có prefix chưa
         has_project_prefix = command.startswith("cd /var/www/giadungplus") and "source venv/bin/activate" in command
@@ -379,12 +380,23 @@ def server_logs_execute_cmd_api(request: HttpRequest) -> JsonResponse:
             # Linux/Mac: dùng /bin/bash -c để chạy lệnh shell
             # Điều này cho phép chạy các lệnh built-in như cd, ls, và các lệnh có pipe/redirect
             # Nếu lệnh có chạy script (.sh), đảm bảo dùng /bin/bash để tránh lỗi shebang
-            # Đặt PATH để đảm bảo tìm thấy các lệnh cơ bản
+            # Đặt PATH để đảm bảo tìm thấy các lệnh cơ bản (git, python, etc.)
             env = os.environ.copy()
-            # Đảm bảo /bin và /usr/bin có trong PATH
+            # Đảm bảo các thư mục quan trọng có trong PATH
             current_path = env.get('PATH', '')
-            if '/bin' not in current_path:
-                env['PATH'] = f"/bin:/usr/bin:/usr/local/bin:{current_path}"
+            # Thêm các thư mục phổ biến nếu chưa có
+            essential_paths = [
+                '/usr/local/sbin',
+                '/usr/local/bin',
+                '/usr/sbin',
+                '/usr/bin',
+                '/sbin',
+                '/bin',
+            ]
+            existing_paths = current_path.split(':') if current_path else []
+            # Thêm các path cần thiết vào đầu PATH
+            new_paths = essential_paths + [p for p in existing_paths if p and p not in essential_paths]
+            env['PATH'] = ':'.join(new_paths)
             
             process = subprocess.Popen(
                 ['/bin/bash', '-c', command],

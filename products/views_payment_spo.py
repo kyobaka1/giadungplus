@@ -69,11 +69,10 @@ def payment_spo_list(request: HttpRequest):
         transactions = transactions.filter(transaction_type__in=['withdraw_po', 'withdraw_spo_cost'])
     
     # Lấy tất cả giao dịch và xác định KTT realtime cho từng giao dịch
-    # Sau đó sắp xếp theo: KTT gần nhất trước (end_date hoặc created_at giảm dần), sau đó giao dịch gần nhất trước
+    # Sắp xếp theo thời gian (created_at) - giao dịch gần nhất trước
     transactions_list = list(transactions)
     
-    # Xác định KTT realtime cho từng giao dịch và tạo tuple (period_sort_key, transaction, period) để sắp xếp
-    # Lưu lại period để dùng cho hiển thị sau này (tránh tính lại)
+    # Xác định KTT realtime cho từng giao dịch và lưu lại period để dùng cho hiển thị
     transactions_with_period = []
     for txn in transactions_list:
         # Xác định KTT realtime
@@ -85,30 +84,14 @@ def payment_spo_list(request: HttpRequest):
             period_txn = txn.payment_periods.first()
             period = period_txn.payment_period if period_txn else None
         
-        # Tạo sort key cho KTT: dùng end_date hoặc created_at của kỳ (giảm dần - kỳ gần nhất trước)
-        if period:
-            # Lấy end_datetime từ giao dịch nạp cuối cùng của kỳ
-            period_deposits = period.period_transactions.filter(
-                balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-            
-            if period_deposits.exists():
-                period_end_datetime = period_deposits.last().balance_transaction.created_at
-            else:
-                period_end_datetime = period.created_at
-        else:
-            # Giao dịch không có KTT -> đặt ở cuối (datetime rất xa trong quá khứ)
-            period_end_datetime = timezone.make_aware(datetime(1970, 1, 1))
-        
-        # Sort key: (period_end_datetime, transaction.created_at) - cả hai giảm dần
         # Lưu lại period để dùng cho hiển thị
-        transactions_with_period.append((period_end_datetime, txn.created_at, txn, period))
+        transactions_with_period.append((txn.created_at, txn, period))
     
-    # Sắp xếp: kỳ gần nhất trước (period_end_datetime giảm dần), sau đó giao dịch gần nhất trước (created_at giảm dần)
-    transactions_with_period.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    # Sắp xếp theo thời gian: giao dịch gần nhất trước (created_at giảm dần)
+    transactions_with_period.sort(key=lambda x: x[0], reverse=True)
     
     # Lấy danh sách giao dịch đã sắp xếp cùng với period đã xác định
-    sorted_transactions_with_period = [(txn, period) for _, _, txn, period in transactions_with_period]
+    sorted_transactions_with_period = [(txn, period) for _, txn, period in transactions_with_period]
     
     # Format transactions cho template
     transactions_data = []
@@ -375,9 +358,23 @@ def add_balance_transaction(request: HttpRequest):
         )
         
         # Tự động liên kết với PaymentPeriod nếu giao dịch nạp nằm trong khoảng thời gian của một kỳ
-        # Logic theo MAKE.md: Nếu phát sinh giao dịch mới trong thời điểm này thì tự động cho vào KTT đó
+        # Logic mới: Chỉ tự động thêm vào KTT khi transaction_date nằm trong khoảng start_date -> end_date của KTT hiện có
+        # Không tự động thêm vào KTT nếu ngoài thời gian các KTT hiện tại đang có
         from products.models import PaymentPeriod, PaymentPeriodTransaction
-        period = PaymentPeriod.find_period_for_transaction_datetime(txn.created_at)
+        
+        # Kiểm tra xem transaction_date có nằm trong khoảng thời gian của một KTT nào không
+        period = None
+        transaction_date_to_check = txn.transaction_date or timezone.now().date()
+        
+        # Tìm KTT có transaction_date nằm trong khoảng start_date -> end_date
+        matching_periods = PaymentPeriod.objects.filter(
+            start_date__lte=transaction_date_to_check,
+            end_date__gte=transaction_date_to_check
+        ).order_by('-created_at')
+        
+        if matching_periods.exists():
+            # Lấy KTT đầu tiên (gần nhất) nếu có nhiều KTT chồng lên nhau
+            period = matching_periods.first()
         
         if period:
             # Tự động liên kết giao dịch nạp với kỳ thanh toán

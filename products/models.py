@@ -714,6 +714,19 @@ class SPOCost(models.Model):
         related_name='costs'
     )
     name = models.CharField(max_length=200, help_text="Tên chi phí (ví dụ: Vận chuyển, Hải quan...)")
+    
+    # Phía chi phí: Trung Quốc hoặc Việt Nam
+    COST_SIDE_CHOICES = [
+        ('china', 'Phía Trung Quốc'),
+        ('vietnam', 'Phía Việt Nam'),
+    ]
+    cost_side = models.CharField(
+        max_length=20,
+        choices=COST_SIDE_CHOICES,
+        default='china',
+        help_text="Phía chi phí: Trung Quốc (CNY, trừ từ số dư) hoặc Việt Nam (VND, không trừ từ số dư)"
+    )
+    
     amount_vnd = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Số tiền (VNĐ)")
     
     # Số tiền CNY (nếu thanh toán từ số dư)
