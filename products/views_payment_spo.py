@@ -69,7 +69,7 @@ def payment_spo_list(request: HttpRequest):
         transactions = transactions.filter(transaction_type__in=['withdraw_po', 'withdraw_spo_cost'])
     
     # Lấy tất cả giao dịch và xác định KTT realtime cho từng giao dịch
-    # Sắp xếp theo thời gian (created_at) - giao dịch gần nhất trước
+    # Sắp xếp theo ngày giao dịch (transaction_date) - giao dịch gần nhất trước
     transactions_list = list(transactions)
     
     # Xác định KTT realtime cho từng giao dịch và lưu lại period để dùng cho hiển thị
@@ -85,13 +85,15 @@ def payment_spo_list(request: HttpRequest):
             period = period_txn.payment_period if period_txn else None
         
         # Lưu lại period để dùng cho hiển thị
-        transactions_with_period.append((txn.created_at, txn, period))
+        # Sử dụng transaction_date làm key chính, created_at làm key phụ (nếu cùng ngày)
+        transactions_with_period.append((txn.transaction_date, txn.created_at, txn, period))
     
-    # Sắp xếp theo thời gian: giao dịch gần nhất trước (created_at giảm dần)
-    transactions_with_period.sort(key=lambda x: x[0], reverse=True)
+    # Sắp xếp theo ngày giao dịch: giao dịch gần nhất trước (transaction_date giảm dần)
+    # Nếu cùng transaction_date thì sắp xếp theo created_at giảm dần
+    transactions_with_period.sort(key=lambda x: (x[0], x[1]), reverse=True)
     
     # Lấy danh sách giao dịch đã sắp xếp cùng với period đã xác định
-    sorted_transactions_with_period = [(txn, period) for _, txn, period in transactions_with_period]
+    sorted_transactions_with_period = [(txn, period) for _, _, txn, period in transactions_with_period]
     
     # Format transactions cho template
     transactions_data = []
