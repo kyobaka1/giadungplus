@@ -1039,40 +1039,29 @@ class PaymentPeriod(models.Model):
         opening_balance = self.opening_balance_cny_realtime
         
         # Lấy tỷ giá của kỳ trước (nếu có số dư đầu kỳ > 0)
+        # Tìm kỳ trước theo end_date để nhất quán với opening_balance_cny_realtime
         previous_period_rate = None
         if opening_balance > 0:
             previous_period = PaymentPeriod.objects.filter(
-                created_at__lt=self.created_at
-            ).order_by('-created_at').first()
+                end_date__lt=self.start_date
+            ).order_by('-end_date').first()
             
             if previous_period:
                 # Lấy tỷ giá realtime của kỳ trước (có thể là None nếu kỳ trước chưa có tỷ giá)
                 previous_period_rate = previous_period.avg_exchange_rate_realtime
         
         # Lấy tất cả giao dịch nạp trong kỳ (theo logic total_deposits_cny_realtime)
-        # Sử dụng cùng logic với total_deposits_cny_realtime để lấy đúng khoảng thời gian
-        period_deposits = self.period_transactions.filter(
-            balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-        ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-        
-        if not period_deposits.exists():
-            # Nếu không có giao dịch nạp, trả về tỷ giá của kỳ trước (nếu có)
-            return previous_period_rate
-        
-        # Lấy thời gian từ giao dịch đầu tiên và cuối cùng
-        first_deposit = period_deposits.first().balance_transaction
-        last_deposit = period_deposits.last().balance_transaction
-        
-        start_datetime = first_deposit.created_at
-        end_datetime = last_deposit.created_at
-        
-        # Lấy TẤT CẢ giao dịch nạp trong khoảng thời gian này (tự động bao gồm giao dịch mới)
+        # Sử dụng transaction_date thay vì created_at
         all_deposits = BalanceTransaction.objects.filter(
             transaction_type__in=['deposit_bank', 'deposit_black_market'],
-            created_at__gte=start_datetime,
-            created_at__lte=end_datetime,
+            transaction_date__gte=self.start_date,
+            transaction_date__lte=self.end_date,
             exchange_rate__isnull=False
         )
+        
+        if not all_deposits.exists():
+            # Nếu không có giao dịch nạp, trả về tỷ giá của kỳ trước (nếu có)
+            return previous_period_rate
         
         # Tính tổng số tiền nạp và tổng trọng số (số tiền * tỷ giá)
         total_deposit_cny = Decimal('0')
@@ -1105,13 +1094,15 @@ class PaymentPeriod(models.Model):
         """
         Số dư đầu kỳ realtime:
         - Kỳ đầu tiên: dùng opening_balance_cny (đã lưu)
-        - Các kỳ sau: = số dư cuối kỳ của kỳ trước (realtime)
+        - Các kỳ sau: = số dư cuối kỳ của kỳ cũ hơn gần nhất (KTT kế trước đó)
+        
+        Logic: Tìm kỳ có end_date < start_date của kỳ này, sắp xếp theo end_date giảm dần để lấy kỳ gần nhất
         """
-        # Tìm kỳ trước (kỳ được tạo trước kỳ này)
-        # Logic: tìm kỳ có created_at < self.created_at, sắp xếp theo created_at giảm dần để lấy kỳ gần nhất
+        # Tìm kỳ trước (kỳ có end_date < start_date của kỳ này)
+        # Logic: tìm kỳ có end_date < self.start_date, sắp xếp theo end_date giảm dần để lấy kỳ gần nhất
         previous_period = PaymentPeriod.objects.filter(
-            created_at__lt=self.created_at
-        ).order_by('-created_at').first()
+            end_date__lt=self.start_date
+        ).order_by('-end_date').first()
         
         if previous_period:
             # Kỳ sau: dùng số dư cuối kỳ của kỳ trước
@@ -1201,54 +1192,33 @@ class PaymentPeriod(models.Model):
         if timezone.is_naive(transaction_datetime):
             transaction_datetime = timezone.make_aware(transaction_datetime)
         
-        # Bước 1: Tìm kỳ có transaction_datetime nằm trong khoảng thời gian của kỳ
-        # Khoảng thời gian của kỳ = từ giao dịch nạp đầu tiên đến giao dịch nạp cuối cùng
+        # Chuyển transaction_datetime thành transaction_date để so sánh
+        from datetime import date
+        if isinstance(transaction_datetime, datetime):
+            transaction_date = transaction_datetime.date()
+        else:
+            transaction_date = transaction_datetime
+        
+        # Bước 1: Tìm kỳ có transaction_date nằm trong khoảng start_date -> end_date của kỳ
         # Lấy tất cả các kỳ, sắp xếp theo thứ tự thời gian để xử lý đúng
-        periods = cls.objects.all().prefetch_related('period_transactions__balance_transaction').order_by('created_at')
+        periods = cls.objects.all().order_by('created_at')
         
         for period in periods:
-            # Lấy giao dịch nạp đầu tiên và cuối cùng của kỳ
-            period_deposits = period.period_transactions.filter(
-                balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-            
-            if period_deposits.exists():
-                first_deposit = period_deposits.first().balance_transaction
-                last_deposit = period_deposits.last().balance_transaction
-                
-                start_datetime = first_deposit.created_at
-                end_datetime = last_deposit.created_at
-                
-                # Đối với giao dịch RÚT: Nếu transaction_datetime > start_datetime & < end_datetime => thuộc KTT đó
-                # Đối với giao dịch NẠP: Nếu transaction_datetime >= start_datetime & <= end_datetime => thuộc KTT đó
-                if is_withdraw:
-                    # Rút: > start_datetime và < end_datetime (không bao gồm biên)
-                    if start_datetime < transaction_datetime < end_datetime:
-                        return period
-                else:
-                    # Nạp: >= start_datetime và <= end_datetime (bao gồm biên)
-                    if start_datetime <= transaction_datetime <= end_datetime:
-                        return period
+            # Kiểm tra xem transaction_date có nằm trong khoảng start_date -> end_date không
+            if period.start_date <= transaction_date <= period.end_date:
+                return period
         
-        # Bước 2: Nếu không có, tìm kỳ có end_datetime gần nhất trước transaction_datetime
+        # Bước 2: Nếu không có, tìm kỳ có end_date gần nhất trước transaction_date
         # (kỳ cũ hơn - khoảng trống thuộc về kỳ cũ, dùng tiền của kỳ cũ)
         # Logic này áp dụng cho cả nạp và rút khi phát sinh trong khoảng trống
         best_period = None
-        best_end_datetime = None
+        best_end_date = None
         
         for period in periods:
-            period_deposits = period.period_transactions.filter(
-                balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-            
-            if period_deposits.exists():
-                last_deposit = period_deposits.last().balance_transaction
-                end_datetime = last_deposit.created_at
-                
-                if end_datetime < transaction_datetime:
-                    if best_end_datetime is None or end_datetime > best_end_datetime:
-                        best_end_datetime = end_datetime
-                        best_period = period
+            if period.end_date < transaction_date:
+                if best_end_date is None or period.end_date > best_end_date:
+                    best_end_date = period.end_date
+                    best_period = period
         
         return best_period
     
@@ -1267,35 +1237,17 @@ class PaymentPeriod(models.Model):
         """
         Tổng số tiền nạp trong kỳ (realtime).
         
-        Logic theo MAKE.md:
-        - Tổng toàn bộ số tiền nạp vào trong thời điểm start-end (từ giao dịch cũ nhất -> giao dịch mới nhất)
-        - Lấy TẤT CẢ giao dịch nạp trong khoảng thời gian, không chỉ những giao dịch đã liên kết
-        - Nếu phát sinh giao dịch mới trong thời điểm này thì tự động cho vào KTT đó
+        Logic:
+        - Lấy tất cả giao dịch nạp có transaction_date nằm trong khoảng start_date -> end_date của kỳ
+        - Sử dụng transaction_date (ngày giao dịch) thay vì created_at (thời gian tạo)
         """
-        from django.utils import timezone
-        from datetime import datetime
+        from django.db.models import Sum
         
-        # Lấy thời gian từ giao dịch đầu tiên và cuối cùng của kỳ (từ period_transactions)
-        # Để xác định khoảng thời gian chính xác
-        period_deposits = self.period_transactions.filter(
-            balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-        ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-        
-        if not period_deposits.exists():
-            return Decimal('0')
-        
-        # Lấy thời gian từ giao dịch đầu tiên và cuối cùng
-        first_deposit = period_deposits.first().balance_transaction
-        last_deposit = period_deposits.last().balance_transaction
-        
-        start_datetime = first_deposit.created_at
-        end_datetime = last_deposit.created_at
-        
-        # Lấy TẤT CẢ giao dịch nạp trong khoảng thời gian này (tự động bao gồm giao dịch mới)
+        # Lấy tất cả giao dịch nạp có transaction_date nằm trong khoảng start_date -> end_date
         all_deposits = BalanceTransaction.objects.filter(
             transaction_type__in=['deposit_bank', 'deposit_black_market'],
-            created_at__gte=start_datetime,
-            created_at__lte=end_datetime
+            transaction_date__gte=self.start_date,
+            transaction_date__lte=self.end_date
         )
         
         return all_deposits.aggregate(
@@ -1307,58 +1259,61 @@ class PaymentPeriod(models.Model):
         """
         Tổng số tiền rút trong kỳ (realtime).
         
-        Logic theo MAKE.md:
-        - Rút là những khoản giao dịch đã dùng tiền của kỳ thanh toán này
-        - Rút có thể phát sinh từ thời điểm start của KTT và có thể là sau cả enddate của kỳ thanh toán
-        - Rút là việc xác định khoản thanh toán đó dùng số tiền của kỳ thanh toán nào
-        - Lấy TẤT CẢ giao dịch rút dùng tiền của kỳ này (có thể sau end_date)
+        Logic:
+        1. Lấy tất cả giao dịch rút có transaction_date nằm trong khoảng start_date -> end_date của kỳ
+        2. HOẶC: Lấy các giao dịch rút có transaction_date nằm ngoài start->end nhưng:
+           - Không trùng với start->end của KTT nào khác
+           - Được tính vào KTT gần nhất (cũ hơn) - tức là KTT có end_date gần với transaction_date nhất và cũ hơn transaction_date đó
         """
-        # Lấy thời gian bắt đầu của kỳ (từ giao dịch nạp đầu tiên)
-        period_deposits = self.period_transactions.filter(
-            balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-        ).select_related('balance_transaction').order_by('balance_transaction__created_at')
+        from django.db.models import Sum
         
-        if not period_deposits.exists():
-            return Decimal('0')
-        
-        # start_datetime = thời gian giao dịch nạp đầu tiên của kỳ
-        start_datetime = period_deposits.first().balance_transaction.created_at
-        # end_datetime = thời gian giao dịch nạp cuối cùng của kỳ
-        end_datetime = period_deposits.last().balance_transaction.created_at
-        
-        # Lấy TẤT CẢ giao dịch rút từ start_datetime trở đi
-        # Logic: Rút có thể phát sinh sau end_date, nhưng vẫn dùng tiền của kỳ này
-        # Nếu giao dịch rút nằm trong khoảng thời gian của kỳ -> thuộc kỳ này
-        # Nếu giao dịch rút nằm sau end_datetime nhưng trước kỳ tiếp theo -> thuộc kỳ này (khoảng trống)
-        all_withdraws = BalanceTransaction.objects.filter(
+        # Bước 1: Lấy tất cả giao dịch rút có transaction_date nằm trong khoảng start_date -> end_date
+        withdraws_in_range = BalanceTransaction.objects.filter(
             transaction_type__in=['withdraw_po', 'withdraw_spo_cost'],
-            created_at__gte=start_datetime
-        ).order_by('created_at')
+            transaction_date__gte=self.start_date,
+            transaction_date__lte=self.end_date
+        )
         
-        # Tìm kỳ tiếp theo (nếu có) để xác định ranh giới
-        next_period = PaymentPeriod.objects.filter(
-            created_at__gt=self.created_at
-        ).order_by('created_at').first()
+        total = withdraws_in_range.aggregate(
+            total=Sum('amount_cny')
+        )['total'] or Decimal('0')
         
-        next_period_start = None
-        if next_period:
-            next_period_deposits = next_period.period_transactions.filter(
-                balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
-            if next_period_deposits.exists():
-                next_period_start = next_period_deposits.first().balance_transaction.created_at
+        # Bước 2: Lấy các giao dịch rút nằm ngoài start->end nhưng không trùng với KTT nào khác
+        # Tìm tất cả các KTT khác để kiểm tra
+        all_periods = PaymentPeriod.objects.exclude(id=self.id).all()
         
-        # Lọc giao dịch rút thuộc về kỳ này
-        # - Nằm trong khoảng thời gian của kỳ (start_datetime <= created_at <= end_datetime)
-        # - Hoặc nằm sau end_datetime nhưng trước kỳ tiếp theo (khoảng trống)
-        total = Decimal('0')
-        for withdraw in all_withdraws:
-            if withdraw.created_at <= end_datetime:
-                # Nằm trong khoảng thời gian của kỳ
-                total += abs(withdraw.amount_cny)
-            elif next_period_start is None or withdraw.created_at < next_period_start:
-                # Nằm trong khoảng trống (sau kỳ này, trước kỳ tiếp theo) -> dùng tiền của kỳ này
-                total += abs(withdraw.amount_cny)
+        # Lấy tất cả giao dịch rút có transaction_date ngoài khoảng start->end
+        withdraws_outside = BalanceTransaction.objects.filter(
+            transaction_type__in=['withdraw_po', 'withdraw_spo_cost']
+        ).exclude(
+            transaction_date__gte=self.start_date,
+            transaction_date__lte=self.end_date
+        )
+        
+        for withdraw in withdraws_outside:
+            withdraw_date = withdraw.transaction_date
+            
+            # Kiểm tra xem transaction_date có trùng với start->end của KTT nào khác không
+            is_in_other_period = False
+            for other_period in all_periods:
+                if other_period.start_date <= withdraw_date <= other_period.end_date:
+                    is_in_other_period = True
+                    break
+            
+            # Nếu không trùng với KTT nào khác, kiểm tra xem có thuộc về kỳ này không
+            # (KTT có end_date gần với transaction_date nhất và cũ hơn transaction_date đó)
+            if not is_in_other_period:
+                # Kiểm tra xem kỳ này có phải là kỳ gần nhất (cũ hơn) không
+                # Kỳ này phải có end_date < transaction_date và là kỳ có end_date lớn nhất trong các kỳ có end_date < transaction_date
+                if self.end_date < withdraw_date:
+                    # Tìm kỳ có end_date lớn nhất nhưng vẫn < transaction_date
+                    best_period = PaymentPeriod.objects.filter(
+                        end_date__lt=withdraw_date
+                    ).order_by('-end_date').first()
+                    
+                    if best_period and best_period.id == self.id:
+                        # Kỳ này là kỳ gần nhất (cũ hơn) -> tính vào kỳ này
+                        total += abs(withdraw.amount_cny)
         
         return total
 
