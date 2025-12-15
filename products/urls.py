@@ -81,6 +81,7 @@ urlpatterns = [
     
     # SPO Costs
     path("sum-purchase-orders/costs/add/", views.add_spo_cost, name="add_spo_cost"),
+    path("sum-purchase-orders/costs/<int:cost_id>/edit/", views.edit_spo_cost, name="edit_spo_cost"),
     path("sum-purchase-orders/costs/<int:cost_id>/delete/", views.delete_spo_cost, name="delete_spo_cost"),
     
     # SPO Documents
