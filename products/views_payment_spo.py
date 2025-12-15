@@ -385,25 +385,26 @@ def add_balance_transaction(request: HttpRequest):
                 balance_transaction=txn
             )
             
-            # Sau khi thêm giao dịch mới, tự động thêm TẤT CẢ giao dịch nạp nằm giữa giao dịch đầu tiên và cuối cùng của KTT
+            # Sau khi thêm giao dịch mới, tự động thêm TẤT CẢ giao dịch nạp nằm trong khoảng transaction_date từ đầu đến cuối của KTT
             # Lấy tất cả giao dịch nạp trong kỳ (sau khi đã thêm giao dịch mới)
             period_deposits = period.period_transactions.filter(
                 balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
+            ).select_related('balance_transaction').order_by('balance_transaction__transaction_date', 'balance_transaction__created_at')
             
             if period_deposits.exists():
                 first_deposit = period_deposits.first().balance_transaction
                 last_deposit = period_deposits.last().balance_transaction
                 
-                # Tìm TẤT CẢ giao dịch nạp nằm giữa first_deposit và last_deposit (theo created_at)
-                start_datetime = first_deposit.created_at
-                end_datetime = last_deposit.created_at
+                # Tìm TẤT CẢ giao dịch nạp nằm trong khoảng transaction_date từ first_deposit đến last_deposit
+                start_date = first_deposit.transaction_date
+                end_date = last_deposit.transaction_date
                 
-                # Lấy tất cả giao dịch nạp trong khoảng thời gian này
+                # Lấy tất cả giao dịch nạp có transaction_date nằm trong khoảng [start_date, end_date]
+                # Chỉ lấy các giao dịch nằm trong khoảng transaction_date, không dựa vào created_at
                 all_deposits_in_range = BalanceTransaction.objects.filter(
                     transaction_type__in=['deposit_bank', 'deposit_black_market'],
-                    created_at__gte=start_datetime,
-                    created_at__lte=end_datetime
+                    transaction_date__gte=start_date,
+                    transaction_date__lte=end_date
                 )
                 
                 # Tự động thêm các giao dịch nạp chưa có trong KTT
@@ -478,11 +479,11 @@ def create_payment_period(request: HttpRequest):
             }, status=400)
         
         # Lấy các giao dịch nạp từ danh sách transaction_ids đã chọn
-        # Xác định giao dịch đầu và cuối (theo created_at) để lấy tất cả giao dịch ở giữa
+        # Xác định giao dịch đầu và cuối (theo transaction_date) để lấy tất cả giao dịch ở giữa
         selected_transactions = BalanceTransaction.objects.filter(
             id__in=transaction_ids,
             transaction_type__in=['deposit_bank', 'deposit_black_market']
-        ).order_by('created_at')
+        ).order_by('transaction_date', 'created_at')
         
         if not selected_transactions.exists():
             return JsonResponse({
@@ -490,26 +491,22 @@ def create_payment_period(request: HttpRequest):
                 "message": "Không tìm thấy giao dịch nạp nào trong danh sách đã chọn"
             }, status=400)
         
-        # Lấy giao dịch đầu tiên và cuối cùng từ các giao dịch đã chọn (theo created_at)
+        # Lấy giao dịch đầu tiên và cuối cùng từ các giao dịch đã chọn (theo transaction_date)
         first_selected = selected_transactions.first()
         last_selected = selected_transactions.last()
-        
-        # start_datetime = created_at của giao dịch đầu tiên
-        start_datetime = first_selected.created_at
-        # end_datetime = created_at của giao dịch cuối cùng
-        end_datetime = last_selected.created_at
         
         # start_date và end_date lấy từ transaction_date của giao dịch
         start_date = first_selected.transaction_date
         end_date = last_selected.transaction_date
         
-        # Lấy TẤT CẢ các giao dịch nạp nằm giữa giao dịch đầu và cuối (theo created_at)
+        # Lấy TẤT CẢ các giao dịch nạp nằm trong khoảng transaction_date từ đầu đến cuối
+        # Chỉ lấy các giao dịch có transaction_date nằm trong khoảng [start_date, end_date]
         # Bao gồm cả các giao dịch chưa được chọn nhưng nằm trong khoảng thời gian này
         deposit_transactions = BalanceTransaction.objects.filter(
             transaction_type__in=['deposit_bank', 'deposit_black_market'],
-            created_at__gte=start_datetime,
-            created_at__lte=end_datetime
-        ).order_by('created_at')
+            transaction_date__gte=start_date,
+            transaction_date__lte=end_date
+        ).order_by('transaction_date', 'created_at')
         
         # Tự động tạo mã kỳ: KTT<năm>-STT
         year = start_date.year
@@ -536,22 +533,22 @@ def create_payment_period(request: HttpRequest):
         
         # Kiểm tra không có kỳ thanh toán nào chồng lên nhau
         # Logic theo MAKE.md: 2 kỳ thanh toán không thể có thời gian chồng lên nhau
-        # Kỳ A: ngày 1 -> 10h ngày 10, thì Kỳ B phải từ 10:01 ngày 10 trở đi
-        # Sử dụng thời gian thực tế từ giao dịch nạp đầu tiên và cuối cùng
+        # Kỳ A: ngày 1 -> ngày 10, thì Kỳ B phải từ ngày 11 trở đi
+        # Sử dụng transaction_date từ giao dịch nạp đầu tiên và cuối cùng
         existing_periods = PaymentPeriod.objects.all().prefetch_related('period_transactions__balance_transaction')
         for existing_period in existing_periods:
             existing_deposits = existing_period.period_transactions.filter(
                 balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-            ).select_related('balance_transaction').order_by('balance_transaction__created_at')
+            ).select_related('balance_transaction').order_by('balance_transaction__transaction_date', 'balance_transaction__created_at')
             
             if existing_deposits.exists():
-                existing_first = existing_deposits.first().balance_transaction.created_at
-                existing_last = existing_deposits.last().balance_transaction.created_at
+                existing_first_date = existing_deposits.first().balance_transaction.transaction_date
+                existing_last_date = existing_deposits.last().balance_transaction.transaction_date
                 
-                # Kiểm tra chồng lên nhau: nếu có giao nhau về thời gian
-                # Kỳ mới: start_datetime -> end_datetime
-                # Kỳ cũ: existing_first -> existing_last
-                if not (end_datetime < existing_first or start_datetime > existing_last):
+                # Kiểm tra chồng lên nhau: nếu có giao nhau về thời gian (transaction_date)
+                # Kỳ mới: start_date -> end_date
+                # Kỳ cũ: existing_first_date -> existing_last_date
+                if not (end_date < existing_first_date or start_date > existing_last_date):
                     return JsonResponse({
                         "status": "error",
                         "message": f"Kỳ thanh toán '{existing_period.code}' đã tồn tại trong khoảng thời gian này. Hai kỳ thanh toán không thể có thời gian chồng lên nhau."
@@ -811,28 +808,29 @@ def add_transaction_to_period(request: HttpRequest, txn_id: int):
             )
             
             # Nếu là giao dịch nạp, cần:
-            # 1. Tự động thêm TẤT CẢ giao dịch nạp nằm giữa giao dịch đầu tiên và cuối cùng của KTT
+            # 1. Tự động thêm TẤT CẢ giao dịch nạp nằm trong khoảng transaction_date từ đầu đến cuối của KTT
             # 2. Cập nhật start_date/end_date của kỳ nếu cần
             if is_deposit:
                 # Lấy tất cả giao dịch nạp trong kỳ (sau khi đã thêm giao dịch mới)
                 period_deposits = period.period_transactions.filter(
                     balance_transaction__transaction_type__in=['deposit_bank', 'deposit_black_market']
-                ).select_related('balance_transaction').order_by('balance_transaction__created_at')
+                ).select_related('balance_transaction').order_by('balance_transaction__transaction_date', 'balance_transaction__created_at')
                 
                 if period_deposits.exists():
                     first_deposit = period_deposits.first().balance_transaction
                     last_deposit = period_deposits.last().balance_transaction
                     
-                    # Tìm TẤT CẢ giao dịch nạp nằm giữa first_deposit và last_deposit (theo created_at)
-                    # Bao gồm cả first_deposit và last_deposit
-                    start_datetime = first_deposit.created_at
-                    end_datetime = last_deposit.created_at
+                    # Tìm TẤT CẢ giao dịch nạp nằm trong khoảng transaction_date từ first_deposit đến last_deposit
+                    # Chỉ lấy các giao dịch có transaction_date nằm trong khoảng [start_date, end_date]
+                    start_date = first_deposit.transaction_date
+                    end_date = last_deposit.transaction_date
                     
-                    # Lấy tất cả giao dịch nạp trong khoảng thời gian này
+                    # Lấy tất cả giao dịch nạp có transaction_date nằm trong khoảng [start_date, end_date]
+                    # Không dựa vào created_at
                     all_deposits_in_range = BalanceTransaction.objects.filter(
                         transaction_type__in=['deposit_bank', 'deposit_black_market'],
-                        created_at__gte=start_datetime,
-                        created_at__lte=end_datetime
+                        transaction_date__gte=start_date,
+                        transaction_date__lte=end_date
                     )
                     
                     # Tự động thêm các giao dịch nạp chưa có trong KTT

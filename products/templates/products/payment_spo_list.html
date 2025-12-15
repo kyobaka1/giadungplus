@@ -723,23 +723,30 @@ function openCreatePeriodModal() {
         return;
     }
     
-    // Lấy thông tin từ các giao dịch đã chọn (theo created_at để có thời gian chính xác)
+    // Lấy thông tin từ các giao dịch đã chọn (theo transaction_date)
     const transactions = checked.map(cb => ({
         id: cb.value,
-        date: cb.getAttribute('data-date'),
+        date: cb.getAttribute('data-date'),  // transaction_date
         created_at: cb.getAttribute('data-created-at')
     }));
     
-    // Sort theo created_at để lấy giao dịch đầu tiên và cuối cùng theo thời gian thực tế
+    // Sort theo transaction_date (date) để lấy giao dịch đầu tiên và cuối cùng theo ngày giao dịch
+    // Nếu cùng transaction_date thì sort theo created_at
     transactions.sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateA - dateB;
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        if (dateA.getTime() !== dateB.getTime()) {
+            return dateA - dateB;
+        }
+        // Nếu cùng transaction_date, sort theo created_at
+        const createdA = new Date(a.created_at);
+        const createdB = new Date(b.created_at);
+        return createdA - createdB;
     });
     
-    // Lấy ngày từ giao dịch đầu tiên và cuối cùng (theo created_at)
-    const startDate = transactions[0].date;  // Ngày của giao dịch đầu tiên (theo thời gian tạo)
-    const endDate = transactions[transactions.length - 1].date;  // Ngày của giao dịch cuối cùng (theo thời gian tạo)
+    // Lấy ngày từ giao dịch đầu tiên và cuối cùng (theo transaction_date)
+    const startDate = transactions[0].date;  // Ngày của giao dịch đầu tiên (theo ngày giao dịch)
+    const endDate = transactions[transactions.length - 1].date;  // Ngày của giao dịch cuối cùng (theo ngày giao dịch)
     
     // Tự động điền ngày đầu kỳ và cuối kỳ (từ giao dịch đầu tiên và cuối cùng)
     document.getElementById('period-start-date').value = startDate;
