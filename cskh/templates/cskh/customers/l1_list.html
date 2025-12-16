@@ -1,0 +1,199 @@
+{% extends "cskh/base_cskh.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Khách hàng: Hồ Chí Minh – CSKH{% endblock %}
+
+{% block overview %}
+<section class="px-4 mb-4">
+    <div>
+        <h1 class="text-xl md:text-lg font-semibold text-slate-800">
+            Khách hàng (Bộ lọc 1)
+        </h1>
+        <p class="text-sm md:text-xs text-gray-500 mt-1 md:mt-1">
+            Danh sách khách hàng có tên, có số điện thoại, ở TP. Hồ Chí Minh.
+        </p>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section>
+    <div class="p-6 md:p-8 bg-white border rounded-xl shadow-sm">
+        <!-- Bộ lọc quận -->
+        <form method="get" class="mb-4 flex items-center gap-3 text-sm">
+            <label for="district" class="font-medium text-gray-700">Quận / Huyện:</label>
+            <select id="district" name="district"
+                    class="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand"
+                    onchange="this.form.submit()">
+                {% for d in district_choices %}
+                <option value="{{ d }}" {% if d == current_district %}selected{% endif %}>{{ d }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+            <strong>Lỗi:</strong> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if page_obj and page_obj|length > 0 %}
+        <div class="mb-4 flex items-center justify-between">
+            <div class="text-sm text-gray-600">
+                <div>
+                    Tổng số khách hàng phù hợp điều kiện (trong cache): 
+                    <strong>{{ total_count }}</strong>
+                </div>
+                <div class="text-xs text-gray-500 mt-0.5">
+                    Trang hiện tại: <strong>{{ current_page }}</strong> – hiển thị tối đa {{ page_obj|length }} / 20 khách hàng.
+                </div>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Mã KH (Sapo)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Tên</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">SĐT</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Email</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Địa chỉ</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Sales Order</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">Trạng thái</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for customer in page_obj %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-blue-700 font-semibold border-b">
+                            {% if customer.id %}
+                            <a href="https://sisapsan.mysapogo.com/admin/customers/{{ customer.id }}" target="_blank" class="hover:underline">
+                                {{ customer.code }}
+                            </a>
+                            {% else %}
+                            {{ customer.code }}
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-b">
+                            <span class="text-blue-700 font-semibold">{{ customer.name }}</span>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-b">{{ customer.phone_number }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-b">{{ customer.email|default:"-" }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 border-b max-w-[300px]">
+                            {% for address in customer.addresses %}
+                            <div class="mb-1 truncate" title="{{ address.address1 }}">
+                                <span class="font-medium">{{ address.district }}</span>, 
+                                <span>{{ address.city }}</span>
+                                {% if address.address1 %}
+                                <br>
+                                <span class="text-xs text-gray-500 inline-block max-w-[300px] truncate">
+                                    {{ address.address1 }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% empty %}
+                            <span class="text-gray-400">-</span>
+                            {% endfor %}
+                        </td>
+                        <td class="px-4 py-3 text-sm text-gray-700 border-b">
+                            {% if customer.sale_order %}
+                            <div class="space-y-1">
+                                <div>
+                                    Đã mua 
+                                    <strong>
+                                        {{ customer.sale_order.order_purchases|default:0|floatformat:0 }}
+                                        đơn
+                                    </strong> 
+                                    tổng 
+                                    <strong>{{ customer.sale_order.total_sales|default:0|floatformat:0|intcomma }}đ</strong>
+                                </div>
+                                {% if customer.sale_order.last_order_days is not None %}
+                                <div class="text-xs text-gray-500">
+                                    Đơn hàng cuối cùng: 
+                                    <strong>{{ customer.sale_order.last_order_days }} ngày trước</strong>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-gray-400 text-xs italic">Chưa có thông tin</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm border-b">
+                            {% if customer.status == "active" %}
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span>
+                            {% else %}
+                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">{{ customer.status|default:"-" }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            Không tìm thấy khách hàng nào thỏa mãn điều kiện.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination (luôn cho phép sang trang tiếp theo; prev chỉ ẩn ở page 1) -->
+        <div class="mt-6 flex items-center justify-between">
+            <div class="text-sm text-gray-700">
+                Trang {{ current_page }}
+            </div>
+            <div class="flex items-center gap-2">
+                {% if current_page > 1 %}
+                <a href="?page={{ current_page|add:'-1' }}" 
+                   class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    Trước
+                </a>
+                {% else %}
+                <span class="px-3 py-2 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-300 rounded-md cursor-not-allowed">
+                    Trước
+                </span>
+                {% endif %}
+
+                <!-- Hiển thị dải trang: prev-current-next (ví dụ: 2-3-4 hoặc 14-15-16) -->
+                <div class="flex flex-wrap gap-1">
+                    {% with prev_page=current_page|add:'-1' next_page=current_page|add:'1' %}
+                        {% if prev_page >= 1 %}
+                        <a href="?page={{ prev_page }}" 
+                           class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                            {{ prev_page }}
+                        </a>
+                        {% endif %}
+                        <span class="px-3 py-1.5 text-sm font-semibold rounded-md bg-brand text-white border border-brand">
+                            {{ current_page }}
+                        </span>
+                        <a href="?page={{ next_page }}" 
+                           class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+                            {{ next_page }}
+                        </a>
+                    {% endwith %}
+                </div>
+                
+                <!-- Next luôn khả dụng: server sẽ tự fetch thêm nếu cần -->
+                <a href="?page={{ current_page|add:'1' }}" 
+                   class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    Sau
+                </a>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="text-center py-8 text-gray-500">
+            {% if error %}
+            <p class="text-red-600 font-medium">Lỗi: {{ error }}</p>
+            {% else %}
+            <p>Không tìm thấy khách hàng nào thỏa mãn điều kiện lọc.</p>
+            <p class="text-xs text-gray-400 mt-2">Vui lòng thử trang khác hoặc kiểm tra lại điều kiện lọc.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
