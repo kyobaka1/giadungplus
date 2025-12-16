@@ -202,6 +202,43 @@ class SapoCoreRepository(BaseRepository):
         logger.debug(f"[SapoCoreRepo] get_customer: {customer_id}")
         return self.get(f"customers/{customer_id}.json")
     
+    def list_customers_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Lấy danh sách customers từ Sapo Core API.
+        
+        Args:
+            **filters: Query parameters
+                - page: int
+                - limit: int (max 250)
+                - query: str (search term)
+                - ids: str (comma-separated IDs)
+                - emails: str
+                - status: str
+                - etc.
+                
+        Returns:
+            {
+                "customers": [...],
+                "metadata": {...}
+            }
+            
+        Example:
+            GET /admin/customers.json?page=1&limit=250
+        """
+        logger.debug(f"[SapoCoreRepo] list_customers with filters: {filters}")
+        return self.get("customers.json", params=filters)
+    
+    def search_customers_do_search_raw(self, **filters) -> Dict[str, Any]:
+        """
+        Tìm kiếm customers bằng endpoint doSearch (advanced filter).
+        
+        Theo REPORT_KHO.md, khi dùng bộ lọc nâng cao (district.in, city.in, ...),
+        phải dùng link dạng:
+            /admin/customers/doSearch.json?...&condition_type=must
+        """
+        logger.debug(f"[SapoCoreRepo] search_customers_do_search with filters: {filters}")
+        return self.get("customers/doSearch.json", params=filters)
+    
     def update_customer(self, customer_id: int, customer_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update thông tin khách hàng.

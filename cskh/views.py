@@ -1951,3 +1951,424 @@ def training_detail(request, doc_id: int):
         "content_html": html_content,
     }
     return render(request, "cskh/train/training_detail.html", context)
+
+
+# =======================
+# VALUE CENTER - CUSTOMERS
+# =======================
+
+@group_required("CSKHManager", "CSKHStaff")
+def customer_l1_list(request):
+    """
+    VALUE CENTER – Khách hàng L1
+
+    Yêu cầu:
+    - Mỗi trang UI: 20 khách hàng (page=1: 1–20, page=2: 21–40, ...)
+    - Server fetch theo block 100 khách thỏa điều kiện:
+        + Lần đầu (page 1): tìm 100 khách phù hợp rồi cache.
+        + Khi user sang page 11 (khách 201–220): nếu cache < 220, tìm tiếp 100 khách tiếp theo và append vào cache.
+    - Cache lưu ở: settings/logs/l1_customer.json
+        {
+          "meta": {
+             "last_sapo_page": int,
+             "total_customers_api": int,
+             "total_api_pages": int
+          },
+          "customers": [ ... khách đã lọc ... ]
+        }
+    """
+    from pathlib import Path
+    from django.core.paginator import Paginator
+    from django.utils.text import slugify
+    from core.sapo_client import get_sapo_client
+    from core.sapo_client.client import debug_print
+    from django.utils import timezone
+    from datetime import datetime
+    from math import ceil
+
+    # 1. Đọc page từ request (UI)
+    page_str = request.GET.get("page", "1")
+    try:
+        page_number = int(page_str)
+    except (ValueError, TypeError):
+        page_number = 1
+    if page_number < 1:
+        page_number = 1
+
+    DISPLAY_PER_PAGE = 20  # 20 khách / trang UI
+    # Kể từ REPORT_KHO.md: khi lọc theo quận phải luôn chạy full toàn bộ dữ liệu của quận đó (không dùng page_now nữa)
+    MAX_SAPO_PAGE = 400    # Giới hạn tối đa request tới Sapo API
+
+    # City filter gửi trực tiếp lên Sapo API (filterType=advanced)
+    SAPO_CITY_FILTER = "TP Hồ Chí Minh,TP. Hồ Chí Minh"
+
+    # Danh sách quận/huyện có thể chọn (theo URL advanced filter của Sapo)
+    DISTRICT_CHOICES = [
+        "Quận 1", "Quận 2", "Quận 3", "Quận 4", "Quận 5", "Quận 6", "Quận 7", "Quận 8", "Quận 9",
+        "Quận 10", "Quận 11", "Quận 12", "Quận Gò Vấp", "Quận Tân Bình", "Quận Tân Phú",
+        "Quận Bình Thạnh", "Quận Phú Nhuận", "Quận Thủ Đức", "Quận Bình Tân",
+        "Huyện Củ Chi", "Huyện Hóc Môn", "Huyện Bình Chánh", "Huyện Nhà Bè", "Huyện Cần Giờ",
+        "Thành phố Thủ Đức",
+    ]
+    DEFAULT_DISTRICT = "Quận 12"
+
+    # 2. Đọc district từ request (mặc định Quận 12) và chuẩn hóa
+    district = request.GET.get("district") or DEFAULT_DISTRICT
+    if district not in DISTRICT_CHOICES:
+        district = DEFAULT_DISTRICT
+
+    # 3. Đường dẫn file cache DUY NHẤT cho toàn bộ khách L1 (mọi quận)
+    #    Bên trong JSON sẽ phân biệt meta theo từng quận bằng key slug (vd: quan-1, quan-12, ...)
+    cache_path = Path("settings/logs/l1_customer.json")
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # File log tổng – lưu tất cả customers đã request (mọi quận) vào một file duy nhất
+    log_dir = Path("settings/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / "l1_customer_log.jsonl"
+
+    # 4. Load cache nếu có
+    cache_data = {"meta": {}, "customers": []}
+    if cache_path.exists():
+        try:
+            raw_text = cache_path.read_text(encoding="utf-8")
+            if raw_text.strip():
+                cache_data = json.loads(raw_text)
+        except Exception as e:
+            logger.warning(f"[Customer L1] Could not read cache file: {e}")
+            cache_data = {"meta": {}, "customers": []}
+
+    # meta_all: chứa cấu trúc meta cho tất cả quận
+    # meta_all = {
+    #   "districts": {
+    #       "quan-1": { ... meta riêng cho Quận 1 ... },
+    #       "quan-12": { ... meta riêng cho Quận 12 ... },
+    #       ...
+    #   }
+    # }
+    cache_slug = slugify(district) or "all"
+    meta_all = cache_data.get("meta") or {}
+    districts_meta = meta_all.get("districts") or {}
+    meta = districts_meta.get(cache_slug) or {}
+    cached_customers = cache_data.get("customers") or []
+
+    last_sapo_page = int(meta.get("last_sapo_page") or 0)
+    total_customers_api = meta.get("total_customers_api")
+    total_api_pages = meta.get("total_api_pages")
+
+    # Lọc lại cached_customers theo district đang chọn (an toàn nếu file cache cũ có lẫn dữ liệu)
+    def customer_match_district(cust: dict, district_name: str) -> bool:
+        addresses = cust.get("addresses") or []
+        if not addresses:
+            return False
+        for address in addresses:
+            city = (address.get("city") or "").strip()
+            d_name = (address.get("district") or "").strip()
+            if ("Hồ Chí Minh" in city or "TP. Hồ Chí Minh" in city) and d_name == district_name:
+                return True
+        return False
+
+    filtered_cached_customers = [
+        c for c in cached_customers if customer_match_district(c, district)
+    ]
+
+    debug_print(
+        f"[Customer L1] UI page={page_number}, cached_raw={len(cached_customers)}, "
+        f"cached_filtered={len(filtered_cached_customers)}, last_sapo_page={last_sapo_page}"
+    )
+
+    # 5. Hàm filter & build khách từ raw Sapo JSON
+    def build_customer_from_raw(customer: dict):
+        """Trả về dict customer đã lọc theo điều kiện, hoặc None nếu không đạt."""
+        # Điều kiện name: phải có, KHÔNG chứa '*'
+        raw_name = customer.get("name", "")
+        name = raw_name.strip() if raw_name else ""
+        if not name or "*" in name:
+            return None
+
+        # phone_number bắt buộc
+        phone_number = customer.get("phone_number", "") or ""
+        phone_number = phone_number.strip()
+        if not phone_number:
+            return None
+
+        # Địa chỉ: city phải là HCM và quận/huyện trùng với district đang chọn
+        addresses = customer.get("addresses") or []
+        if not addresses:
+            return None
+
+        has_valid_address = False
+        for address in addresses:
+            city = (address.get("city") or "").strip()
+            district_name = (address.get("district") or "").strip()
+
+            # City phải là HCM
+            if "Hồ Chí Minh" not in city and "TP. Hồ Chí Minh" not in city:
+                continue
+            # Quận/huyện phải trùng đúng với district đang chọn trên UI
+            if district_name != district:
+                continue
+
+            has_valid_address = True
+            break
+        if not has_valid_address:
+            return None
+
+        # Xử lý sale_order (nếu có)
+        raw_sale_order = customer.get("sale_order") or {}
+        sale_order = None
+        if isinstance(raw_sale_order, dict) and raw_sale_order:
+            total_sales = raw_sale_order.get("total_sales") or 0
+            order_purchases = raw_sale_order.get("order_purchases") or 0
+            last_order_on = raw_sale_order.get("last_order_on")
+            days_ago = None
+            if last_order_on:
+                try:
+                    ts = last_order_on
+                    if isinstance(ts, str):
+                        if ts.endswith("Z"):
+                            ts = ts.replace("Z", "+00:00")
+                        dt = datetime.fromisoformat(ts)
+                    else:
+                        dt = ts
+                    if timezone.is_naive(dt):
+                        dt = timezone.make_aware(dt)
+                    days_ago = (timezone.now().date() - dt.date()).days
+                except Exception:
+                    days_ago = None
+            sale_order = {
+                "total_sales": total_sales,
+                "order_purchases": order_purchases,
+                "last_order_days": days_ago,
+            }
+
+        return {
+            "id": customer.get("id"),
+            "code": customer.get("code", ""),
+            "name": name,
+            "phone_number": phone_number,
+            "email": customer.get("email", "") or "",
+            "addresses": addresses,
+            "sale_order": sale_order,
+            "customer_group": customer.get("customer_group", {}),
+            "status": customer.get("status", ""),
+        }
+
+    # 6. Nếu cache chưa full cho quận hiện tại thì fetch FULL tất cả pages từ Sapo
+    try:
+        sapo_client = None
+
+        # Kể từ REPORT_KHO.md: nếu cache chưa được đánh dấu full thì bỏ cache cũ và fetch toàn bộ pages cho quận hiện tại
+        is_full = bool(meta.get("is_full"))
+        if not cached_customers or not is_full:
+            debug_print(f"[Customer L1] Cache for district '{district}' is not full. Fetching ALL pages from Sapo...")
+
+            # Reset meta cũ của QUẬN HIỆN TẠI; danh sách customers dùng chung cho mọi quận
+            last_sapo_page = 0
+            total_customers_api = None
+            total_api_pages = None
+
+            if sapo_client is None:
+                sapo_client = get_sapo_client()
+
+            # Mở file log tổng (nếu lỗi thì chỉ log warning, không chặn luồng chính)
+            log_handle = None
+            try:
+                log_handle = open(log_file, "a", encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"[Customer L1] Could not open log file {log_file}: {e}")
+
+            def append_to_log(customers_block):
+                if not log_handle:
+                    return
+                for cust in customers_block:
+                    try:
+                        log_handle.write(json.dumps(cust, ensure_ascii=False) + "\n")
+                    except Exception:
+                        # Không để lỗi ghi log ảnh hưởng tới request chính
+                        continue
+
+            # --- Fetch page 1 để lấy metadata.total (sử dụng customers/doSearch.json + condition_type=must) ---
+            try:
+                raw_page1 = sapo_client.core.search_customers_do_search_raw(
+                    page=1,
+                    limit=250,
+                    **{
+                        "city.in": SAPO_CITY_FILTER,
+                        "district.in": district,
+                        "filterType": "advanced",
+                        "condition_type": "must",
+                    },
+                )
+            except Exception as ex:
+                if log_handle:
+                    log_handle.close()
+                raise
+
+            customers_page1 = raw_page1.get("customers") or []
+            md = raw_page1.get("metadata") or {}
+            total_customers_api = md.get("total") or 0
+
+            if total_customers_api:
+                total_api_pages = min(ceil(int(total_customers_api) / 250), MAX_SAPO_PAGE)
+            else:
+                total_api_pages = 1
+
+            debug_print(
+                f"[Customer L1] District={district} total_customers_api={total_customers_api}, "
+                f"total_api_pages={total_api_pages}"
+            )
+
+            new_block_page1: list[dict] = []
+            for cust in customers_page1:
+                built = build_customer_from_raw(cust)
+                if built:
+                    new_block_page1.append(built)
+
+            # Thêm vào cache chung, tránh trùng theo ID
+            existing_ids = {c.get("id") for c in cached_customers}
+            for c in new_block_page1:
+                if c.get("id") not in existing_ids:
+                    cached_customers.append(c)
+                    existing_ids.add(c.get("id"))
+            last_sapo_page = 1
+            append_to_log(new_block_page1)
+
+            # --- Fetch các page còn lại (2..total_api_pages) song song ---
+            if total_api_pages and total_api_pages > 1:
+                from threading import Thread, Lock
+                results_lock = Lock()
+                page_results: dict[int, list[dict]] = {}
+
+                def fetch_page(p: int):
+                    try:
+                        client = get_sapo_client()
+                        raw = client.core.search_customers_do_search_raw(
+                            page=p,
+                            limit=250,
+                            **{
+                                "city.in": SAPO_CITY_FILTER,
+                                "district.in": district,
+                                "filterType": "advanced",
+                                "condition_type": "must",
+                            },
+                        )
+                        raw_customers = raw.get("customers") or []
+
+                        new_block: list[dict] = []
+                        for cust in raw_customers:
+                            built = build_customer_from_raw(cust)
+                            if built:
+                                new_block.append(built)
+
+                        debug_print(
+                            f"[Customer L1] Sapo page {p}: {len(raw_customers)} customers, "
+                            f"{len(new_block)} matched (district={district})"
+                        )
+
+                        with results_lock:
+                            page_results[p] = new_block
+                    except Exception as ex:
+                        logger.error(f"[Customer L1] Error fetching Sapo page {p}: {ex}", exc_info=True)
+
+                pages_to_fetch = list(range(2, int(total_api_pages) + 1))
+                threads = []
+                for p in pages_to_fetch:
+                    t = Thread(target=fetch_page, args=(p,))
+                    t.daemon = True
+                    t.start()
+                    threads.append(t)
+
+                for t in threads:
+                    t.join(timeout=60)
+
+                # Append kết quả theo thứ tự page, tránh trùng ID trong cache chung
+                existing_ids = {c.get("id") for c in cached_customers}
+                for p in sorted(page_results.keys()):
+                    block = page_results[p]
+                    for c in block:
+                        if c.get("id") not in existing_ids:
+                            cached_customers.append(c)
+                            existing_ids.add(c.get("id"))
+                    append_to_log(block)
+                    last_sapo_page = max(last_sapo_page, p)
+
+            # Đóng file log nếu đang mở
+            if log_handle:
+                try:
+                    log_handle.close()
+                except Exception:
+                    pass
+
+            # Sau khi fetch full, cập nhật lại meta cho QUẬN HIỆN TẠI & filtered_cached_customers
+            meta = {
+                "last_sapo_page": last_sapo_page,
+                "total_customers_api": total_customers_api,
+                "total_api_pages": total_api_pages,
+                "total_customers_filtered": len(cached_customers),
+                "is_full": True,
+            }
+            districts_meta[cache_slug] = meta
+            meta_all["districts"] = districts_meta
+            cache_data = {
+                "meta": meta_all,
+                "customers": cached_customers,
+            }
+            try:
+                cache_path.write_text(json.dumps(cache_data, ensure_ascii=False), encoding="utf-8")
+            except Exception as e:
+                logger.warning(f"[Customer L1] Could not write cache file: {e}")
+
+            # Rebuild filtered list theo quận từ cache mới
+            filtered_cached_customers = [
+                c for c in cached_customers if customer_match_district(c, district)
+            ]
+
+        # 7. Phân trang trên danh sách cached_customers đã lọc theo district
+        paginator = Paginator(filtered_cached_customers, DISPLAY_PER_PAGE)
+        try:
+            page_obj = paginator.get_page(page_number)
+        except Exception:
+            page_obj = paginator.get_page(1)
+            page_number = 1
+
+        context = {
+            "customers": page_obj,
+            "page_obj": page_obj,
+            "total_count": len(filtered_cached_customers),
+            "total_api": total_customers_api,
+            "current_page": page_number,
+            "total_pages": paginator.num_pages,
+            "has_previous": page_obj.has_previous(),
+            "has_next": page_obj.has_next(),
+            "previous_page_number": page_obj.previous_page_number() if page_obj.has_previous() else None,
+            "next_page_number": page_obj.next_page_number() if page_obj.has_next() else None,
+            "current_district": district,
+            "district_choices": DISTRICT_CHOICES,
+        }
+        return render(request, "cskh/customers/l1_list.html", context)
+
+    except Exception as e:
+        logger.error(f"[Customer L1] Error loading customers L1: {e}", exc_info=True)
+        messages.error(request, f"Lỗi khi tải danh sách khách hàng: {str(e)}")
+
+        # Fallback: trả về trang rỗng nhưng không crash
+        paginator = Paginator([], DISPLAY_PER_PAGE)
+        page_obj = paginator.get_page(1)
+
+        context = {
+            "customers": page_obj,
+            "page_obj": page_obj,
+            "total_count": 0,
+            "total_api": 0,
+            "current_page": 1,
+            "total_pages": 1,
+            "has_previous": False,
+            "has_next": False,
+            "previous_page_number": None,
+            "next_page_number": None,
+            "current_district": DEFAULT_DISTRICT,
+            "district_choices": DISTRICT_CHOICES,
+            "error": str(e),
+        }
+        return render(request, "cskh/customers/l1_list.html", context)

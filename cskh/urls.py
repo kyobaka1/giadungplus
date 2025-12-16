@@ -59,4 +59,7 @@ urlpatterns = [
     # Training documents
     path('training/', views.training_list, name='training_list'),
     path('training/<int:doc_id>/', views.training_detail, name='training_detail'),
+    
+    # VALUE CENTER - Customers
+    path('value-center/customers/l1/', views.customer_l1_list, name='customer_l1_list'),
 ]

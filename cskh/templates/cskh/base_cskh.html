@@ -289,6 +289,25 @@
                         </ul>
                     </div>
 
+                    <!-- GROUP: VALUE CENTER -->
+                    <div class="px-3 md:px-4 mb-2 md:mb-1">
+                        <button type="button" class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle" data-collapse-id="menu-value-center">
+                            <span>VALUE CENTER</span>
+                            <span
+                                class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                        </button>
+                        <ul id="menu-value-center" class="space-y-1">
+                            <li>
+                                <a href="{% url 'cskh:customer_l1_list' %}" class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                    <span class="truncate">Khách hàng: L1</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+
                     {% if request.user.is_superuser %}
                     <!-- GROUP: Cấu hình (Admin only) -->
                     <div class="px-3 md:px-4 mb-2 md:mb-1">
