@@ -1,0 +1,258 @@
+{% extends "chamcong/base_chamcong.html" %}
+{% load humanize %}
+
+{% block title %}Overview chấm công{% endblock %}
+
+{% block overview %}
+<section class="space-y-1 mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-2xl font-semibold text-slate-800">
+                Overview chấm công
+            </h1>
+            <p class="text-sm text-gray-500 mt-1">
+                Tổng quan tình hình chấm công theo bộ phận và chỉ số phân tích
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="?month={{ prev_month|date:'Y-m' }}"
+               class="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200">
+                ← Tháng trước
+            </a>
+            <input type="month" 
+                   value="{{ target_date|date:'Y-m' }}"
+                   onchange="window.location.href='?month=' + this.value"
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
+            {% if target_date|date:'Y-m' != today|date:'Y-m' %}
+            <a href="?month={{ today|date:'Y-m' }}"
+               class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">
+                Tháng này
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="space-y-6">
+    <!-- Tổng hợp bộ phận -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">
+            {% if is_admin %}Tổng hợp toàn công ty{% else %}Tổng hợp bộ phận{% endif %}
+        </h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                <div class="text-xs text-emerald-600 font-medium mb-1">Tổng số nhân viên</div>
+                <div class="text-2xl font-bold text-emerald-700">{{ total_stats.unique_users }}</div>
+            </div>
+            <div class="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                <div class="text-xs text-blue-600 font-medium mb-1">Tổng giờ làm</div>
+                <div class="text-2xl font-bold text-blue-700">
+                    {{ total_stats.total_hours }}h {{ total_stats.total_remaining_minutes }}m
+                </div>
+            </div>
+            <div class="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                <div class="text-xs text-purple-600 font-medium mb-1">Tổng giờ tăng ca</div>
+                <div class="text-2xl font-bold text-purple-700">
+                    {{ total_stats.overtime_hours }}h {{ total_stats.overtime_remaining_minutes }}m
+                </div>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="text-xs text-slate-600 font-medium mb-1">Tổng số bản ghi</div>
+                <div class="text-2xl font-bold text-slate-700">{{ total_stats.total_records }}</div>
+            </div>
+        </div>
+        
+        <div class="mt-4 grid grid-cols-3 gap-4">
+            <div class="bg-green-50 rounded-xl p-3 border border-green-100">
+                <div class="text-xs text-green-600 font-medium mb-1">Đã duyệt</div>
+                <div class="text-xl font-bold text-green-700">{{ total_stats.approved_count }}</div>
+            </div>
+            <div class="bg-yellow-50 rounded-xl p-3 border border-yellow-100">
+                <div class="text-xs text-yellow-600 font-medium mb-1">Chờ duyệt</div>
+                <div class="text-xl font-bold text-yellow-700">{{ total_stats.pending_count }}</div>
+            </div>
+            <div class="bg-red-50 rounded-xl p-3 border border-red-100">
+                <div class="text-xs text-red-600 font-medium mb-1">Từ chối</div>
+                <div class="text-xl font-bold text-red-700">{{ total_stats.rejected_count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Thống kê theo bộ phận -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">Thống kê theo bộ phận</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-xs sm:text-sm">
+                <thead class="bg-slate-50 text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-medium">Bộ phận</th>
+                        <th class="px-3 py-2 text-left font-medium">Số nhân viên</th>
+                        <th class="px-3 py-2 text-left font-medium">Tổng giờ làm</th>
+                        <th class="px-3 py-2 text-left font-medium">Giờ tăng ca</th>
+                        <th class="px-3 py-2 text-left font-medium">TB giờ/người</th>
+                        <th class="px-3 py-2 text-center font-medium">Đã duyệt</th>
+                        <th class="px-3 py-2 text-center font-medium">Chờ duyệt</th>
+                        <th class="px-3 py-2 text-center font-medium">Từ chối</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for dept in dept_data %}
+                    <tr class="hover:bg-slate-50/60">
+                        <td class="px-3 py-2 font-medium text-slate-800">{{ dept.department }}</td>
+                        <td class="px-3 py-2 text-slate-600">{{ dept.unique_users }}</td>
+                        <td class="px-3 py-2 text-slate-600">{{ dept.total_hours }}h {{ dept.total_remaining_minutes }}m</td>
+                        <td class="px-3 py-2 text-slate-600">{{ dept.overtime_hours }}h {{ dept.overtime_remaining_minutes }}m</td>
+                        <td class="px-3 py-2 text-slate-600">{{ dept.avg_hours }}h</td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 text-[11px]">
+                                {{ dept.approved_count }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100 text-[11px]">
+                                {{ dept.pending_count }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100 text-[11px]">
+                                {{ dept.rejected_count }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-3 py-6 text-center text-slate-400">
+                            Chưa có dữ liệu chấm công trong tháng này.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Biểu đồ theo ngày -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">Biểu đồ giờ làm theo ngày</h2>
+        <div class="relative">
+            <!-- Biểu đồ -->
+            <div class="h-64 flex items-end gap-1 relative">
+                <!-- Đường kẻ mốc -->
+                <div class="absolute left-0 right-0 top-0 border-t border-slate-200"></div>
+                <div class="absolute left-0 right-0 bottom-0 border-t border-slate-200"></div>
+                
+                {% if daily_data %}
+                    {% for day in daily_data %}
+                    <div class="flex-1 flex flex-col items-center group relative">
+                        <div class="w-full bg-emerald-500 rounded-t hover:opacity-80 transition relative"
+                             style="height: {{ day.height_px }}px; min-height: 4px;">
+                            <div class="absolute -top-6 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-800 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-10">
+                                {{ day.date|date:"d/m" }}: {{ day.hours }}h
+                            </div>
+                        </div>
+                        <div class="text-[10px] text-slate-500 mt-1">{{ day.date|date:"d/m" }}</div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="w-full text-center text-slate-400 py-12">
+                        Chưa có dữ liệu
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Thống kê theo ca -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">Thống kê theo ca làm việc</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% for shift in shift_data %}
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="text-sm font-medium text-slate-600 mb-2">{{ shift.shift_display }}</div>
+                <div class="text-2xl font-bold text-slate-800 mb-1">{{ shift.hours }}h</div>
+                <div class="text-xs text-slate-500">{{ shift.records }} bản ghi</div>
+            </div>
+            {% empty %}
+            <div class="col-span-3 text-center text-slate-400 py-8">
+                Chưa có dữ liệu
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Bảng chấm công theo nhân sự -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6">
+        <h2 class="text-lg font-semibold text-slate-800 mb-4">Chấm công theo nhân sự</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-xs sm:text-sm">
+                <thead class="bg-slate-50 text-slate-500">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-medium">Nhân viên</th>
+                        <th class="px-3 py-2 text-left font-medium">Bộ phận</th>
+                        <th class="px-3 py-2 text-left font-medium">Tổng giờ làm</th>
+                        <th class="px-3 py-2 text-left font-medium">Giờ tăng ca</th>
+                        <th class="px-3 py-2 text-center font-medium">Số ngày</th>
+                        <th class="px-3 py-2 text-center font-medium">Đã duyệt</th>
+                        <th class="px-3 py-2 text-center font-medium">Chờ duyệt</th>
+                        <th class="px-3 py-2 text-center font-medium">Từ chối</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for user in user_data %}
+                    <tr class="hover:bg-slate-50/60">
+                        <td class="px-3 py-2 font-medium text-slate-800">
+                            <a href="{% url 'chamcong:overview_staff_user' user.user_id %}?month={{ target_date|date:'Y-m' }}"
+                               class="text-emerald-600 hover:text-emerald-700 hover:underline">
+                                {{ user.first_name }}
+                            </a>
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">
+                            {% if user.last_name %}
+                                <span class="px-1.5 py-0.5 text-[10px] rounded border font-medium">{{ user.last_name }}</span>
+                            {% else %}
+                                <span class="text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">
+                            {{ user.total_hours }}h {{ user.total_remaining_minutes }}m
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">
+                            {% if user.overtime_hours > 0 or user.overtime_remaining_minutes > 0 %}
+                                {{ user.overtime_hours }}h {{ user.overtime_remaining_minutes }}m
+                            {% else %}
+                                <span class="text-slate-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-center text-slate-600">{{ user.record_count }}</td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 text-[11px]">
+                                {{ user.approved_count }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-100 text-[11px]">
+                                {{ user.pending_count }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100 text-[11px]">
+                                {{ user.rejected_count }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="px-3 py-6 text-center text-slate-400">
+                            Chưa có dữ liệu chấm công trong tháng này.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
