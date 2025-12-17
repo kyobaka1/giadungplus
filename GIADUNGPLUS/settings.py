@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "products",
     "customers",
     "settings",
+    "chamcong",
     'rest_framework',
     'sslserver',
 
@@ -83,6 +84,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'products.context_processors.product_counts',
+                'chamcong.context_processors.attendance_reminder',
             ],
         },
     },
@@ -143,7 +145,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Ho_Chi_Minh'
 
 USE_I18N = True
 

@@ -1,0 +1,195 @@
+{% extends "chamcong/base_chamcong.html" %}
+
+{% block title %}Bảng công của tôi{% endblock %}
+
+{% block overview %}
+<section class="space-y-1">
+    <h1 class="text-xl md:text-2xl font-semibold text-slate-800">
+        Bảng công của tôi
+    </h1>
+    <p class="text-sm text-gray-500">
+        Tháng {{ start_date|date:"m/Y" }} &middot; Xem chi tiết giờ làm và tăng ca.
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="space-y-4">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <form method="get" class="flex items-center gap-2 text-sm">
+            <label class="text-xs text-slate-500">
+                Tháng
+            </label>
+            <input type="month"
+                   name="month"
+                   value="{{ start_date|date:'Y-m' }}"
+                   class="px-2 py-1.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 bg-white">
+            <button type="submit"
+                    class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700">
+                Xem
+            </button>
+        </form>
+
+        <div class="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+            <div class="rounded-xl bg-emerald-50/80 px-3 py-2 border border-emerald-100">
+                <div class="text-[11px] text-emerald-700 uppercase tracking-wide mb-0.5">
+                    Tổng giờ làm
+                </div>
+                <div class="text-base font-semibold text-emerald-800">
+                    {% if total_minutes_sum %}
+                        {{ total_hours }} giờ {{ remaining_minutes }} phút
+                    {% else %}
+                        0 giờ
+                    {% endif %}
+                </div>
+            </div>
+            <div class="rounded-xl bg-amber-50/80 px-3 py-2 border border-amber-100">
+                <div class="text-[11px] text-amber-700 uppercase tracking-wide mb-0.5">
+                    Tăng ca
+                </div>
+                <div class="text-base font-semibold text-amber-800">
+                    {% if overtime_minutes_sum %}
+                        {% if overtime_hours > 0 %}
+                            {{ overtime_hours }} giờ
+                            {% if overtime_remaining_minutes > 0 %}{{ overtime_remaining_minutes }} phút{% endif %}
+                        {% else %}
+                            {{ overtime_minutes_sum }} phút
+                        {% endif %}
+                    {% else %}
+                        0 giờ
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <table class="min-w-full text-xs sm:text-sm">
+            <thead class="bg-slate-50 text-slate-500">
+                <tr>
+                    <th class="px-3 py-2 text-left font-medium">Ngày</th>
+                    <th class="px-3 py-2 text-left font-medium">Ca</th>
+                    <th class="px-3 py-2 text-left font-medium">Check-in</th>
+                    <th class="px-3 py-2 text-left font-medium">Check-out</th>
+                    <th class="px-3 py-2 text-right font-medium">Giờ làm</th>
+                    <th class="px-3 py-2 text-right font-medium">Tăng ca</th>
+                    <th class="px-3 py-2 text-center font-medium">Duyệt</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% if records_with_hours %}
+                    {% for item in records_with_hours %}
+                    {% with r=item.record %}
+                    <tr class="hover:bg-slate-50/70">
+                        <td class="px-3 py-2">
+                            <div class="font-medium text-slate-800">
+                                {{ r.work_date|date:"d/m" }}
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                {{ r.work_date|date:"D" }}
+                            </div>
+                        </td>
+                        <td class="px-3 py-2">
+                            {% if r.shift == "morning" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-medium">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    Ca sáng
+                                </span>
+                            {% elif r.shift == "afternoon" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-medium">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    Ca chiều
+                                </span>
+                            {% elif r.shift == "evening" %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-medium">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                    Ca tối
+                                </span>
+                            {% else %}
+                                <span class="text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-slate-700">
+                            {% if r.check_in_time %}
+                                {{ r.check_in_time|date:"H:i" }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-slate-700">
+                            {% if r.check_out_time %}
+                                {{ r.check_out_time|date:"H:i" }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-right text-slate-800">
+                            {% if r.total_minutes %}
+                                {% if item.total_hours > 0 %}
+                                    {{ item.total_hours }} giờ
+                                    {% if item.total_remaining_minutes > 0 %}{{ item.total_remaining_minutes }} phút{% endif %}
+                                {% else %}
+                                    {{ r.total_minutes }} phút
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-right text-slate-800">
+                            {% if r.overtime_minutes %}
+                                {% if item.overtime_hours > 0 %}
+                                    {{ item.overtime_hours }} giờ
+                                    {% if item.overtime_remaining_minutes > 0 %}{{ item.overtime_remaining_minutes }} phút{% endif %}
+                                {% else %}
+                                    {{ r.overtime_minutes }} phút
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                            {% if r.approval_status == "approved" %}
+                                <div class="inline-flex flex-col items-center gap-0.5">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                                        <span class="text-[10px]">●</span> Đã duyệt
+                                    </span>
+                                    {% if r.approved_by %}
+                                        <span class="text-[10px] text-slate-400">
+                                            bởi {{ r.approved_by.first_name|default:r.approved_by.username }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% elif r.approval_status == "rejected" %}
+                                <div class="inline-flex flex-col items-center gap-0.5">
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100">
+                                        <span class="text-[10px]">●</span> Từ chối
+                                    </span>
+                                    {% if r.approved_by %}
+                                        <span class="text-[10px] text-slate-400">
+                                            bởi {{ r.approved_by.first_name|default:r.approved_by.username }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-600 border border-slate-200">
+                                    <span class="text-[10px]">●</span> Chờ duyệt
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="px-3 py-6 text-center text-slate-400">
+                            Chưa có dữ liệu chấm công trong tháng này.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
+
+

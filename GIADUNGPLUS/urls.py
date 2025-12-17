@@ -24,6 +24,7 @@ urlpatterns = [
     path("kho/", include("kho.urls")),
     path("cskh/", include("cskh.urls")),
     path("marketing/", include("marketing.urls")),
+    path("chamcong/", include("chamcong.urls")),
     path("service/", include("service.urls")),
     path("products/", include("products.urls")),
     path("settings/", include("settings.urls")),

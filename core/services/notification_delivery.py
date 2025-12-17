@@ -138,6 +138,7 @@ class NotificationDeliveryWorker:
         cls,
         limit: Optional[int] = None,
         notification_id: Optional[int] = None,
+        timeout_seconds: Optional[int] = 30,
     ) -> dict:
         """
         Xử lý tất cả deliveries có status=pending.
@@ -145,14 +146,19 @@ class NotificationDeliveryWorker:
         Args:
             limit: Giới hạn số lượng xử lý (None = không giới hạn)
             notification_id: Chỉ xử lý deliveries của notification này (None = tất cả)
+            timeout_seconds: Timeout tổng thể cho toàn bộ quá trình xử lý (None = không giới hạn)
 
         Returns:
             dict: {
                 "processed": int,
                 "success": int,
                 "failed": int,
+                "timeout": bool,  # True nếu bị timeout
             }
         """
+        import time
+        
+        start_time = time.monotonic()
         qs = NotificationDelivery.objects.filter(status=NotificationDelivery.STATUS_PENDING)
 
         if notification_id:
@@ -165,43 +171,72 @@ class NotificationDeliveryWorker:
         total = len(deliveries)
         success = 0
         failed = 0
+        timed_out = False
 
         for delivery in deliveries:
-            if cls.process_delivery(delivery):
-                success += 1
-            else:
-                failed += 1
-
-        # Cập nhật status của notification nếu tất cả deliveries đã xử lý
-        if notification_id:
-            notification = Notification.objects.get(id=notification_id)
-            remaining = NotificationDelivery.objects.filter(
-                notification=notification,
-                status=NotificationDelivery.STATUS_PENDING,
-            ).count()
-
-            if remaining == 0:
-                # Kiểm tra xem có delivery nào failed không
-                has_failed = NotificationDelivery.objects.filter(
-                    notification=notification,
-                    status=NotificationDelivery.STATUS_FAILED,
-                ).exists()
-
-                if has_failed:
-                    notification.status = Notification.STATUS_FAILED
+            # Kiểm tra timeout trước mỗi delivery
+            if timeout_seconds is not None:
+                elapsed = time.monotonic() - start_time
+                if elapsed >= timeout_seconds:
+                    logger.warning(
+                        f"Timeout sau {timeout_seconds}s khi xử lý deliveries "
+                        f"(đã xử lý {success + failed}/{total})"
+                    )
+                    timed_out = True
+                    break
+            
+            try:
+                if cls.process_delivery(delivery):
+                    success += 1
                 else:
-                    notification.status = Notification.STATUS_SENT
-                    notification.sent_at = timezone.now()
-                notification.save(update_fields=["status", "sent_at"])
+                    failed += 1
+            except Exception as exc:
+                # Bắt mọi exception để không làm gián đoạn toàn bộ quá trình
+                logger.exception(f"Lỗi không mong đợi khi xử lý delivery #{delivery.id}: {exc}")
+                failed += 1
+                # Đánh dấu delivery là failed
+                try:
+                    delivery.status = NotificationDelivery.STATUS_FAILED
+                    delivery.error_message = str(exc)[:500]  # Giới hạn độ dài error message
+                    delivery.save(update_fields=["status", "error_message"])
+                except Exception as save_exc:
+                    logger.exception(f"Lỗi khi lưu delivery #{delivery.id} sau khi xử lý lỗi: {save_exc}")
+
+        # Cập nhật status của notification nếu tất cả deliveries đã xử lý (và không bị timeout)
+        if notification_id and not timed_out:
+            try:
+                notification = Notification.objects.get(id=notification_id)
+                remaining = NotificationDelivery.objects.filter(
+                    notification=notification,
+                    status=NotificationDelivery.STATUS_PENDING,
+                ).count()
+
+                if remaining == 0:
+                    # Kiểm tra xem có delivery nào failed không
+                    has_failed = NotificationDelivery.objects.filter(
+                        notification=notification,
+                        status=NotificationDelivery.STATUS_FAILED,
+                    ).exists()
+
+                    if has_failed:
+                        notification.status = Notification.STATUS_FAILED
+                    else:
+                        notification.status = Notification.STATUS_SENT
+                        notification.sent_at = timezone.now()
+                    notification.save(update_fields=["status", "sent_at"])
+            except Exception as exc:
+                logger.exception(f"Lỗi khi cập nhật status notification #{notification_id}: {exc}")
 
         result = {
-            "processed": total,
+            "processed": success + failed,
             "success": success,
             "failed": failed,
+            "timeout": timed_out,
         }
 
         logger.info(
-            f"Processed {total} deliveries: {success} success, {failed} failed"
+            f"Processed {success + failed}/{total} deliveries: {success} success, {failed} failed"
+            + (f" (timeout after {timeout_seconds}s)" if timed_out else "")
         )
 
         return result

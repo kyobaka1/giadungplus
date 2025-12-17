@@ -1,0 +1,215 @@
+{% load static %}
+{% load humanize %}
+{% load group_tags %}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta http-equiv="Content-Language" content="vi">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="description" content="Chấm công nhân sự - Gia Dụng Plus">
+    <link rel="icon" href="/static/favicon.png">
+    <link rel="shortcut icon" href="/static/favicon.png"/>
+    <meta name="msapplication-tap-highlight" content="no">
+
+    <title>{% block title %}Chấm công – Dashboard{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Averta -->
+    <style>
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Regular.woff') format('woff');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+    }
+    @font-face {
+        font-family: 'Averta';
+        src: url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff2') format('woff2'),
+             url('/static/font/AvetaStdCY/AvertaStdCY-Bold.woff') format('woff');
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+    }
+
+    * {
+        font-family: 'Averta', sans-serif;
+    }
+
+    @media (min-width: 1920px) {
+        html {
+            font-size: 110%;
+        }
+    }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: "#0f766e",
+                        brandlight: "#ecfdf5"
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-100 text-gray-900 antialiased text-[14px] sm:text-[15px] md:text-[16px] lg:text-[17px]">
+
+<div class="min-h-screen flex flex-col">
+
+    <!-- TOP BAR -->
+    <header class="h-16 md:h-14 bg-white border-b shadow-sm flex items-center justify-between px-4 md:px-6">
+        <a href="/" class="flex items-center gap-3 hover:opacity-90 transition">
+            <div class="w-9 h-9 rounded-lg overflow-hidden flex justify-center items-center bg-emerald-50 border border-emerald-100">
+                <img src="/static/favicon.png" alt="Gia Dụng Plus" class="w-full h-full object-contain">
+            </div>
+
+            <div>
+                <div class="text-sm md:text-base font-semibold leading-tight text-slate-900">Gia Dụng Plus</div>
+                <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Hệ thống chấm công nội bộ</div>
+            </div>
+        </a>
+
+        <div class="flex items-center gap-4">
+            <!-- Menu quay về app -->
+            {% if request.user.is_authenticated %}
+                {% if request.user.last_name and "KHO" in request.user.last_name|upper %}
+                    <a href="/kho/" 
+                       class="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        ← Quay về Kho
+                    </a>
+                {% elif request.user|has_group:"CSKHStaff" or request.user|has_group:"CSKHManager" or request.user.last_name == "CSKH" %}
+                    <a href="/cskh/" 
+                       class="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        ← Quay về CSKH
+                    </a>
+                {% elif request.user|has_group:"MarketingStaff" or request.user|has_group:"MarketingManager" or request.user|has_group:"MarketingIntern" or request.user.last_name == "MARKETING" %}
+                    <a href="/marketing/" 
+                       class="px-3 py-1.5 text-sm font-medium text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition">
+                        ← Quay về Marketing
+                    </a>
+                {% endif %}
+            {% endif %}
+
+            <!-- Notification Bell -->
+            {% include 'core/notification_bell.html' %}
+
+            <!-- User info -->
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-full bg-emerald-100 flex justify-center items-center text-xs font-semibold text-emerald-700">
+                    {% if request.user.is_authenticated %}
+                        {{ request.user.first_name|default:request.user.username|first|upper }}
+                    {% else %}
+                        U
+                    {% endif %}
+                </div>
+                <div class="hidden sm:block text-xs leading-tight text-left">
+                    {% if request.user.is_authenticated and request.user.last_name %}
+                        <div class="mb-0.5">
+                            <span class="px-1.5 py-0.5 text-[10px] rounded border font-medium {{ request.user.last_name|position_tag_class }}">
+                                {{ request.user.last_name }}
+                            </span>
+                        </div>
+                    {% endif %}
+                    <div class="font-medium text-sm">
+                        {% if request.user.is_authenticated %}
+                            {{ request.user.first_name|default:request.user.username }}
+                        {% else %}
+                            User
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit"
+                        class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke-width="2"
+                         stroke="currentColor"
+                         class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                    </svg>
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- MAIN -->
+    <div class="flex flex-1 overflow-hidden">
+        <!-- SIDEBAR -->
+        <aside class="hidden md:block w-56 lg:w-64 bg-white border-r">
+            <nav class="py-4 space-y-1 text-sm">
+                <a href="{% url 'chamcong:checkin' %}"
+                   class="block px-4 py-2 mx-2 rounded-lg sidebar-link {% if request.resolver_match.url_name == 'checkin' %}bg-brandlight text-brand font-semibold{% else %}text-gray-600 hover:bg-slate-50{% endif %}">
+                    Chấm công hôm nay
+                </a>
+
+                <a href="{% url 'chamcong:my_attendance' %}"
+                   class="block px-4 py-2 mx-2 rounded-lg sidebar-link {% if request.resolver_match.url_name == 'my_attendance' %}bg-brandlight text-brand font-semibold{% else %}text-gray-600 hover:bg-slate-50{% endif %}">
+                    Bảng công của tôi
+                </a>
+
+                {% if request.user|has_group:"Admin" or request.user|has_group:"WarehouseManager" or request.user|has_group:"CSKHManager" or request.user|has_group:"MarketingManager" %}
+                <div class="mt-3 pt-3 border-t border-slate-100 text-[11px] uppercase tracking-wide text-slate-400 px-4">
+                    Quản lý
+                </div>
+                <a href="{% url 'chamcong:approve_attendance' %}"
+                   class="block px-4 py-2 mx-2 rounded-lg sidebar-link {% if request.resolver_match.url_name == 'approve_attendance' %}bg-brandlight text-brand font-semibold{% else %}text-gray-600 hover:bg-slate-50{% endif %}">
+                    Duyệt chấm công
+                </a>
+                {% endif %}
+                
+                {% if request.user|has_group:"Admin" %}
+                <a href="{% url 'chamcong:make_up_attendance' %}"
+                   class="block px-4 py-2 mx-2 rounded-lg sidebar-link {% if request.resolver_match.url_name == 'make_up_attendance' %}bg-brandlight text-brand font-semibold{% else %}text-gray-600 hover:bg-slate-50{% endif %}">
+                    Chấm công bù
+                </a>
+                <div class="mt-3 pt-3 border-t border-slate-100 text-[11px] uppercase tracking-wide text-slate-400 px-4">
+                    Cài đặt
+                </div>
+                <a href="{% url 'chamcong:settings' %}"
+                   class="block px-4 py-2 mx-2 rounded-lg sidebar-link {% if request.resolver_match.url_name == 'settings' %}bg-brandlight text-brand font-semibold{% else %}text-gray-600 hover:bg-slate-50{% endif %}">
+                    Settings
+                </a>
+                {% endif %}
+            </nav>
+        </aside>
+
+        <!-- CONTENT -->
+        <main class="flex-1 overflow-y-auto w-full">
+            <div class="w-full px-4 md:px-8 lg:px-12 py-4 md:py-8 space-y-4 md:space-y-6 max-w-6xl mx-auto">
+                {% block overview %}
+                {% endblock %}
+
+                {% block content %}
+                {% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Notification Bell Script -->
+<script src="{% static 'js/notifications.js' %}"></script>
+
+{% block extra_js %}{% endblock %}
+
+</body>
+</html>
+
+

@@ -1,0 +1,406 @@
+{% extends "chamcong/base_chamcong.html" %}
+{% load group_tags %}
+
+{% block title %}Chấm công hôm nay{% endblock %}
+
+{% block overview %}
+<section class="space-y-1">
+    <h1 class="text-xl md:text-2xl font-semibold text-slate-800">
+        Chấm công hôm nay
+    </h1>
+    <p class="text-sm text-gray-500">
+        Ngày {{ today|date:"d/m/Y" }} &middot; Hãy bật GPS và chụp selfie rõ mặt.
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="grid md:grid-cols-2 gap-4 md:gap-6">
+    <!-- Thông tin nhân viên + trạng thái -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6 space-y-4">
+        <!-- Thông tin nhân viên -->
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0">
+                <img src="/static/nhanvien/{{ request.user.username }}.png"
+                     alt="Ảnh nhân viên"
+                     class="w-full h-full object-cover">
+            </div>
+            <div class="min-w-0">
+                <div class="text-sm font-semibold text-slate-900 truncate">
+                    {{ request.user.first_name|default:request.user.username }}
+                </div>
+                <div class="flex flex-wrap items-center gap-1 mt-0.5 text-[11px] text-slate-500">
+                    {% if request.user.last_name %}
+                        <span class="px-1.5 py-0.5 rounded border bg-slate-50 {{ request.user.last_name|position_tag_class }}">
+                            {{ request.user.last_name }}
+                        </span>
+                    {% endif %}
+                    {% if record.group_name %}
+                        <span class="px-1.5 py-0.5 rounded border border-emerald-100 bg-emerald-50 text-emerald-700">
+                            {{ record.group_name }}
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Trạng thái hôm nay -->
+        <div class="mt-4 space-y-3">
+            <div>
+                <div class="text-xs uppercase tracking-wide text-slate-400 mb-1">
+                    Trạng thái hôm nay
+                </div>
+                <div class="text-base font-semibold text-slate-800">
+                    {% if record.check_in_time and record.check_out_time %}
+                        Đã hoàn thành chấm công
+                    {% elif record.check_in_time %}
+                        Đang làm việc
+                    {% else %}
+                        Chưa chấm công
+                    {% endif %}
+                </div>
+                {% if record.shift %}
+                    <div class="text-xs text-emerald-700 mt-0.5">
+                        Ca hiện tại:
+                        {% if record.shift == "morning" %}
+                            Ca sáng
+                        {% elif record.shift == "afternoon" %}
+                            Ca chiều
+                        {% elif record.shift == "evening" %}
+                            Ca tối
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div class="rounded-xl bg-slate-50 px-3 py-2">
+                    <div class="text-xs text-slate-400 mb-1">Check-in</div>
+                    <div class="font-medium text-slate-800">
+                        {% if record.check_in_time %}
+                            {{ record.check_in_time|date:"H:i" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="rounded-xl bg-slate-50 px-3 py-2">
+                    <div class="text-xs text-slate-400 mb-1">Check-out</div>
+                    <div class="font-medium text-slate-800">
+                        {% if record.check_out_time %}
+                            {{ record.check_out_time|date:"H:i" }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-xl bg-emerald-50/60 px-3 py-2 text-xs text-emerald-800 border border-emerald-100">
+                <div class="font-semibold mb-0.5">Lưu ý</div>
+                <ul class="list-disc list-inside space-y-0.5">
+                    <li>Bật định vị (GPS) trước khi chấm công.</li>
+                    <li>Ảnh nhân viên cần rõ mặt, không che khuất.</li>
+                    <li>Nếu làm việc ngoài địa điểm cho phép, cần báo trước cho quản lý.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Lịch sử chấm công hôm nay -->
+        <div class="mt-4 pt-4 border-t border-slate-100 space-y-2 text-xs">
+            <div class="flex items-center justify-between">
+                <span class="font-semibold text-slate-800">Lịch sử hôm nay</span>
+                <span class="text-[11px] text-slate-400">
+                    {% if current_shift == "morning" %}
+                        Ca sáng
+                    {% elif current_shift == "afternoon" %}
+                        Ca sáng / chiều
+                    {% else %}
+                        Ca sáng / chiều / tối
+                    {% endif %}
+                </span>
+            </div>
+
+            <div class="space-y-1.5">
+                {% for r in today_records %}
+                    {% if current_shift == "morning" %}
+                        {% if r.shift == "morning" %}
+                        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span class="text-[11px] text-slate-600">Ca sáng</span>
+                            </div>
+                            <div class="text-[11px] text-slate-500">
+                                In: {% if r.check_in_time %}{{ r.check_in_time|date:"H:i" }}{% else %}—{% endif %}
+                                · Out: {% if r.check_out_time %}{{ r.check_out_time|date:"H:i" }}{% else %}—{% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% elif current_shift == "afternoon" %}
+                        {% if r.shift == "morning" or r.shift == "afternoon" %}
+                        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if r.shift == 'morning' %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+                                <span class="text-[11px] text-slate-600">
+                                    {% if r.shift == "morning" %}Ca sáng{% else %}Ca chiều{% endif %}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-500">
+                                In: {% if r.check_in_time %}{{ r.check_in_time|date:"H:i" }}{% else %}—{% endif %}
+                                · Out: {% if r.check_out_time %}{{ r.check_out_time|date:"H:i" }}{% else %}—{% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        {# Ca tối: hiện tất cả #}
+                        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if r.shift == 'morning' %}bg-emerald-500{% elif r.shift == 'afternoon' %}bg-amber-500{% else %}bg-sky-500{% endif %}"></span>
+                                <span class="text-[11px] text-slate-600">
+                                    {% if r.shift == "morning" %}
+                                        Ca sáng
+                                    {% elif r.shift == "afternoon" %}
+                                        Ca chiều
+                                    {% elif r.shift == "evening" %}
+                                        Ca tối
+                                    {% else %}
+                                        Không xác định
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="text-[11px] text-slate-500">
+                                In: {% if r.check_in_time %}{{ r.check_in_time|date:"H:i" }}{% else %}—{% endif %}
+                                · Out: {% if r.check_out_time %}{{ r.check_out_time|date:"H:i" }}{% else %}—{% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% empty %}
+                    <div class="text-[11px] text-slate-400">
+                        Chưa có lịch sử chấm công trong ngày.
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Form chấm công -->
+    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-4 md:p-6 space-y-4">
+        <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400 mb-1">
+                Thao tác
+            </div>
+            <div class="text-base font-semibold text-slate-800">
+                Chấm công với GPS + Selfie
+            </div>
+        </div>
+
+        <!-- Django messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="rounded-xl {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-700{% elif message.tags == 'success' %}bg-emerald-50 border border-emerald-200 text-emerald-700{% else %}bg-amber-50 border border-amber-200 text-amber-700{% endif %} px-3 py-2 text-xs">
+                    <div class="font-semibold mb-0.5">
+                        {% if message.tags == 'error' %}⚠️ Lỗi{% elif message.tags == 'success' %}✓ Thành công{% else %}ℹ️ Thông báo{% endif %}
+                    </div>
+                    <div>{{ message }}</div>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <form id="attendance-form" method="post" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="latitude" id="field-latitude">
+            <input type="hidden" name="longitude" id="field-longitude">
+            <input type="hidden" name="address" id="field-address">
+            <input type="hidden" name="action" id="field-action">
+
+            <div class="space-y-2">
+                <label class="block text-xs font-medium text-slate-600">
+                    Ảnh selfie
+                </label>
+                <label for="field-photo"
+                       class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 cursor-pointer text-sm">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-500">
+                            📷
+                        </div>
+                        <div class="text-left">
+                            <div class="font-medium text-slate-800">
+                                Chọn ảnh hoặc chụp trực tiếp
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                Ưu tiên chụp bằng camera trước
+                            </div>
+                        </div>
+                    </div>
+                    <div id="photo-selected-label" class="text-xs text-emerald-600 hidden">
+                        Đã chọn ảnh
+                    </div>
+                </label>
+                <input id="field-photo" name="photo" type="file" accept="image/*" capture="user" class="hidden">
+            </div>
+
+            <div class="space-y-1 text-xs text-slate-500">
+                <div class="flex items-center justify-between">
+                    <span>
+                        Vị trí:
+                        <span id="location-label" class="font-medium text-slate-700">Đang xác định…</span>
+                    </span>
+                    <button type="button"
+                            id="btn-refresh-location"
+                            class="px-2 py-1 rounded-full border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50">
+                        Lấy lại vị trí
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                {% if record.approval_status == "approved" or record.approval_status == "rejected" %}
+                    <div class="flex-1 rounded-xl bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-700 text-center">
+                        Chấm công đã {% if record.approval_status == "approved" %}duyệt{% else %}từ chối{% endif %}. Không thể chỉnh sửa.
+                    </div>
+                {% else %}
+                    <button type="button"
+                            id="btn-checkin"
+                            {% if record.check_in_time %}disabled{% endif %}
+                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white
+                                   {% if record.check_in_time %}bg-slate-300 cursor-not-allowed{% else %}bg-emerald-600 hover:bg-emerald-700 shadow-sm{% endif %}">
+                        <span>Check-in</span>
+                    </button>
+                    <button type="button"
+                            id="btn-checkout"
+                            {% if not record.check_in_time %}disabled{% endif %}
+                            class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-emerald-700 border border-emerald-200
+                                   {% if not record.check_in_time %}bg-slate-50 cursor-not-allowed text-slate-400 border-slate-200{% else %}bg-emerald-50 hover:bg-emerald-100{% endif %}">
+                        <span>Check-out</span>
+                    </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const fieldLat = document.getElementById('field-latitude');
+        const fieldLng = document.getElementById('field-longitude');
+        const fieldAddr = document.getElementById('field-address');
+        const fieldAction = document.getElementById('field-action');
+        const form = document.getElementById('attendance-form');
+        const btnCheckin = document.getElementById('btn-checkin');
+        const btnCheckout = document.getElementById('btn-checkout');
+        const btnRefresh = document.getElementById('btn-refresh-location');
+        const locationLabel = document.getElementById('location-label');
+        const photoInput = document.getElementById('field-photo');
+        const photoSelectedLabel = document.getElementById('photo-selected-label');
+
+        if (!navigator.geolocation) {
+            locationLabel.textContent = 'Trình duyệt không hỗ trợ GPS';
+            locationLabel.classList.add('text-red-600');
+        } else {
+            const updateLocation = () => {
+                locationLabel.textContent = 'Đang lấy vị trí…';
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = pos.coords.latitude.toFixed(6);
+                        const lng = pos.coords.longitude.toFixed(6);
+                        fieldLat.value = lat;
+                        fieldLng.value = lng;
+                        locationLabel.textContent = `${lat}, ${lng}`;
+                        locationLabel.classList.remove('text-red-600');
+                        locationLabel.classList.add('text-emerald-700');
+                    },
+                    (err) => {
+                        console.warn('Geolocation error', err);
+                        locationLabel.textContent = 'Không lấy được vị trí. Hãy bật GPS và cho phép truy cập vị trí.';
+                        locationLabel.classList.add('text-red-600');
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+                );
+            };
+
+            updateLocation();
+            if (btnRefresh) {
+                btnRefresh.addEventListener('click', updateLocation);
+            }
+        }
+
+        if (photoInput && photoSelectedLabel) {
+            photoInput.addEventListener('change', function () {
+                if (photoInput.files && photoInput.files.length > 0) {
+                    photoSelectedLabel.classList.remove('hidden');
+                } else {
+                    photoSelectedLabel.classList.add('hidden');
+                }
+            });
+        }
+
+        // Thông báo lỗi
+        const showError = (message) => {
+            // Xóa thông báo cũ nếu có
+            const existingError = document.getElementById('attendance-error');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            // Tạo thông báo mới
+            const errorDiv = document.createElement('div');
+            errorDiv.id = 'attendance-error';
+            errorDiv.className = 'rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700';
+            errorDiv.innerHTML = '<div class="font-semibold mb-0.5">⚠️ Lỗi</div><div>' + message + '</div>';
+            
+            // Chèn vào trước form
+            if (form && form.parentNode) {
+                form.parentNode.insertBefore(errorDiv, form);
+            }
+            
+            // Tự động ẩn sau 5 giây
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        };
+
+        const submitAction = (actionName) => {
+            if (!form) return;
+            
+            // Kiểm tra GPS
+            const lat = fieldLat.value.trim();
+            const lng = fieldLng.value.trim();
+            if (!lat || !lng || lat === '0' || lng === '0') {
+                showError('Vui lòng bật GPS và cho phép truy cập vị trí trước khi chấm công. Nhấn "Lấy lại vị trí" nếu cần.');
+                return;
+            }
+            
+            // Kiểm tra ảnh
+            if (!photoInput.files || photoInput.files.length === 0) {
+                showError('Vui lòng chọn hoặc chụp ảnh selfie trước khi chấm công.');
+                return;
+            }
+            
+            // Nếu đủ điều kiện, submit form
+            fieldAction.value = actionName;
+            form.submit();
+        };
+
+        if (btnCheckin) {
+            btnCheckin.addEventListener('click', function () {
+                {% if not record.check_in_time %}
+                submitAction('checkin');
+                {% endif %}
+            });
+        }
+        if (btnCheckout) {
+            btnCheckout.addEventListener('click', function () {
+                {% if record.check_in_time %}
+                submitAction('checkout');
+                {% endif %}
+            });
+        }
+    })();
+</script>
+{% endblock %}
+
+

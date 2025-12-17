@@ -481,24 +481,14 @@ def tools_get_videos_api(request):
                 response[key] = value
             return response
         
-        # Check if this media_url already exists (avoid duplicates - không phân biệt user)
+        # Check if this media_url already exists (xử lý trùng URL: xóa bản ghi cũ, lưu bản ghi mới)
         from marketing.models import MediaTrack
-        existing = MediaTrack.objects.filter(
-            media_url=data['media_url']
-        ).first()
+        existing_qs = MediaTrack.objects.filter(media_url=data['media_url'])
+        if existing_qs.exists():
+            deleted_count, _ = existing_qs.delete()
+            print(f"[GDP Media Tracker API] 🔁 Existing media_url found, deleted {deleted_count} old record(s) before creating new one")
         
-        if existing:
-            result = JsonResponse({
-                'success': True,
-                'message': 'Media already tracked',
-                'id': existing.id,
-                'created_at': existing.created_at.isoformat()
-            })
-            for key, value in response_headers.items():
-                result[key] = value
-            return result
-        
-        # Create new MediaTrack (không tự động tạo thumbnail)
+        # Create new MediaTrack (không tự động tạo thumbnail, luôn tạo mới kể cả khi URL trùng)
         media_track = MediaTrack.objects.create(
             user_name=data['user_name'],
             page_url=data['page_url'],
