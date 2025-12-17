@@ -26,15 +26,13 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         
         if action == "add_location":
             name = request.POST.get("name")
-            department = request.POST.get("department")
             latitude = request.POST.get("latitude")
             longitude = request.POST.get("longitude")
             radius_m = request.POST.get("radius_m", 150)
             
-            if name and department and latitude and longitude:
+            if name and latitude and longitude:
                 WorkLocation.objects.create(
                     name=name,
-                    department=department,
                     latitude=float(latitude),
                     longitude=float(longitude),
                     radius_m=int(radius_m),
@@ -45,7 +43,6 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             loc_id = request.POST.get("location_id")
             location = get_object_or_404(WorkLocation, id=loc_id)
             location.name = request.POST.get("name", location.name)
-            location.department = request.POST.get("department", location.department)
             if request.POST.get("latitude"):
                 location.latitude = float(request.POST.get("latitude"))
             if request.POST.get("longitude"):
@@ -65,25 +62,29 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         elif action == "add_work_rule":
             department = request.POST.get("department")
             group_name = request.POST.get("group_name")
+            shift = request.POST.get("shift")
             start_time = request.POST.get("start_time")
             end_time = request.POST.get("end_time")
             allow_overtime = request.POST.get("allow_overtime") == "on"
             
-            if department and group_name and start_time and end_time:
+            if department and group_name and shift and start_time and end_time:
                 WorkRule.objects.create(
                     department=department,
                     group_name=group_name,
+                    shift=shift,
                     start_time=start_time,
                     end_time=end_time,
                     allow_overtime=allow_overtime,
                 )
-                messages.success(request, f"Đã thêm quy định giờ làm: {department} / {group_name}")
+                messages.success(request, f"Đã thêm quy định giờ làm: {department} / {group_name} / {dict(WorkRule.SHIFT_CHOICES).get(shift, shift)}")
         
         elif action == "edit_work_rule":
             rule_id = request.POST.get("rule_id")
             rule = get_object_or_404(WorkRule, id=rule_id)
             rule.department = request.POST.get("department", rule.department)
             rule.group_name = request.POST.get("group_name", rule.group_name)
+            if request.POST.get("shift"):
+                rule.shift = request.POST.get("shift")
             if request.POST.get("start_time"):
                 rule.start_time = request.POST.get("start_time")
             if request.POST.get("end_time"):
@@ -91,7 +92,7 @@ def settings_view(request: HttpRequest) -> HttpResponse:
             rule.allow_overtime = request.POST.get("allow_overtime") == "on"
             rule.is_active = request.POST.get("is_active") == "on"
             rule.save()
-            messages.success(request, f"Đã cập nhật quy định giờ làm: {rule.department} / {rule.group_name}")
+            messages.success(request, f"Đã cập nhật quy định giờ làm: {rule.department} / {rule.group_name} / {rule.get_shift_display()}")
         
         elif action == "delete_work_rule":
             rule_id = request.POST.get("rule_id")
@@ -102,8 +103,8 @@ def settings_view(request: HttpRequest) -> HttpResponse:
         return redirect("chamcong:settings")
     
     # GET: hiển thị danh sách
-    locations = WorkLocation.objects.all().order_by("department", "name")
-    work_rules = WorkRule.objects.all().order_by("department", "group_name")
+    locations = WorkLocation.objects.all().order_by("name")
+    work_rules = WorkRule.objects.all().order_by("department", "group_name", "shift")
     
     context = {
         "locations": locations,
