@@ -11,23 +11,12 @@ class WorkLocation(models.Model):
     """
     Địa điểm chấm công hợp lệ (theo GPS).
 
-    - Có thể cấu hình nhiều điểm cho từng bộ phận làm việc (last_name)
+    - Chỉ cấu hình các vị trí, không cần bộ phận.
+    - Bộ phận nào chấm công ở các vị trí đã cấu hình đều được coi là hợp lệ.
     - Dùng bán kính (m) để kiểm tra hợp lệ.
     """
 
-    DEPARTMENT_CHOICES = [
-        ("CSKH", "CSKH"),
-        ("KHO", "Kho hàng"),
-        ("MARKETING", "Marketing"),
-        ("ADMIN", "Admin / Quản trị"),
-    ]
-
     name = models.CharField(max_length=255)
-    department = models.CharField(
-        max_length=50,
-        choices=DEPARTMENT_CHOICES,
-        help_text="Bộ phận làm việc (map với last_name của user)",
-    )
     latitude = models.FloatField(help_text="Vĩ độ (GPS)")
     longitude = models.FloatField(help_text="Kinh độ (GPS)")
     radius_m = models.PositiveIntegerField(
@@ -43,18 +32,29 @@ class WorkLocation(models.Model):
         verbose_name_plural = "Địa điểm chấm công"
 
     def __str__(self) -> str:  # pragma: no cover - simple repr
-        return f"{self.name} ({self.department})"
+        return f"{self.name}"
 
 
 class WorkRule(models.Model):
     """
-    Quy định giờ làm cho từng bộ phận + chức vụ (group).
+    Quy định giờ làm cho từng bộ phận + chức vụ (group) + ca làm việc.
 
-    - Cho phép cấu hình giờ bắt đầu / kết thúc chuẩn.
+    - Cho phép cấu hình giờ bắt đầu / kết thúc chuẩn theo ca (sáng/tối).
     - Dùng để tính tổng giờ làm & tăng ca.
     """
 
-    DEPARTMENT_CHOICES = WorkLocation.DEPARTMENT_CHOICES
+    DEPARTMENT_CHOICES = [
+        ("CSKH", "CSKH"),
+        ("KHO_HCM", "Kho hàng HCM"),
+        ("KHO_HN", "Kho hàng HN"),
+        ("MARKETING", "Marketing"),
+        ("ADMIN", "Admin / Quản trị"),
+    ]
+
+    SHIFT_CHOICES = [
+        ("morning", "Ca sáng"),
+        ("evening", "Ca tối"),
+    ]
 
     department = models.CharField(
         max_length=50,
@@ -64,6 +64,12 @@ class WorkRule(models.Model):
     group_name = models.CharField(
         max_length=100,
         help_text="Tên group quyền (VD: WarehouseManager, CSKHStaff, MarketingManager...)",
+    )
+    shift = models.CharField(
+        max_length=20,
+        choices=SHIFT_CHOICES,
+        default="morning",
+        help_text="Ca làm việc: sáng hoặc tối",
     )
     start_time = models.TimeField(help_text="Giờ bắt đầu chuẩn (VD: 08:30)")
     end_time = models.TimeField(help_text="Giờ kết thúc chuẩn (VD: 17:30)")
@@ -77,10 +83,10 @@ class WorkRule(models.Model):
     class Meta:
         verbose_name = "Quy định giờ làm"
         verbose_name_plural = "Quy định giờ làm"
-        unique_together = ("department", "group_name", "is_active")
+        unique_together = ("department", "group_name", "shift", "is_active")
 
     def __str__(self) -> str:  # pragma: no cover - simple repr
-        return f"{self.department} / {self.group_name}"
+        return f"{self.department} / {self.group_name} / {self.get_shift_display()}"
 
 
 def attendance_photo_upload_to(instance, filename: str) -> str:

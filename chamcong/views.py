@@ -41,9 +41,16 @@ def _calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -
     return R * c
 
 
-def _check_location_valid(latitude: float, longitude: float, department: str) -> tuple[bool, str]:
+def _check_location_valid(latitude: float, longitude: float, department: str = None) -> tuple[bool, str]:
     """
     Kiểm tra vị trí GPS có hợp lệ không (trong bán kính cho phép của WorkLocation).
+    
+    Bộ phận nào chấm công ở các vị trí đã cấu hình đều được coi là hợp lệ.
+    
+    Args:
+        latitude: Vĩ độ GPS
+        longitude: Kinh độ GPS
+        department: Bộ phận (không còn sử dụng, giữ lại để tương thích)
     
     Returns:
         (is_valid, location_name): (True/False, tên vị trí hoặc "Vị trí chưa xác định")
@@ -51,17 +58,8 @@ def _check_location_valid(latitude: float, longitude: float, department: str) ->
     if not latitude or not longitude:
         return False, "Vị trí chưa xác định"
     
-    # Tìm các địa điểm hợp lệ
-    base_qs = WorkLocation.objects.filter(is_active=True)
-
-    # Ưu tiên lọc theo bộ phận nếu mapping khớp
-    if department:
-        dept_qs = base_qs.filter(department__iexact=department)
-        # Nếu không tìm thấy theo bộ phận (do last_name không trùng code),
-        # fallback sang toàn bộ địa điểm đang active
-        locations = dept_qs if dept_qs.exists() else base_qs
-    else:
-        locations = base_qs
+    # Tìm tất cả các địa điểm hợp lệ (không lọc theo bộ phận)
+    locations = WorkLocation.objects.filter(is_active=True)
     
     for loc in locations:
         distance_km = _calculate_distance_km(

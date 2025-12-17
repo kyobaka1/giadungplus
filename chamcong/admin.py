@@ -5,18 +5,18 @@ from .models import AttendanceRecord, WorkLocation, WorkRule
 
 @admin.register(WorkLocation)
 class WorkLocationAdmin(admin.ModelAdmin):
-    list_display = ("name", "department", "latitude", "longitude", "radius_m", "is_active")
-    list_filter = ("department", "is_active")
-    search_fields = ("name", "department")
-    ordering = ("department", "name")
+    list_display = ("name", "latitude", "longitude", "radius_m", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
+    ordering = ("name",)
 
 
 @admin.register(WorkRule)
 class WorkRuleAdmin(admin.ModelAdmin):
-    list_display = ("department", "group_name", "start_time", "end_time", "allow_overtime", "is_active")
-    list_filter = ("department", "is_active", "allow_overtime")
+    list_display = ("department", "group_name", "shift", "start_time", "end_time", "allow_overtime", "is_active")
+    list_filter = ("department", "shift", "is_active", "allow_overtime")
     search_fields = ("department", "group_name")
-    ordering = ("department", "group_name")
+    ordering = ("department", "group_name", "shift")
 
 
 @admin.register(AttendanceRecord)
