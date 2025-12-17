@@ -311,8 +311,10 @@ def push_notification_view(request):
             # Nếu không hẹn giờ, xử lý gửi ngay để test In-app + WebPush theo user
             processed_result = None
             if scheduled_time is None:
+                # Timeout 25 giây để tránh request HTTP quá lâu (web server thường timeout 30s)
                 processed_result = NotificationDeliveryWorker.process_pending_deliveries(
-                    notification_id=notification.id
+                    notification_id=notification.id,
+                    timeout_seconds=25,
                 )
 
             # Lưu ý: không broadcast WebPush thủ công nữa để tránh gửi trùng.
@@ -358,9 +360,11 @@ def push_notification_view(request):
 
                 msg_parts = [
                     f"Đã tạo notification #{notification.id}. ",
-                    f"In-app: processed={processed}, success={success}, failed={failed}. ",
+                    f"Processed: {processed}, success: {success}, failed: {failed}. ",
                     f"[In-app users: {inapp_users_debug}]",
                 ]
+                if processed_result.get("timeout"):
+                    msg_parts.append("⚠️ Quá trình xử lý bị timeout sau 25s, một số deliveries có thể chưa được xử lý.")
                 # WebPush hiện đã gửi qua NotificationDeliveryWorker (channel=web_push),
                 # không cần broadcast thủ công nên không còn thống kê riêng tại đây.
 

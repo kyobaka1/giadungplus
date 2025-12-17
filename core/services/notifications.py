@@ -14,6 +14,7 @@ import os
 from typing import Any, Dict, Optional
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 import requests
 from pywebpush import webpush, WebPushException
@@ -142,10 +143,41 @@ def send_webpush_to_subscription(
                     resp.status_code,
                     resp.text[:500],
                 )
+                # Kiểm tra nếu token không hợp lệ (401, 403) hoặc response có lỗi về token
+                if resp.status_code in (401, 403):
+                    logger.info("Đánh dấu subscription %s không active do FCM token không hợp lệ", subscription.id)
+                    subscription.is_active = False
+                    subscription.save(update_fields=["is_active"])
+                else:
+                    # Kiểm tra response JSON để xem có lỗi về registration token không
+                    try:
+                        resp_data = resp.json()
+                        if "results" in resp_data and resp_data.get("results"):
+                            result = resp_data["results"][0]
+                            error = result.get("error")
+                            # Các lỗi FCM cho biết token không hợp lệ
+                            invalid_errors = [
+                                "InvalidRegistration",
+                                "NotRegistered",
+                                "MismatchSenderId",
+                            ]
+                            if error in invalid_errors:
+                                logger.info(
+                                    "Đánh dấu subscription %s không active do FCM error: %s",
+                                    subscription.id,
+                                    error,
+                                )
+                                subscription.is_active = False
+                                subscription.save(update_fields=["is_active"])
+                    except (ValueError, KeyError, IndexError):
+                        pass  # Không parse được JSON, bỏ qua
                 return False
 
             logger.info("Đã gửi WebPush (FCM) tới subscription %s", subscription.id)
             return True
+        except requests.Timeout:
+            logger.warning("FCM request timeout cho subscription %s", subscription.id)
+            return False
         except Exception as exc:
             logger.exception("Lỗi khi gửi FCM WebPush: %s", exc)
             return False
@@ -164,22 +196,39 @@ def send_webpush_to_subscription(
             payload_data.update(data)
 
         try:
-            webpush(
-                subscription_info={
-                    "endpoint": subscription.endpoint,
-                    "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
-                },
-                data=json.dumps(payload_data),
-                vapid_private_key=vapid["privateKey"],
-                vapid_claims={
-                    # Email admin để identify sender trong VAPID (phải là dạng mailto:...)
-                    "sub": "mailto:support@giadungplus.io.vn",
-                },
-            )
+            # Gửi webpush với timeout 2 giây để tránh treo
+            def _send_webpush():
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+                    },
+                    data=json.dumps(payload_data),
+                    vapid_private_key=vapid["privateKey"],
+                    vapid_claims={
+                        # Email admin để identify sender trong VAPID (phải là dạng mailto:...)
+                        "sub": "mailto:support@giadungplus.io.vn",
+                    },
+                )
+            
+            # Sử dụng ThreadPoolExecutor với timeout để tránh treo
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_send_webpush)
+                future.result(timeout=2.0)  # Timeout 2 giây
+            
             logger.info("Đã gửi WebPush (endpoint) tới subscription %s", subscription.id)
             return True
+        except FutureTimeoutError:
+            logger.warning("WebPush (endpoint) timeout cho subscription %s sau 2s", subscription.id)
+            return False
         except WebPushException as exc:
             logger.error("Lỗi WebPush (endpoint) cho subscription %s: %s", subscription.id, exc)
+            # Nếu subscription không hợp lệ (410 Gone, 404 Not Found), đánh dấu không active
+            error_str = str(exc).lower()
+            if "410" in error_str or "gone" in error_str or "404" in error_str or "not found" in error_str:
+                logger.info("Đánh dấu subscription %s không active do endpoint không hợp lệ", subscription.id)
+                subscription.is_active = False
+                subscription.save(update_fields=["is_active"])
             return False
         except Exception as exc:
             logger.exception("Lỗi không xác định khi gửi WebPush (endpoint): %s", exc)
