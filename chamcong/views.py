@@ -504,6 +504,11 @@ def make_up_attendance_view(request: HttpRequest) -> HttpResponse:
             check_in_time_obj = datetime.strptime(check_in_time_str, "%H:%M").time()
             check_out_time_obj = datetime.strptime(check_out_time_str, "%H:%M").time()
             
+            # Validate: check-out phải sau check-in
+            if check_out_time_obj <= check_in_time_obj:
+                messages.error(request, "Giờ check-out phải sau giờ check-in.")
+                return redirect("chamcong:make_up_attendance")
+            
             # Tạo datetime từ date + time
             check_in_datetime = timezone.make_aware(
                 datetime.combine(work_date, check_in_time_obj)
