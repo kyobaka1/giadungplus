@@ -111,12 +111,12 @@
                 </div>
 
                 <div>
-                    <div class="text-sm md:text-sm font-semibold leading-tight">Gia Dụng Plus – Kho Hàng</div>
-                    <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Kênh Quản Trị Kho Hàng</div>
+                    <div class="text-sm md:text-sm font-semibold leading-tight">Gia Dụng Plus</div>
+                    <div class="text-[10px] md:text-[11px] text-gray-500 leading-tight">Kho Hàng</div>
                 </div>
             </a>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 md:gap-4">
                 <!-- Mobile Menu Button (chỉ hiện trên mobile) -->
                 <button id="mobileMenuToggle" class="md:hidden p-2 rounded-full hover:bg-slate-100 text-gray-700">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
@@ -129,7 +129,7 @@
                 <!-- Notification Bell -->
                 {% include 'core/notification_bell.html' %}
 
-                <!-- Chọn kho -->
+                <!-- Chọn kho (ẩn avatar user ở mobile để gọn) -->
                 <div class="relative">
                     <!-- Khu vực hiển thị kho + user, dùng làm nút bấm -->
                     <button type="button" id="khoDropdownButton"
@@ -181,7 +181,8 @@
                     </div>
                 </div>
 
-                <form method="post" action="{% url 'logout' %}">
+                <!-- Logout: ẩn trên mobile, chỉ hiện md+ -->
+                <form method="post" action="{% url 'logout' %}" class="hidden md:block">
                     {% csrf_token %}
                     <button type="submit" class="p-2 rounded-full hover:bg-red-50 text-red-600 transition">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
@@ -412,7 +413,14 @@
                         </ul>
                     </div>
 
-                    
+                    <a href="{% url 'chamcong:checkin' %}"
+                       class="flex items-center gap-2 px-4 py-2 mx-2 mt-3 rounded-lg border border-red-100 text-sm text-red-600 bg-red-50/40 hover:bg-red-50 hover:border-red-200 hover:text-red-700 transition sidebar-link">
+                        <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-red-200 text-[10px]">
+                            ⏱
+                        </span>
+                        <span>Chấm công</span>
+                    </a>
+
                 </nav>
             </aside>
 

@@ -156,16 +156,21 @@
                     <select name="shift" required
                             class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
                         <option value="morning">Ca sáng</option>
+                        <option value="afternoon">Ca chiều</option>
                         <option value="evening">Ca tối</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1">Giờ bắt đầu</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">
+                        Giờ bắt đầu <span class="text-[10px] text-slate-400">(24h: HH:MM)</span>
+                    </label>
                     <input type="time" name="start_time" required
                            class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1">Giờ kết thúc</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">
+                        Giờ kết thúc <span class="text-[10px] text-slate-400">(24h: HH:MM)</span>
+                    </label>
                     <input type="time" name="end_time" required
                            class="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500">
                 </div>

@@ -51,8 +51,10 @@ class WorkRule(models.Model):
         ("ADMIN", "Admin / Quản trị"),
     ]
 
+    # Quy định ca làm việc: sáng / chiều / tối
     SHIFT_CHOICES = [
         ("morning", "Ca sáng"),
+        ("afternoon", "Ca chiều"),
         ("evening", "Ca tối"),
     ]
 
@@ -69,10 +71,14 @@ class WorkRule(models.Model):
         max_length=20,
         choices=SHIFT_CHOICES,
         default="morning",
-        help_text="Ca làm việc: sáng hoặc tối",
+        help_text="Ca làm việc: sáng / chiều / tối",
     )
-    start_time = models.TimeField(help_text="Giờ bắt đầu chuẩn (VD: 08:30)")
-    end_time = models.TimeField(help_text="Giờ kết thúc chuẩn (VD: 17:30)")
+    start_time = models.TimeField(
+        help_text="Giờ bắt đầu chuẩn (24h, VD: 08:30)"
+    )
+    end_time = models.TimeField(
+        help_text="Giờ kết thúc chuẩn (24h, VD: 17:30)"
+    )
     allow_overtime = models.BooleanField(default=True)
 
     is_active = models.BooleanField(default=True)

@@ -19,13 +19,19 @@ def normalize_image_url(url: str) -> str:
     
     original_url = url
     
-    # 1. Xử lý TMALL: https://gw.alicdn.com/...jpg_.webp => .jpg
+    # 1. Xử lý TMALL / Alibaba (alicdn.com)
     if 'alicdn.com' in url:
-        # Bỏ _.webp ở cuối nếu có
+        # 1.1. Các pattern kiểu: .jpg_b.jpg, .jpg_sum.jpg -> .jpg
+        # Ví dụ:
+        #   https://cbu01.alicdn.com/..._cib.jpg_b.jpg  -> ..._cib.jpg
+        #   https://cbu01.alicdn.com/..._cib.jpg_sum.jpg -> ..._cib.jpg
+        url = re.sub(r'\.jpg_(?:b|sum)\.jpg$', '.jpg', url, flags=re.IGNORECASE)
+
+        # 1.2. Bỏ _.webp ở cuối nếu có
         url = re.sub(r'\.jpg_\.webp$', '.jpg', url, flags=re.IGNORECASE)
         url = re.sub(r'\.png_\.webp$', '.png', url, flags=re.IGNORECASE)
         
-        # Bỏ _q50.jpg_.webp hoặc các pattern tương tự
+        # 1.3. Bỏ _q50.jpg_.webp hoặc các pattern tương tự
         url = re.sub(r'_q\d+\.jpg_\.webp$', '.jpg', url, flags=re.IGNORECASE)
         url = re.sub(r'_q\d+\.png_\.webp$', '.png', url, flags=re.IGNORECASE)
     
