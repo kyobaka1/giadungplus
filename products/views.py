@@ -1164,6 +1164,284 @@ def api_xnk_search(request: HttpRequest):
 
 
 @admin_only
+@require_http_methods(["GET"])
+def export_spo_packing_list(request: HttpRequest, spo_id: int):
+    """
+    Xuất packing_list cho một SPO:
+    - Dựa trên các PO trong SPO
+    - Dùng GDP Meta để lấy sku_model_xnk cho từng variant
+    - Dùng Model XNK để lấy thông tin model (HS code, tên, đơn vị, giá, material, ...)
+    - Gom theo SKU nhập khẩu (sku_model_xnk), cộng dồn quantity, box, total_cpm, total_price, total_weight
+    - Xuất file Excel để client tải về.
+    """
+    from products.services.spo_po_service import SPOPOService
+    from products.services.sapo_product_service import SapoProductService
+
+    spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+
+    # Lấy danh sách Sapo PO IDs trong SPO
+    spo_po_relations = spo.spo_purchase_orders.select_related("purchase_order").all()
+    po_ids = [
+        rel.purchase_order.sapo_order_supplier_id
+        for rel in spo_po_relations
+        if rel.purchase_order and rel.purchase_order.sapo_order_supplier_id
+    ]
+
+    if not po_ids:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "SPO chưa có PO nào để xuất packing_list.",
+            },
+            status=400,
+        )
+
+    sapo_client = get_sapo_client()
+    spo_po_service = SPOPOService(sapo_client)
+    product_service = SapoProductService(sapo_client)
+    xnk_service = _get_xnk_service()
+
+    # BƯỚC 1: Lấy toàn bộ PO data (bao gồm line_items với cpm, full_box...)
+    pos_data = spo_po_service.get_pos_for_spo(po_ids)
+
+    # BƯỚC 2: Thu thập product_ids để đọc GDP Meta
+    product_ids = set()
+    for po_data in pos_data:
+        for item in po_data.get("line_items", []):
+            product_id = item.get("product_id")
+            if product_id:
+                product_ids.add(product_id)
+
+    # BƯỚC 3: Xây map variant_id -> sku_model_xnk từ GDP Meta
+    variant_sku_xnk_map: Dict[int, str] = {}
+
+    for product_id in product_ids:
+        try:
+            product_dto = product_service.get_product(product_id)
+            if not product_dto or not product_dto.gdp_metadata:
+                continue
+
+            for v_meta in product_dto.gdp_metadata.variants:
+                if v_meta.sku_model_xnk:
+                    variant_sku_xnk_map[v_meta.id] = v_meta.sku_model_xnk.strip()
+        except Exception as e:
+            logger.warning(f"[export_spo_packing_list] Error loading product {product_id}: {e}")
+            continue
+
+    if not variant_sku_xnk_map:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Không tìm thấy sku_model_xnk cho bất kỳ variant nào trong SPO.",
+            },
+            status=400,
+        )
+
+    # BƯỚC 4: Load toàn bộ XNK models và tạo map SKU -> model
+    try:
+        all_xnk_models = xnk_service.get_all_models()
+    except Exception as e:
+        logger.error(f"[export_spo_packing_list] Error loading XNK models: {e}", exc_info=True)
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Không thể load dữ liệu Model XNK.",
+            },
+            status=500,
+        )
+
+    xnk_model_map: Dict[str, Dict[str, Any]] = {}
+    xnk_model_map_ci: Dict[str, Dict[str, Any]] = {}
+    for model in all_xnk_models:
+        sku = str(model.get("sku", "")).strip()
+        if not sku:
+            continue
+        xnk_model_map[sku] = model
+        xnk_model_map_ci[sku.upper()] = model
+
+    if not xnk_model_map:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Không có dữ liệu Model XNK để đối chiếu.",
+            },
+            status=400,
+        )
+
+    # BƯỚC 5: Gom dữ liệu theo SKU nhập khẩu (sku_model_xnk)
+    aggregated: Dict[str, Dict[str, Any]] = {}
+
+    for po_data in pos_data:
+        for item in po_data.get("line_items", []):
+            variant_id = item.get("variant_id")
+            quantity = item.get("quantity", 0) or 0
+
+            if not variant_id or quantity <= 0:
+                continue
+
+            sku_model_xnk = variant_sku_xnk_map.get(variant_id)
+            if not sku_model_xnk:
+                # Không có SKU nhập khẩu trong GDP Meta
+                continue
+
+            # Tìm model XNK theo SKU nhập khẩu
+            model = xnk_model_map.get(sku_model_xnk)
+            if not model:
+                model = xnk_model_map_ci.get(sku_model_xnk.upper())
+
+            if not model:
+                # Không tìm thấy model tương ứng
+                continue
+
+            sku_key = str(model.get("sku", "")).strip()
+            if not sku_key:
+                continue
+
+            # Khởi tạo dòng mới nếu chưa có
+            if sku_key not in aggregated:
+                price = model.get("usd_price")
+                try:
+                    price_val = float(price) if price is not None else 0.0
+                except (TypeError, ValueError):
+                    price_val = 0.0
+
+                aggregated[sku_key] = {
+                    "hs_code": model.get("hs_code", "") or "",
+                    "sku_nhapkhau": sku_key,
+                    "vn_name": model.get("vn_name", "") or "",
+                    "en_name": model.get("en_name", "") or "",
+                    "cn_name": model.get("china_name", "") or "",
+                    "nsx_name": model.get("nsx_name", "") or "",
+                    "quantity": 0,
+                    "unit": model.get("unit", "") or "",
+                    "price": price_val,
+                    "box": 0.0,
+                    "total_price": 0.0,
+                    "total_cpm": 0.0,
+                    "material": model.get("material", "") or "",
+                    "total_weight": 0.0,
+                }
+
+            row_data = aggregated[sku_key]
+
+            # full_box để tính số thùng
+            full_box = item.get("full_box") or 1
+            try:
+                full_box_val = float(full_box) if full_box else 1.0
+            except (TypeError, ValueError):
+                full_box_val = 1.0
+
+            try:
+                qty_val = float(quantity)
+            except (TypeError, ValueError):
+                qty_val = 0.0
+
+            boxes = qty_val / full_box_val if full_box_val > 0 else qty_val
+
+            # Cộng dồn các chỉ số
+            row_data["quantity"] += quantity
+            row_data["box"] += boxes
+            row_data["total_price"] += qty_val * float(row_data["price"])
+
+            cpm_val = item.get("cpm") or 0
+            try:
+                cpm_float = float(cpm_val)
+            except (TypeError, ValueError):
+                cpm_float = 0.0
+            row_data["total_cpm"] += cpm_float
+
+    if not aggregated:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Không có dữ liệu nào phù hợp để xuất packing_list.",
+            },
+            status=400,
+        )
+
+    # BƯỚC 6: Tính total_weight cho từng dòng (theo công thức tham khảo ALL-HCM mẫu)
+    for row in aggregated.values():
+        # TOTAL WEIGHT = TOTAL CAPACITY * 1,000,000 / 6,000
+        total_cpm = row.get("total_cpm", 0.0) or 0.0
+        try:
+            total_cpm_val = float(total_cpm)
+        except (TypeError, ValueError):
+            total_cpm_val = 0.0
+        row["total_weight"] = total_cpm_val * 1000000.0 / 6000.0 if total_cpm_val > 0 else 0.0
+
+    # Sắp xếp theo SKU nhập khẩu
+    rows = sorted(aggregated.values(), key=lambda r: r.get("sku_nhapkhau", ""))
+
+    # BƯỚC 7: Xuất Excel bằng xlsxwriter (giống format ALL-HCM2505)
+    if xlsxwriter is None:
+        return JsonResponse(
+            {
+                "status": "error",
+                "message": "Thư viện xlsxwriter chưa được cài đặt trên server.",
+            },
+            status=500,
+        )
+
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+    worksheet = workbook.add_worksheet("Packing List")
+
+    # Header
+    row_idx = 0
+    col = 0
+    headers = [
+        "MÃ HS",
+        "TÊN TIẾNG VIỆT",
+        "TÊN TIẾNG ANH",
+        "TÊN TIẾNG TRUNG",
+        "NSX",
+        "QUANTITY",
+        "UNIT",
+        "BOX",
+        "UNIT PRICE",
+        "TOTAL PRICE",
+        "TOTAL CAPACITY",
+        "TOTAL WEIGHT",
+        "MATERIAL",
+        "SKU-NHAPKHAU",
+    ]
+
+    for idx, header in enumerate(headers):
+        worksheet.write(row_idx, col + idx, header)
+
+    # Dữ liệu
+    row_idx = 1
+    for item in rows:
+        col = 0
+        worksheet.write(row_idx, col, item.get("hs_code", ""))
+        worksheet.write(row_idx, col + 1, item.get("vn_name", ""))
+        worksheet.write(row_idx, col + 2, item.get("en_name", ""))
+        worksheet.write(row_idx, col + 3, item.get("cn_name", ""))
+        worksheet.write(row_idx, col + 4, item.get("nsx_name", ""))
+        worksheet.write(row_idx, col + 5, item.get("quantity", 0))
+        worksheet.write(row_idx, col + 6, item.get("unit", ""))
+        worksheet.write(row_idx, col + 7, item.get("box", 0.0))
+        worksheet.write(row_idx, col + 8, item.get("price", 0.0))
+        worksheet.write(row_idx, col + 9, item.get("total_price", 0.0))
+        worksheet.write(row_idx, col + 10, item.get("total_cpm", 0.0))
+        worksheet.write(row_idx, col + 11, item.get("total_weight", 0.0))
+        worksheet.write(row_idx, col + 12, item.get("material", ""))
+        worksheet.write(row_idx, col + 13, item.get("sku_nhapkhau", ""))
+        row_idx += 1
+
+    workbook.close()
+    output.seek(0)
+
+    filename = f"ALL-{spo.code}.xlsx"
+    response = HttpResponse(
+        output.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    response["Content-Disposition"] = f'attachment; filename=\"{filename}\"'
+    return response
+
+
+@admin_only
 @require_POST
 @csrf_exempt
 def api_xnk_edit(request: HttpRequest):

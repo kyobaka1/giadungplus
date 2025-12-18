@@ -68,6 +68,7 @@ urlpatterns = [
     # Sum Purchase Order (SPO)
     path("sum-purchase-orders/", views.sum_purchase_order_list, name="sum_purchase_order_list"),
     path("sum-purchase-orders/<int:spo_id>/", views.sum_purchase_order_detail, name="sum_purchase_order_detail"),
+    path("sum-purchase-orders/<int:spo_id>/export-packing-list/", views.export_spo_packing_list, name="export_spo_packing_list"),
     path("sum-purchase-orders/<int:spo_id>/remove-po/<int:po_id>/", views.remove_po_from_spo, name="remove_po_from_spo"),
     path("sum-purchase-orders/create/", views.create_sum_purchase_order, name="create_sum_purchase_order"),
     path("sum-purchase-orders/add-po/", views.add_po_to_spo, name="add_po_to_spo"),
