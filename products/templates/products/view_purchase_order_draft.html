@@ -196,8 +196,8 @@
         <a href="{% url 'products:supplier_list' %}" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300 transition text-sm font-medium">
             Quay lại danh sách NSX
         </a>
-        {% if supplier %}
-        <a href="{% url 'products:create_purchase_order_from_supplier' supplier.id %}" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium">
+        {% if po %}
+        <a href="{% url 'products:edit_purchase_order' po.id %}" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition text-sm font-medium">
             Chỉnh sửa đơn hàng
         </a>
         {% endif %}
