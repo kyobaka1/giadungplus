@@ -300,26 +300,50 @@
         border-left: 3px solid #dc2626;
     }
 
-    /* Toast notification */
+    /* Toast notification - Modal style: chính giữa màn hình, có backdrop */
+    .toast-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 9998;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+    }
+
+    .toast-backdrop.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
     .toast {
         position: fixed;
-        top: 20px;
+        top: 50%;
         left: 50%;
-        transform: translateX(-50%) translateY(-100px);
-        padding: 16px 24px;
-        border-radius: 8px;
+        transform: translate(-50%, -50%) scale(0.9);
+        padding: 20px 48px 20px 24px;
+        border-radius: 12px;
         font-size: 14px;
         font-weight: 500;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
         opacity: 0;
         transition: all 0.3s ease;
         z-index: 9999;
         max-width: 90%;
+        min-width: 320px;
+        max-width: 500px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
     }
 
     .toast.show {
         opacity: 1;
-        transform: translateX(-50%) translateY(0);
+        transform: translate(-50%, -50%) scale(1);
     }
 
     .toast-success {
@@ -335,6 +359,51 @@
     .toast-warning {
         background: #f59e0b;
         color: white;
+    }
+
+    .toast-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .toast-title {
+        font-weight: 700;
+        font-size: 16px;
+        margin-bottom: 6px;
+    }
+
+    .toast-message {
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .toast-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        font-weight: bold;
+        transition: background 0.2s;
+        flex-shrink: 0;
+    }
+
+    .toast-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+
+    .toast-close:active {
+        background: rgba(255, 255, 255, 0.4);
+        transform: scale(0.95);
     }
 
     @media (min-width: 640px) {
@@ -700,25 +769,161 @@
         document.getElementById('loading').classList.add('hidden');
     }
 
+    // Phân loại lỗi để hiển thị rõ ràng
+    function categorizeError(errorMessage) {
+        const message = errorMessage.toLowerCase();
+        
+        // Đơn hàng đã được đóng gói
+        if (message.includes('đã được đóng gói') || message.includes('đã gói')) {
+            return {
+                title: '⚠️ Đơn Hàng Đã Được Đóng Gói',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Đơn hàng đã bị huỷ
+        if (message.includes('đã bị huỷ') || message.includes('đã huỷ')) {
+            return {
+                title: '❌ Đơn Hàng Đã Bị Huỷ',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Đơn hàng đã giao đi / đã được gửi
+        if (message.includes('đã giao') || message.includes('đã được gửi') || message.includes('đã được giao')) {
+            return {
+                title: '📦 Đơn Hàng Đã Được Gửi Đi',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Vận đơn đã bị huỷ
+        if (message.includes('vận đơn') && (message.includes('huỷ') || message.includes('hủy'))) {
+            return {
+                title: '🚫 Vận Đơn Đã Bị Huỷ',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Đơn hàng không hợp lệ
+        if (message.includes('không hợp lệ') || message.includes('không tìm thấy')) {
+            return {
+                title: '⚠️ Không Tìm Thấy Đơn Hàng',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Đơn hàng đang chờ giao lại
+        if (message.includes('chờ giao lại') || message.includes('đang chờ')) {
+            return {
+                title: '⏳ Đơn Hàng Đang Chờ Giao Lại',
+                message: errorMessage,
+                type: 'warning'
+            };
+        }
+        
+        // Lỗi hệ thống
+        if (message.includes('lỗi hệ thống') || message.includes('lỗi kết nối')) {
+            return {
+                title: '🔧 Lỗi Hệ Thống',
+                message: errorMessage,
+                type: 'error'
+            };
+        }
+        
+        // Mặc định
+        return {
+            title: '⚠️ Lỗi',
+            message: errorMessage,
+            type: 'error'
+        };
+    }
+
     function showError(message) {
-        showToast(message, 'error');
+        const errorInfo = categorizeError(message);
+        showToast(errorInfo.message, errorInfo.type, errorInfo.title);
     }
 
     function showSuccess(message) {
-        showToast(message, 'success');
+        showToast(message, 'success', '✓ Thành Công');
     }
 
-    function showToast(message, type) {
+    function showToast(message, type, title = null) {
+        // Xóa toast cũ nếu có
+        const existingBackdrop = document.querySelector('.toast-backdrop.show');
+        const existingToast = document.querySelector('.toast.show');
+        if (existingBackdrop) {
+            existingBackdrop.classList.remove('show');
+            setTimeout(() => existingBackdrop.remove(), 300);
+        }
+        if (existingToast) {
+            existingToast.classList.remove('show');
+            setTimeout(() => existingToast.remove(), 300);
+        }
+
+        // Tạo backdrop (làm mờ background)
+        const backdrop = document.createElement('div');
+        backdrop.className = 'toast-backdrop';
+        backdrop.onclick = function() {
+            // Không cho phép click backdrop để đóng (phải bấm nút close)
+            // backdrop.classList.remove('show');
+            // toast.classList.remove('show');
+            // setTimeout(() => {
+            //     backdrop.remove();
+            //     toast.remove();
+            // }, 300);
+        };
+        document.body.appendChild(backdrop);
+
+        // Tạo toast
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
-        toast.textContent = message;
+        
+        // Tạo nội dung toast
+        const content = document.createElement('div');
+        content.className = 'toast-content';
+        
+        if (title) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'toast-title';
+            titleEl.textContent = title;
+            content.appendChild(titleEl);
+        }
+        
+        const messageEl = document.createElement('div');
+        messageEl.className = 'toast-message';
+        messageEl.textContent = message;
+        content.appendChild(messageEl);
+        
+        toast.appendChild(content);
+        
+        // Tạo nút close
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.innerHTML = '×';
+        closeBtn.setAttribute('aria-label', 'Đóng');
+        closeBtn.onclick = function() {
+            backdrop.classList.remove('show');
+            toast.classList.remove('show');
+            setTimeout(() => {
+                backdrop.remove();
+                toast.remove();
+            }, 300);
+        };
+        toast.appendChild(closeBtn);
+        
         document.body.appendChild(toast);
 
-        setTimeout(() => toast.classList.add('show'), 500);
+        // Hiển thị backdrop và toast (không tự tắt)
         setTimeout(() => {
-            toast.classList.remove('show');
-            setTimeout(() => toast.remove(), 500);
-        }, 5000);
+            backdrop.classList.add('show');
+            toast.classList.add('show');
+        }, 100);
     }
 
     function getCookie(name) {
