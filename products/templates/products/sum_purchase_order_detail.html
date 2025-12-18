@@ -407,6 +407,13 @@
                                 
                                 <!-- Actions -->
                                 <div class="flex items-center gap-2 ml-4">
+                                    <a href="{% url 'products:edit_purchase_order' po.sapo_order_supplier_id %}"
+                                       class="text-sky-600 hover:text-sky-700 p-1.5 rounded transition hover:bg-sky-50"
+                                       title="Sửa PO này">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M4 20h4.586a1 1 0 00.707-.293l9.439-9.439a1 1 0 000-1.414l-3.536-3.536a1 1 0 00-1.414 0L4.343 14.757A1 1 0 004 15.464V20z" />
+                                        </svg>
+                                    </a>
                                     <button class="update-delivery-status-btn text-blue-600 hover:text-blue-700 p-1.5 rounded transition hover:bg-blue-50"
                                             data-po-id="{{ po.po_id }}"
                                             data-current-status="{{ po.delivery_status }}"

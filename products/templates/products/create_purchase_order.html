@@ -9,9 +9,18 @@
 <section>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
         <div>
-            <h1 class="text-base sm:text-lg font-semibold text-slate-800">{{ title }}</h1>
+            <h1 class="text-base sm:text-lg font-semibold text-slate-800">
+                {% if po_mode == "edit" %}Sửa đơn nhập hàng{% else %}Lên đơn nhập hàng{% endif %}
+            </h1>
             {% if supplier %}
-            <p class="text-xs text-gray-500 mt-1">Nhà cung cấp: <strong>{{ supplier.name }}</strong> ({{ supplier.code }})</p>
+            <p class="text-xs text-gray-500 mt-1">
+                Nhà cung cấp: <strong>{{ supplier.name }}</strong> ({{ supplier.code }})
+                {% if current_po %}
+                    <span class="ml-2 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+                        Đang sửa PO: {{ current_po.code }}
+                    </span>
+                {% endif %}
+            </p>
             {% endif %}
         </div>
         <a href="{% url 'products:supplier_list' %}" class="text-xs sm:text-sm text-slate-600 hover:text-slate-800 self-start sm:self-auto">
@@ -70,26 +79,39 @@
         </div>
     </div>
 
-    <!-- Form tạo đơn -->
+    <!-- Form tạo / sửa đơn -->
     <form id="create-po-form" method="POST" action="{% url 'products:submit_purchase_order_draft' %}">
         {% csrf_token %}
         <input type="hidden" name="supplier_id" value="{{ supplier.id }}">
+        <input type="hidden" id="current-po-id" value="{{ current_po_id|default:'' }}">
         
         <!-- CONTROL PANEL -->
         <div class="mb-6 bg-white rounded-lg shadow-sm border border-slate-200 p-5 sm:p-6">
-            <!-- Hàng đầu tiên: Tiêu đề + Nút tạo đơn -->
+            <!-- Hàng đầu tiên: Tiêu đề + Nút tạo / cập nhật đơn -->
             <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
                 <div class="flex-1">
-                    <h2 class="text-xl sm:text-2xl font-semibold text-slate-900 mb-1.5">Điều phối nhập kho</h2>
-                    <p class="text-sm text-slate-600 leading-relaxed">Chọn kho nhận hàng và tìm sản phẩm để tạo đơn nháp.</p>
+                    <h2 class="text-xl sm:text-2xl font-semibold text-slate-900 mb-1.5">
+                        {% if po_mode == "edit" %}Điều phối & chỉnh sửa đơn nhập kho{% else %}Điều phối nhập kho{% endif %}
+                    </h2>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Chọn kho nhận hàng và tìm sản phẩm để {% if po_mode == "edit" %}cập nhật đơn{% else %}tạo đơn nháp{% endif %}.
+                    </p>
                 </div>
                 {% if variants %}
-                <button type="button" id="submit-po-btn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-all text-sm font-medium shadow-sm hover:shadow-md touch-manipulation whitespace-nowrap">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                    </svg>
-                    Tạo đơn nháp
-                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="submit-po-btn" class="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 active:bg-emerald-800 transition-all text-sm font-medium shadow-sm hover:shadow-md touch-manipulation whitespace-nowrap">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                        {% if po_mode == "edit" %}Cập nhật PO{% else %}Tạo đơn nháp{% endif %}
+                    </button>
+                    <button type="button" id="reset-qty-btn" class="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 text-xs font-medium shadow-sm transition-all whitespace-nowrap">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9M4.582 9H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reset về 0
+                    </button>
+                </div>
                 {% endif %}
             </div>
             
@@ -536,6 +558,15 @@ document.getElementById('submit-po-btn')?.addEventListener('click', function() {
         location_id: parseInt(formData.get('location_id')),
         line_items: []
     };
+
+    // Nếu đang sửa PO cụ thể, gửi kèm po_id để backend update đúng PO
+    const currentPoIdInput = document.getElementById('current-po-id');
+    if (currentPoIdInput && currentPoIdInput.value) {
+        const parsedPoId = parseInt(currentPoIdInput.value);
+        if (!isNaN(parsedPoId)) {
+            data.po_id = parsedPoId;
+        }
+    }
     
     // Collect line items
     document.querySelectorAll('input[type="number"][name^="quantity_"]').forEach(input => {
@@ -558,16 +589,17 @@ document.getElementById('submit-po-btn')?.addEventListener('click', function() {
         return;
     }
     
-    // Xác nhận trước khi tạo đơn
+    // Xác nhận trước khi tạo / cập nhật đơn
     const locationName = data.location_id === 241737 ? 'Gele (Hà Nội)' : 'Toky (Hồ Chí Minh)';
     const totalItems = data.line_items.length;
     const totalQuantity = data.line_items.reduce((sum, item) => sum + item.quantity, 0);
     
-    const confirmMessage = `Xác nhận tạo đơn nháp?\n\n` +
+    const actionLabel = data.po_id ? 'cập nhật đơn hàng' : 'tạo đơn nháp';
+    const confirmMessage = `Xác nhận ${actionLabel}?\n\n` +
         `Kho nhận: ${locationName}\n` +
         `Số sản phẩm: ${totalItems}\n` +
         `Tổng số lượng: ${totalQuantity.toLocaleString('vi-VN')} pcs\n\n` +
-        `Bạn có chắc chắn muốn tạo đơn nháp?`;
+        `Bạn có chắc chắn muốn ${actionLabel}?`;
     
     if (!confirm(confirmMessage)) {
         return; // Người dùng hủy
@@ -609,7 +641,7 @@ document.getElementById('submit-po-btn')?.addEventListener('click', function() {
     .then(data => {
         if (data.status === 'success') {
             const action = data.is_update ? 'cập nhật' : 'tạo';
-            alert(`✅ Đã ${action} đơn nháp thành công!\nMã đơn: ${data.order_code || 'N/A'}`);
+            alert(`✅ Đã ${action} đơn thành công!\nMã đơn: ${data.order_code || 'N/A'}`);
             // Redirect đến màn hình xem đơn hàng
             if (data.redirect_url) {
                 window.location.href = data.redirect_url;
@@ -626,6 +658,20 @@ document.getElementById('submit-po-btn')?.addEventListener('click', function() {
         alert('❌ Lỗi: ' + error.message);
         submitBtn.disabled = false;
         submitBtn.textContent = originalText;
+    });
+});
+
+// Reset tất cả số lượng về 0
+document.getElementById('reset-qty-btn')?.addEventListener('click', function() {
+    if (!confirm('Reset toàn bộ số lượng về 0?')) {
+        return;
+    }
+    document.querySelectorAll('input[type="number"][name^="quantity_"]').forEach(input => {
+        input.value = 0;
+        const variantId = parseInt(input.dataset.variantId);
+        if (!isNaN(variantId)) {
+            updateQuantity(variantId);
+        }
     });
 });
 </script>
