@@ -700,21 +700,22 @@ def _map_item_ids_to_real_items(
     debug("=" * 60)
     
     # Tìm các real_items có variant_id hoặc old_id match với sapo_variant_id
+    # LƯU Ý: Đơn tách chỉ phân biệt sản phẩm nào thuộc package nào, KHÔNG thay đổi số lượng
+    # Quantity phải lấy từ real_items của order (từ Sapo), không phải từ package_items (từ Shopee)
     matched_items = []
     debug("=" * 60)
     debug("DEBUG: Mapping Real Items với Package Items")
     debug("=" * 60)
     for real_item in order.real_items:
         matched = False
-        matched_quantity = 0
         
         # Kiểm tra variant_id
         if real_item.variant_id in variation_to_sapo_variant.values():
             # Tìm variation_id tương ứng
             for variation_id, sapo_variant_id in variation_to_sapo_variant.items():
                 if sapo_variant_id == real_item.variant_id and variation_id in package_items_map:
-                    matched_quantity = package_items_map[variation_id]
-                    # Tạo copy của real_item với quantity từ package
+                    # Sản phẩm có trong package -> thêm vào matched_items
+                    # Quantity lấy từ real_item.quantity (từ order), KHÔNG phải từ package_items_map
                     matched_item = RealItemDTO(
                         variant_id=real_item.variant_id,
                         old_id=real_item.old_id,
@@ -722,12 +723,12 @@ def _map_item_ids_to_real_items(
                         sku=real_item.sku,
                         barcode=real_item.barcode,
                         variant_options=real_item.variant_options,
-                        quantity=matched_quantity,  # Quantity từ package
+                        quantity=real_item.quantity,  # Quantity từ order (real_items), không phải từ package
                         unit=real_item.unit,
                         product_name=real_item.product_name,
                     )
                     matched_items.append(matched_item)
-                    debug(f"  ✓ MATCHED: variant_id={real_item.variant_id}, sku={real_item.sku}, qty={matched_quantity} (from package)")
+                    debug(f"  ✓ MATCHED: variant_id={real_item.variant_id}, sku={real_item.sku}, qty={real_item.quantity} (from order real_items)")
                     matched = True
                     break
         
@@ -735,7 +736,8 @@ def _map_item_ids_to_real_items(
         if not matched and real_item.old_id and real_item.old_id in variation_to_sapo_variant.values():
             for variation_id, sapo_variant_id in variation_to_sapo_variant.items():
                 if sapo_variant_id == real_item.old_id and variation_id in package_items_map:
-                    matched_quantity = package_items_map[variation_id]
+                    # Sản phẩm có trong package -> thêm vào matched_items
+                    # Quantity lấy từ real_item.quantity (từ order), KHÔNG phải từ package_items_map
                     matched_item = RealItemDTO(
                         variant_id=real_item.variant_id,
                         old_id=real_item.old_id,
@@ -743,12 +745,12 @@ def _map_item_ids_to_real_items(
                         sku=real_item.sku,
                         barcode=real_item.barcode,
                         variant_options=real_item.variant_options,
-                        quantity=matched_quantity,  # Quantity từ package
+                        quantity=real_item.quantity,  # Quantity từ order (real_items), không phải từ package
                         unit=real_item.unit,
                         product_name=real_item.product_name,
                     )
                     matched_items.append(matched_item)
-                    debug(f"  ✓ MATCHED (via old_id): old_id={real_item.old_id}, variant_id={real_item.variant_id}, sku={real_item.sku}, qty={matched_quantity} (from package)")
+                    debug(f"  ✓ MATCHED (via old_id): old_id={real_item.old_id}, variant_id={real_item.variant_id}, sku={real_item.sku}, qty={real_item.quantity} (from order real_items)")
                     matched = True
                     break
         
