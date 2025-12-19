@@ -1307,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Ship Info Modal Functions
-    function openEditShipModal() {
+    window.openEditShipModal = function() {
         const modal = document.getElementById('add-ship-modal');
         const title = document.getElementById('ship-modal-title');
         const shipNameInput = document.getElementById('ship-name-input');
@@ -1327,11 +1327,11 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.classList.remove('hidden');
     }
     
-    function closeShipModal() {
+    window.closeShipModal = function() {
         document.getElementById('add-ship-modal').classList.add('hidden');
     }
     
-    function deleteShipInfo() {
+    window.deleteShipInfo = function() {
         if (!confirm('Bạn có chắc muốn xóa thông tin tàu này?')) {
             return;
         }

@@ -2,7 +2,7 @@
 """
 Service tự động xử lý đơn hoả tốc:
 - Tìm lại shipper cho đơn đã chuẩn bị hàng
-- Tự động chuẩn bị hàng cho đơn chưa chuẩn bị (hơn 50 phút)
+- Tự động chuẩn bị hàng cho đơn chưa chuẩn bị (hơn 30 phút)
 """
 
 import logging
@@ -358,7 +358,7 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
     """
     Tự động xử lý đơn hoả tốc:
     - Tìm lại shipper cho đơn đã chuẩn bị hàng
-    - Chuẩn bị hàng cho đơn chưa chuẩn bị (hơn 50 phút)
+    - Chuẩn bị hàng cho đơn chưa chuẩn bị (hơn 30 phút)
     
     Args:
         limit: Số đơn tối đa xử lý mỗi lần
@@ -432,35 +432,47 @@ def auto_process_express_orders(limit: int = 250) -> Dict[str, Any]:
                 prepared_orders.append((order, order_dto))
             else:
                 # Đơn chưa có tracking code - cần kiểm tra thời gian để chuẩn bị
+                # Sử dụng issued_at từ Marketplace order (thời gian tạo đơn gốc từ Shopee)
+                # thay vì created_on từ OrderDTO (thời gian đồng bộ trên SAPO)
                 should_prepare = False
                 skip_reason = None
                 
-                if order_dto.created_on:
+                # issued_at là timestamp (giây) từ Shopee
+                issued_at_ts = order.get("issued_at", 0) or 0
+                
+                if issued_at_ts > 0:
                     try:
-                        created_dt = datetime.fromisoformat(
-                            order_dto.created_on.replace('Z', '+00:00')
-                        )
-                        if created_dt.tzinfo is None:
-                            created_dt = created_dt.replace(tzinfo=tz_vn)
-                        if created_dt.tzinfo != tz_vn:
-                            created_dt = created_dt.astimezone(tz_vn)
+                        # Convert timestamp sang datetime với timezone VN
+                        issued_dt = datetime.fromtimestamp(issued_at_ts, tz_vn)
                         
                         # Tính thời gian chênh lệch
-                        time_diff = now_vn - created_dt
+                        time_diff = now_vn - issued_dt
                         minutes_diff = time_diff.total_seconds() / 60
                         
-                        # Nếu hơn 50 phút thì thêm vào danh sách chuẩn bị
-                        if time_diff.total_seconds() > 50 * 60:  # 50 phút
+                        # Nếu hơn 30 phút thì thêm vào danh sách chuẩn bị
+                        if time_diff.total_seconds() > 30 * 60:  # 30 phút
                             should_prepare = True
+                            logger.debug(
+                                f"[AUTO_XPRESS] Đơn {channel_order_number} đã hơn 30 phút "
+                                f"({minutes_diff:.1f} phút, tạo lúc {issued_dt.strftime('%H:%M:%S %d/%m/%Y')})"
+                            )
                         else:
-                            skip_reason = f"Chưa đủ 50 phút ({minutes_diff:.1f} phút)"
+                            skip_reason = f"Chưa đủ 30 phút ({minutes_diff:.1f} phút, tạo lúc {issued_dt.strftime('%H:%M:%S %d/%m/%Y')})"
                             
-                    except (ValueError, AttributeError) as e:
+                    except (ValueError, TypeError, OSError) as e:
                         # Nếu không parse được thời gian, vẫn thêm vào danh sách chuẩn bị để xử lý
                         # Vì đơn chưa có tracking code nên cần chuẩn bị
+                        logger.warning(
+                            f"[AUTO_XPRESS] Không parse được issued_at cho đơn {channel_order_number}: {e}, "
+                            f"vẫn thêm vào danh sách chuẩn bị"
+                        )
                         should_prepare = True
                 else:
-                    # Không có created_on, nhưng đơn chưa có tracking code nên vẫn cần chuẩn bị
+                    # Không có issued_at, nhưng đơn chưa có tracking code nên vẫn cần chuẩn bị
+                    logger.warning(
+                        f"[AUTO_XPRESS] Đơn {channel_order_number} không có issued_at, "
+                        f"vẫn thêm vào danh sách chuẩn bị"
+                    )
                     should_prepare = True
                 
                 if should_prepare:

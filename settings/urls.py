@@ -27,6 +27,9 @@ urlpatterns = [
     path('variant-tags/<int:tag_id>/delete/', variant_tags_views.variant_tag_delete, name='variant_tag_delete'),
     path('variant-tags/api/list/', variant_tags_views.variant_tags_api_list, name='variant_tags_api_list'),
 
+    # Negative Stock Balance route
+    path('products/negative-stock-balance/', settings_views.negative_stock_balance_view, name='negative_stock_balance'),
+
     # Marketing Booking Tags routes
     path('marketing/booking/tags/', views_booking.booking_tag_list, name='booking_tag_list'),
     path('marketing/booking/tags/create/', views_booking.booking_tag_create, name='booking_tag_create'),

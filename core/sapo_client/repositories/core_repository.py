@@ -777,3 +777,41 @@ class SapoCoreRepository(BaseRepository):
         return self.put(f"order_suppliers/{order_supplier_id}.json", json={
             "order_supplier": order_supplier_data
         })
+    
+    # ==================== STOCK ADJUSTMENTS ====================
+    
+    def create_stock_adjustment_raw(self, stock_adjustment_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Tạo phiếu kiểm hàng (stock adjustment) mới trong Sapo.
+        
+        Args:
+            stock_adjustment_data: Dict chứa thông tin phiếu kiểm:
+                - location_id: int (241737 = HN/Gele, 548744 = SG/Toky)
+                - adjustment_account_id: int (319911 = staff_id)
+                - code: str (optional, Sapo sẽ tự tạo nếu không có)
+                - tags: str (optional)
+                - note: str (optional)
+                - line_items: List[Dict] - Mỗi item có:
+                    - product_id: int
+                    - variant_id: int
+                    - before_quantity: float (tồn kho hiện tại)
+                    - after_quantity: float (tồn kho sau kiểm)
+                    - quantity: float (số lượng điều chỉnh = after - before)
+                    - product_type: str (default: "normal")
+                    - reason: str (optional, default: "Khác")
+                    - position: int (optional)
+                    - lineIndex: int (optional)
+                    - isEdited: bool (optional, default: True)
+                
+        Returns:
+            {
+                "stock_adjustment": {...}
+            }
+            
+        Example:
+            POST /admin/stock_adjustments/v2.json
+        """
+        logger.info(f"[SapoCoreRepo] create_stock_adjustment: location={stock_adjustment_data.get('location_id')}")
+        return self.post("stock_adjustments/v2.json", json={
+            "stock_adjustment": stock_adjustment_data
+        })

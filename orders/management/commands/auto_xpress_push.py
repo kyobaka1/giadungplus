@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Tự động xử lý đơn hoả tốc: tìm lại shipper cho đơn đã chuẩn bị, chuẩn bị hàng cho đơn chưa chuẩn bị (>50 phút)"
+    help = "Tự động xử lý đơn hoả tốc: tìm lại shipper cho đơn đã chuẩn bị, chuẩn bị hàng cho đơn chưa chuẩn bị (>30 phút)"
 
     def add_arguments(self, parser):
         parser.add_argument(
