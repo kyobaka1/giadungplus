@@ -391,3 +391,45 @@ def push_notification_view(request):
 
     # GET
     return render(request, "settings/push_notification.html")
+
+
+@admin_only
+@require_http_methods(["GET", "POST"])
+def negative_stock_balance_view(request):
+    """
+    Trang cân bằng tồn kho âm (Negative Stock Balance).
+    
+    GET: Hiển thị form
+    POST: Xử lý cân bằng tồn kho âm
+    """
+    if request.method == "POST":
+        try:
+            from ..services.negative_stock_balance_service import NegativeStockBalanceService
+            
+            service = NegativeStockBalanceService()
+            result = service.balance_negative_stocks()
+            
+            if result["success"]:
+                messages.success(request, result["message"])
+                if result["gele"]["adjustment_id"]:
+                    messages.info(request, f"Phiếu kiểm kho Gele: ID {result['gele']['adjustment_id']} ({result['gele']['items_count']} variants)")
+                if result["toky"]["adjustment_id"]:
+                    messages.info(request, f"Phiếu kiểm kho Tokyo: ID {result['toky']['adjustment_id']} ({result['toky']['items_count']} variants)")
+            else:
+                messages.error(request, result["message"])
+                if result["gele"]["error"]:
+                    messages.error(request, f"Lỗi kho Gele: {result['gele']['error']}")
+                if result["toky"]["error"]:
+                    messages.error(request, f"Lỗi kho Tokyo: {result['toky']['error']}")
+            
+            return redirect("negative_stock_balance")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in negative_stock_balance_view: {e}", exc_info=True)
+            messages.error(request, f"Lỗi: {str(e)}")
+            return redirect("negative_stock_balance")
+    
+    # GET: Hiển thị form
+    return render(request, "settings/negative_stock_balance.html")

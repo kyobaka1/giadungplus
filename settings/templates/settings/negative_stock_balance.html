@@ -1,0 +1,97 @@
+{% extends "settings/base_settings.html" %}
+
+{% block title %}Settings - Cân bằng tồn kho âm{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">
+        Cân bằng tồn kho âm
+    </h1>
+    <p class="text-xs text-gray-500 mt-1">
+        Tạo phiếu kiểm hàng để đưa tồn kho âm về 0 cho kho Gele và Tokyo Sài Gòn
+    </p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Info Card -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-blue-800 mb-1">Chức năng này sẽ:</h3>
+                <ul class="text-xs text-blue-700 space-y-1 list-disc list-inside">
+                    <li>Lấy toàn bộ products và variants từ Sapo</li>
+                    <li>Tìm tất cả variants có tồn kho âm (on_hand &lt; 0) trong inventories</li>
+                    <li>Chia thành 2 nhóm: Kho Gele (Hà Nội - 241737) và Kho Tokyo (Hồ Chí Minh - 548744)</li>
+                    <li>Tạo 2 phiếu kiểm hàng (stock adjustment) để đưa tồn kho âm về 0</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Card -->
+    <div class="bg-white border rounded-xl shadow-sm p-6">
+        <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">Cân bằng tồn kho âm</h3>
+            <p class="text-xs text-gray-600">
+                Quá trình này có thể mất vài phút tùy thuộc vào số lượng sản phẩm trong hệ thống.
+            </p>
+        </div>
+
+        <form method="POST" action="{% url 'negative_stock_balance' %}" id="balance-form">
+            {% csrf_token %}
+            <div class="flex items-center gap-4">
+                <button 
+                    type="submit" 
+                    id="balance-btn"
+                    class="px-5 py-2.5 bg-brand text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition">
+                    <span id="btn-text">Bắt đầu cân bằng</span>
+                </button>
+                <div id="balance-status" class="text-sm"></div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Warning Card -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div class="flex-1">
+                <h3 class="text-sm font-semibold text-yellow-800 mb-1">Lưu ý quan trọng:</h3>
+                <ul class="text-xs text-yellow-700 space-y-1 list-disc list-inside">
+                    <li>Quá trình này sẽ tạo phiếu kiểm hàng trên Sapo, vui lòng kiểm tra kỹ trước khi thực hiện</li>
+                    <li>Chỉ những variants có tồn kho âm sẽ được điều chỉnh về 0</li>
+                    <li>Phiếu kiểm sẽ được tạo với adjustment_account_id = 319911</li>
+                    <li>Nếu có lỗi xảy ra, vui lòng kiểm tra log server để biết chi tiết</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('balance-form');
+    const btn = document.getElementById('balance-btn');
+    const btnText = document.getElementById('btn-text');
+    const statusDiv = document.getElementById('balance-status');
+    
+    form.addEventListener('submit', function(e) {
+        // Hiển thị loading state
+        btn.disabled = true;
+        btnText.textContent = 'Đang xử lý...';
+        statusDiv.textContent = 'Đang lấy dữ liệu và tạo phiếu kiểm, vui lòng đợi...';
+        statusDiv.className = 'text-sm text-blue-600';
+        
+        // Form sẽ submit bình thường, server sẽ xử lý và redirect
+    });
+});
+</script>
+{% endblock %}
+
