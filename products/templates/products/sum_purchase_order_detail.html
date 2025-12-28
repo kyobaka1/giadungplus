@@ -321,13 +321,6 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v3.276a1 1 0 01-2 0V13.107a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" /></svg>
                             Sync Sapo
                         </button>
-                        <a href="{% url 'products:export_spo_packing_list' spo.id %}"
-                           class="px-3 py-1.5 bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50 rounded text-xs font-semibold flex items-center gap-1 transition">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h3a1 1 0 110 2H5v12h10V4h-2a1 1 0 110-2h3a1 1 0 011 1v14a2 2 0 01-2 2H5a2 2 0 01-2-2V3zm6.293 5.293a1 1 0 011.414 0L12 9.586V2a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                            </svg>
-                            Xuất packing_list SPO
-                        </a>
                         <button id="add-po-btn" class="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded text-xs font-bold shadow-sm transition flex items-center gap-1">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>
                             Thêm PO
@@ -597,6 +590,99 @@
                         </div>
                     </div>
                 </details>
+            </div>
+
+            <!-- Upload TKHQ Section -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                <div class="p-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-white">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2 mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        Upload Tờ khai hải quan (TKHQ)
+                    </h3>
+                    <form id="upload-tkhq-form" enctype="multipart/form-data" class="flex items-center gap-3">
+                        <input type="file" 
+                               id="tkhq-file-input" 
+                               name="file" 
+                               accept=".xlsx,.xls"
+                               class="flex-1 px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <button type="submit" 
+                                id="upload-tkhq-btn"
+                                class="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h3a1 1 0 110 2H5v12h10V4h-2a1 1 0 110-2h3a1 1 0 011 1v14a2 2 0 01-2 2H5a2 2 0 01-2-2V3zm6.293 5.293a1 1 0 011.414 0L12 9.586V2a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Upload & Cập nhật
+                        </button>
+                    </form>
+                    <p class="text-[10px] text-slate-500 mt-2">Upload file Excel TKHQ để tự động cập nhật mô tả hàng hóa và thông tin thuế vào packing list</p>
+                </div>
+            </div>
+
+            <!-- Packing List Section -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-white">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Danh sách đóng gói (Packing List)
+                    </h3>
+                    <a href="{% url 'products:export_spo_packing_list' spo.id %}"
+                       class="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded text-xs font-semibold flex items-center gap-1 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h3a1 1 0 110 2H5v12h10V4h-2a1 1 0 110-2h3a1 1 0 011 1v14a2 2 0 01-2 2H5a2 2 0 01-2-2V3zm6.293 5.293a1 1 0 011.414 0L12 9.586V2a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                        Xuất packing list
+                    </a>
+                </div>
+                <div class="p-4">
+                    {% if packing_list_items %}
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 text-xs">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">STT</th>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">SKU</th>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">Mô tả hàng hóa</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Số lượng</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Đơn giá (USD)</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Tổng giá (USD)</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế NK (%)</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế NK (USD)</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế GTGT (%)</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế GTGT (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-slate-100">
+                                {% for item in packing_list_items %}
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-3 py-2 text-slate-600">{{ forloop.counter }}</td>
+                                    <td class="px-3 py-2 font-mono font-semibold text-slate-700">{{ item.sku_nhapkhau }}</td>
+                                    <td class="px-3 py-2 text-slate-700">{{ item.vn_name }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700">{{ item.quantity|floatformat:0 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700">{{ item.price|floatformat:2 }}</td>
+                                    <td class="px-3 py-2 text-right font-semibold text-slate-800">{{ item.total_price|floatformat:2 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ item.import_tax_rate|floatformat:2 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ item.import_tax_total|floatformat:2 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ item.vat_rate|floatformat:2 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ item.vat_total|floatformat:2 }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-8 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-sm">Chưa có danh sách đóng gói</p>
+                        <p class="text-xs mt-1">Nhấn nút "Xuất packing list" để tạo danh sách</p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
         </div>
 
@@ -1806,6 +1892,56 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('#add-spo-cost-form button[type="submit"]').textContent = 'Thêm';
         updateAmountLabel();
     });
+    
+    // ========== UPLOAD TKHQ ==========
+    const uploadTkhqForm = document.getElementById('upload-tkhq-form');
+    if (uploadTkhqForm) {
+        uploadTkhqForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('tkhq-file-input');
+            const submitBtn = document.getElementById('upload-tkhq-btn');
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                alert('Vui lòng chọn file TKHQ');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            
+            // Disable button và show loading
+            const originalBtnText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="inline-block animate-spin mr-1">⟳</span> Đang xử lý...';
+            
+            fetch(`{% url 'products:upload_tkhq' spo.id %}`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert(`✅ ${data.message}\n\nĐã cập nhật ${data.updated_count || 0} dòng packing list.`);
+                    // Reload page để hiển thị dữ liệu mới
+                    window.location.reload();
+                } else {
+                    alert(`❌ Lỗi: ${data.message || 'Không thể upload file'}`);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Có lỗi xảy ra khi upload file');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            });
+        });
+    }
     
     // ========== SPO DOCUMENTS MANAGEMENT ==========
     

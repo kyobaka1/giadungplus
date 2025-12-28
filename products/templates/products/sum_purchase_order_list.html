@@ -37,10 +37,10 @@
     </div>
     {% endif %}
 
-    <!-- SPO Grid -->
-    {% if spos %}
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {% for spo in spos %}
+    <!-- SPO Grid - Chưa hoàn tất -->
+    {% if incomplete_spos %}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+        {% for spo in incomplete_spos %}
         <!-- Card Item -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow duration-200 flex flex-col h-full group relative overflow-hidden">
             <!-- Header Status Color Strip -->
@@ -238,7 +238,98 @@
         </div>
         {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+
+    <!-- SPO Completed List - Đã hoàn tất (Horizontal List) -->
+    {% if completed_spos %}
+    <div class="mt-8 pt-8 border-t border-slate-200">
+        <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+            Đã hoàn tất
+        </h2>
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <div class="flex gap-4 p-4 min-w-max">
+                    {% for spo in completed_spos %}
+                    <div class="flex-shrink-0 w-64 bg-slate-50 rounded-lg border border-slate-200 hover:shadow-md transition-shadow duration-200">
+                        <div class="p-4">
+                            <!-- Header -->
+                            <div class="flex items-start justify-between mb-3">
+                                <div>
+                                    <h3 class="font-bold text-base text-slate-800 leading-tight">
+                                        <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" class="hover:text-emerald-600 transition-colors">
+                                            {{ spo.code }}
+                                        </a>
+                                    </h3>
+                                    {% if spo.name %}
+                                    <span class="text-xs text-slate-500 font-normal block mt-0.5">({{ spo.name }})</span>
+                                    {% endif %}
+                                </div>
+                                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                                    Hoàn tất
+                                </span>
+                            </div>
+                            
+                            <!-- Info -->
+                            <div class="space-y-2 mb-3">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-500">Hoàn tất:</span>
+                                    <span class="font-semibold text-slate-700">{{ spo.updated_at|date:"d/m/Y" }}</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-500">Container:</span>
+                                    <span class="font-medium text-slate-700">{{ spo.container_template.code }}</span>
+                                </div>
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-500">CBM:</span>
+                                    <span class="font-medium text-slate-700">{{ spo.total_cbm|floatformat:2 }} / {{ spo.container_template.volume_cbm|floatformat:1 }}</span>
+                                </div>
+                                {% if spo.total_po_amount_val %}
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-slate-500">Giá trị:</span>
+                                    <span class="font-medium text-slate-700">{{ spo.total_po_amount_val|floatformat:0|intcomma }} đ</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Suppliers Preview -->
+                            {% if spo.suppliers_display_list %}
+                            <div class="mb-3 pt-3 border-t border-slate-200">
+                                <div class="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-1.5">Nhà cung cấp</div>
+                                <div class="flex flex-wrap gap-1">
+                                    {% for supplier in spo.suppliers_display_list|slice:":3" %}
+                                    <div class="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                                        {% if supplier.logo_path %}
+                                        <img src="{{ supplier.logo_path }}" alt="{{ supplier.name }}" class="w-4 h-4 object-contain">
+                                        {% endif %}
+                                        <span class="text-[10px] font-medium text-slate-700 truncate max-w-[60px]">{{ supplier.name }}</span>
+                                    </div>
+                                    {% endfor %}
+                                    {% if spo.suppliers_display_list|length > 3 %}
+                                    <span class="text-[10px] text-slate-400 px-1.5 py-0.5">+{{ spo.suppliers_display_list|length|add:"-3" }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Action -->
+                            <a href="{% url 'products:sum_purchase_order_detail' spo.id %}" 
+                               class="block w-full text-center px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-emerald-600 hover:border-emerald-600 transition-colors">
+                                Xem chi tiết
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Empty State -->
+    {% if not incomplete_spos and not completed_spos %}
     <!-- Empty State -->
     <div class="text-center py-20 bg-white rounded-xl border border-dashed border-slate-300">
         <div class="mx-auto h-24 w-24 text-slate-200 mb-4">

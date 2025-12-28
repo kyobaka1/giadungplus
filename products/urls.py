@@ -89,6 +89,7 @@ urlpatterns = [
     # SPO Documents
     path("sum-purchase-orders/documents/upload/", views.upload_spo_document, name="upload_spo_document"),
     path("sum-purchase-orders/documents/<int:document_id>/delete/", views.delete_spo_document, name="delete_spo_document"),
+    path("sum-purchase-orders/<int:spo_id>/upload-tkhq/", views.upload_tkhq, name="upload_tkhq"),
     
     # Purchase Order Management
     path("purchase-orders/<int:po_id>/update-delivery-status/", views.update_po_delivery_status, name="update_po_delivery_status"),

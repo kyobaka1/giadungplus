@@ -56,7 +56,7 @@
                                 class="brand-filter-btn px-2.5 py-1.5 text-xs rounded-md border transition font-medium {% if brand.id == selected_brand_id %}bg-orange-500 text-white border-orange-500{% else %}bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100{% endif %}"
                                 data-brand-id="{{ brand.id }}"
                                 data-brand-name="{{ brand.name }}">
-                            {{ brand.name }} <span class="text-[10px] opacity-75">({{ brand.id }})</span>
+                            {{ brand.name }}
                         </button>
                         {% endfor %}
                     </div>
@@ -119,14 +119,13 @@
                 <table class="min-w-full divide-y divide-slate-200 text-xs">
                     <thead class="bg-slate-50">
                         <tr>
+                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Hình ảnh</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Tên phân loại</th>
-                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Giá bán</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Thông tin thùng</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Mua hàng TQ</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">SKU nhập khẩu</th>
-                            <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Plan Tags</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
                             <th class="px-2 py-2 text-left text-[12px] font-semibold text-slate-700 uppercase tracking-wider">Thao tác</th>
                         </tr>
@@ -138,6 +137,29 @@
                                 data-brand="{{ variant.brand|default:'' }}"
                                 data-status="{{ variant.status|default:'' }}"
                                 data-variant-id="{{ variant.id }}">
+                                <!-- Hình ảnh -->
+                                <td class="px-2 py-2">
+                                    {% if variant.images and variant.images|length > 0 %}
+                                        {% with first_image=variant.images|first %}
+                                            {% if first_image.full_path %}
+                                                <img src="{{ first_image.full_path }}" 
+                                                     alt="{{ variant.sku }}" 
+                                                     class="w-12 h-12 object-cover rounded border border-slate-200"
+                                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27%3E%3Crect fill=%27%23f1f5f9%27 width=%2748%27 height=%2748%27/%3E%3Ctext x=%2724%27 y=%2724%27 text-anchor=%27middle%27 dominant-baseline=%27central%27 fill=%27%2394a3b8%27 font-size=%2710%27%3ENo img%3C/text%3E%3C/svg%3E'">
+                                            {% elif first_image.path %}
+                                                <img src="{{ first_image.path }}" 
+                                                     alt="{{ variant.sku }}" 
+                                                     class="w-12 h-12 object-cover rounded border border-slate-200"
+                                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27%3E%3Crect fill=%27%23f1f5f9%27 width=%2748%27 height=%2748%27/%3E%3Ctext x=%2724%27 y=%2724%27 text-anchor=%27middle%27 dominant-baseline=%27central%27 fill=%27%2394a3b8%27 font-size=%2710%27%3ENo img%3C/text%3E%3C/svg%3E'">
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% else %}
+                                        <div class="w-12 h-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
+                                            <span class="text-[10px] text-slate-400">No image</span>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                
                                 <!-- SKU -->
                                 <td class="px-2 py-2">
                                     <div class="font-mono text-[13px] text-slate-800 font-medium">{{ variant.sku }}</div>
@@ -162,18 +184,13 @@
                                     {% endif %}
                                 </td>
                                 
-                                <!-- Giá bán -->
-                                <td class="px-2 py-2 text-[13px] text-slate-700">
-                                    <div class="font-medium">{{ variant.variant_retail_price|floatformat:0|intcomma }} đ</div>
-                                </td>
-                                
-                                <!-- Tồn kho -->
+                                <!-- Tồn kho: HN / SG / Showroom -->
                                 <td class="px-2 py-2 text-center">
-                                    <div class="flex flex-col items-center">
-                                        <span class="text-[13px] font-medium {% if variant.total_available < 10 %}text-red-600{% elif variant.total_available < 50 %}text-orange-600{% else %}text-green-600{% endif %}">
-                                            {{ variant.total_available|floatformat:0|intcomma }}
-                                        </span>
-                                        <span class="text-[11px] text-slate-400">/ {{ variant.total_inventory|floatformat:0|intcomma }}</span>
+                                    <div class="text-[13px] font-medium text-slate-700">
+                                        {{ variant.inventory_hn|floatformat:0|intcomma }} / {{ variant.inventory_sg|floatformat:0|intcomma }} / {{ variant.inventory_showroom|floatformat:0|intcomma }}
+                                    </div>
+                                    <div class="text-[10px] text-slate-500 mt-0.5">
+                                        HN / SG / Showroom
                                     </div>
                                 </td>
                                 
@@ -216,29 +233,6 @@
                                         <span class="font-mono text-slate-700">{{ variant.sku_model_xnk }}</span>
                                     {% else %}
                                         <span class="text-slate-400">-</span>
-                                    {% endif %}
-                                </td>
-                                
-                                <!-- Plan Tags -->
-                                <td class="px-2 py-2">
-                                    {% if variant.plan_tags_with_color %}
-                                        <div class="flex flex-wrap gap-1">
-                                            {% for tag_info in variant.plan_tags_with_color %}
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium border {{ tag_info.color_classes }}">
-                                                {{ tag_info.name }}
-                                            </span>
-                                            {% endfor %}
-                                        </div>
-                                    {% elif variant.plan_tags %}
-                                        <div class="flex flex-wrap gap-1">
-                                            {% for tag_name in variant.plan_tags %}
-                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                                {{ tag_name }}
-                                            </span>
-                                            {% endfor %}
-                                        </div>
-                                    {% else %}
-                                        <span class="text-slate-400 text-[12px]">-</span>
                                     {% endif %}
                                 </td>
                                 

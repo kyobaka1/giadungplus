@@ -30,6 +30,7 @@ from products.models import (
     SPOPurchaseOrder,
     SPOCost,
     SPODocument,
+    SPOPackingListItem,
     PurchaseOrder,
     PurchaseOrderCost,
     PurchaseOrderPayment,
@@ -442,6 +443,23 @@ def variant_list(request: HttpRequest):
             total_inventory = sum(inv.get("on_hand", 0) or 0 for inv in inventories)
             total_available = sum(inv.get("available", 0) or 0 for inv in inventories)
             
+            # Lấy on_hand theo 3 kho: HN (241737), SG (548744), Showroom (783623)
+            inventory_hn = 0
+            inventory_sg = 0
+            inventory_showroom = 0
+            for inv in inventories:
+                location_id = inv.get("location_id")
+                on_hand = inv.get("on_hand", 0) or 0
+                if location_id == 241737:  # Kho HN
+                    inventory_hn = on_hand
+                elif location_id == 548744:  # Kho SG
+                    inventory_sg = on_hand
+                elif location_id == 783623:  # Showroom
+                    inventory_showroom = on_hand
+            
+            # Lấy images từ variant_data
+            images = variant_data.get("images", [])
+            
             # Lấy opt1, opt2, opt3 - kiểm tra cả opt1 và option1
             opt1_raw = variant_data.get("opt1")
             if opt1_raw is None:
@@ -483,6 +501,11 @@ def variant_list(request: HttpRequest):
                 "variant_whole_price": variant_data.get("variant_whole_price", 0) or 0,
                 "total_inventory": total_inventory,
                 "total_available": total_available,
+                "inventory_hn": inventory_hn,
+                "inventory_sg": inventory_sg,
+                "inventory_showroom": inventory_showroom,
+                "inventories": inventories,  # Giữ lại để dùng sau nếu cần
+                "images": images,  # Thêm images
                 "weight_value": variant_data.get("weight_value", 0) or 0,
                 "weight_unit": variant_data.get("weight_unit", "g"),
                 "gdp_metadata": variant_meta,
@@ -1371,6 +1394,37 @@ def export_spo_packing_list(request: HttpRequest, spo_id: int):
 
     # Sắp xếp theo SKU nhập khẩu
     rows = sorted(aggregated.values(), key=lambda r: r.get("sku_nhapkhau", ""))
+
+    # BƯỚC 6.5: Lưu packing list vào database
+    # Xóa packing list items cũ (nếu có)
+    SPOPackingListItem.objects.filter(sum_purchase_order=spo).delete()
+    # Tạo packing list items mới
+    for order, item in enumerate(rows):
+        SPOPackingListItem.objects.create(
+            sum_purchase_order=spo,
+            hs_code=item.get("hs_code", "") or "",
+            sku_nhapkhau=item.get("sku_nhapkhau", "") or "",
+            vn_name=item.get("vn_name", "") or "",
+            en_name=item.get("en_name", "") or "",
+            cn_name=item.get("cn_name", "") or "",
+            nsx_name=item.get("nsx_name", "") or "",
+            quantity=Decimal(str(item.get("quantity", 0) or 0)),
+            unit=item.get("unit", "") or "",
+            box=Decimal(str(item.get("box", 0.0) or 0.0)),
+            price=Decimal(str(item.get("price", 0.0) or 0.0)),
+            total_price=Decimal(str(item.get("total_price", 0.0) or 0.0)),
+            total_cpm=Decimal(str(item.get("total_cpm", 0.0) or 0.0)),
+            total_weight=Decimal(str(item.get("total_weight", 0.0) or 0.0)),
+            material=item.get("material", "") or "",
+            order=order,
+            # Các field thuế mặc định = 0 (sẽ được cập nhật sau từ tờ khai hải quan)
+            import_tax_rate=Decimal('0'),
+            import_tax_amount=Decimal('0'),
+            import_tax_total=Decimal('0'),
+            vat_rate=Decimal('0'),
+            vat_amount=Decimal('0'),
+            vat_total=Decimal('0'),
+        )
 
     # BƯỚC 7: Xuất Excel bằng xlsxwriter (giống format ALL-HCM2505)
     if xlsxwriter is None:
@@ -2788,7 +2842,16 @@ def sum_purchase_order_list(request: HttpRequest):
                 spo.total_po_amount_val = Decimal('0')
                 spo.total_po_quantity_val = 0
         
-        context["spos"] = spos
+        # Tách SPOs thành 2 nhóm: chưa hoàn tất và đã hoàn tất
+        incomplete_spos = [spo for spo in spos if spo.status != 'completed']
+        completed_spos = [spo for spo in spos if spo.status == 'completed']
+        
+        # Sắp xếp completed_spos theo updated_at (mới nhất trước)
+        completed_spos.sort(key=lambda x: x.updated_at, reverse=True)
+        
+        context["incomplete_spos"] = incomplete_spos
+        context["completed_spos"] = completed_spos
+        context["spos"] = spos  # Giữ lại để tương thích nếu có code cũ
         context["total"] = spos.count()
     except Exception as e:
         logger.error(f"Error in sum_purchase_order_list: {e}", exc_info=True)
@@ -2815,9 +2878,11 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         
         spo = SumPurchaseOrder.objects.select_related('container_template').prefetch_related(
             'costs',
-            'documents'
+            'documents',
+            'packing_list_items'
         ).get(id=spo_id)
         context["spo"] = spo
+        context["packing_list_items"] = spo.packing_list_items.all()
         
         # Lấy danh sách PO từ SPOPurchaseOrder với đầy đủ thông tin từ PurchaseOrder model
         spo_po_relations = spo.spo_purchase_orders.select_related('purchase_order').prefetch_related(
@@ -4042,6 +4107,289 @@ def upload_spo_document(request: HttpRequest):
             "status": "error",
             "message": str(e)
         }, status=400)
+
+
+@admin_only
+@require_POST
+def upload_tkhq(request: HttpRequest, spo_id: int):
+    """
+    Upload Tờ khai hải quan (TKHQ) và parse dữ liệu để update packing list.
+    
+    POST data (multipart/form-data):
+    - file: File (Excel)
+    - name: str (optional)
+    
+    Returns:
+        JSON: {status, message, updated_count}
+    """
+    try:
+        from django.conf import settings
+        from datetime import datetime
+        
+        file = request.FILES.get('file')
+        name = request.POST.get('name', '').strip()
+        
+        if not file:
+            return JsonResponse({
+                "status": "error",
+                "message": "Vui lòng chọn file"
+            }, status=400)
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        # Lưu file vào static/spo_documents
+        year_month = datetime.now().strftime('%Y/%m')
+        static_dir = os.path.join(settings.BASE_DIR, 'assets', 'spo_documents', year_month)
+        os.makedirs(static_dir, exist_ok=True)
+        
+        filename = file.name
+        file_path = os.path.join(static_dir, filename)
+        
+        with open(file_path, 'wb+') as destination:
+            for chunk in file.chunks():
+                destination.write(chunk)
+        
+        # Lưu vào SPODocument
+        relative_path = f'spo_documents/{year_month}/{filename}'
+        document = SPODocument.objects.create(
+            sum_purchase_order=spo,
+            file=relative_path,
+            name=name or f"TKHQ - {filename}",
+            uploaded_by=request.user if request.user.is_authenticated else None
+        )
+        
+        # Parse file và update packing list
+        updated_count = _parse_tkhq_and_update_packing_list(file_path, spo)
+        
+        return JsonResponse({
+            "status": "success",
+            "message": f"Upload TKHQ thành công. Đã cập nhật {updated_count} dòng packing list.",
+            "document_id": document.id,
+            "updated_count": updated_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in upload_tkhq: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+def _parse_tkhq_and_update_packing_list(file_path: str, spo: SumPurchaseOrder) -> int:
+    """
+    Parse file TKHQ Excel và update packing list items.
+    
+    Args:
+        file_path: Đường dẫn đến file Excel TKHQ
+        spo: SumPurchaseOrder instance
+        
+    Returns:
+        Số lượng items đã được update
+    """
+    try:
+        from openpyxl import load_workbook
+        
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
+        
+        # Lấy packing list items
+        packing_items = list(SPOPackingListItem.objects.filter(sum_purchase_order=spo).order_by('order'))
+        if not packing_items:
+            logger.warning(f"No packing list items found for SPO {spo.id}")
+            return 0
+        
+        updated_count = 0
+        
+        # Tìm các keyword và parse dữ liệu
+        items_data = []
+        
+        # Tìm "Mô tả hàng hóa"
+        mo_ta_rows = []
+        for row_idx in range(1, min(ws.max_row + 1, 500)):
+            for col_idx in range(1, min(ws.max_column + 1, 20)):
+                cell_value = ws.cell(row_idx, col_idx).value
+                if cell_value and isinstance(cell_value, str) and 'Mô tả hàng hóa' in cell_value:
+                    mo_ta_rows.append((row_idx, col_idx))
+        
+        # Tìm "Thuế nhập khẩu"
+        thue_nk_rows = []
+        for row_idx in range(1, min(ws.max_row + 1, 500)):
+            for col_idx in range(1, min(ws.max_column + 1, 20)):
+                cell_value = ws.cell(row_idx, col_idx).value
+                if cell_value and isinstance(cell_value, str) and 'Thuế nhập khẩu' in cell_value:
+                    thue_nk_rows.append((row_idx, col_idx))
+        
+        # Tìm "Thuế và thu khác" hoặc "Thuế GTGT"
+        thue_gtgt_rows = []
+        for row_idx in range(1, min(ws.max_row + 1, 500)):
+            for col_idx in range(1, min(ws.max_column + 1, 20)):
+                cell_value = ws.cell(row_idx, col_idx).value
+                if cell_value and isinstance(cell_value, str):
+                    if 'Thuế và thu khác' in cell_value or 'Thuế GTGT' in cell_value or ('GTGT' in cell_value and 'Thuế' in cell_value):
+                        # Kiểm tra xem có phải là dòng GTGT không (tránh match nhầm)
+                        # Đọc các ô tiếp theo để xác nhận
+                        next_cells = []
+                        for c in range(col_idx, min(ws.max_column + 1, col_idx + 5)):
+                            next_val = ws.cell(row_idx + 1, c).value
+                            if next_val:
+                                next_cells.append(str(next_val))
+                        if any('GTGT' in str(cell).upper() for cell in next_cells):
+                            thue_gtgt_rows.append((row_idx, col_idx))
+        
+        # Parse từng hàng dữ liệu
+        # Tìm pattern: mỗi hàng hàng hóa sẽ có mô tả, thuế nhập khẩu, thuế GTGT ở các hàng tương ứng
+        
+        # Strategy: Tìm các hàng có dữ liệu mô tả hàng hóa (ở cột G sau keyword "Mô tả hàng hóa")
+        # Sau đó tìm các hàng thuế tương ứng
+        
+        processed_rows = set()
+        
+        # Duyệt qua các hàng mô tả hàng hóa
+        for mo_ta_row, mo_ta_col in mo_ta_rows:
+            # Tìm dữ liệu ở cột G (col 7) sau keyword "Mô tả hàng hóa"
+            # Thường là ở cùng hàng hoặc hàng tiếp theo
+            for check_row in range(mo_ta_row, min(ws.max_row + 1, mo_ta_row + 20)):
+                if check_row in processed_rows:
+                    continue
+                
+                # Đọc cột G (col 7) - mô tả hàng hóa
+                mo_ta_value = ws.cell(check_row, 7).value  # Cột G
+                if not mo_ta_value or not isinstance(mo_ta_value, str):
+                    continue
+                
+                mo_ta_text = str(mo_ta_value).strip()
+                if not mo_ta_text or len(mo_ta_text) < 10:  # Bỏ qua text quá ngắn
+                    continue
+                
+                # Tìm thuế nhập khẩu tương ứng (gần hàng này)
+                import_tax_rate = Decimal('0')
+                import_tax_amount = Decimal('0')
+                
+                for nk_row, nk_col in thue_nk_rows:
+                    # Tìm hàng gần nhất với check_row
+                    if abs(nk_row - check_row) < 30:
+                        # Đọc thuế suất (thường ở cột sau keyword)
+                        # Tìm pattern "X%" trong các ô xung quanh
+                        for r in range(nk_row, min(ws.max_row + 1, nk_row + 15)):
+                            for c in range(nk_col, min(ws.max_column + 1, nk_col + 10)):
+                                val = ws.cell(r, c).value
+                                if val:
+                                    val_str = str(val).strip()
+                                    # Tìm thuế suất (ví dụ: "5%", "C 5%")
+                                    import_tax_match = re.search(r'(\d+(?:\.\d+)?)\s*%', val_str)
+                                    if import_tax_match:
+                                        try:
+                                            import_tax_rate = Decimal(import_tax_match.group(1))
+                                        except:
+                                            pass
+                                    
+                                    # Tìm số tiền thuế (số lớn, có thể có VND)
+                                    # Bỏ qua các số quá nhỏ (có thể là index)
+                                    try:
+                                        # Loại bỏ dấu phẩy, chấm (format số VN)
+                                        cleaned = re.sub(r'[^\d.,]', '', val_str)
+                                        cleaned = cleaned.replace('.', '').replace(',', '.')
+                                        tax_amount_val = Decimal(cleaned)
+                                        if tax_amount_val > 1000:  # Số tiền thuế thường > 1000
+                                            import_tax_amount = tax_amount_val
+                                    except:
+                                        pass
+                        
+                        break
+                
+                # Tìm thuế GTGT tương ứng
+                vat_rate = Decimal('0')
+                vat_amount = Decimal('0')
+                
+                for gtgt_row, gtgt_col in thue_gtgt_rows:
+                    if abs(gtgt_row - check_row) < 30:
+                        # Tìm pattern tương tự
+                        for r in range(gtgt_row, min(ws.max_row + 1, gtgt_row + 20)):
+                            for c in range(gtgt_col, min(ws.max_column + 1, gtgt_col + 10)):
+                                val = ws.cell(r, c).value
+                                if val:
+                                    val_str = str(val).strip()
+                                    # Tìm thuế suất GTGT
+                                    vat_match = re.search(r'(\d+(?:\.\d+)?)\s*%', val_str)
+                                    if vat_match:
+                                        try:
+                                            vat_rate = Decimal(vat_match.group(1))
+                                        except:
+                                            pass
+                                    
+                                    # Tìm số tiền thuế GTGT
+                                    try:
+                                        cleaned = re.sub(r'[^\d.,]', '', val_str)
+                                        cleaned = cleaned.replace('.', '').replace(',', '.')
+                                        vat_amount_val = Decimal(cleaned)
+                                        if vat_amount_val > 1000:
+                                            vat_amount = vat_amount_val
+                                    except:
+                                        pass
+                        
+                        break
+                
+                # Match với packing list item (theo mô tả hàng hóa)
+                # Tìm item có vn_name gần giống nhất
+                best_match = None
+                best_score = 0
+                
+                for item in packing_items:
+                    if item.vn_name:
+                        # Tính độ tương đồng đơn giản (có thể cải thiện sau)
+                        item_desc_lower = item.vn_name.lower()
+                        mo_ta_lower = mo_ta_text.lower()
+                        
+                        # Kiểm tra từ khóa chung (ví dụ: SKU, tên sản phẩm)
+                        # Đếm số từ khóa trùng
+                        item_words = set(item_desc_lower.split())
+                        mo_ta_words = set(mo_ta_lower.split())
+                        common_words = item_words.intersection(mo_ta_words)
+                        
+                        if len(common_words) >= 2:  # Có ít nhất 2 từ trùng
+                            score = len(common_words)
+                            if score > best_score:
+                                best_score = score
+                                best_match = item
+                
+                # Nếu không match được, thử match theo thứ tự (nếu số lượng items ít)
+                if not best_match and len(items_data) < len(packing_items):
+                    # Match theo thứ tự
+                    idx = len(items_data)
+                    if idx < len(packing_items):
+                        best_match = packing_items[idx]
+                
+                if best_match:
+                    # Update packing list item
+                    best_match.vn_name = mo_ta_text  # Update mô tả
+                    best_match.import_tax_rate = import_tax_rate
+                    best_match.import_tax_amount = import_tax_amount
+                    best_match.import_tax_total = import_tax_amount  # Tổng = số tiền thuế
+                    best_match.vat_rate = vat_rate
+                    best_match.vat_amount = vat_amount
+                    best_match.vat_total = vat_amount  # Tổng = số tiền thuế
+                    best_match.save()
+                    
+                    items_data.append({
+                        'item': best_match,
+                        'mo_ta': mo_ta_text,
+                        'import_tax_rate': import_tax_rate,
+                        'import_tax_amount': import_tax_amount,
+                        'vat_rate': vat_rate,
+                        'vat_amount': vat_amount
+                    })
+                    
+                    updated_count += 1
+                    processed_rows.add(check_row)
+                
+                break  # Chỉ xử lý 1 item mỗi lần tìm thấy keyword
+        
+        return updated_count
+        
+    except Exception as e:
+        logger.error(f"Error parsing TKHQ file {file_path}: {e}", exc_info=True)
+        raise
 
 
 @admin_only

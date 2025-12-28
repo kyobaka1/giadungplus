@@ -828,6 +828,95 @@ class SPODocument(models.Model):
         return self.name or self.file.name
 
 
+class SPOPackingListItem(models.Model):
+    """
+    Item trong packing list của SPO.
+    Lưu thông tin đóng gói để tiện xử lý phân bổ thuế từ tờ khai hải quan.
+    """
+    sum_purchase_order = models.ForeignKey(
+        SumPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='packing_list_items'
+    )
+    
+    # Thông tin cơ bản từ packing list
+    hs_code = models.CharField(max_length=50, blank=True, help_text="Mã HS")
+    sku_nhapkhau = models.CharField(max_length=100, db_index=True, help_text="SKU nhập khẩu")
+    vn_name = models.CharField(max_length=500, blank=True, help_text="Tên tiếng Việt (Mô tả hàng hóa)")
+    en_name = models.CharField(max_length=500, blank=True, help_text="Tên tiếng Anh")
+    cn_name = models.CharField(max_length=500, blank=True, help_text="Tên tiếng Trung")
+    nsx_name = models.CharField(max_length=200, blank=True, help_text="Tên nhà sản xuất")
+    quantity = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Số lượng")
+    unit = models.CharField(max_length=50, blank=True, help_text="Đơn vị")
+    box = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Số thùng")
+    price = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Đơn giá hóa đơn (USD)")
+    total_price = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Tổng giá trị (USD)")
+    total_cpm = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Tổng CBM")
+    total_weight = models.DecimalField(max_digits=15, decimal_places=3, default=0, help_text="Tổng trọng lượng (g)")
+    material = models.CharField(max_length=500, blank=True, help_text="Chất liệu")
+    
+    # Thuế nhập khẩu
+    import_tax_rate = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Thuế suất nhập khẩu (%)"
+    )
+    import_tax_amount = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Số tiền thuế nhập khẩu"
+    )
+    import_tax_total = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Tổng số tiền thuế nhập khẩu"
+    )
+    
+    # Thuế GTGT
+    vat_rate = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Thuế suất GTGT (%)"
+    )
+    vat_amount = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Số tiền thuế GTGT"
+    )
+    vat_total = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        default=0, 
+        help_text="Tổng số tiền thuế GTGT"
+    )
+    
+    # Thứ tự hiển thị
+    order = models.IntegerField(default=0, help_text="Thứ tự sắp xếp")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'products_spo_packing_list_item'
+        verbose_name = 'SPO Packing List Item'
+        verbose_name_plural = 'SPO Packing List Items'
+        indexes = [
+            models.Index(fields=['sum_purchase_order']),
+            models.Index(fields=['sku_nhapkhau']),
+            models.Index(fields=['sum_purchase_order', 'order']),
+        ]
+        ordering = ['order', 'sku_nhapkhau']
+    
+    def __str__(self):
+        return f"{self.sku_nhapkhau} - {self.vn_name or 'N/A'}"
+
+
 class BalanceTransaction(models.Model):
     """
     Giao dịch nạp/rút số dư nhân dân tệ tại Trung Quốc.
