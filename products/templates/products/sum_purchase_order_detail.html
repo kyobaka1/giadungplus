@@ -178,7 +178,7 @@
                         <div class="text-[10px] text-indigo-400 mt-0.5">
                             ({{ total_product_amount_cny|floatformat:0|intcomma }} CNY
                             {% if avg_exchange_rate %}
-                                × {{ avg_exchange_rate|floatformat:0|intcomma }})
+                                - Tỷ giá TB: {{ avg_exchange_rate|floatformat:0|intcomma }})
                             {% else %}
                                 - chưa có tỷ giá)
                             {% endif %}

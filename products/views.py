@@ -3061,78 +3061,70 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         for po_data in purchase_orders_data:
             total_product_amount_cny += Decimal(str(po_data.get('product_amount_cny', 0)))
         
-        # Tính tổng giá trị hàng VNĐ từ các khoản thanh toán PO (có tỷ giá)
-        # Lấy tất cả các khoản thanh toán của các PO trong SPO
-        total_product_amount_vnd = Decimal('0')
+        # Tính tỷ giá trung bình từ các khoản thanh toán PO (tham chiếu PaymentPeriod)
+        # Mục tiêu: Lấy được một tỷ giá TB, sau đó giá trị hàng VNĐ = tổng CNY * tỷ giá TB
         all_exchange_rates = []
-        po_ids_in_spo = [po_data.get('po_id') for po_data in purchase_orders_data if po_data.get('po_id')]
-        
         for po_data in purchase_orders_data:
             po_id = po_data.get('po_id')
-            if po_id:
-                po = PurchaseOrder.objects.get(id=po_id)
-                
-                # Cách 1: Lấy từ PurchaseOrderPayment (nếu có)
-                for payment in po.payments.all():
-                    if payment.amount_cny:
-                        exchange_rate = None
-                        # Ưu tiên lấy từ payment.exchange_rate
-                        if payment.exchange_rate:
-                            exchange_rate = Decimal(str(payment.exchange_rate))
-                        # Nếu không có, lấy từ balance_transaction -> PaymentPeriod
-                        elif payment.balance_transaction:
-                            balance_txn = payment.balance_transaction
-                            # Tìm PaymentPeriod của giao dịch này
-                            period_txn = balance_txn.payment_periods.first()
-                            if period_txn and period_txn.payment_period:
-                                period = period_txn.payment_period
-                                period_rate = period.avg_exchange_rate_realtime
-                                if period_rate:
-                                    exchange_rate = Decimal(str(period_rate))
-                        
-                        if exchange_rate:
-                            # Tính giá trị VNĐ của khoản thanh toán này
-                            payment_amount_vnd = Decimal(str(payment.amount_cny)) * exchange_rate
-                            total_product_amount_vnd += payment_amount_vnd
-                            all_exchange_rates.append(float(exchange_rate))
-                
-                # Cách 2: Lấy từ BalanceTransaction (withdraw_po) liên kết với PO này
-                # Tìm các giao dịch rút PO liên kết với PO này qua purchase_order_payment
-                withdraw_txns = BalanceTransaction.objects.filter(
-                    transaction_type='withdraw_po',
-                    purchase_order_payment__purchase_order=po
-                ).prefetch_related('payment_periods__payment_period')
-                
-                for txn in withdraw_txns:
-                    # Lấy số tiền CNY (là số âm, cần lấy giá trị tuyệt đối)
-                    amount_cny = abs(txn.amount_cny)
-                    if amount_cny > 0:
-                        exchange_rate = None
-                        # Lấy tỷ giá từ PaymentPeriod
-                        period_txn = txn.payment_periods.first()
-                        if period_txn and period_txn.payment_period:
-                            period = period_txn.payment_period
-                            period_rate = period.avg_exchange_rate_realtime
-                            if period_rate:
-                                exchange_rate = Decimal(str(period_rate))
-                        
-                        # Nếu không có từ PaymentPeriod, thử lấy từ txn.exchange_rate
-                        if not exchange_rate and txn.exchange_rate:
-                            exchange_rate = Decimal(str(txn.exchange_rate))
-                        
-                        if exchange_rate:
-                            # Tính giá trị VNĐ
-                            payment_amount_vnd = amount_cny * exchange_rate
-                            total_product_amount_vnd += payment_amount_vnd
-                            all_exchange_rates.append(float(exchange_rate))
+            if not po_id:
+                continue
+            
+            po = PurchaseOrder.objects.get(id=po_id)
+            
+            # Nguồn 1: PurchaseOrderPayment
+            for payment in po.payments.all():
+                exchange_rate = None
+                if payment.exchange_rate:
+                    exchange_rate = float(payment.exchange_rate)
+                elif payment.balance_transaction:
+                    balance_txn = payment.balance_transaction
+                    period_txn = balance_txn.payment_periods.first()
+                    if period_txn and period_txn.payment_period:
+                        period_rate = period_txn.payment_period.avg_exchange_rate_realtime
+                        if period_rate:
+                            exchange_rate = float(period_rate)
+                if exchange_rate:
+                    all_exchange_rates.append(exchange_rate)
+            
+            # Nguồn 2: BalanceTransaction (withdraw_po) liên kết với PO này
+            withdraw_txns = BalanceTransaction.objects.filter(
+                transaction_type='withdraw_po',
+                purchase_order_payment__purchase_order=po
+            ).prefetch_related('payment_periods__payment_period')
+            
+            for txn in withdraw_txns:
+                exchange_rate = None
+                period_txn = txn.payment_periods.first()
+                if period_txn and period_txn.payment_period:
+                    period_rate = period_txn.payment_period.avg_exchange_rate_realtime
+                    if period_rate:
+                        exchange_rate = float(period_rate)
+                if not exchange_rate and txn.exchange_rate:
+                    exchange_rate = float(txn.exchange_rate)
+                if exchange_rate:
+                    all_exchange_rates.append(exchange_rate)
         
-        # Tính tỷ giá trung bình (để hiển thị)
+        # Tỷ giá trung bình để hiển thị & dùng cho quy đổi tổng CNY
         avg_exchange_rate = None
         if all_exchange_rates:
             avg_exchange_rate = sum(all_exchange_rates) / len(all_exchange_rates)
         
-        # Giá trị VND = tổng từ các khoản thanh toán (đã tính ở trên)
-        total_amount_vnd = total_product_amount_vnd if total_product_amount_vnd > 0 else None
+        # Giá trị hàng VNĐ = Tổng CNY * Tỷ giá TB (theo yêu cầu nghiệp vụ)
+        total_amount_vnd = None
+        if avg_exchange_rate and total_product_amount_cny > 0:
+            total_amount_vnd = Decimal(
+                str(round(float(total_product_amount_cny * Decimal(str(avg_exchange_rate)))))
+            )
+        
+        # Debug: Log thông tin tính toán
+        if total_product_amount_cny > 0:
+            logger.info(f"[SPO {spo_id}] Giá trị hàng: {total_product_amount_cny} CNY")
+            logger.info(f"[SPO {spo_id}] Số tỷ giá lấy được: {len(all_exchange_rates)}")
+            if avg_exchange_rate:
+                logger.info(f"[SPO {spo_id}] Tỷ giá trung bình dùng để quy đổi: {avg_exchange_rate}")
+                logger.info(f"[SPO {spo_id}] Giá trị hàng VNĐ = CNY * Tỷ giá TB: {total_amount_vnd}")
+            else:
+                logger.info(f"[SPO {spo_id}] Chưa có tỷ giá nào để quy đổi")
         
         context["purchase_orders"] = purchase_orders_data
         context["line_items"] = all_line_items
