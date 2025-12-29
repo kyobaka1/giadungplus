@@ -27,9 +27,15 @@ class CostPriceService:
     Service để tính toán giá vốn cho các sản phẩm nhập hàng.
     """
     
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         self.sapo_client = get_sapo_client()
         self.sapo_product_service = SapoProductService(self.sapo_client)
+        self.debug = debug
+    
+    def debug_print(self, *args, **kwargs):
+        """Print debug info nếu debug = True"""
+        if self.debug:
+            print(f"[DEBUG CostPriceService]", *args, **kwargs)
     
     def find_old_inventory(
         self, 
@@ -54,7 +60,7 @@ class CostPriceService:
             - old_quantity: Số lượng tồn kho cũ
             - old_cost_price: Giá vốn cũ
         """
-        print(f"[DEBUG find_old_inventory] Bắt đầu - variant_id={variant_id}, location_id={location_id}, before_date={before_date}, receipt_code={receipt_code}")
+        self.debug_print(f"find_old_inventory: Bắt đầu - variant_id={variant_id}, location_id={location_id}, before_date={before_date}, receipt_code={receipt_code}")
         try:
             # Lấy lịch sử tồn kho từ Sapo API
             # Endpoint: /reports/inventories/variants/{variant_id}.json
@@ -69,15 +75,15 @@ class CostPriceService:
                     'page': page,
                     'limit': 250
                 }
-                print(f"[DEBUG find_old_inventory] Đang lấy page {page} của inventory history")
+                self.debug_print(f"find_old_inventory: Đang lấy page {page} của inventory history")
                 response = self.sapo_client.core.get(path, params=params)
                 variant_inventories = response.get('variant_inventories', [])
                 
                 if not variant_inventories:
-                    print(f"[DEBUG find_old_inventory] Không còn dữ liệu ở page {page}")
+                    self.debug_print(f"find_old_inventory: Không còn dữ liệu ở page {page}")
                     break
                 
-                print(f"[DEBUG find_old_inventory] Page {page}: {len(variant_inventories)} traces")
+                self.debug_print(f"find_old_inventory: Page {page}: {len(variant_inventories)} traces")
                 
                 for trace in variant_inventories:
                     # Kiểm tra nếu có receipt_code, tìm chính xác thời điểm đó
@@ -86,9 +92,9 @@ class CostPriceService:
                         onhand = Decimal(str(trace.get('onhand', 0) or 0))
                         onhand_adj = Decimal(str(trace.get('onhand_adj', 0) or 0))
                         old_quantity = onhand - onhand_adj
-                        print(f"[DEBUG find_old_inventory] Tìm thấy receipt_code: onhand={onhand}, onhand_adj={onhand_adj}, old_quantity={old_quantity}")
+                        self.debug_print(f"find_old_inventory: Tìm thấy receipt_code: onhand={onhand}, onhand_adj={onhand_adj}, old_quantity={old_quantity}")
                         if old_quantity < 0:
-                            print(f"[DEBUG find_old_inventory] old_quantity < 0, set về 0")
+                            self.debug_print(f"find_old_inventory: old_quantity < 0, set về 0")
                             old_quantity = Decimal('0')
                         break
                     
@@ -100,7 +106,7 @@ class CostPriceService:
                                 issued_at.replace('Z', '+00:00')
                             )
                             if trace_date < before_date:
-                                print(f"[DEBUG find_old_inventory] Tìm thấy trace trước before_date: trace_date={trace_date}, before_date={before_date}")
+                                self.debug_print(f"find_old_inventory: Tìm thấy trace trước before_date: trace_date={trace_date}, before_date={before_date}")
                                 # Tìm giá vốn từ CostHistory gần nhất trước thời điểm này
                                 cost_history = CostHistory.objects.filter(
                                     variant_id=variant_id,
@@ -110,7 +116,7 @@ class CostPriceService:
                                 
                                 if cost_history:
                                     old_cost_price = cost_history.average_cost_price
-                                    print(f"[DEBUG find_old_inventory] Tìm thấy CostHistory: old_cost_price={old_cost_price}")
+                                    self.debug_print(f"find_old_inventory: Tìm thấy CostHistory: old_cost_price={old_cost_price}")
                                 
                                 # Tính tồn kho bằng cách cộng dồn các onhand_adj
                                 # (Logic phức tạp hơn, cần tính từ đầu đến before_date)
@@ -118,13 +124,13 @@ class CostPriceService:
                                 onhand = Decimal(str(trace.get('onhand', 0) or 0))
                                 onhand_adj = Decimal(str(trace.get('onhand_adj', 0) or 0))
                                 old_quantity = onhand - onhand_adj
-                                print(f"[DEBUG find_old_inventory] onhand={onhand}, onhand_adj={onhand_adj}, old_quantity={old_quantity}")
+                                self.debug_print(f"find_old_inventory: onhand={onhand}, onhand_adj={onhand_adj}, old_quantity={old_quantity}")
                                 if old_quantity < 0:
-                                    print(f"[DEBUG find_old_inventory] old_quantity < 0, set về 0")
+                                    self.debug_print(f"find_old_inventory: old_quantity < 0, set về 0")
                                     old_quantity = Decimal('0')
                                 break
                         except Exception as e:
-                            print(f"[DEBUG find_old_inventory] Error parsing date {issued_at}: {e}")
+                            self.debug_print(f"find_old_inventory: Error parsing date {issued_at}: {e}")
                             logger.warning(f"Error parsing date {issued_at}: {e}")
                             continue
                 
@@ -134,7 +140,7 @@ class CostPriceService:
             
             # Nếu không tìm thấy từ inventory history, lấy từ CostHistory gần nhất
             if old_cost_price == 0:
-                print(f"[DEBUG find_old_inventory] Không tìm thấy từ inventory, tìm trong CostHistory")
+                self.debug_print(f"find_old_inventory: Không tìm thấy từ inventory, tìm trong CostHistory")
                 cost_history = CostHistory.objects.filter(
                     variant_id=variant_id,
                     location_id=location_id,
@@ -143,18 +149,18 @@ class CostPriceService:
                 
                 if cost_history:
                     old_cost_price = cost_history.average_cost_price
-                    print(f"[DEBUG find_old_inventory] Tìm thấy CostHistory: old_cost_price={old_cost_price}")
+                    self.debug_print(f"find_old_inventory: Tìm thấy CostHistory: old_cost_price={old_cost_price}")
                     # Nếu chưa có old_quantity, lấy từ CostHistory
                     if old_quantity == 0:
                         old_quantity = cost_history.old_quantity
-                        print(f"[DEBUG find_old_inventory] Lấy old_quantity từ CostHistory: {old_quantity}")
+                        self.debug_print(f"find_old_inventory: Lấy old_quantity từ CostHistory: {old_quantity}")
             
             # Nếu vẫn không có, mặc định là 0
             if old_quantity < 0:
-                print(f"[DEBUG find_old_inventory] old_quantity < 0, set về 0")
+                self.debug_print(f"find_old_inventory: old_quantity < 0, set về 0")
                 old_quantity = Decimal('0')
             
-            print(f"[DEBUG find_old_inventory] Kết quả: old_quantity={old_quantity}, old_cost_price={old_cost_price}")
+            self.debug_print(f"find_old_inventory: Kết quả: old_quantity={old_quantity}, old_cost_price={old_cost_price}")
             return old_quantity, old_cost_price
             
         except Exception as e:
@@ -192,7 +198,7 @@ class CostPriceService:
         Returns:
             Dict chứa các thành phần giá vốn
         """
-        print(f"[DEBUG calculate_new_cost_price] Bắt đầu - variant_id={variant_id}, quantity={quantity}, cpm_per_unit={cpm_per_unit}, sku_model_xnk={sku_model_xnk}")
+        self.debug_print(f"calculate_new_cost_price: Bắt đầu - variant_id={variant_id}, quantity={quantity}, cpm_per_unit={cpm_per_unit}, sku_model_xnk={sku_model_xnk}")
         result = {
             'price_cny': Decimal('0'),
             'exchange_rate_avg': Decimal('0'),
@@ -205,12 +211,12 @@ class CostPriceService:
         
         try:
             # 1. Lấy giá nhập CNY từ variant metadata (price_tq)
-            print(f"[DEBUG calculate_new_cost_price] Bước 1: Lấy giá nhập CNY từ variant metadata")
+            self.debug_print(f"calculate_new_cost_price: Bước 1: Lấy giá nhập CNY từ variant metadata")
             # Lấy product từ variant
             variant_data = self.sapo_client.core.get_variant_raw(variant_id)
             if variant_data and variant_data.get('variant'):
                 product_id = variant_data['variant'].get('product_id')
-                print(f"[DEBUG calculate_new_cost_price] product_id={product_id}")
+                self.debug_print(f"calculate_new_cost_price: product_id={product_id}")
                 if product_id:
                     product = self.sapo_product_service.get_product(product_id)
                     if product and product.gdp_metadata:
@@ -220,18 +226,18 @@ class CostPriceService:
                         )
                         if variant_metadata and variant_metadata.price_tq:
                             result['price_cny'] = Decimal(str(variant_metadata.price_tq))
-                            print(f"[DEBUG calculate_new_cost_price] price_cny={result['price_cny']}")
+                            self.debug_print(f"calculate_new_cost_price: price_cny={result['price_cny']}")
                         else:
-                            print(f"[DEBUG calculate_new_cost_price] Không tìm thấy price_tq trong metadata")
+                            self.debug_print(f"calculate_new_cost_price: Không tìm thấy price_tq trong metadata")
                     else:
-                        print(f"[DEBUG calculate_new_cost_price] Không có product hoặc gdp_metadata")
+                        self.debug_print(f"calculate_new_cost_price: Không có product hoặc gdp_metadata")
                 else:
-                    print(f"[DEBUG calculate_new_cost_price] Không có product_id")
+                    self.debug_print(f"calculate_new_cost_price: Không có product_id")
             else:
-                print(f"[DEBUG calculate_new_cost_price] Không lấy được variant_data")
+                self.debug_print(f"calculate_new_cost_price: Không lấy được variant_data")
             
             # 2. Lấy tỷ giá CNY trung bình từ các khoản thanh toán PO
-            print(f"[DEBUG calculate_new_cost_price] Bước 2: Lấy tỷ giá CNY trung bình")
+            self.debug_print(f"calculate_new_cost_price: Bước 2: Lấy tỷ giá CNY trung bình")
             exchange_rates = []
             payment_count = 0
             for payment in po.payments.all():
@@ -239,7 +245,7 @@ class CostPriceService:
                 if payment.exchange_rate:
                     rate = Decimal(str(payment.exchange_rate))
                     exchange_rates.append(rate)
-                    print(f"[DEBUG calculate_new_cost_price] Payment {payment_count}: exchange_rate={rate}")
+                    self.debug_print(f"calculate_new_cost_price: Payment {payment_count}: exchange_rate={rate}")
                 elif payment.balance_transaction:
                     # Lấy từ payment_period
                     period_txn = payment.balance_transaction.payment_periods.first()
@@ -248,16 +254,16 @@ class CostPriceService:
                         if rate:
                             rate_decimal = Decimal(str(rate))
                             exchange_rates.append(rate_decimal)
-                            print(f"[DEBUG calculate_new_cost_price] Payment {payment_count}: rate từ payment_period={rate_decimal}")
+                            self.debug_print(f"calculate_new_cost_price: Payment {payment_count}: rate từ payment_period={rate_decimal}")
             
             if exchange_rates:
                 result['exchange_rate_avg'] = sum(exchange_rates) / len(exchange_rates)
-                print(f"[DEBUG calculate_new_cost_price] Tỷ giá trung bình: {result['exchange_rate_avg']} (từ {len(exchange_rates)} payments)")
+                self.debug_print(f"calculate_new_cost_price: Tỷ giá trung bình: {result['exchange_rate_avg']} (từ {len(exchange_rates)} payments)")
             else:
-                print(f"[DEBUG calculate_new_cost_price] Không tìm thấy tỷ giá nào")
+                self.debug_print(f"calculate_new_cost_price: Không tìm thấy tỷ giá nào")
             
             # 3. Lấy thuế NK và GTGT từ packing list (match theo sku_model_xnk)
-            print(f"[DEBUG calculate_new_cost_price] Bước 3: Lấy thuế NK và GTGT từ packing list")
+            self.debug_print(f"calculate_new_cost_price: Bước 3: Lấy thuế NK và GTGT từ packing list")
             if sku_model_xnk:
                 packing_item = SPOPackingListItem.objects.filter(
                     sum_purchase_order=spo,
@@ -265,7 +271,7 @@ class CostPriceService:
                 ).first()
                 
                 if packing_item:
-                    print(f"[DEBUG calculate_new_cost_price] Tìm thấy packing_item: quantity={packing_item.quantity}, import_tax_total={packing_item.import_tax_total}, vat_total={packing_item.vat_total}")
+                    self.debug_print(f"calculate_new_cost_price: Tìm thấy packing_item: quantity={packing_item.quantity}, import_tax_total={packing_item.import_tax_total}, vat_total={packing_item.vat_total}")
                     # Thuế NK đơn chiếc = import_tax_total / quantity
                     if packing_item.quantity > 0:
                         result['import_tax_per_unit'] = (
@@ -276,24 +282,24 @@ class CostPriceService:
                             Decimal(str(packing_item.vat_total)) / 
                             Decimal(str(packing_item.quantity))
                         )
-                        print(f"[DEBUG calculate_new_cost_price] import_tax_per_unit={result['import_tax_per_unit']}, vat_per_unit={result['vat_per_unit']}")
+                        self.debug_print(f"calculate_new_cost_price: import_tax_per_unit={result['import_tax_per_unit']}, vat_per_unit={result['vat_per_unit']}")
                     else:
-                        print(f"[DEBUG calculate_new_cost_price] packing_item.quantity = 0")
+                        self.debug_print(f"calculate_new_cost_price: packing_item.quantity = 0")
                 else:
-                    print(f"[DEBUG calculate_new_cost_price] Không tìm thấy packing_item với sku_model_xnk={sku_model_xnk}")
+                    self.debug_print(f"calculate_new_cost_price: Không tìm thấy packing_item với sku_model_xnk={sku_model_xnk}")
             else:
-                print(f"[DEBUG calculate_new_cost_price] Không có sku_model_xnk")
+                self.debug_print(f"calculate_new_cost_price: Không có sku_model_xnk")
             
             # 4. Tính chi phí riêng của PO phân bổ trên CPM
-            print(f"[DEBUG calculate_new_cost_price] Bước 4: Tính chi phí PO phân bổ trên CPM")
+            self.debug_print(f"calculate_new_cost_price: Bước 4: Tính chi phí PO phân bổ trên CPM")
             
             # Sử dụng po_total_cbm được truyền vào (tổng CBM của toàn bộ PO)
             if po_total_cbm is None or po_total_cbm == 0:
                 # Fallback: tính từ cpm_per_unit * quantity của variant này (không chính xác lắm)
                 po_total_cbm = cpm_per_unit * quantity
-                print(f"[DEBUG calculate_new_cost_price] po_total_cbm không được truyền vào, dùng fallback: {po_total_cbm}")
+                self.debug_print(f"calculate_new_cost_price: po_total_cbm không được truyền vào, dùng fallback: {po_total_cbm}")
             else:
-                print(f"[DEBUG calculate_new_cost_price] po_total_cbm={po_total_cbm} (từ PO)")
+                self.debug_print(f"calculate_new_cost_price: po_total_cbm={po_total_cbm} (từ PO)")
             
             if po_total_cbm > 0:
                 # Tổng chi phí PO (CNY)
@@ -301,30 +307,30 @@ class CostPriceService:
                     Decimal(str(cost.amount_cny)) 
                     for cost in po.costs.all()
                 )
-                print(f"[DEBUG calculate_new_cost_price] po_total_costs_cny={po_total_costs_cny} (từ {po.costs.count()} costs)")
+                self.debug_print(f"calculate_new_cost_price: po_total_costs_cny={po_total_costs_cny} (từ {po.costs.count()} costs)")
                 
                 # Quy đổi sang VNĐ
                 if result['exchange_rate_avg'] > 0:
                     po_total_costs_vnd = po_total_costs_cny * result['exchange_rate_avg']
-                    print(f"[DEBUG calculate_new_cost_price] po_total_costs_vnd={po_total_costs_vnd} (CNY * tỷ giá)")
+                    self.debug_print(f"calculate_new_cost_price: po_total_costs_vnd={po_total_costs_vnd} (CNY * tỷ giá)")
                     
                     # Phân bổ theo CPM: chi phí PO cho variant này = (cpm_per_unit / po_total_cbm) * po_total_costs_vnd
                     if cpm_per_unit > 0:
                         result['po_cost_per_unit'] = (
                             po_total_costs_vnd * cpm_per_unit / po_total_cbm
                         )
-                        print(f"[DEBUG calculate_new_cost_price] po_cost_per_unit={result['po_cost_per_unit']} (po_total_costs_vnd={po_total_costs_vnd} * cpm_per_unit={cpm_per_unit} / po_total_cbm={po_total_cbm})")
+                        self.debug_print(f"calculate_new_cost_price: po_cost_per_unit={result['po_cost_per_unit']} (po_total_costs_vnd={po_total_costs_vnd} * cpm_per_unit={cpm_per_unit} / po_total_cbm={po_total_cbm})")
                     else:
-                        print(f"[DEBUG calculate_new_cost_price] cpm_per_unit = 0, không thể phân bổ")
+                        self.debug_print(f"calculate_new_cost_price: cpm_per_unit = 0, không thể phân bổ")
                 else:
-                    print(f"[DEBUG calculate_new_cost_price] Không có tỷ giá để quy đổi (exchange_rate_avg={result['exchange_rate_avg']})")
+                    self.debug_print(f"calculate_new_cost_price: Không có tỷ giá để quy đổi (exchange_rate_avg={result['exchange_rate_avg']})")
             else:
-                print(f"[DEBUG calculate_new_cost_price] po_total_cbm = {po_total_cbm}, bỏ qua chi phí PO")
+                self.debug_print(f"calculate_new_cost_price: po_total_cbm = {po_total_cbm}, bỏ qua chi phí PO")
             
             # 5. Tính chi phí SPO phân bổ trên CPM
-            print(f"[DEBUG calculate_new_cost_price] Bước 5: Tính chi phí SPO phân bổ trên CPM")
+            self.debug_print(f"calculate_new_cost_price: Bước 5: Tính chi phí SPO phân bổ trên CPM")
             spo_total_cbm = Decimal(str(spo.total_cbm or 0))
-            print(f"[DEBUG calculate_new_cost_price] spo_total_cbm={spo_total_cbm}")
+            self.debug_print(f"calculate_new_cost_price: spo_total_cbm={spo_total_cbm}")
             if spo_total_cbm > 0 and cpm_per_unit > 0:
                 # Tổng chi phí SPO (VNĐ) - lấy từ spo.costs thay vì từ các trường trực tiếp
                 spo_total_costs_vnd = Decimal('0')
@@ -333,7 +339,7 @@ class CostPriceService:
                 for cost in spo.costs.all():
                     if cost.cost_side == 'vietnam' and cost.amount_vnd:
                         spo_total_costs_vnd += Decimal(str(cost.amount_vnd))
-                        print(f"[DEBUG calculate_new_cost_price] Chi phí VNĐ: {cost.name or 'N/A'} = {cost.amount_vnd}")
+                        self.debug_print(f"calculate_new_cost_price: Chi phí VNĐ: {cost.name or 'N/A'} = {cost.amount_vnd}")
                 
                 # 2. Chi phí CNY (cost_side == 'china') quy đổi sang VNĐ
                 for cost in spo.costs.all():
@@ -355,25 +361,25 @@ class CostPriceService:
                         if exchange_rate > 0:
                             cost_vnd = Decimal(str(cost.amount_cny)) * exchange_rate
                             spo_total_costs_vnd += cost_vnd
-                            print(f"[DEBUG calculate_new_cost_price] Chi phí CNY: {cost.name or 'N/A'} = {cost.amount_cny} CNY * {exchange_rate} = {cost_vnd} VNĐ")
+                            self.debug_print(f"calculate_new_cost_price: Chi phí CNY: {cost.name or 'N/A'} = {cost.amount_cny} CNY * {exchange_rate} = {cost_vnd} VNĐ")
                         else:
-                            print(f"[DEBUG calculate_new_cost_price] Chi phí CNY: {cost.name or 'N/A'} = {cost.amount_cny} CNY nhưng không có tỷ giá")
+                            self.debug_print(f"calculate_new_cost_price: Chi phí CNY: {cost.name or 'N/A'} = {cost.amount_cny} CNY nhưng không có tỷ giá")
                 
-                print(f"[DEBUG calculate_new_cost_price] spo_total_costs_vnd={spo_total_costs_vnd} (từ {spo.costs.count()} costs)")
+                self.debug_print(f"calculate_new_cost_price: spo_total_costs_vnd={spo_total_costs_vnd} (từ {spo.costs.count()} costs)")
                 
                 # Phân bổ theo CPM
                 if spo_total_costs_vnd > 0:
                     result['spo_cost_per_unit'] = (
                         spo_total_costs_vnd * cpm_per_unit / spo_total_cbm
                     )
-                    print(f"[DEBUG calculate_new_cost_price] spo_cost_per_unit={result['spo_cost_per_unit']} (spo_total_costs_vnd={spo_total_costs_vnd} * cpm_per_unit={cpm_per_unit} / spo_total_cbm={spo_total_cbm})")
+                    self.debug_print(f"calculate_new_cost_price: spo_cost_per_unit={result['spo_cost_per_unit']} (spo_total_costs_vnd={spo_total_costs_vnd} * cpm_per_unit={cpm_per_unit} / spo_total_cbm={spo_total_cbm})")
                 else:
-                    print(f"[DEBUG calculate_new_cost_price] spo_total_costs_vnd = 0, không thể phân bổ")
+                    self.debug_print(f"calculate_new_cost_price: spo_total_costs_vnd = 0, không thể phân bổ")
             else:
-                print(f"[DEBUG calculate_new_cost_price] spo_total_cbm={spo_total_cbm} hoặc cpm_per_unit={cpm_per_unit} = 0, bỏ qua chi phí SPO")
+                self.debug_print(f"calculate_new_cost_price: spo_total_cbm={spo_total_cbm} hoặc cpm_per_unit={cpm_per_unit} = 0, bỏ qua chi phí SPO")
             
             # 6. Tính giá vốn mới
-            print(f"[DEBUG calculate_new_cost_price] Bước 6: Tính giá vốn mới")
+            self.debug_print(f"calculate_new_cost_price: Bước 6: Tính giá vốn mới")
             result['new_cost_price'] = (
                 result['price_cny'] * result['exchange_rate_avg'] +
                 result['import_tax_per_unit'] +
@@ -381,7 +387,7 @@ class CostPriceService:
                 result['po_cost_per_unit'] +
                 result['spo_cost_per_unit']
             )
-            print(f"[DEBUG calculate_new_cost_price] Giá vốn mới = {result['price_cny']} * {result['exchange_rate_avg']} + {result['import_tax_per_unit']} + {result['vat_per_unit']} + {result['po_cost_per_unit']} + {result['spo_cost_per_unit']} = {result['new_cost_price']}")
+            self.debug_print(f"calculate_new_cost_price: Giá vốn mới = {result['price_cny']} * {result['exchange_rate_avg']} + {result['import_tax_per_unit']} + {result['vat_per_unit']} + {result['po_cost_per_unit']} + {result['spo_cost_per_unit']} = {result['new_cost_price']}")
             
         except Exception as e:
             logger.error(f"Error calculating new cost price for variant {variant_id}: {e}", exc_info=True)
@@ -425,22 +431,22 @@ class CostPriceService:
         Returns:
             CostHistory object
         """
-        print(f"[DEBUG calculate_and_save_cost_history] Bắt đầu - variant_id={variant_id}, location_id={location_id}, quantity={quantity}, import_date={import_date}")
+        self.debug_print(f"calculate_and_save_cost_history: Bắt đầu - variant_id={variant_id}, location_id={location_id}, quantity={quantity}, import_date={import_date}")
         before_datetime = datetime.combine(import_date, datetime.min.time())
         before_datetime = timezone.make_aware(before_datetime)
         
         # 1. Tìm tồn kho cũ và giá vốn cũ
-        print(f"[DEBUG calculate_and_save_cost_history] Bước 1: Tìm tồn kho cũ và giá vốn cũ")
+        self.debug_print(f"calculate_and_save_cost_history: Bước 1: Tìm tồn kho cũ và giá vốn cũ")
         old_quantity, old_cost_price = self.find_old_inventory(
             variant_id=variant_id,
             location_id=location_id,
             before_date=before_datetime,
             receipt_code=receipt_code
         )
-        print(f"[DEBUG calculate_and_save_cost_history] Kết quả tìm tồn kho cũ: old_quantity={old_quantity}, old_cost_price={old_cost_price}")
+        self.debug_print(f"calculate_and_save_cost_history: Kết quả tìm tồn kho cũ: old_quantity={old_quantity}, old_cost_price={old_cost_price}")
         
         # 2. Tính giá vốn mới
-        print(f"[DEBUG calculate_and_save_cost_history] Bước 2: Tính giá vốn mới")
+        self.debug_print(f"calculate_and_save_cost_history: Bước 2: Tính giá vốn mới")
         cost_calc = self.calculate_new_cost_price(
             variant_id=variant_id,
             spo=spo,
@@ -450,10 +456,10 @@ class CostPriceService:
             sku_model_xnk=sku_model_xnk,
             po_total_cbm=po_total_cbm
         )
-        print(f"[DEBUG calculate_and_save_cost_history] Kết quả tính giá vốn mới: {cost_calc}")
+        self.debug_print(f"calculate_and_save_cost_history: Kết quả tính giá vốn mới: {cost_calc}")
         
         # 3. Tạo hoặc cập nhật CostHistory
-        print(f"[DEBUG calculate_and_save_cost_history] Bước 3: Tạo hoặc cập nhật CostHistory")
+        self.debug_print(f"calculate_and_save_cost_history: Bước 3: Tạo hoặc cập nhật CostHistory")
         cost_history, created = CostHistory.objects.update_or_create(
             sum_purchase_order=spo,
             purchase_order=po,
@@ -479,16 +485,23 @@ class CostPriceService:
                 'created_by': user,
             }
         )
-        print(f"[DEBUG calculate_and_save_cost_history] CostHistory {'created' if created else 'updated'}: id={cost_history.id}")
+        self.debug_print(f"calculate_and_save_cost_history: CostHistory {'created' if created else 'updated'}: id={cost_history.id}")
         
         # 4. Tính giá vốn trung bình
-        print(f"[DEBUG calculate_and_save_cost_history] Bước 4: Tính giá vốn trung bình")
-        print(f"[DEBUG calculate_and_save_cost_history] old_quantity={cost_history.old_quantity}, old_cost_price={cost_history.old_cost_price}, import_quantity={cost_history.import_quantity}, new_cost_price={cost_history.new_cost_price}")
+        self.debug_print(f"calculate_and_save_cost_history: Bước 4: Tính giá vốn trung bình")
+        self.debug_print(f"calculate_and_save_cost_history: old_quantity={cost_history.old_quantity}, old_cost_price={cost_history.old_cost_price}, import_quantity={cost_history.import_quantity}, new_cost_price={cost_history.new_cost_price}")
+        
+        # Kiểm tra nếu không có giá vốn cũ
+        if cost_history.old_cost_price == 0 or cost_history.old_cost_price is None:
+            self.debug_print(f"calculate_and_save_cost_history: Không có giá vốn cũ (old_cost_price={cost_history.old_cost_price}), dùng giá vốn mới")
+        else:
+            self.debug_print(f"calculate_and_save_cost_history: Có giá vốn cũ, tính bình quân gia quyền")
+        
         cost_history.calculate_average_cost_price()
-        print(f"[DEBUG calculate_and_save_cost_history] average_cost_price={cost_history.average_cost_price}")
+        self.debug_print(f"calculate_and_save_cost_history: average_cost_price={cost_history.average_cost_price}")
         cost_history.save()
         
-        print(f"[DEBUG calculate_and_save_cost_history] Hoàn thành - variant={variant_id}, location={location_id}, avg_cost={cost_history.average_cost_price}")
+        self.debug_print(f"calculate_and_save_cost_history: Hoàn thành - variant={variant_id}, location={location_id}, avg_cost={cost_history.average_cost_price}")
         logger.info(
             f"Created/Updated CostHistory: variant={variant_id}, "
             f"location={location_id}, avg_cost={cost_history.average_cost_price}"
@@ -513,23 +526,23 @@ class CostPriceService:
         Returns:
             True nếu thành công, False nếu thất bại
         """
-        print(f"[DEBUG sync_cost_to_sapo] Bắt đầu - cost_history_id={cost_history.id}, variant_id={cost_history.variant_id}, location_id={cost_history.location_id}, code={code}")
+        self.debug_print(f"sync_cost_to_sapo: Bắt đầu - cost_history_id={cost_history.id}, variant_id={cost_history.variant_id}, location_id={cost_history.location_id}, code={code}")
         try:
             # 1. Tìm hoặc tạo price_adjustment
-            print(f"[DEBUG sync_cost_to_sapo] Bước 1: Tìm hoặc tạo price_adjustment với code={code}")
+            self.debug_print(f"sync_cost_to_sapo: Bước 1: Tìm hoặc tạo price_adjustment với code={code}")
             path = "price_adjustments.json"
             params = {'query': code}
             
             response = self.sapo_client.core.get(path, params=params)
             price_adjustments = response.get('price_adjustments', [])
-            print(f"[DEBUG sync_cost_to_sapo] Tìm thấy {len(price_adjustments)} price_adjustments")
+            self.debug_print(f"sync_cost_to_sapo: Tìm thấy {len(price_adjustments)} price_adjustments")
             
             if price_adjustments:
                 pa = price_adjustments[0]
-                print(f"[DEBUG sync_cost_to_sapo] Sử dụng price_adjustment hiện có: id={pa.get('id')}")
+                self.debug_print(f"sync_cost_to_sapo: Sử dụng price_adjustment hiện có: id={pa.get('id')}")
             else:
                 # Tạo mới
-                print(f"[DEBUG sync_cost_to_sapo] Tạo price_adjustment mới")
+                self.debug_print(f"sync_cost_to_sapo: Tạo price_adjustment mới")
                 pa_data = {
                     "location_id": cost_history.location_id,
                     "code": code,
@@ -542,25 +555,25 @@ class CostPriceService:
                     json={"price_adjustment": pa_data}
                 )
                 pa = response.get('price_adjustment', {})
-                print(f"[DEBUG sync_cost_to_sapo] Đã tạo price_adjustment mới: id={pa.get('id')}")
+                self.debug_print(f"sync_cost_to_sapo: Đã tạo price_adjustment mới: id={pa.get('id')}")
             
             # 2. Tạo metadata JSON string
-            print(f"[DEBUG sync_cost_to_sapo] Bước 2: Tạo metadata JSON string")
+            self.debug_print(f"sync_cost_to_sapo: Bước 2: Tạo metadata JSON string")
             import json
             # Lấy product_id từ variant
             variant_data = self.sapo_client.core.get_variant_raw(cost_history.variant_id)
             product_id = 0
             if variant_data and variant_data.get('variant'):
                 product_id = variant_data['variant'].get('product_id', 0)
-                print(f"[DEBUG sync_cost_to_sapo] product_id={product_id}")
+                self.debug_print(f"sync_cost_to_sapo: product_id={product_id}")
             else:
-                print(f"[DEBUG sync_cost_to_sapo] Không lấy được variant_data")
+                self.debug_print(f"sync_cost_to_sapo: Không lấy được variant_data")
             
             # Lấy PO code
             po_code = ''
             if cost_history.purchase_order:
                 po_code = cost_history.purchase_order.sapo_code or ''
-                print(f"[DEBUG sync_cost_to_sapo] po_code={po_code}")
+                self.debug_print(f"sync_cost_to_sapo: po_code={po_code}")
             
             metadata = {
                 'vid': cost_history.variant_id,
@@ -576,13 +589,13 @@ class CostPriceService:
                 'li': cost_history.location_id,
                 'rc': cost_history.receipt_code,
             }
-            print(f"[DEBUG sync_cost_to_sapo] metadata={metadata}")
+            self.debug_print(f"sync_cost_to_sapo: metadata={metadata}")
             
             line_string = json.dumps(metadata).replace(" ", "")
-            print(f"[DEBUG sync_cost_to_sapo] line_string length={len(line_string)}")
+            self.debug_print(f"sync_cost_to_sapo: line_string length={len(line_string)}")
             
             # 3. Tạo line_item
-            print(f"[DEBUG sync_cost_to_sapo] Bước 3: Tạo line_item")
+            self.debug_print(f"sync_cost_to_sapo: Bước 3: Tạo line_item")
             line_item = {
                 "product_id": metadata['pid'],
                 "variant_id": cost_history.variant_id,
@@ -590,10 +603,10 @@ class CostPriceService:
                 "price": int(cost_history.average_cost_price),
                 "product_type": "normal"
             }
-            print(f"[DEBUG sync_cost_to_sapo] line_item price={line_item['price']}, variant_id={line_item['variant_id']}")
+            self.debug_print(f"sync_cost_to_sapo: line_item price={line_item['price']}, variant_id={line_item['variant_id']}")
             
             # 4. Cập nhật price_adjustment
-            print(f"[DEBUG sync_cost_to_sapo] Bước 4: Cập nhật price_adjustment")
+            self.debug_print(f"sync_cost_to_sapo: Bước 4: Cập nhật price_adjustment")
             # Lấy line_items hiện tại
             pa_id = pa['id']
             pa_detail = self.sapo_client.core.get(
@@ -603,21 +616,21 @@ class CostPriceService:
             
             # Tìm và cập nhật line_item nếu đã có, hoặc thêm mới
             line_items = pa_data.get('line_items', [])
-            print(f"[DEBUG sync_cost_to_sapo] Hiện có {len(line_items)} line_items trong price_adjustment")
+            self.debug_print(f"sync_cost_to_sapo: Hiện có {len(line_items)} line_items trong price_adjustment")
             found = False
             for i, item in enumerate(line_items):
                 if item.get('variant_id') == cost_history.variant_id:
-                    print(f"[DEBUG sync_cost_to_sapo] Tìm thấy line_item cũ tại index {i}, sẽ cập nhật")
+                    self.debug_print(f"sync_cost_to_sapo: Tìm thấy line_item cũ tại index {i}, sẽ cập nhật")
                     line_items[i] = line_item
                     found = True
                     break
             
             if not found:
-                print(f"[DEBUG sync_cost_to_sapo] Không tìm thấy line_item cũ, thêm mới")
+                self.debug_print(f"sync_cost_to_sapo: Không tìm thấy line_item cũ, thêm mới")
                 line_items.append(line_item)
             
             # PUT để cập nhật
-            print(f"[DEBUG sync_cost_to_sapo] Bước 5: PUT để cập nhật price_adjustment")
+            self.debug_print(f"sync_cost_to_sapo: Bước 5: PUT để cập nhật price_adjustment")
             update_data = {
                 "price_adjustment": {
                     "code": pa_data.get('code', code),
@@ -625,27 +638,27 @@ class CostPriceService:
                     "line_items": line_items
                 }
             }
-            print(f"[DEBUG sync_cost_to_sapo] update_data có {len(line_items)} line_items")
+            self.debug_print(f"sync_cost_to_sapo: update_data có {len(line_items)} line_items")
             
             response = self.sapo_client.core.put(
                 f"price_adjustments/{pa_id}.json",
                 json=update_data
             )
-            print(f"[DEBUG sync_cost_to_sapo] PUT response: {response}")
+            self.debug_print(f"sync_cost_to_sapo: PUT response: {response}")
             
             # 5. Cập nhật CostHistory
-            print(f"[DEBUG sync_cost_to_sapo] Bước 6: Cập nhật CostHistory")
+            self.debug_print(f"sync_cost_to_sapo: Bước 6: Cập nhật CostHistory")
             cost_history.synced_to_sapo = True
             cost_history.sapo_price_adjustment_id = pa_id
             cost_history.synced_at = timezone.now()
             cost_history.save()
             
-            print(f"[DEBUG sync_cost_to_sapo] Hoàn thành - variant={cost_history.variant_id}, PA={pa_id}")
+            self.debug_print(f"sync_cost_to_sapo: Hoàn thành - variant={cost_history.variant_id}, PA={pa_id}")
             logger.info(f"Synced cost to Sapo: variant={cost_history.variant_id}, PA={pa_id}")
             return True
             
         except Exception as e:
-            print(f"[DEBUG sync_cost_to_sapo] LỖI: {e}")
+            self.debug_print(f"sync_cost_to_sapo: LỖI: {e}")
             logger.error(f"Error syncing cost to Sapo: {e}", exc_info=True)
             return False
 

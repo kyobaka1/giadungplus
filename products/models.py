@@ -1094,7 +1094,17 @@ class CostHistory(models.Model):
     def calculate_average_cost_price(self):
         """
         Tính giá vốn trung bình (bình quân gia quyền).
+        
+        Logic:
+        - Nếu không có giá vốn cũ (old_cost_price = 0): average_cost_price = new_cost_price
+        - Nếu có giá vốn cũ (old_cost_price > 0): tính bình quân gia quyền
         """
+        # Nếu không có giá vốn cũ, dùng giá vốn mới
+        if self.old_cost_price == 0 or self.old_cost_price is None:
+            self.average_cost_price = self.new_cost_price
+            return self.average_cost_price
+        
+        # Có giá vốn cũ, tính bình quân gia quyền
         old_total = self.old_quantity * self.old_cost_price
         new_total = self.import_quantity * self.new_cost_price
         total_quantity = self.old_quantity + self.import_quantity
