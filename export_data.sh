@@ -118,30 +118,41 @@ if [ "$EXPORT_SUCCESS" = false ]; then
         echo ""
     done
     
-    # Merge tất cả các file lại
-    echo -e "${YELLOW}Đang merge các file...${NC}"
+    # Merge tất cả các file lại bằng Python để đảm bảo JSON hợp lệ
+    echo -e "${YELLOW}Đang merge các file (sử dụng Python để đảm bảo JSON hợp lệ)...${NC}"
     
-    # Tạo file output với dấu [
-    echo "[" > "$OUTPUT_FILE"
-    
-    FIRST=true
-    for APP_FILE in "$TEMP_DIR"/*.json; do
-        if [ -f "$APP_FILE" ]; then
-            # Bỏ dấu [ ở đầu và ] ở cuối, chỉ lấy nội dung
-            if [ "$FIRST" = true ]; then
-                # File đầu tiên: bỏ [ ở đầu và ] ở cuối
-                sed '1d;$d' "$APP_FILE" >> "$OUTPUT_FILE"
-                FIRST=false
-            else
-                # Các file sau: thêm dấu phẩy, bỏ [ ở đầu và ] ở cuối
-                echo "," >> "$OUTPUT_FILE"
-                sed '1d;$d' "$APP_FILE" >> "$OUTPUT_FILE"
-            fi
-        fi
-    done
-    
-    # Đóng file với dấu ]
-    echo "]" >> "$OUTPUT_FILE"
+    # Sử dụng Python để merge JSON đúng cách
+    python3 << PYTHON_SCRIPT
+import json
+import glob
+import os
+
+temp_dir = "$TEMP_DIR"
+output_file = "$OUTPUT_FILE"
+
+# Tìm tất cả file JSON trong thư mục temp
+json_files = sorted(glob.glob(os.path.join(temp_dir, "*.json")))
+
+all_data = []
+
+for json_file in json_files:
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                all_data.extend(data)
+            else:
+                all_data.append(data)
+    except Exception as e:
+        print(f"Warning: Error reading {json_file}: {e}")
+        continue
+
+# Ghi ra file output
+with open(output_file, 'w', encoding='utf-8') as f:
+    json.dump(all_data, f, ensure_ascii=False, indent=2)
+
+print(f"Merged {len(all_data)} objects from {len(json_files)} files")
+PYTHON_SCRIPT
     
     # Xóa thư mục temp
     rm -rf "$TEMP_DIR"

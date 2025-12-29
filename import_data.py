@@ -9,6 +9,7 @@ import os
 import sys
 import glob
 import shutil
+import json
 from pathlib import Path
 from datetime import datetime
 
@@ -57,6 +58,17 @@ def backup_current_db():
     shutil.copy2(db_file, backup_file)
     return backup_file
 
+def validate_json_file(file_path):
+    """Validate file JSON và trả về True nếu hợp lệ"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return True, None, data
+    except json.JSONDecodeError as e:
+        return False, str(e), None
+    except Exception as e:
+        return False, str(e), None
+
 def main():
     print_colored("=" * 50, GREEN)
     print_colored("Script import dữ liệu vào SQLite (Test)", GREEN)
@@ -96,6 +108,58 @@ def main():
     
     print()
     print_colored(f"File backup: {backup_file}", GREEN)
+    
+    # Validate JSON trước khi import
+    print()
+    print_colored("Đang kiểm tra file JSON...", YELLOW)
+    is_valid, error, data = validate_json_file(backup_file)
+    
+    if not is_valid:
+        print_colored(f"✗ File JSON không hợp lệ!", RED)
+        print_colored(f"  Lỗi: {error}", RED)
+        print()
+        print_colored("Bạn có thể thử sửa file bằng lệnh:", YELLOW)
+        print_colored(f"  python fix_json_backup.py \"{backup_file}\"", YELLOW)
+        print()
+        
+        try:
+            fix_choice = input("Bạn có muốn thử sửa file tự động? (y/n): ").strip().lower()
+            if fix_choice == 'y':
+                # Import và chạy fix script
+                fix_script = Path("fix_json_backup.py")
+                if fix_script.exists():
+                    print()
+                    print_colored("Đang chạy script sửa file...", YELLOW)
+                    fix_result = os.system(f'python fix_json_backup.py "{backup_file}"')
+                    if fix_result == 0:
+                        # Validate lại
+                        is_valid, error, data = validate_json_file(backup_file)
+                        if not is_valid:
+                            print_colored("Vẫn còn lỗi sau khi sửa. Vui lòng export lại từ server.", RED)
+                            input("Nhấn Enter để thoát...")
+                            sys.exit(1)
+                    else:
+                        print_colored("Không thể sửa file tự động. Vui lòng export lại từ server.", RED)
+                        input("Nhấn Enter để thoát...")
+                        sys.exit(1)
+                else:
+                    print_colored("Không tìm thấy script fix_json_backup.py", RED)
+                    input("Nhấn Enter để thoát...")
+                    sys.exit(1)
+            else:
+                print("Đã hủy thao tác.")
+                sys.exit(0)
+        except KeyboardInterrupt:
+            print("\nĐã hủy")
+            sys.exit(0)
+    else:
+        print_colored("✓ File JSON hợp lệ!", GREEN)
+        if data:
+            if isinstance(data, list):
+                print_colored(f"  Số objects: {len(data)}", GREEN)
+            else:
+                print_colored(f"  Type: {type(data).__name__}", GREEN)
+    
     print()
     
     # Xác nhận
