@@ -74,16 +74,85 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: Fetch để kiểm tra xem có thay đổi trên remote không
+echo [INFO] Đang kiểm tra remote...
+git fetch origin %CURRENT_BRANCH%
+
+:: Kiểm tra xem branch local có behind remote không
+git rev-list --left-right --count origin/%CURRENT_BRANCH%...HEAD >nul 2>&1
+if errorlevel 1 (
+    echo [WARNING] Không thể so sánh với remote. Thử push trực tiếp...
+    goto :push_direct
+)
+
+for /f "tokens=1,2" %%a in ('git rev-list --left-right --count origin/%CURRENT_BRANCH%...HEAD 2^>nul') do (
+    set BEHIND=%%a
+    set AHEAD=%%b
+)
+
+if !BEHIND! GTR 0 (
+    echo [WARNING] Branch local đang behind remote !BEHIND! commit(s)
+    echo [INFO] Cần pull trước để đồng bộ với remote.
+    echo.
+    set /p PULL_CHOICE="Bạn có muốn pull và merge trước? (y/n): "
+    
+    if /i "!PULL_CHOICE!"=="y" (
+        echo [INFO] Đang pull từ remote...
+        git pull origin %CURRENT_BRANCH% --no-rebase
+        
+        if errorlevel 1 (
+            echo [ERROR] Lỗi khi pull! Có thể có conflict.
+            echo [INFO] Vui lòng giải quyết conflict thủ công và chạy lại script.
+            pause
+            exit /b 1
+        )
+        
+        echo [INFO] Pull thành công! Đang push...
+        goto :push_direct
+    ) else (
+        echo [INFO] Bỏ qua pull. Thử push trực tiếp...
+        echo [WARNING] Push có thể bị reject nếu có conflict.
+    )
+)
+
+:push_direct
 echo [INFO] Đang push lên GitHub...
 git push origin %CURRENT_BRANCH%
 
 if errorlevel 1 (
     echo [ERROR] Lỗi khi push!
-    echo [INFO] Có thể cần pull trước hoặc kiểm tra remote.
-    pause
-    exit /b 1
+    echo.
+    echo [INFO] Các lựa chọn:
+    echo   1. Pull trước: git pull origin %CURRENT_BRANCH%
+    echo   2. Force push (NGUY HIỂM): git push origin %CURRENT_BRANCH% --force
+    echo   3. Xem log: git log --oneline --graph --all
+    echo.
+    set /p FORCE_CHOICE="Bạn có muốn thử force push? (y/n - NGUY HIỂM): "
+    
+    if /i "!FORCE_CHOICE!"=="y" (
+        echo [WARNING] Đang force push - NGUY HIỂM!
+        git push origin %CURRENT_BRANCH% --force
+        
+        if errorlevel 1 (
+            echo [ERROR] Force push cũng thất bại!
+            pause
+            exit /b 1
+        ) else (
+            echo [SUCCESS] Force push thành công!
+            goto :success
+        )
+    ) else (
+        echo [INFO] Đã hủy. Vui lòng pull và merge thủ công trước khi push.
+        pause
+        exit /b 1
+    )
 )
 
+:success
+
+goto :end_success
+
+:end_success
 echo.
 echo ========================================
 echo   [SUCCESS] Đã push thành công!
@@ -93,3 +162,4 @@ echo [INFO] Commit: !VERSION!
 echo.
 
 pause
+exit /b 0

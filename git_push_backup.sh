@@ -96,9 +96,75 @@ echo ""
 read -p "Bạn có muốn push ngay bây giờ? (yes/no): " PUSH_CONFIRM
 
 if [ "$PUSH_CONFIRM" = "yes" ]; then
+    # Fetch để kiểm tra xem có thay đổi trên remote không
+    echo -e "${BLUE}Đang kiểm tra remote...${NC}"
+    git fetch "$REMOTE" "$BRANCH"
+    
+    # Kiểm tra xem branch local có behind remote không
+    LOCAL=$(git rev-parse @)
+    REMOTE_REF=$(git rev-parse "$REMOTE/$BRANCH" 2>/dev/null)
+    
+    if [ -n "$REMOTE_REF" ]; then
+        BEHIND=$(git rev-list --left-right --count "$REMOTE/$BRANCH"...HEAD 2>/dev/null | cut -f1)
+        
+        if [ "$BEHIND" -gt 0 ]; then
+            echo -e "${YELLOW}⚠ Branch local đang behind remote $BEHIND commit(s)${NC}"
+            echo -e "${YELLOW}Cần pull trước để đồng bộ với remote.${NC}"
+            echo ""
+            read -p "Bạn có muốn pull và merge trước? (yes/no): " PULL_CHOICE
+            
+            if [ "$PULL_CHOICE" = "yes" ]; then
+                echo -e "${BLUE}Đang pull từ remote...${NC}"
+                git pull "$REMOTE" "$BRANCH" --no-rebase
+                
+                if [ $? -ne 0 ]; then
+                    echo -e "${RED}✗ Lỗi khi pull! Có thể có conflict.${NC}"
+                    echo -e "${YELLOW}Vui lòng giải quyết conflict thủ công và chạy lại script.${NC}"
+                    exit 1
+                fi
+                
+                echo -e "${GREEN}✓ Pull thành công!${NC}"
+            else
+                echo -e "${YELLOW}Bỏ qua pull. Thử push trực tiếp...${NC}"
+                echo -e "${YELLOW}Push có thể bị reject nếu có conflict.${NC}"
+            fi
+        fi
+    fi
+    
+    # Thử push
     git push "$REMOTE" "$BRANCH"
-    echo ""
-    echo -e "${GREEN}✓ Đã push thành công!${NC}"
+    
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "${RED}✗ Lỗi khi push!${NC}"
+        echo ""
+        echo -e "${YELLOW}Các lựa chọn:${NC}"
+        echo -e "  1. Pull trước: ${BLUE}git pull $REMOTE $BRANCH${NC}"
+        echo -e "  2. Force push (NGUY HIỂM): ${BLUE}git push $REMOTE $BRANCH --force${NC}"
+        echo -e "  3. Xem log: ${BLUE}git log --oneline --graph --all${NC}"
+        echo ""
+        read -p "Bạn có muốn thử force push? (yes/no - NGUY HIỂM): " FORCE_CHOICE
+        
+        if [ "$FORCE_CHOICE" = "yes" ]; then
+            echo -e "${YELLOW}⚠ Đang force push - NGUY HIỂM!${NC}"
+            git push "$REMOTE" "$BRANCH" --force
+            
+            if [ $? -eq 0 ]; then
+                echo ""
+                echo -e "${GREEN}✓ Force push thành công!${NC}"
+            else
+                echo ""
+                echo -e "${RED}✗ Force push cũng thất bại!${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${YELLOW}Đã hủy. Vui lòng pull và merge thủ công trước khi push.${NC}"
+            exit 1
+        fi
+    else
+        echo ""
+        echo -e "${GREEN}✓ Đã push thành công!${NC}"
+    fi
 else
     echo ""
     echo -e "${YELLOW}Bạn có thể push sau bằng lệnh:${NC}"
