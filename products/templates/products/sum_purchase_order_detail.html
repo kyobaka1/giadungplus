@@ -174,13 +174,13 @@
                                 {{ total_product_amount_cny|default:0|floatformat:0|intcomma }} CNY
                             {% endif %}
                         </div>
-                        {% if total_product_amount_cny and total_amount_vnd %}
+                        {% if total_product_amount_cny %}
                         <div class="text-[10px] text-indigo-400 mt-0.5">
                             ({{ total_product_amount_cny|floatformat:0|intcomma }} CNY
                             {% if avg_exchange_rate %}
                                 × {{ avg_exchange_rate|floatformat:0|intcomma }})
                             {% else %}
-                                )
+                                - chưa có tỷ giá)
                             {% endif %}
                         </div>
                         {% endif %}
@@ -192,9 +192,20 @@
                     </div>
                 </div>
                 <div class="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
-                    <div>
+                    <div class="flex-1">
                         <div class="text-[10px] text-amber-500 uppercase font-bold">Chi phí nhập</div>
                         <div class="text-lg font-bold text-amber-700">{{ total_spo_costs|default:0|floatformat:0|intcomma }} đ</div>
+                        {% if total_spo_costs_vnd or total_spo_costs_cny_to_vnd %}
+                        <div class="text-[10px] text-amber-400 mt-0.5">
+                            {% if total_spo_costs_vnd and total_spo_costs_cny_to_vnd %}
+                                (VNĐ: {{ total_spo_costs_vnd|floatformat:0|intcomma }} đ + CNY: {{ total_spo_costs_cny|floatformat:0|intcomma }} CNY)
+                            {% elif total_spo_costs_vnd %}
+                                (VNĐ: {{ total_spo_costs_vnd|floatformat:0|intcomma }} đ)
+                            {% elif total_spo_costs_cny_to_vnd %}
+                                (CNY: {{ total_spo_costs_cny|floatformat:0|intcomma }} CNY)
+                            {% endif %}
+                        </div>
+                        {% endif %}
                     </div>
                     <div class="bg-white p-1.5 rounded-full text-amber-500">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
