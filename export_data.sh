@@ -1,13 +1,16 @@
 #!/bin/bash
 # Script xuất dữ liệu từ PostgreSQL (Production - Ubuntu)
 # Chạy script này trên server Ubuntu để export toàn bộ dữ liệu
+# Giải pháp: Export từng app một để tránh lỗi cursor PostgreSQL
 
-set -e  # Dừng nếu có lỗi
+# Không dùng set -e để có thể xử lý lỗi từng phần
+# set -e  # Dừng nếu có lỗi
 
 # Màu sắc cho output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Script xuất dữ liệu từ PostgreSQL (Production) ===${NC}"
@@ -29,34 +32,141 @@ mkdir -p "$BACKUP_DIR"
 # Tạo tên file với timestamp
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 OUTPUT_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.json"
+TEMP_DIR="$BACKUP_DIR/temp_$TIMESTAMP"
+mkdir -p "$TEMP_DIR"
 
 echo -e "${YELLOW}Đang xuất dữ liệu...${NC}"
 echo -e "File output: ${GREEN}$OUTPUT_FILE${NC}"
+echo ""
 
-# Export tất cả dữ liệu từ các apps
-# Sử dụng settings_production.py để kết nối PostgreSQL
-# --natural-foreign và --natural-primary giúp dữ liệu portable giữa các database
-python3 manage.py dumpdata \
+# Thử export tất cả một lần trước
+echo -e "${BLUE}Thử export tất cả dữ liệu một lần...${NC}"
+EXPORT_SUCCESS=false
+
+if python3 manage.py dumpdata \
     --settings=GIADUNGPLUS.settings_production \
     --natural-foreign \
     --natural-primary \
     --exclude auth.permission \
     --indent 2 \
-    --output "$OUTPUT_FILE"
+    --output "$OUTPUT_FILE" 2>&1 | tee /tmp/dumpdata_error.log; then
+    
+    # Kiểm tra file có dữ liệu hợp lệ không
+    if [ -s "$OUTPUT_FILE" ] && [ "$(head -1 "$OUTPUT_FILE")" = "[" ] && [ "$(tail -1 "$OUTPUT_FILE")" = "]" ]; then
+        EXPORT_SUCCESS=true
+        echo -e "${GREEN}✓ Export tất cả thành công!${NC}"
+    fi
+fi
+
+# Nếu export tất cả thất bại, chia nhỏ theo từng app
+if [ "$EXPORT_SUCCESS" = false ]; then
+    echo -e "${YELLOW}Export tất cả thất bại, đang thử export từng app...${NC}"
+    echo ""
+    
+    # Xóa file output cũ nếu có
+    rm -f "$OUTPUT_FILE"
+    
+    # Danh sách các apps cần export (theo thứ tự dependency)
+    APPS=(
+        "contenttypes"
+        "auth"
+        "sessions"
+        "admin"
+        "core"
+        "kho"
+        "cskh"
+        "marketing"
+        "service"
+        "orders"
+        "products"
+        "customers"
+        "settings"
+        "chamcong"
+    )
+    
+    # Export từng app một
+    SUCCESS_COUNT=0
+    FAILED_APPS=()
+    
+    for APP in "${APPS[@]}"; do
+        APP_FILE="$TEMP_DIR/${APP}.json"
+        echo -e "${BLUE}Đang export app: ${APP}...${NC}"
+        
+        # Export app với error handling
+        if python3 manage.py dumpdata \
+            --settings=GIADUNGPLUS.settings_production \
+            --natural-foreign \
+            --natural-primary \
+            --exclude auth.permission \
+            --indent 2 \
+            "$APP" \
+            --output "$APP_FILE" 2>/dev/null; then
+            
+            # Kiểm tra file có dữ liệu không (không phải chỉ có [])
+            if [ -s "$APP_FILE" ] && [ "$(cat "$APP_FILE" | wc -l)" -gt 1 ]; then
+                echo -e "${GREEN}✓ ${APP} - OK${NC}"
+                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            else
+                echo -e "${YELLOW}⚠ ${APP} - Không có dữ liệu${NC}"
+                rm -f "$APP_FILE"
+            fi
+        else
+            echo -e "${RED}✗ ${APP} - Lỗi${NC}"
+            FAILED_APPS+=("$APP")
+            rm -f "$APP_FILE"
+        fi
+        echo ""
+    done
+    
+    # Merge tất cả các file lại
+    echo -e "${YELLOW}Đang merge các file...${NC}"
+    
+    # Tạo file output với dấu [
+    echo "[" > "$OUTPUT_FILE"
+    
+    FIRST=true
+    for APP_FILE in "$TEMP_DIR"/*.json; do
+        if [ -f "$APP_FILE" ]; then
+            # Bỏ dấu [ ở đầu và ] ở cuối, chỉ lấy nội dung
+            if [ "$FIRST" = true ]; then
+                # File đầu tiên: bỏ [ ở đầu và ] ở cuối
+                sed '1d;$d' "$APP_FILE" >> "$OUTPUT_FILE"
+                FIRST=false
+            else
+                # Các file sau: thêm dấu phẩy, bỏ [ ở đầu và ] ở cuối
+                echo "," >> "$OUTPUT_FILE"
+                sed '1d;$d' "$APP_FILE" >> "$OUTPUT_FILE"
+            fi
+        fi
+    done
+    
+    # Đóng file với dấu ]
+    echo "]" >> "$OUTPUT_FILE"
+    
+    # Xóa thư mục temp
+    rm -rf "$TEMP_DIR"
+    
+    # Hiển thị thống kê
+    if [ ${#FAILED_APPS[@]} -gt 0 ]; then
+        echo -e "${YELLOW}Cảnh báo: Các apps sau không export được: ${FAILED_APPS[*]}${NC}"
+    fi
+    echo -e "Số apps export thành công: ${GREEN}$SUCCESS_COUNT/${#APPS[@]}${NC}"
+fi
 
 # Kiểm tra kết quả
-if [ $? -eq 0 ]; then
+if [ -s "$OUTPUT_FILE" ] && [ "$(cat "$OUTPUT_FILE" | wc -l)" -gt 1 ]; then
     FILE_SIZE=$(du -h "$OUTPUT_FILE" | cut -f1)
     echo -e "${GREEN}✓ Xuất dữ liệu thành công!${NC}"
     echo -e "Kích thước file: ${GREEN}$FILE_SIZE${NC}"
     echo -e "File location: ${GREEN}$(pwd)/$OUTPUT_FILE${NC}"
+    
     echo ""
     echo -e "${YELLOW}Bước tiếp theo:${NC}"
     echo -e "1. Copy file ${GREEN}$OUTPUT_FILE${NC} về máy Windows"
     echo -e "2. Đặt file vào thư mục gốc của project trên Windows"
     echo -e "3. Chạy script import_data.bat hoặc import_data.py trên Windows"
 else
-    echo -e "${RED}✗ Lỗi khi xuất dữ liệu!${NC}"
+    echo -e "${RED}✗ Lỗi khi xuất dữ liệu! File output rỗng hoặc không hợp lệ.${NC}"
     exit 1
 fi
 
