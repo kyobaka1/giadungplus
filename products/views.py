@@ -23,6 +23,7 @@ except ImportError:
 from core.sapo_client import get_sapo_client
 from products.services.sapo_product_service import SapoProductService
 from products.services.dto import ProductDTO, ProductVariantDTO
+from products.services.metadata_helper import get_variant_metadata
 from products.models import (
     ContainerTemplate,
     ContainerTemplateSupplier,
@@ -37,6 +38,7 @@ from products.models import (
     BalanceTransaction,
     PaymentPeriod,
     PaymentPeriodTransaction,
+    CostHistory,
 )
 from products.brand_settings import (
     get_disabled_brands,
@@ -2879,10 +2881,72 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         spo = SumPurchaseOrder.objects.select_related('container_template').prefetch_related(
             'costs',
             'documents',
-            'packing_list_items'
+            'packing_list_items',
+            'cost_histories__purchase_order'
         ).get(id=spo_id)
         context["spo"] = spo
-        context["packing_list_items"] = spo.packing_list_items.all()
+        packing_list_items = spo.packing_list_items.all()
+        context["packing_list_items"] = packing_list_items
+        
+        # Lấy cost histories và format dữ liệu
+        cost_histories = spo.cost_histories.select_related('purchase_order').all().order_by(
+            '-import_date', 'variant_id', 'location_id'
+        )
+        
+        # Format cost histories để hiển thị
+        cost_histories_data = []
+        for cost_history in cost_histories:
+            # Tính giá mua = price_cny * exchange_rate_avg
+            purchase_price = cost_history.price_cny * cost_history.exchange_rate_avg if cost_history.price_cny and cost_history.exchange_rate_avg else Decimal('0')
+            
+            cost_histories_data.append({
+                'id': cost_history.id,
+                'variant_id': cost_history.variant_id,
+                'location_id': cost_history.location_id,
+                'sku': cost_history.sku,
+                'sku_model_xnk': cost_history.sku_model_xnk,
+                'import_date': cost_history.import_date,
+                'import_quantity': float(cost_history.import_quantity),
+                'old_quantity': float(cost_history.old_quantity),
+                'old_cost_price': float(cost_history.old_cost_price),
+                'new_cost_price': float(cost_history.new_cost_price),
+                'average_cost_price': float(cost_history.average_cost_price),
+                'purchase_price': float(purchase_price),  # Giá mua = giá nhập CNY * tỷ giá
+                'price_cny': float(cost_history.price_cny),
+                'exchange_rate_avg': float(cost_history.exchange_rate_avg),
+                'import_tax_per_unit': float(cost_history.import_tax_per_unit),
+                'vat_per_unit': float(cost_history.vat_per_unit),
+                'po_cost_per_unit': float(cost_history.po_cost_per_unit),
+                'spo_cost_per_unit': float(cost_history.spo_cost_per_unit),
+                'cpm_per_unit': float(cost_history.cpm_per_unit),
+                'synced_to_sapo': cost_history.synced_to_sapo,
+                'sapo_price_adjustment_id': cost_history.sapo_price_adjustment_id,
+                'synced_at': cost_history.synced_at,
+                'purchase_order': {
+                    'id': cost_history.purchase_order.id if cost_history.purchase_order else None,
+                    'sapo_code': cost_history.purchase_order.sapo_code if cost_history.purchase_order else '',
+                } if cost_history.purchase_order else None,
+                'tkhq_code': cost_history.tkhq_code,
+                'receipt_code': cost_history.receipt_code,
+            })
+        
+        context["cost_histories"] = cost_histories_data
+        
+        # Tính tổng số cost histories đã sync và chưa sync
+        context["cost_histories_synced_count"] = cost_histories.filter(synced_to_sapo=True).count()
+        context["cost_histories_unsynced_count"] = cost_histories.filter(synced_to_sapo=False).count()
+        context["cost_histories_total_count"] = cost_histories.count()
+        
+        # Tính tổng thuế xuất khẩu và thuế GTGT (tổng số tiền thuế)
+        total_export_tax = Decimal('0')
+        total_vat_tax = Decimal('0')
+        for item in packing_list_items:
+            if item.import_tax_total:
+                total_export_tax += Decimal(str(item.import_tax_total))
+            if item.vat_total:
+                total_vat_tax += Decimal(str(item.vat_total))
+        context["total_export_tax"] = total_export_tax
+        context["total_vat_tax"] = total_vat_tax
         
         # Kiểm tra xem có file TKHQ trong documents không
         # Tìm file có tên bắt đầu bằng "TKHQ" hoặc "ToKhaiHQ"
@@ -7269,3 +7333,255 @@ def view_purchase_order_draft(request: HttpRequest, po_id: int):
         context["error"] = str(e)
     
     return render(request, "products/view_purchase_order_draft.html", context)
+
+
+@admin_only
+@require_POST
+def calculate_cost_price(request: HttpRequest, spo_id: int):
+    """
+    Tính toán và lưu giá vốn cho tất cả line items trong SPO.
+    
+    POST /products/sum-purchase-orders/<spo_id>/calculate-cost-price/
+    """
+    import sys
+    print(f"[DEBUG calculate_cost_price] Bắt đầu - spo_id={spo_id}", flush=True)
+    sys.stdout.flush()
+    
+    try:
+        from products.services.cost_price_service import CostPriceService
+        from products.services.spo_po_service import SPOPOService
+        
+        print(f"[DEBUG calculate_cost_price] Đã import services", flush=True)
+        sys.stdout.flush()
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        print(f"[DEBUG calculate_cost_price] SPO: {spo.code}", flush=True)
+        sys.stdout.flush()
+        
+        cost_service = CostPriceService()
+        spo_po_service = SPOPOService(get_sapo_client())
+        
+        # Lấy tất cả PO trong SPO
+        spo_po_relations = spo.spo_purchase_orders.select_related('purchase_order').all()
+        print(f"[DEBUG calculate_cost_price] Số PO trong SPO: {spo_po_relations.count()}", flush=True)
+        sys.stdout.flush()
+        
+        results = {
+            'success': 0,
+            'failed': 0,
+            'errors': []
+        }
+        
+        # Lấy ngày nhập kho từ completed_on của PO (mỗi PO có thể có ngày nhập khác nhau)
+        # Sẽ lấy từ từng PO khi xử lý
+        print(f"[DEBUG calculate_cost_price] Sẽ lấy import_date từ completed_on của từng PO", flush=True)
+        sys.stdout.flush()
+        
+        # Lấy tất cả line items từ các PO
+        total_line_items = 0
+        for spo_po_rel in spo_po_relations:
+            if not spo_po_rel.purchase_order:
+                print(f"[DEBUG calculate_cost_price] Bỏ qua SPOPO relation không có purchase_order", flush=True)
+                sys.stdout.flush()
+                continue
+            
+            po = spo_po_rel.purchase_order
+            print(f"[DEBUG calculate_cost_price] Xử lý PO: {po.sapo_code} (id={po.id})", flush=True)
+            sys.stdout.flush()
+            
+            try:
+                po_data = spo_po_service.get_po_from_sapo(po.sapo_order_supplier_id)
+                print(f"[DEBUG calculate_cost_price] Lấy được PO data, có {len(po_data.get('line_items', []))} line_items", flush=True)
+                sys.stdout.flush()
+                
+                # Lấy ngày nhập kho từ completed_on của PO này (đã được lấy từ order_supplier trong po_data)
+                po_import_date = po_data.get('completed_on')
+                if not po_import_date:
+                    # Fallback cuối cùng: dùng ngày hiện tại
+                    po_import_date = timezone.now().date()
+                    print(f"[DEBUG calculate_cost_price] PO không có completed_on trong po_data, dùng ngày hiện tại: {po_import_date}", flush=True)
+                else:
+                    print(f"[DEBUG calculate_cost_price] PO completed_on từ order_supplier: {po_import_date}", flush=True)
+                sys.stdout.flush()
+                
+                # Lấy total_cbm của PO để tính chi phí PO
+                po_total_cbm = po_data.get('total_cbm', Decimal('0'))
+                print(f"[DEBUG calculate_cost_price] PO total_cbm: {po_total_cbm}", flush=True)
+                sys.stdout.flush()
+                
+            except Exception as e:
+                print(f"[DEBUG calculate_cost_price] LỖI khi lấy PO data: {e}", flush=True)
+                sys.stdout.flush()
+                logger.error(f"Error getting PO {po.sapo_order_supplier_id}: {e}", exc_info=True)
+                continue
+            
+            for line_item in po_data.get('line_items', []):
+                total_line_items += 1
+                variant_id = line_item.get('variant_id')
+                if not variant_id:
+                    print(f"[DEBUG calculate_cost_price] Line item không có variant_id, bỏ qua", flush=True)
+                    sys.stdout.flush()
+                    continue
+                
+                print(f"[DEBUG calculate_cost_price] Xử lý variant_id={variant_id} (line_item {total_line_items})", flush=True)
+                sys.stdout.flush()
+                
+                try:
+                    # Lấy thông tin từ line_item
+                    quantity = Decimal(str(line_item.get('quantity', 0)))
+                    cpm = Decimal(str(line_item.get('cbm', 0) or 0))
+                    cpm_per_unit = cpm / quantity if quantity > 0 else Decimal('0')
+                    sku = line_item.get('sku', '')
+                    
+                    print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: quantity={quantity}, cpm={cpm}, cpm_per_unit={cpm_per_unit}, sku={sku}", flush=True)
+                    sys.stdout.flush()
+                    
+                    # Lấy location_id từ PO (order_supplier có location_id)
+                    location_id = po_data.get('location_id')
+                    print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: location_id từ PO={location_id}", flush=True)
+                    sys.stdout.flush()
+                    
+                    if not location_id:
+                        # Fallback: Lấy từ line_item (nếu có)
+                        location_id = line_item.get('location_id')
+                        print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: location_id từ line_item={location_id}", flush=True)
+                        sys.stdout.flush()
+                    
+                    if not location_id:
+                        # Fallback: Lấy từ purchase order receipt
+                        receipts = po_data.get('receipts', [])
+                        if receipts:
+                            location_id = receipts[0].get('location_id')
+                            print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: location_id từ receipt={location_id}", flush=True)
+                            sys.stdout.flush()
+                    
+                    if not location_id:
+                        error_msg = f"Variant {variant_id}: Không tìm thấy location_id"
+                        print(f"[DEBUG calculate_cost_price] {error_msg}", flush=True)
+                        sys.stdout.flush()
+                        results['failed'] += 1
+                        results['errors'].append(error_msg)
+                        continue
+                    
+                    print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: location_id={location_id}", flush=True)
+                    sys.stdout.flush()
+                    
+                    # Lấy sku_model_xnk từ variant metadata
+                    sku_model_xnk = None
+                    product_id = line_item.get('product_id')
+                    if product_id:
+                        try:
+                            product = SapoProductService(get_sapo_client()).get_product(product_id)
+                            if product and product.gdp_metadata:
+                                variant_metadata = get_variant_metadata(product.gdp_metadata, variant_id)
+                                if variant_metadata:
+                                    sku_model_xnk = variant_metadata.sku_model_xnk
+                                    print(f"[DEBUG calculate_cost_price] variant_id={variant_id}: sku_model_xnk={sku_model_xnk}", flush=True)
+                                    sys.stdout.flush()
+                        except Exception as e:
+                            print(f"[DEBUG calculate_cost_price] Lỗi khi lấy metadata cho variant {variant_id}: {e}", flush=True)
+                            sys.stdout.flush()
+                    
+                    # Tính toán và lưu cost history
+                    print(f"[DEBUG calculate_cost_price] Gọi calculate_and_save_cost_history cho variant_id={variant_id}", flush=True)
+                    sys.stdout.flush()
+                    
+                    cost_history = cost_service.calculate_and_save_cost_history(
+                        spo=spo,
+                        po=po,
+                        variant_id=variant_id,
+                        location_id=location_id,
+                        quantity=quantity,
+                        cpm_per_unit=cpm_per_unit,
+                        import_date=po_import_date,  # Dùng completed_on của PO
+                        receipt_code=line_item.get('receipt_code'),
+                        sku=sku,
+                        sku_model_xnk=sku_model_xnk,
+                        tkhq_code=None,  # Có thể lấy từ SPO documents
+                        po_total_cbm=po_total_cbm,  # Truyền total_cbm của PO để tính chi phí
+                        user=request.user
+                    )
+                    
+                    print(f"[DEBUG calculate_cost_price] Thành công variant_id={variant_id}, cost_history_id={cost_history.id}", flush=True)
+                    sys.stdout.flush()
+                    results['success'] += 1
+                    
+                except Exception as e:
+                    error_msg = f"Variant {variant_id}: {str(e)}"
+                    print(f"[DEBUG calculate_cost_price] LỖI variant_id={variant_id}: {e}", flush=True)
+                    import traceback
+                    print(f"[DEBUG calculate_cost_price] Traceback: {traceback.format_exc()}", flush=True)
+                    sys.stdout.flush()
+                    logger.error(f"Error calculating cost for variant {variant_id}: {e}", exc_info=True)
+                    results['failed'] += 1
+                    results['errors'].append(error_msg)
+        
+        print(f"[DEBUG calculate_cost_price] Hoàn thành - success={results['success']}, failed={results['failed']}", flush=True)
+        sys.stdout.flush()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Đã tính toán giá vốn: {results["success"]} thành công, {results["failed"]} thất bại',
+            'results': results
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"[DEBUG calculate_cost_price] LỖI TỔNG: {e}", flush=True)
+        print(f"[DEBUG calculate_cost_price] Traceback: {traceback.format_exc()}", flush=True)
+        sys.stdout.flush()
+        logger.error(f"Error in calculate_cost_price: {e}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def sync_cost_to_sapo(request: HttpRequest, spo_id: int):
+    """
+    Đồng bộ giá vốn lên Sapo price_adjustments.
+    
+    POST /products/sum-purchase-orders/<spo_id>/sync-cost-to-sapo/
+    """
+    try:
+        from products.services.cost_price_service import CostPriceService
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        cost_service = CostPriceService()
+        
+        # Lấy tất cả cost histories chưa sync
+        cost_histories = spo.cost_histories.filter(synced_to_sapo=False)
+        
+        results = {
+            'success': 0,
+            'failed': 0,
+            'errors': []
+        }
+        
+        for cost_history in cost_histories:
+            try:
+                success = cost_service.sync_cost_to_sapo(cost_history)
+                if success:
+                    results['success'] += 1
+                else:
+                    results['failed'] += 1
+                    results['errors'].append(f"Variant {cost_history.variant_id}: Sync thất bại")
+            except Exception as e:
+                logger.error(f"Error syncing cost {cost_history.id}: {e}", exc_info=True)
+                results['failed'] += 1
+                results['errors'].append(f"Variant {cost_history.variant_id}: {str(e)}")
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Đã đồng bộ: {results["success"]} thành công, {results["failed"]} thất bại',
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in sync_cost_to_sapo: {e}", exc_info=True)
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)

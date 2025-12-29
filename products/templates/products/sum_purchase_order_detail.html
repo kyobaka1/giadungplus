@@ -570,43 +570,83 @@
                 </div>
             </div>
 
-            <!-- Line Items (Collapsible) -->
+            <!-- Phân bổ giá vốn -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <details class="group">
-                    <summary class="flex justify-between items-center font-bold font-sm cursor-pointer list-none p-4 bg-slate-50 border-b border-transparent group-open:border-slate-100 hover:bg-slate-100 transition">
-                        <span class="flex items-center gap-2 text-slate-700">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-500 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                            Chi tiết sản phẩm (Line Items)
+                <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-white">
+                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Phân bổ giá vốn
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        {% if cost_histories_total_count > 0 %}
+                        <span class="text-xs text-slate-500">
+                            <span class="font-semibold text-green-600">{{ cost_histories_synced_count }}</span> đã sync / 
+                            <span class="font-semibold">{{ cost_histories_total_count }}</span> tổng
                         </span>
-                        <span class="text-xs text-slate-500 font-normal">({{ line_items|length }} SKUs)</span>
-                    </summary>
-                    <div class="text-neutral-500 text-sm group-open:animate-fadeIn">
-                        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
-                            <table class="min-w-full divide-y divide-slate-100">
-                                <thead class="bg-white sticky top-0 z-10 shadow-sm">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">SKU</th>
-                                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-500 uppercase">Tên sản phẩm</th>
-                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Số lượng</th>
-                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">Giá nhập</th>
-                                        <th class="px-4 py-3 text-right text-xs font-bold text-slate-500 uppercase">CBM</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-50 bg-white">
-                                    {% for item in line_items %}
-                                    <tr class="hover:bg-slate-50">
-                                        <td class="px-4 py-2 text-xs font-bold text-slate-700 font-mono">{{ item.sku }}</td>
-                                        <td class="px-4 py-2 text-xs text-slate-600">{{ item.product_name|truncatewords:8 }}</td>
-                                        <td class="px-4 py-2 text-xs text-right text-slate-800">{{ item.quantity }}</td>
-                                        <td class="px-4 py-2 text-xs text-right text-slate-600">{{ item.price|floatformat:0|intcomma }}</td>
-                                        <td class="px-4 py-2 text-xs text-right text-slate-600">{{ item.cbm|floatformat:3 }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                        {% endif %}
+                        <button id="calculate-cost-price-btn" 
+                                class="px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 rounded text-xs font-semibold flex items-center gap-1 transition shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+                            </svg>
+                            Tính toán giá vốn
+                        </button>
                     </div>
-                </details>
+                </div>
+                <div class="p-4">
+                    {% if cost_histories %}
+                    <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                        <table class="min-w-full divide-y divide-slate-100 text-xs">
+                            <thead class="bg-slate-50 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">SKU</th>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">Location</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">SL nhập</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Tồn cũ</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Giá vốn cũ</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Giá vốn mới</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Giá vốn TB</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Giá mua</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế NK/chiếc</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Thuế GTGT/chiếc</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Chi phí PO/chiếc</th>
+                                    <th class="px-3 py-2 text-right text-[10px] font-bold text-slate-600 uppercase">Chi phí SPO/chiếc</th>
+                                    <th class="px-3 py-2 text-left text-[10px] font-bold text-slate-600 uppercase">Ngày nhập</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-slate-100">
+                                {% for cost in cost_histories %}
+                                <tr class="hover:bg-slate-50">
+                                    <td class="px-3 py-2 font-mono font-semibold text-slate-700">{{ cost.sku|default:"N/A" }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ cost.location_id }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700 font-semibold">{{ cost.import_quantity|floatformat:0 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.old_quantity|floatformat:0 }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.old_cost_price|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700 font-semibold">{{ cost.new_cost_price|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-800 font-bold">{{ cost.average_cost_price|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-700 font-semibold">{{ cost.purchase_price|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.import_tax_per_unit|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.vat_per_unit|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.po_cost_per_unit|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-right text-slate-600">{{ cost.spo_cost_per_unit|floatformat:0|intcomma }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ cost.import_date|date:"d/m/Y" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-8 text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <p class="text-sm">Chưa có dữ liệu phân bổ giá vốn</p>
+                        <p class="text-xs mt-1">Nhấn nút "Tính toán giá vốn" để bắt đầu</p>
+                    </div>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- Packing List Section -->
@@ -648,8 +688,20 @@
                 </div>
                 <div class="p-4">
                     {% if packing_list_items %}
+                    <!-- Tổng thuế XK và GTGT -->
+                    <div class="mb-4 flex items-center gap-4 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold text-slate-600">Tổng thuế XK:</span>
+                            <span class="text-sm font-bold text-slate-800">{{ total_export_tax|floatformat:0|intcomma }} VNĐ</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold text-slate-600">Tổng thuế GTGT:</span>
+                            <span class="text-sm font-bold text-slate-800">{{ total_vat_tax|floatformat:0|intcomma }} VNĐ</span>
+                        </div>
+                    </div>
+                    
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-200 text-xs">
+                        <table class="min-w-full divide-y divide-slate-200 text-xs" id="packing-list-table">
                             <thead class="bg-slate-50">
                                 <tr>
                                     <th class="px-3 py-2 text-center text-[10px] font-bold text-slate-600 uppercase">Trạng thái</th>
@@ -665,7 +717,7 @@
                             <tbody class="bg-white divide-y divide-slate-100">
                                 {% for item in packing_list_items %}
                                 {% comment %} Kiểm tra xem đã match với TKHQ chưa: có hs_code và có thuế được cập nhật {% endcomment %}
-                                <tr class="hover:bg-slate-50">
+                                <tr class="hover:bg-slate-50 packing-list-row {% if forloop.counter > 10 %}hidden{% endif %}">
                                     <td class="px-3 py-2 text-center">
                                         {% if item.hs_code and item.hs_code|length > 0 and item.import_tax_rate > 0 %}
                                             <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600" title="Đã match với TKHQ">
@@ -704,6 +756,16 @@
                                 {% endfor %}
                             </tbody>
                         </table>
+                        {% if packing_list_items|length > 10 %}
+                        <div class="mt-4 text-center">
+                            <button type="button" id="toggle-packing-list-btn" onclick="togglePackingList()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition">
+                                <span id="toggle-packing-list-text">Xem thêm ({{ packing_list_items|length|add:"-10" }} dòng)</span>
+                                <svg id="toggle-packing-list-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                        {% endif %}
                     </div>
                     {% else %}
                     <div class="text-center py-8 text-slate-400">
@@ -1424,6 +1486,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // ========== COST PRICE MANAGEMENT ==========
+    
+    // Calculate Cost Price Button
+    document.getElementById('calculate-cost-price-btn')?.addEventListener('click', async function() {
+        const btn = this;
+        const originalText = btn.innerHTML;
+        const spoId = parseInt('{{ spo.id }}');
+        
+        if (!confirm('Bạn có chắc muốn tính toán lại giá vốn cho tất cả sản phẩm trong SPO này?')) {
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Đang tính toán...';
+        
+        try {
+            const response = await fetch(`/products/sum-purchase-orders/${spoId}/calculate-cost-price/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert('Lỗi: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (error) {
+            alert('Lỗi khi tính toán giá vốn: ' + error.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+    
+    // Sync Cost to Sapo Button - Đã xóa, không còn sync lên Sapo nữa
+    
     // Ship Info Modal Functions
     window.openEditShipModal = function() {
         const modal = document.getElementById('add-ship-modal');
@@ -2056,6 +2161,37 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+    
+    // ========== TOGGLE PACKING LIST ==========
+    window.togglePackingList = function() {
+        const rows = document.querySelectorAll('.packing-list-row');
+        const btn = document.getElementById('toggle-packing-list-btn');
+        const btnText = document.getElementById('toggle-packing-list-text');
+        const btnIcon = document.getElementById('toggle-packing-list-icon');
+        
+        if (!rows.length || !btn) return;
+        
+        // Kiểm tra xem đang ẩn hay hiện (kiểm tra dòng thứ 11, index 10)
+        const isExpanded = rows.length > 10 && !rows[10].classList.contains('hidden');
+        
+        if (isExpanded) {
+            // Thu gọn: ẩn các dòng từ 11 trở đi
+            rows.forEach((row, index) => {
+                if (index >= 10) {
+                    row.classList.add('hidden');
+                }
+            });
+            btnText.textContent = `Xem thêm (${rows.length - 10} dòng)`;
+            btnIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />';
+        } else {
+            // Mở rộng: hiện tất cả các dòng
+            rows.forEach(row => {
+                row.classList.remove('hidden');
+            });
+            btnText.textContent = 'Thu gọn';
+            btnIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />';
+        }
+    };
 });
 </script>
 

@@ -59,6 +59,29 @@ def payment_spo_list(request: HttpRequest):
         if total_cny > 0:
             current_exchange_rate = weighted_rate / total_cny
     
+    # Dọn dẹp các payment tham chiếu đến PO không còn trong SPO nào
+    # Tìm tất cả giao dịch rút cho PO
+    orphaned_payments = BalanceTransaction.objects.filter(
+        transaction_type='withdraw_po',
+        purchase_order_payment__isnull=False
+    ).select_related('purchase_order_payment__purchase_order')
+    
+    deleted_count = 0
+    for txn in orphaned_payments:
+        po = txn.purchase_order_payment.purchase_order
+        # Kiểm tra xem PO có còn trong SPO nào không
+        if not po.spo_relations.exists():
+            # PO không còn trong SPO nào -> xóa payment transaction
+            logger.info(f"[payment_spo_list] Deleting orphaned payment transaction {txn.id} for PO {po.sapo_order_supplier_id} (PO no longer in any SPO)")
+            # Xóa liên kết với kỳ thanh toán (nếu có)
+            PaymentPeriodTransaction.objects.filter(balance_transaction=txn).delete()
+            # Xóa payment transaction
+            txn.delete()
+            deleted_count += 1
+    
+    if deleted_count > 0:
+        logger.info(f"[payment_spo_list] Cleaned up {deleted_count} orphaned payment transactions")
+    
     # Lấy lịch sử giao dịch
     filter_type = request.GET.get('type', '')  # 'deposit' hoặc 'withdraw'
     transactions = BalanceTransaction.objects.all().select_related().prefetch_related('payment_periods__payment_period')

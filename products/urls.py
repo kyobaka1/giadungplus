@@ -92,6 +92,8 @@ urlpatterns = [
     path("sum-purchase-orders/<int:spo_id>/upload-tkhq/", views.upload_tkhq, name="upload_tkhq"),
     path("sum-purchase-orders/<int:spo_id>/export-tkhq-info/", views.export_tkhq_info, name="export_tkhq_info"),
     path("sum-purchase-orders/<int:spo_id>/update-packing-list-from-tkhq/", views.update_packing_list_from_tkhq, name="update_packing_list_from_tkhq"),
+    path("sum-purchase-orders/<int:spo_id>/calculate-cost-price/", views.calculate_cost_price, name="calculate_cost_price"),
+    path("sum-purchase-orders/<int:spo_id>/sync-cost-to-sapo/", views.sync_cost_to_sapo, name="sync_cost_to_sapo"),
     
     # Purchase Order Management
     path("purchase-orders/<int:po_id>/update-delivery-status/", views.update_po_delivery_status, name="update_po_delivery_status"),

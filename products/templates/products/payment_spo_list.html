@@ -117,11 +117,19 @@
                                     <div class="mt-1 p-1.5 bg-slate-100 rounded text-[10px]">
                                         <p class="font-semibold mb-0.5">Rút để thanh toán:</p>
                                         {% if txn.withdraw_info.type == 'PO' %}
-                                        <p>PO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a></p>
+                                        <p>PO: {% if txn.withdraw_info.spo_id %}<a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.po_code }}</a>{% else %}<span class="text-red-600">{{ txn.withdraw_info.po_code }} (PO đã bị xóa khỏi SPO)</span>{% endif %}</p>
                                         <p>NSX: {{ txn.withdraw_info.supplier_name|default:"-" }}</p>
+                                        {% if txn.withdraw_info.spo_id %}
                                         <p>SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                        {% else %}
+                                        <p>SPO: <span class="text-red-600">Đã bị xóa</span></p>
+                                        {% endif %}
                                         {% elif txn.withdraw_info.type == 'SPO Cost' %}
+                                        {% if txn.withdraw_info.spo_id %}
                                         <p>Chi phí SPO: <a href="{% url 'products:sum_purchase_order_detail' txn.withdraw_info.spo_id %}" class="text-indigo-600 hover:underline">{{ txn.withdraw_info.spo_code }}</a></p>
+                                        {% else %}
+                                        <p>Chi phí SPO: <span class="text-red-600">{{ txn.withdraw_info.spo_code|default:"Đã bị xóa" }}</span></p>
+                                        {% endif %}
                                         <p>Tên: {{ txn.withdraw_info.cost_name }}</p>
                                         {% endif %}
                                     </div>

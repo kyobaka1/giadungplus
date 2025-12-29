@@ -917,6 +917,196 @@ class SPOPackingListItem(models.Model):
         return f"{self.sku_nhapkhau} - {self.vn_name or 'N/A'}"
 
 
+class CostHistory(models.Model):
+    """
+    Lịch sử giá vốn cho mỗi lần nhập hàng.
+    Lưu trữ giá vốn đã tính toán cho từng variant tại từng location và thời điểm.
+    """
+    # Liên kết với SPO, PO, và TKHQ
+    sum_purchase_order = models.ForeignKey(
+        SumPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='cost_histories',
+        null=True,
+        blank=True,
+        help_text="SPO (Sum Purchase Order) - Đợt nhập container"
+    )
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name='cost_histories',
+        null=True,
+        blank=True,
+        help_text="PO (Purchase Order) - Đơn nhập hàng"
+    )
+    tkhq_code = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="Mã tờ khai hải quan (nếu có)"
+    )
+    
+    # Thông tin variant và location
+    variant_id = models.BigIntegerField(
+        db_index=True,
+        help_text="Variant ID từ Sapo"
+    )
+    location_id = models.BigIntegerField(
+        db_index=True,
+        help_text="Location ID (kho hàng) từ Sapo"
+    )
+    
+    # Thông tin nhập hàng
+    receipt_code = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Mã phiếu nhập kho (receipt code) từ Sapo"
+    )
+    import_date = models.DateField(
+        help_text="Ngày nhập kho"
+    )
+    import_quantity = models.DecimalField(
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text="Số lượng nhập mới"
+    )
+    
+    # Giá vốn
+    old_cost_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Giá vốn cũ (trước khi nhập)"
+    )
+    old_quantity = models.DecimalField(
+        max_digits=15,
+        decimal_places=3,
+        default=0,
+        help_text="Số lượng tồn kho cũ (trước khi nhập)"
+    )
+    new_cost_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Giá vốn mới (sau khi tính toán)"
+    )
+    average_cost_price = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Giá vốn trung bình (bình quân gia quyền) = (old_qty * old_price + new_qty * new_price) / (old_qty + new_qty)"
+    )
+    
+    # Chi tiết tính toán giá vốn mới
+    price_cny = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Giá nhập CNY (từ price_tq trong metadata)"
+    )
+    exchange_rate_avg = models.DecimalField(
+        max_digits=10,
+        decimal_places=4,
+        default=0,
+        help_text="Tỷ giá CNY trung bình"
+    )
+    import_tax_per_unit = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Thuế nhập khẩu đơn chiếc (VNĐ)"
+    )
+    vat_per_unit = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Thuế GTGT đơn chiếc (VNĐ)"
+    )
+    po_cost_per_unit = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Chi phí riêng của PO phân bổ trên CPM cho đơn chiếc (VNĐ)"
+    )
+    spo_cost_per_unit = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        default=0,
+        help_text="Tổng chi phí SPO phân bổ trên CPM cho đơn chiếc (VNĐ)"
+    )
+    
+    # Metadata
+    sku = models.CharField(max_length=100, blank=True, help_text="SKU của variant")
+    sku_model_xnk = models.CharField(
+        max_length=100,
+        blank=True,
+        db_index=True,
+        help_text="SKU-MODEL-XNK (nhập khẩu) để match với packing list"
+    )
+    cpm_per_unit = models.DecimalField(
+        max_digits=10,
+        decimal_places=3,
+        default=0,
+        help_text="CBM của 1 chiếc sản phẩm"
+    )
+    
+    # Trạng thái sync với Sapo
+    synced_to_sapo = models.BooleanField(
+        default=False,
+        help_text="Đã đồng bộ lên Sapo price_adjustments chưa"
+    )
+    sapo_price_adjustment_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="ID của price_adjustment trên Sapo (nếu đã sync)"
+    )
+    synced_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Thời điểm sync lên Sapo"
+    )
+    
+    # Metadata
+    note = models.TextField(blank=True, help_text="Ghi chú")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    class Meta:
+        db_table = 'products_cost_history'
+        verbose_name = 'Cost History'
+        verbose_name_plural = 'Cost Histories'
+        indexes = [
+            models.Index(fields=['variant_id', 'location_id']),
+            models.Index(fields=['sum_purchase_order']),
+            models.Index(fields=['purchase_order']),
+            models.Index(fields=['import_date']),
+            models.Index(fields=['sku_model_xnk']),
+            models.Index(fields=['synced_to_sapo']),
+            models.Index(fields=['-created_at']),
+        ]
+        ordering = ['-import_date', 'variant_id', 'location_id']
+    
+    def __str__(self):
+        return f"CostHistory: {self.sku} - {self.location_id} - {self.import_date}"
+    
+    def calculate_average_cost_price(self):
+        """
+        Tính giá vốn trung bình (bình quân gia quyền).
+        """
+        old_total = self.old_quantity * self.old_cost_price
+        new_total = self.import_quantity * self.new_cost_price
+        total_quantity = self.old_quantity + self.import_quantity
+        
+        if total_quantity > 0:
+            self.average_cost_price = (old_total + new_total) / total_quantity
+        else:
+            self.average_cost_price = self.new_cost_price
+        
+        return self.average_cost_price
+
+
 class BalanceTransaction(models.Model):
     """
     Giao dịch nạp/rút số dư nhân dân tệ tại Trung Quốc.

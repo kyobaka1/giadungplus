@@ -198,6 +198,53 @@ class SPOPOService:
             
             self.debug_print(f"=== Final result: total_cpm={total_cpm}, total_product_amount_cny={total_product_amount_cny} ===")
             
+            # Lấy location_id từ order_supplier (PO có location_id)
+            location_id = order_supplier_data.get('location_id')
+            
+            # Nếu không có location_id trong order_supplier, thử lấy từ purchase_orders
+            if not location_id:
+                try:
+                    # Lấy purchase_orders liên quan
+                    purchase_orders_response = self.core_api.get(
+                        'purchase_orders.json',
+                        params={'order_supplier_id': sapo_order_supplier_id, 'limit': 1}
+                    )
+                    purchase_orders = purchase_orders_response.get('purchase_orders', [])
+                    if purchase_orders:
+                        # Lấy từ receipt đầu tiên
+                        receipts = purchase_orders[0].get('receipts', [])
+                        if receipts and receipts[0].get('location_id'):
+                            location_id = receipts[0].get('location_id')
+                except Exception as e:
+                    logger.warning(f"[SPOPOService] Error getting location_id from purchase_orders: {e}")
+            
+            # Lấy completed_on trực tiếp từ order_supplier (ngày nhập kho)
+            completed_on = None
+            completed_on_str = order_supplier_data.get('completed_on')
+            self.debug_print(f"  completed_on_str từ order_supplier: {completed_on_str}")
+            
+            if completed_on_str:
+                # Parse ISO datetime string
+                from datetime import datetime
+                try:
+                    if 'T' in completed_on_str:
+                        # ISO format: "2025-12-24T04:17:56Z" hoặc "2025-12-24T04:17:56+00:00"
+                        if completed_on_str.endswith('Z'):
+                            completed_on = datetime.fromisoformat(
+                                completed_on_str.replace('Z', '+00:00')
+                            ).date()
+                        else:
+                            completed_on = datetime.fromisoformat(completed_on_str).date()
+                    else:
+                        # Date only: "2025-12-24"
+                        completed_on = datetime.strptime(completed_on_str, '%Y-%m-%d').date()
+                    self.debug_print(f"  Parsed completed_on: {completed_on}")
+                except Exception as parse_err:
+                    logger.warning(f"[SPOPOService] Error parsing completed_on '{completed_on_str}': {parse_err}")
+                    self.debug_print(f"  Lỗi parse completed_on: {parse_err}")
+            else:
+                self.debug_print(f"  order_supplier không có completed_on")
+            
             return {
                 'sapo_order_supplier_id': sapo_order_supplier_id,
                 'code': order_supplier_data.get('code', ''),
@@ -206,6 +253,8 @@ class SPOPOService:
                 'supplier_name': supplier_data.get('name', ''),
                 'status': order_supplier_data.get('status', ''),
                 'tags': order_supplier_data.get('tags', []),
+                'location_id': location_id,  # Thêm location_id vào response
+                'completed_on': completed_on,  # Ngày nhập kho (completed_on từ purchase_order)
                 'total_amount': Decimal(str(order_supplier_data.get('total_price', 0))),
                 'total_quantity': order_supplier_data.get('total_quantity', 0),
                 'product_amount_cny': total_product_amount_cny,  # Tổng tiền hàng (CNY) từ price_tq
