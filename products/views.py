@@ -2884,6 +2884,30 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         context["spo"] = spo
         context["packing_list_items"] = spo.packing_list_items.all()
         
+        # Kiểm tra xem có file TKHQ trong documents không
+        # Tìm file có tên bắt đầu bằng "TKHQ" hoặc "ToKhaiHQ"
+        has_tkhq = False
+        tkhq_document = None
+        for doc in spo.documents.all():
+            # Kiểm tra doc.name
+            if doc.name:
+                doc_name_upper = doc.name.upper()
+                if doc_name_upper.startswith('TKHQ') or doc_name_upper.startswith('TOKHAIHQ'):
+                    has_tkhq = True
+                    tkhq_document = doc
+                    break
+            
+            # Kiểm tra filename từ file field
+            if doc.file:
+                file_name = doc.file.name if hasattr(doc.file, 'name') else str(doc.file)
+                file_name_upper = file_name.upper()
+                if 'TKHQ' in file_name_upper or 'TOKHAIHQ' in file_name_upper:
+                    has_tkhq = True
+                    tkhq_document = doc
+                    break
+        context["has_tkhq_document"] = has_tkhq
+        context["tkhq_document"] = tkhq_document
+        
         # Lấy danh sách PO từ SPOPurchaseOrder với đầy đủ thông tin từ PurchaseOrder model
         spo_po_relations = spo.spo_purchase_orders.select_related('purchase_order').prefetch_related(
             'purchase_order__costs',
@@ -4176,21 +4200,258 @@ def upload_tkhq(request: HttpRequest, spo_id: int):
         }, status=400)
 
 
+@admin_only
+def export_tkhq_info(request: HttpRequest, spo_id: int):
+    """
+    Xuất file Excel chứa thông tin đã parse từ TKHQ.
+    Bao gồm: Mã số hàng hóa, Mô tả hàng hóa, Thuế NK, Thuế GTGT.
+    """
+    try:
+        from django.conf import settings
+        from django.http import HttpResponse
+        import xlsxwriter
+        from io import BytesIO
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        # Tìm file TKHQ - kiểm tra cả doc.name và filename
+        tkhq_document = None
+        for doc in spo.documents.all():
+            # Kiểm tra doc.name
+            if doc.name:
+                doc_name_upper = doc.name.upper()
+                if doc_name_upper.startswith('TKHQ') or doc_name_upper.startswith('TOKHAIHQ'):
+                    tkhq_document = doc
+                    break
+            
+            # Kiểm tra filename từ file field
+            if doc.file:
+                file_name = doc.file.name if hasattr(doc.file, 'name') else str(doc.file)
+                file_name_upper = file_name.upper()
+                if 'TKHQ' in file_name_upper or 'TOKHAIHQ' in file_name_upper:
+                    tkhq_document = doc
+                    break
+        
+        if not tkhq_document:
+            # Debug: In tất cả documents để xem
+            all_docs = list(spo.documents.all())
+            doc_names = [f"{doc.name} ({doc.file.name if doc.file else 'no file'})" for doc in all_docs]
+            logger.warning(f"No TKHQ document found. Available documents: {doc_names}")
+            return JsonResponse({
+                "status": "error",
+                "message": f"Không tìm thấy file TKHQ. Có {len(all_docs)} documents: {', '.join([doc.name or 'No name' for doc in all_docs])}"
+            }, status=404)
+        
+        # Lấy đường dẫn file
+        # File được lưu ở assets/spo_documents/, database lưu relative path là spo_documents/...
+        # Luôn dùng .name và join với assets/ vì file được lưu thủ công vào assets/
+        file_relative_path = tkhq_document.file.name if hasattr(tkhq_document.file, 'name') else str(tkhq_document.file)
+        file_path = os.path.join(settings.BASE_DIR, 'assets', file_relative_path)
+        
+        if not os.path.exists(file_path):
+            return JsonResponse({
+                "status": "error",
+                "message": f"File TKHQ không tồn tại: {file_path}"
+            }, status=404)
+        
+        # Parse file TKHQ
+        from products.services.tkhq_parser import TKHQParser, set_tkhq_debug
+        # Bật debug mode
+        set_tkhq_debug(True)
+        parser = TKHQParser(file_path, debug=True)
+        items = parser.parse()
+        
+        # Tạo file Excel
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet('TKHQ Info')
+        
+        # Header
+        headers = [
+            'STT', 
+            'Mã số hàng hóa', 
+            'Mô tả hàng hóa', 
+            'Số lượng',
+            'Đơn giá tính thuế NK (1 chiếc)', 
+            'Thuế NK (%)', 
+            'Thuế NK VND (1 chiếc)',
+            'Thuế NK VND (TOTAL)',
+            'Trị giá tính thuế GTGT (1 chiếc)',
+            'Thuế GTGT (%)', 
+            'Thuế GTGT VND (1 chiếc)',
+            'Thuế GTGT VND (TOTAL)',
+            'SKU MODEL NHẬP KHẨU'
+        ]
+        header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#4472C4',
+            'font_color': 'white',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1
+        })
+        
+        for col, header in enumerate(headers):
+            worksheet.write(0, col, header, header_format)
+        
+        # Data
+        data_format = workbook.add_format({
+            'border': 1,
+            'align': 'left',
+            'valign': 'vcenter'
+        })
+        number_format = workbook.add_format({
+            'border': 1,
+            'align': 'right',
+            'valign': 'vcenter',
+            'num_format': '#,##0.00'
+        })
+        integer_format = workbook.add_format({
+            'border': 1,
+            'align': 'right',
+            'valign': 'vcenter',
+            'num_format': '#,##0'
+        })
+        
+        for row_idx, item in enumerate(items, start=1):
+            # Xử lý Decimal values an toàn
+            def safe_decimal_to_float(val, default=0):
+                try:
+                    if isinstance(val, Decimal):
+                        return float(val)
+                    elif val is None or val == '':
+                        return default
+                    return float(val)
+                except:
+                    return default
+            
+            col = 0
+            worksheet.write(row_idx, col, item.get('stt', ''), data_format); col += 1
+            worksheet.write(row_idx, col, item.get('ma_so_hang_hoa', ''), data_format); col += 1
+            worksheet.write(row_idx, col, item.get('mo_ta_hang_hoa', ''), data_format); col += 1
+            worksheet.write(row_idx, col, int(safe_decimal_to_float(item.get('so_luong', 0))), integer_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('don_gia_tinh_thue_nk_per_unit', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_nk_rate', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_nk_vnd', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_nk_vnd_total', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('tri_gia_tinh_thue_gtgt_per_unit', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_gtgt_rate', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_gtgt_vnd', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, safe_decimal_to_float(item.get('thue_gtgt_vnd_total', 0)), number_format); col += 1
+            worksheet.write(row_idx, col, '', data_format)  # SKU MODEL NHẬP KHẨU - để trống để user điền
+        
+        # Auto-fit columns
+        worksheet.set_column(0, 0, 8)  # STT
+        worksheet.set_column(1, 1, 20)  # Mã số hàng hóa
+        worksheet.set_column(2, 2, 60)  # Mô tả hàng hóa
+        worksheet.set_column(3, 3, 12)  # Số lượng
+        worksheet.set_column(4, 11, 20)  # Các cột thuế và giá
+        worksheet.set_column(12, 12, 25)  # SKU MODEL NHẬP KHẨU
+        
+        workbook.close()
+        output.seek(0)
+        
+        # Trả về file
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="TKHQ_Info_SPO_{spo.id}.xlsx"'
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in export_tkhq_info: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
+@admin_only
+@require_POST
+def update_packing_list_from_tkhq(request: HttpRequest, spo_id: int):
+    """
+    Update packing list từ file TKHQ đã upload (có SKU MODEL NHẬP KHẨU đã điền).
+    """
+    try:
+        from django.conf import settings
+        import tempfile
+        
+        spo = get_object_or_404(SumPurchaseOrder, id=spo_id)
+        
+        # Kiểm tra file upload
+        if 'file' not in request.FILES:
+            return JsonResponse({
+                "status": "error",
+                "message": "Vui lòng upload file TKHQ đã điền SKU MODEL NHẬP KHẨU"
+            }, status=400)
+        
+        uploaded_file = request.FILES['file']
+        
+        # Lưu file tạm để xử lý
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+            for chunk in uploaded_file.chunks():
+                tmp_file.write(chunk)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            # Parse và update packing list
+            from products.services.tkhq_parser import set_tkhq_debug
+            set_tkhq_debug(True)  # Bật debug mode
+            updated_count = _parse_tkhq_and_update_packing_list(tmp_file_path, spo)
+            
+            return JsonResponse({
+                "status": "success",
+                "message": f"Đã cập nhật {updated_count} dòng packing list từ TKHQ.",
+                "updated_count": updated_count
+            })
+        finally:
+            # Xóa file tạm
+            if os.path.exists(tmp_file_path):
+                os.unlink(tmp_file_path)
+        
+    except Exception as e:
+        logger.error(f"Error in update_packing_list_from_tkhq: {e}", exc_info=True)
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=400)
+
+
 def _parse_tkhq_and_update_packing_list(file_path: str, spo: SumPurchaseOrder) -> int:
     """
-    Parse file TKHQ Excel và update packing list items.
+    Parse file Excel đã xuất từ TKHQ (có cột SKU MODEL NHẬP KHẨU đã điền) và update packing list items.
+    
+    Cấu trúc file Excel:
+    - Row 1: Header
+    - Row 2+: Data
+    - Cột 1: STT
+    - Cột 2: Mã số hàng hóa
+    - Cột 3: Mô tả hàng hóa
+    - Cột 4: Số lượng
+    - Cột 5: Đơn giá tính thuế NK (1 chiếc)
+    - Cột 6: Thuế NK (%)
+    - Cột 7: Thuế NK VND (1 chiếc)
+    - Cột 8: Thuế NK VND (TOTAL)
+    - Cột 9: Trị giá tính thuế GTGT (1 chiếc)
+    - Cột 10: Thuế GTGT (%)
+    - Cột 11: Thuế GTGT VND (1 chiếc)
+    - Cột 12: Thuế GTGT VND (TOTAL)
+    - Cột 13: SKU MODEL NHẬP KHẨU
     
     Args:
-        file_path: Đường dẫn đến file Excel TKHQ
+        file_path: Đường dẫn đến file Excel đã xuất (có SKU đã điền)
         spo: SumPurchaseOrder instance
         
     Returns:
         Số lượng items đã được update
     """
     try:
-        from openpyxl import load_workbook
+        import openpyxl
+        from decimal import Decimal
         
-        wb = load_workbook(file_path, data_only=True)
+        # Đọc file Excel
+        wb = openpyxl.load_workbook(file_path, data_only=True)
         ws = wb.active
         
         # Lấy packing list items
@@ -4199,7 +4460,115 @@ def _parse_tkhq_and_update_packing_list(file_path: str, spo: SumPurchaseOrder) -
             logger.warning(f"No packing list items found for SPO {spo.id}")
             return 0
         
+        # Tạo map SKU -> packing item
+        packing_sku_map = {}
+        for item in packing_items:
+            if item.sku_nhapkhau:
+                sku = str(item.sku_nhapkhau).strip()
+                if sku:
+                    packing_sku_map[sku] = item
+        
         updated_count = 0
+        
+        # Đọc từ row 2 (row 1 là header)
+        for row_idx in range(2, ws.max_row + 1):
+            # Đọc SKU MODEL NHẬP KHẨU (cột 13)
+            sku_model = ws.cell(row_idx, 13).value
+            if not sku_model:
+                continue
+            
+            sku_model = str(sku_model).strip()
+            if not sku_model:
+                continue
+            
+            # Tìm packing item tương ứng
+            packing_item = packing_sku_map.get(sku_model)
+            if not packing_item:
+                logger.warning(f"No packing item found for SKU: {sku_model}")
+                continue
+            
+            # Đọc các giá trị từ file Excel
+            try:
+                # Mã số hàng hóa (cột 2)
+                ma_so = ws.cell(row_idx, 2).value
+                if ma_so:
+                    packing_item.hs_code = str(ma_so).strip()
+                
+                # Mô tả hàng hóa (cột 3)
+                mo_ta = ws.cell(row_idx, 3).value
+                if mo_ta:
+                    packing_item.vn_name = str(mo_ta).strip()
+                
+                # Số lượng (cột 4)
+                so_luong = ws.cell(row_idx, 4).value
+                if so_luong is not None:
+                    try:
+                        packing_item.quantity = Decimal(str(so_luong))
+                    except:
+                        pass
+                
+                # Thuế NK (%) (cột 6)
+                thue_nk_rate = ws.cell(row_idx, 6).value
+                if thue_nk_rate is not None:
+                    try:
+                        packing_item.import_tax_rate = Decimal(str(thue_nk_rate))
+                    except:
+                        pass
+                
+                # Thuế NK VND (TOTAL) (cột 8)
+                thue_nk_total = ws.cell(row_idx, 8).value
+                if thue_nk_total is not None:
+                    try:
+                        packing_item.import_tax_total = Decimal(str(thue_nk_total))
+                    except:
+                        pass
+                
+                # Thuế NK VND (1 chiếc) (cột 7)
+                thue_nk_per_unit = ws.cell(row_idx, 7).value
+                if thue_nk_per_unit is not None:
+                    try:
+                        packing_item.import_tax_amount = Decimal(str(thue_nk_per_unit))
+                    except:
+                        pass
+                
+                # Thuế GTGT (%) (cột 10)
+                thue_gtgt_rate = ws.cell(row_idx, 10).value
+                if thue_gtgt_rate is not None:
+                    try:
+                        packing_item.vat_rate = Decimal(str(thue_gtgt_rate))
+                    except:
+                        pass
+                
+                # Thuế GTGT VND (TOTAL) (cột 12)
+                thue_gtgt_total = ws.cell(row_idx, 12).value
+                if thue_gtgt_total is not None:
+                    try:
+                        packing_item.vat_total = Decimal(str(thue_gtgt_total))
+                    except:
+                        pass
+                
+                # Thuế GTGT VND (1 chiếc) (cột 11)
+                thue_gtgt_per_unit = ws.cell(row_idx, 11).value
+                if thue_gtgt_per_unit is not None:
+                    try:
+                        packing_item.vat_amount = Decimal(str(thue_gtgt_per_unit))
+                    except:
+                        pass
+                
+                packing_item.save()
+                updated_count += 1
+                logger.info(f"[TKHQ Update] Updated packing item {packing_item.sku_nhapkhau} from Excel file")
+                
+            except Exception as e:
+                logger.error(f"Error updating row {row_idx} for SKU {sku_model}: {e}", exc_info=True)
+                continue
+        
+        logger.info(f"[TKHQ Update] Updated {updated_count} items out of {len(packing_items)} total")
+        return updated_count
+        
+    except Exception as e:
+        logger.error(f"Error parsing Excel file {file_path}: {e}", exc_info=True)
+        raise
         
         # Tìm các keyword và parse dữ liệu
         items_data = []
