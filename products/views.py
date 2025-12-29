@@ -3786,7 +3786,6 @@ def add_spo_cost(request: HttpRequest):
                 }, status=400)
             
             # Parse transaction_date
-            from datetime import datetime
             transaction_date = timezone.now().date()
             if transaction_date_str:
                 try:

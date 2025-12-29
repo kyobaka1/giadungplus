@@ -192,10 +192,18 @@
                                uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
                         data-collapse-id="menu-products"
                     >
-                        <span>DATA SOURCE</span>
+                        <span>SẢN PHẨM</span>
                         <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-products" class="space-y-1">
+                        <li>
+                            <a href="{% url 'products:sales_forecast_list' %}"
+                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
+                                      hover:bg-brandlight hover:text-brand sidebar-link">
+                                <span class="truncate">Dự báo: Sản phẩm</span>
+                            </a>
+                        </li>
+
                         <li>
                             <a href="{% url 'products:product_list' %}"
                                class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
@@ -204,6 +212,7 @@
                                 
                             </a>
                         </li>
+
                         <li>
                             <a href="{% url 'products:variant_list' %}"
                                class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
@@ -211,6 +220,7 @@
                                 <span class="truncate">Phân loại</span>
                             </a>
                         </li>
+
                         <li>
                             <a href="{% url 'products:xnk_model_list' %}"
                                class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
@@ -218,6 +228,24 @@
                                 <span class="truncate">Model XNK</span>
                             </a>
                         </li>
+
+                        
+                        
+                    </ul>
+                </div>
+                <!-- GROUP: Nhập hàng -->
+                <div class="px-3 md:px-4 mb-2 md:mb-1">
+                    <button
+                        type="button"
+                        class="w-full flex items-center justify-between
+                               text-xs md:text-[11px] lg:text-[12px] text-gray-500 font-semibold
+                               uppercase tracking-wide mb-2 md:mb-2 collapse-toggle"
+                        data-collapse-id="menu-import"
+                    >
+                        <span>INIT NSX & CONTAINER</span>
+                        <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
+                    </button>
+                    <ul id="menu-import" class="space-y-1">
                         <li>
                             <a href="{% url 'products:supplier_list' %}"
                                class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
@@ -232,9 +260,10 @@
                                 <span class="truncate">Container INIT</span>
                             </a>
                         </li>
-                    </ul>
-                </div>
 
+                    </ul>
+
+                 </div>
                 <!-- GROUP: Nhập hàng -->
                 <div class="px-3 md:px-4 mb-2 md:mb-1">
                     <button
@@ -248,13 +277,7 @@
                         <span class="collapse-arrow text-sm md:text-xs text-gray-500 transition-transform duration-200 transform">▾</span>
                     </button>
                     <ul id="menu-import" class="space-y-1">
-                        <li>
-                            <a href="{% url 'products:sales_forecast_list' %}"
-                               class="flex items-center justify-between px-3 md:px-2.5 py-1.5 md:py-0.5 rounded-md text-xs md:text-[12px]
-                                      hover:bg-brandlight hover:text-brand sidebar-link">
-                                <span class="truncate">Dự báo: Sản phẩm</span>
-                            </a>
-                        </li>
+                        
                         
                         <li>
                             <a href="{% url 'products:sum_purchase_order_list' %}"
