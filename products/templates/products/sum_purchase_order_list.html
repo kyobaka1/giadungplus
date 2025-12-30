@@ -416,11 +416,11 @@
                     <div class="bg-slate-50 p-4 rounded-lg border border-slate-100">
                         <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mã SPO dự kiến</label>
                         <div class="flex items-center gap-2">
-                            <input type="text" name="name" id="spo-name-input" readonly
-                                   class="w-full bg-transparent border-none p-0 text-lg font-mono font-bold text-slate-700 focus:ring-0"
+                            <input type="text" name="name" id="spo-name-input"
+                                   class="w-full bg-white px-3 py-2 text-lg font-mono font-bold text-slate-700 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                                    placeholder="...">
                         </div>
-                        <p class="text-xs text-slate-400 mt-1">Mã sẽ được hệ thống tự động tạo và đánh số thứ tự</p>
+                        <p class="text-xs text-slate-400 mt-1">Hãy để trống để hệ thống tự động tạo, hoặc điền tùy chọn</p>
                     </div>
                 </div>
 
@@ -473,6 +473,7 @@ document.addEventListener('DOMContentLoaded', function() {
             modal.classList.add('hidden');
             form.reset();
             spoNameInput.value = '';
+            isNameManuallyEdited = false;
         }, 200);
     }
 
@@ -484,9 +485,15 @@ document.addEventListener('DOMContentLoaded', function() {
         expectedArrivalDateInput.min = minDate.toISOString().split('T')[0];
     }
     
-    // Update name preview
+    // Track if user has manually edited the name
+    let isNameManuallyEdited = false;
+    
+    // Update name preview (chỉ cập nhật khi người dùng chưa chỉnh sửa)
     function updateSpoNamePreview() {
         if (!spoNameInput || !containerTemplateSelect) return;
+        
+        // Nếu người dùng đã chỉnh sửa thì không tự động cập nhật
+        if (isNameManuallyEdited && spoNameInput.value.trim()) return;
         
         const templateId = containerTemplateSelect.value;
         // Get selected radio value
@@ -496,7 +503,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         if (!templateId || !destinationPort) {
-            spoNameInput.value = 'Chờ thông tin...';
+            if (!isNameManuallyEdited) {
+                spoNameInput.value = 'Chờ thông tin...';
+            }
             return;
         }
         
@@ -506,9 +515,25 @@ document.addEventListener('DOMContentLoaded', function() {
         const portCode = destinationPort === 'hcm' ? 'HCM' : 'HN';
         const year = new Date().getFullYear();
         
-        // Preview name format
-        const previewName = `${templateCode}-${year}-${portCode}-XXX`;
-        spoNameInput.value = previewName;
+        // Preview name format (chỉ cập nhật nếu input trống hoặc chưa được chỉnh sửa)
+        if (!isNameManuallyEdited || !spoNameInput.value.trim()) {
+            const previewName = `${templateCode}-${year}-${portCode}-XXX`;
+            spoNameInput.value = previewName;
+        }
+    }
+    
+    // Track manual edits
+    if (spoNameInput) {
+        spoNameInput.addEventListener('input', function() {
+            // Đánh dấu là đã chỉnh sửa khi người dùng gõ
+            isNameManuallyEdited = true;
+            
+            // Nếu người dùng xóa hết thì reset flag và cập nhật preview
+            if (!this.value.trim()) {
+                isNameManuallyEdited = false;
+                updateSpoNamePreview();
+            }
+        });
     }
     
     if (containerTemplateSelect) {
@@ -542,7 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!data.destination_port) delete data.destination_port;
             if (!data.expected_arrival_date) delete data.expected_arrival_date;
             if (!data.created_date) delete data.created_date;
-            delete data.name; 
+            if (!data.name || !data.name.trim()) delete data.name; 
             
             fetch('{% url "products:create_sum_purchase_order" %}', {
                 method: 'POST',

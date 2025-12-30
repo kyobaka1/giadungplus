@@ -75,6 +75,7 @@ def product_list(request: HttpRequest):
         "title": "Danh sách sản phẩm",
         "products": [],
         "total": 0,
+        "error": None,  # Initialize error to avoid template lookup errors
     }
 
     try:
@@ -282,6 +283,7 @@ def variant_list(request: HttpRequest):
         "total": 0,
         "selected_brand_id": brand_id,
         "brands": [],
+        "error": None,  # Initialize error to avoid template lookup errors
     }
 
     try:
@@ -1689,6 +1691,7 @@ def supplier_list(request: HttpRequest):
         "title": "Danh sách nhà cung cấp",
         "suppliers": [],
         "total": 0,
+        "error": None,  # Initialize error to avoid template lookup errors
     }
 
     try:
@@ -2062,6 +2065,7 @@ def sales_forecast_list(request: HttpRequest):
         "total": 0,
         "brands_map": {},  # Khởi tạo brands_map để tránh lỗi template
         "brand_filter": None,  # Khởi tạo brand_filter
+        "error": None,  # Initialize error to avoid template lookup errors
     }
     
     try:
@@ -2288,6 +2292,7 @@ def container_template_list(request: HttpRequest):
         "title": "Quản lý Container Template",
         "templates": [],
         "total": 0,
+        "error": None,  # Initialize error to avoid template lookup errors
     }
 
     try:
@@ -2361,6 +2366,7 @@ def container_template_detail(request: HttpRequest, template_id: int):
         "title": "Chi tiết Container Template",
         "template": None,
         "suppliers": [],
+        "error": None,  # Initialize error to avoid template lookup errors
     }
     
     try:
@@ -2753,6 +2759,7 @@ def sum_purchase_order_list(request: HttpRequest):
         "total": 0,
         "container_templates": [],
         "status_choices": SumPurchaseOrder.STATUS_CHOICES,
+        "error": None,  # Initialize error to avoid template lookup errors
     }
     
     try:
@@ -2873,6 +2880,7 @@ def sum_purchase_order_detail(request: HttpRequest, spo_id: int):
         "spo": None,
         "purchase_orders": [],
         "line_items": [],
+        "error": None,  # Initialize error to avoid template lookup errors
     }
     
     try:
