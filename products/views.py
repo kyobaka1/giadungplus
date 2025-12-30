@@ -50,6 +50,7 @@ from products.brand_settings import (
 )
 from products.views_excel import export_variants_excel, import_variants_excel
 from products.services.xnk_model_service import XNKModelService
+from products.services.pricing_service import PricingService
 import re
 
 logger = logging.getLogger(__name__)
@@ -7568,3 +7569,92 @@ def sync_cost_to_sapo(request: HttpRequest, spo_id: int):
             'status': 'error',
             'message': str(e)
         }, status=400)
+
+
+@admin_only
+def pricing_overview(request: HttpRequest):
+    """
+    Trang overview Giá & Vốn.
+    Hiển thị phân tích giá vốn, lợi nhuận theo thời gian.
+    """
+    from datetime import timedelta
+    
+    # Xử lý bộ lọc thời gian (mặc định 7 ngày)
+    period = request.GET.get('period', '7days')
+    today = timezone.now().date()
+    
+    if period == '7days':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif period == '15days':
+        start_date = today - timedelta(days=14)
+        end_date = today
+    elif period == '30days':
+        start_date = today - timedelta(days=29)
+        end_date = today
+    else:
+        # Default: 7 ngày
+        start_date = today - timedelta(days=6)
+        end_date = today
+        period = '7days'
+    
+    # Tính toán dữ liệu
+    pricing_service = PricingService()
+    debug_mode = request.GET.get('debug') == '1'
+    overview_data = pricing_service.calculate_pricing_overview(start_date, end_date, debug=debug_mode)
+    
+    # Debug mode: hiển thị thông tin debug nếu có ?debug=1
+    debug_info = {}
+    
+    if debug_mode:
+        # Lấy một số thông tin debug
+        from products.models import CostHistory
+        total_cost_history = CostHistory.objects.count()
+        cost_history_with_price = CostHistory.objects.filter(average_cost_price__gt=0).count()
+        
+        # Lấy mẫu một vài CostHistory
+        sample_cost_history = CostHistory.objects.filter(
+            average_cost_price__gt=0
+        ).order_by('-import_date')[:5]
+        
+        # Lấy danh sách variant_id có trong CostHistory
+        variant_ids_in_cost_history = list(
+            CostHistory.objects.filter(average_cost_price__gt=0)
+            .values_list('variant_id', flat=True)
+            .distinct()
+        )
+        
+        debug_info = {
+            'total_cost_history': total_cost_history,
+            'cost_history_with_price': cost_history_with_price,
+            'variant_ids_in_cost_history': variant_ids_in_cost_history[:20],  # Lấy 20 đầu tiên
+            'total_unique_variants_in_cost_history': len(set(variant_ids_in_cost_history)),
+            'sample_cost_history': [
+                {
+                    'variant_id': ch.variant_id,
+                    'location_id': ch.location_id,
+                    'sku': ch.sku,
+                    'import_date': ch.import_date,  # Giữ nguyên date object để template có thể format
+                    'average_cost_price': float(ch.average_cost_price),
+                }
+                for ch in sample_cost_history
+            ],
+            'debug_stats': overview_data.get('debug_stats', {}),
+        }
+    
+    # Chuyển daily_stats sang JSON để JavaScript có thể sử dụng
+    import json
+    daily_stats_json = json.dumps(overview_data.get('daily_stats', []))
+    
+    context = {
+        'title': 'Giá & Vốn - Overview',
+        'period': period,
+        'start_date': start_date,
+        'end_date': end_date,
+        'overview': overview_data,
+        'daily_stats_json': daily_stats_json,
+        'debug_mode': debug_mode,
+        'debug_info': debug_info,
+    }
+    
+    return render(request, 'products/pricing_overview.html', context)

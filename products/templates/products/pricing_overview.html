@@ -1,0 +1,487 @@
+{% extends "products/base_products.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}{{ title }} - Gia Dụng Plus{% endblock %}
+
+{% block overview %}
+<section>
+    <h1 class="text-lg font-semibold text-slate-800">{{ title }}</h1>
+    <p class="text-xs text-gray-500 mt-1">Phân tích giá vốn, lợi nhuận và hiệu quả kinh doanh theo thời gian</p>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="w-full">
+
+    <!-- BỘ LỌC THỜI GIAN -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-slate-700">Bộ lọc thời gian</h2>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <a href="?period=7days" class="px-4 py-2 rounded-md text-sm font-medium transition {% if period == '7days' %}bg-brand text-white{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                7 ngày
+            </a>
+            <a href="?period=15days" class="px-4 py-2 rounded-md text-sm font-medium transition {% if period == '15days' %}bg-brand text-white{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                15 ngày
+            </a>
+            <a href="?period=30days" class="px-4 py-2 rounded-md text-sm font-medium transition {% if period == '30days' %}bg-brand text-white{% else %}bg-slate-100 text-slate-700 hover:bg-slate-200{% endif %}">
+                30 ngày
+            </a>
+        </div>
+        <div class="mt-2 text-xs text-slate-500">
+            Khoảng thời gian: <strong class="text-slate-700">{{ start_date|date:"d/m/Y" }} - {{ end_date|date:"d/m/Y" }}</strong>
+        </div>
+    </div>
+
+    <!-- HÀNG 1: DỮ LIỆU TỔNG QUÁT -->
+    <div class="grid grid-cols-4 gap-4 mb-4">
+        <!-- Phần 1 (3/4): Doanh thu/Giá vốn/Lợi nhuận gộp -->
+        <div class="col-span-3 grid grid-cols-3 gap-4">
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-slate-500 mb-1">Doanh thu</div>
+                <div class="text-2xl font-bold text-slate-800">{{ overview.total_revenue|floatformat:0|intcomma }} ₫</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-slate-500 mb-1">Giá vốn</div>
+                <div class="text-2xl font-bold text-red-600">{{ overview.total_cost|floatformat:0|intcomma }} ₫</div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+                <div class="text-xs text-slate-500 mb-1">Lợi nhuận gộp</div>
+                <div class="text-2xl font-bold {% if overview.total_profit >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                    {{ overview.total_profit|floatformat:0|intcomma }} ₫
+                </div>
+            </div>
+        </div>
+        
+        <!-- Phần 2 (1/4): Tỉ lệ giá vốn & Tỷ lệ lợi nhuận -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div class="text-xs text-slate-500 mb-1">Tỷ lệ giá vốn / Tỷ lệ lợi nhuận</div>
+            <div class="text-2xl font-bold">
+                <span class="text-red-600">{{ overview.total_cost_ratio|floatformat:1 }}%</span>
+                <span class="text-slate-400 mx-1">/</span>
+                <span class="{% if overview.total_profit_margin >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                    {{ overview.total_profit_margin|floatformat:1 }}%
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HÀNG 2: BIỂU ĐỒ -->
+    <div class="grid grid-cols-4 gap-4 mb-4">
+        <!-- Phần 1 (3/4): Biểu đồ Doanh thu/Giá vốn/Lợi nhuận gộp -->
+        <div class="col-span-3 bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-4">Doanh thu / Giá vốn / Lợi nhuận gộp</h3>
+            <div style="position: relative; height: 300px;">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Phần 2 (1/4): Biểu đồ Tỉ lệ giá vốn & Tỷ lệ lợi nhuận -->
+        <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <h3 class="text-sm font-semibold text-slate-700 mb-4">Tỷ lệ giá vốn / Tỷ lệ lợi nhuận</h3>
+            <div style="position: relative; height: 300px;">
+                <canvas id="ratioChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- THỐNG KÊ THEO SKU -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-700">Thống kê theo SKU</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-semibold text-slate-600">SKU</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">SL bán</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Doanh thu</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Giá vốn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Lợi nhuận</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Giá bán TB</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Tỷ lệ giá vốn</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for sku, stats in overview.sku_stats.items %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700 font-mono text-xs">{{ stats.sku|default:"N/A" }}</td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.quantity_sold|floatformat:0|intcomma }}</td>
+                        <td class="px-4 py-2 text-right text-slate-700 font-medium">{{ stats.revenue|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right text-red-600">{{ stats.cost|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right {% if stats.profit >= 0 %}text-emerald-600{% else %}text-red-600{% endif %} font-medium">
+                            {{ stats.profit|floatformat:0|intcomma }} ₫
+                        </td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.avg_selling_price|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.cost_ratio|floatformat:0 }}%</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="px-4 py-8 text-center text-slate-400 text-sm">Không có dữ liệu</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- THỐNG KÊ THEO KHO HÀNG -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-700">Thống kê theo kho hàng</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-semibold text-slate-600">Location ID</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Số đơn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Doanh thu</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Giá vốn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Lợi nhuận</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for location_key, stats in overview.location_stats.items %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700 font-mono text-xs">{{ stats.location_id }}</td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.orders_count }}</td>
+                        <td class="px-4 py-2 text-right text-slate-700 font-medium">{{ stats.revenue|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right text-red-600">{{ stats.cost|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right {% if stats.profit >= 0 %}text-emerald-600{% else %}text-red-600{% endif %} font-medium">
+                            {{ stats.profit|floatformat:0|intcomma }} ₫
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 text-sm">Không có dữ liệu</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- THỐNG KÊ THEO NGUỒN BÁN HÀNG -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-700">Thống kê theo nguồn bán hàng</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-semibold text-slate-600">Source ID</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Số đơn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Doanh thu</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Giá vốn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Lợi nhuận</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for source_key, stats in overview.source_stats.items %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700 font-mono text-xs">{{ stats.source_id }}</td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.orders_count }}</td>
+                        <td class="px-4 py-2 text-right text-slate-700 font-medium">{{ stats.revenue|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right text-red-600">{{ stats.cost|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right {% if stats.profit >= 0 %}text-emerald-600{% else %}text-red-600{% endif %} font-medium">
+                            {{ stats.profit|floatformat:0|intcomma }} ₫
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 text-sm">Không có dữ liệu</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- THỐNG KÊ THEO SHOP -->
+    <div class="mb-4 bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div class="px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-700">Thống kê theo Shop</h3>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-semibold text-slate-600">Shop</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Số đơn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Doanh thu</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Giá vốn</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-slate-600">Lợi nhuận</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                    {% for shop_key, stats in overview.shop_stats.items %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-2 text-slate-700 font-medium">{{ stats.shop_name }}</td>
+                        <td class="px-4 py-2 text-right text-slate-600">{{ stats.orders_count }}</td>
+                        <td class="px-4 py-2 text-right text-slate-700 font-medium">{{ stats.revenue|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right text-red-600">{{ stats.cost|floatformat:0|intcomma }} ₫</td>
+                        <td class="px-4 py-2 text-right {% if stats.profit >= 0 %}text-emerald-600{% else %}text-red-600{% endif %} font-medium">
+                            {{ stats.profit|floatformat:0|intcomma }} ₫
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-slate-400 text-sm">Không có dữ liệu</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- THÔNG TIN BỔ SUNG -->
+    <div class="mb-4 bg-slate-50 rounded-lg border border-slate-200 p-4">
+        <div class="text-xs text-slate-600">
+            <p class="mb-1"><strong>Lưu ý:</strong></p>
+            <ul class="list-disc list-inside space-y-1">
+                <li>Chỉ tính các SKU đã có dữ liệu cost_history (giá vốn)</li>
+                <li>Dữ liệu được tính từ đơn hàng đã finalized trong khoảng thời gian đã chọn</li>
+                <li>Giá vốn được lấy từ CostHistory gần nhất trước hoặc bằng ngày tạo đơn</li>
+                <li>Tổng số đơn hàng: <strong>{{ overview.orders_count }}</strong></li>
+            </ul>
+        </div>
+        <div class="mt-3">
+            <a href="?period={{ period }}&debug=1" class="text-xs text-blue-600 hover:text-blue-700 underline">
+                🔍 Bật chế độ Debug
+            </a>
+            {% if debug_mode %}
+            <span class="text-xs text-green-600 ml-2">✓ Debug mode đang bật</span>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Dữ liệu từ backend
+const dailyStats = JSON.parse('{{ daily_stats_json|escapejs }}') || [];
+
+// Chuẩn bị dữ liệu cho biểu đồ
+const labels = dailyStats.map(item => {
+    const date = new Date(item.date);
+    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+});
+
+const revenueData = dailyStats.map(item => item.revenue || 0);
+const costData = dailyStats.map(item => item.cost || 0);
+const profitData = dailyStats.map(item => item.profit || 0);
+const costRatioData = dailyStats.map(item => item.cost_ratio || 0);
+const profitMarginData = dailyStats.map(item => item.profit_margin || 0);
+
+// Biểu đồ 1: Doanh thu / Giá vốn / Lợi nhuận gộp (3 đường)
+const revenueCtx = document.getElementById('revenueChart');
+if (revenueCtx) {
+    new Chart(revenueCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Doanh thu',
+                    data: revenueData,
+                    borderColor: 'rgb(30, 41, 59)',
+                    backgroundColor: 'rgba(30, 41, 59, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Giá vốn',
+                    data: costData,
+                    borderColor: 'rgb(220, 38, 38)',
+                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Lợi nhuận gộp',
+                    data: profitData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 11,
+                            family: 'Averta, sans-serif'
+                        }
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += new Intl.NumberFormat('vi-VN').format(Math.round(context.parsed.y)) + ' ₫';
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            if (value >= 1000000) {
+                                return (value / 1000000).toFixed(1) + 'M';
+                            } else if (value >= 1000) {
+                                return (value / 1000).toFixed(0) + 'K';
+                            }
+                            return value;
+                        },
+                        font: {
+                            size: 10,
+                            family: 'Averta, sans-serif'
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(148, 163, 184, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: {
+                            size: 10,
+                            family: 'Averta, sans-serif'
+                        }
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+}
+
+// Biểu đồ 2: Tỉ lệ giá vốn & Tỷ lệ lợi nhuận (2 đường)
+const ratioCtx = document.getElementById('ratioChart');
+if (ratioCtx) {
+    new Chart(ratioCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Tỷ lệ giá vốn',
+                    data: costRatioData,
+                    borderColor: 'rgb(220, 38, 38)',
+                    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Tỷ lệ lợi nhuận',
+                    data: profitMarginData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 15,
+                        font: {
+                            size: 11,
+                            family: 'Averta, sans-serif'
+                        }
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += context.parsed.y.toFixed(1) + '%';
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    min: 30,
+                    max: 70,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        },
+                        font: {
+                            size: 10,
+                            family: 'Averta, sans-serif'
+                        },
+                        stepSize: 10
+                    },
+                    grid: {
+                        color: 'rgba(148, 163, 184, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        font: {
+                            size: 10,
+                            family: 'Averta, sans-serif'
+                        }
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            }
+        }
+    });
+}
+</script>
+{% endblock %}

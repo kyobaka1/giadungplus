@@ -113,5 +113,8 @@ urlpatterns = [
     path("payment-spo/periods/create/", views_payment_spo.create_payment_period, name="create_payment_period"),
     path("payment-spo/periods/<int:period_id>/delete/", views_payment_spo.delete_payment_period, name="delete_payment_period"),
     path("payment-spo/transactions/<int:txn_id>/add-to-period/", views_payment_spo.add_transaction_to_period, name="add_transaction_to_period"),
+    
+    # Pricing & Cost (Giá & Vốn)
+    path("pricing/", views.pricing_overview, name="pricing_overview"),
 ]
 

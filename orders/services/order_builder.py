@@ -267,6 +267,7 @@ class OrderDTOFactory:
                     discount_value=float(d.get("discount_value", 0) or 0),
                     discount_rate=float(d.get("discount_rate", 0) or 0),
                     discount_reason=d.get("discount_reason"),
+                    distributed_discount_amount=float(d.get("distributed_discount_amount", 0) or 0),
                     tax_rate=float(d.get("tax_rate", 0) or 0),
                     tax_amount=float(d.get("tax_amount", 0) or 0),
                     product_type=product_type,

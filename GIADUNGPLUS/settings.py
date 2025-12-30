@@ -15,6 +15,20 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Thêm PostgreSQL bin vào PATH để Django có thể tìm thấy psql (cho dbshell command)
+# Tự động tìm các đường dẫn PostgreSQL phổ biến trên Windows (ưu tiên version 18)
+pg_bin_paths = [
+    r"C:\Program Files\PostgreSQL\18\bin",
+    r"C:\Program Files\PostgreSQL\15\bin",
+    r"C:\Program Files\PostgreSQL\14\bin",
+    r"C:\Program Files\PostgreSQL\13\bin",
+]
+current_path = os.environ.get('PATH', '')
+for pg_bin in pg_bin_paths:
+    if os.path.exists(pg_bin) and pg_bin not in current_path:
+        os.environ['PATH'] = pg_bin + os.pathsep + os.environ.get('PATH', '')
+        break
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
@@ -102,14 +116,27 @@ SESSION_COOKIE_SECURE = True       # dev HTTPS: có thể bật
 CSRF_COOKIE_SECURE = True          # dev HTTPS: có thể bật
 # Database
 # https://docs.djangoproject.com/en/4.1/ref/settings/#databases
-
-
+# PostgreSQL configuration (học từ settings_production.py)
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'giadungplus_db',
+        'USER': 'giadungplus',
+        'PASSWORD': '123122aC@',
+        'HOST': os.environ.get('DB_HOST', 'localhost'),  # Mặc định localhost cho môi trường local/development
+        'PORT': os.environ.get('DB_PORT', '5432'),
+        'OPTIONS': {
+            'connect_timeout': 10,
+        },
     }
 }
+# Override với biến môi trường nếu có (cho phép linh hoạt)
+if os.environ.get('DB_NAME'):
+    DATABASES['default']['NAME'] = os.environ.get('DB_NAME')
+if os.environ.get('DB_USER'):
+    DATABASES['default']['USER'] = os.environ.get('DB_USER')
+if os.environ.get('DB_PASSWORD'):
+    DATABASES['default']['PASSWORD'] = os.environ.get('DB_PASSWORD')
 
 # Cache configuration (for Selenium lock mechanism)
 CACHES = {
@@ -169,3 +196,22 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"   # Dashboard homepage sau khi login
 LOGOUT_REDIRECT_URL = "/login/"  # Redirect về trang login sau khi logout
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'DEBUG', # Mức độ ghi log: DEBUG, INFO, WARNING, ERROR, CRITICAL
+            'class': 'logging.FileHandler', # Sử dụng FileHandler
+            'filename': 'debug.log', # Tên file log
+        },
+    },
+    'loggers': {
+        'django': { # Logger cho toàn bộ Django
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        }
+    },
+}

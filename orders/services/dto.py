@@ -95,6 +95,7 @@ class OrderLineItemDTO(BaseDTO):
     discount_value: float = 0.0
     discount_rate: float = 0.0
     discount_reason: Optional[str] = None
+    distributed_discount_amount: float = 0.0  # Phân bổ mã giảm giá từ order-level discount
     tax_rate: float = 0.0
     tax_amount: float = 0.0
     product_type: str = "normal"
