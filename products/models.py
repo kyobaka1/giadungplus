@@ -1643,3 +1643,89 @@ class PaymentPeriodTransaction(models.Model):
     def __str__(self):
         return f"{self.payment_period.code} - {self.balance_transaction}"
 
+
+class SapoProductCache(models.Model):
+    """
+    Cache JSON thông tin products từ Sapo API.
+    Lưu toàn bộ thông tin product (bao gồm variants) dưới dạng JSON để không phải request từ Sapo API nữa.
+    """
+    product_id = models.BigIntegerField(
+        unique=True,
+        db_index=True,
+        help_text="Sapo product ID"
+    )
+    
+    # Lưu toàn bộ JSON data từ Sapo API
+    data = models.JSONField(
+        help_text="JSON data của product từ Sapo API (bao gồm variants)"
+    )
+    
+    # Metadata
+    synced_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Thời điểm sync cuối cùng"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Thời điểm tạo record"
+    )
+    
+    class Meta:
+        db_table = 'products_sapo_product_cache'
+        verbose_name = 'Sapo Product Cache'
+        verbose_name_plural = 'Sapo Product Cache'
+        indexes = [
+            models.Index(fields=['product_id']),
+            models.Index(fields=['-synced_at']),
+        ]
+    
+    def __str__(self):
+        product_name = self.data.get('name', 'N/A') if isinstance(self.data, dict) else 'N/A'
+        return f"Product {self.product_id}: {product_name}"
+
+
+class SapoVariantCache(models.Model):
+    """
+    Cache JSON thông tin variants từ Sapo API.
+    Lưu riêng để dễ query và index.
+    """
+    variant_id = models.BigIntegerField(
+        unique=True,
+        db_index=True,
+        help_text="Sapo variant ID"
+    )
+    
+    product_id = models.BigIntegerField(
+        db_index=True,
+        help_text="Sapo product ID (parent)"
+    )
+    
+    # Lưu toàn bộ JSON data của variant từ Sapo API
+    data = models.JSONField(
+        help_text="JSON data của variant từ Sapo API"
+    )
+    
+    # Metadata
+    synced_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Thời điểm sync cuối cùng"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Thời điểm tạo record"
+    )
+    
+    class Meta:
+        db_table = 'products_sapo_variant_cache'
+        verbose_name = 'Sapo Variant Cache'
+        verbose_name_plural = 'Sapo Variant Cache'
+        indexes = [
+            models.Index(fields=['variant_id']),
+            models.Index(fields=['product_id']),
+            models.Index(fields=['-synced_at']),
+        ]
+    
+    def __str__(self):
+        variant_name = self.data.get('name', 'N/A') if isinstance(self.data, dict) else 'N/A'
+        return f"Variant {self.variant_id}: {variant_name}"
+

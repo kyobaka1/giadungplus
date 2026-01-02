@@ -11,6 +11,7 @@ from kho.utils import admin_only
 from ..services.config_service import SapoConfigService, ShopeeConfigService
 from core.sapo_client import SapoClient
 from products.services.shopee_init_service import ShopeeInitService
+from products.services.product_sync_service import ProductSyncService
 from core.services.notify import notify
 from core.services.notification_delivery import NotificationDeliveryWorker
 from core.models import WebPushSubscription
@@ -433,3 +434,51 @@ def negative_stock_balance_view(request):
     
     # GET: Hiển thị form
     return render(request, "settings/negative_stock_balance.html")
+
+@admin_only
+@csrf_exempt
+@require_http_methods(["POST"])
+def sync_sapo_products_api(request):
+    """
+    API endpoint để sync products và variants từ Sapo API vào database cache.
+    
+    POST /settings/products/sync-sapo-products/
+    
+    Body (JSON, optional):
+    {
+        "status": "active" (optional, default: "active")
+    }
+    
+    Returns:
+    {
+        "success": true/false,
+        "total_pages": int,
+        "total_products": int,
+        "total_variants": int,
+        "updated_products": int,
+        "created_products": int,
+        "updated_variants": int,
+        "created_variants": int,
+        "errors": [...]
+    }
+    """
+    try:
+        data = json.loads(request.body) if request.body else {}
+        status = data.get("status", "active")
+        
+        service = ProductSyncService()
+        stats = service.sync_all_products(status=status)
+        
+        return JsonResponse({
+            "success": True,
+            **stats
+        })
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in sync_sapo_products_api: {e}", exc_info=True)
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)

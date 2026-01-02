@@ -29,6 +29,9 @@ urlpatterns = [
 
     # Negative Stock Balance route
     path('products/negative-stock-balance/', settings_views.negative_stock_balance_view, name='negative_stock_balance'),
+    
+    # Sync Sapo Products route
+    path('products/sync-sapo-products/', settings_views.sync_sapo_products_api, name='sync_sapo_products_api'),
 
     # Marketing Booking Tags routes
     path('marketing/booking/tags/', views_booking.booking_tag_list, name='booking_tag_list'),

@@ -153,6 +153,31 @@
                     </svg>
                 </div>
             </a>
+
+            <!-- Card Sync Sapo Products -->
+            <div class="block p-5 md:p-4 bg-white border rounded-lg shadow-sm">
+                <div class="flex items-center gap-3 md:gap-2.5">
+                    <div class="p-2.5 md:p-2 bg-cyan-100 text-cyan-600 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-4 md:w-4" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-sm md:text-xs text-gray-800">Sync Sapo Products</h3>
+                        <p class="text-xs md:text-[11px] text-gray-500 mt-0.5">Đồng bộ products/variants từ Sapo API</p>
+                    </div>
+                    <button 
+                        id="sync-products-btn"
+                        class="px-4 py-2 bg-cyan-600 text-white text-xs font-medium rounded-md hover:bg-cyan-700 transition focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+                        onclick="syncSapoProducts()"
+                    >
+                        <span id="sync-products-text">Refresh</span>
+                        <span id="sync-products-spinner" class="hidden">Đang sync...</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -186,4 +211,49 @@
     </section>
 
 </div>
+
+<script>
+function syncSapoProducts() {
+    const btn = document.getElementById('sync-products-btn');
+    const text = document.getElementById('sync-products-text');
+    const spinner = document.getElementById('sync-products-spinner');
+    
+    // Disable button
+    btn.disabled = true;
+    text.classList.add('hidden');
+    spinner.classList.remove('hidden');
+    
+    // Make API call
+    fetch('{% url "sync_sapo_products_api" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ status: 'active' })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Sync thành công!\n\n` +
+                  `Tổng products: ${data.total_products}\n` +
+                  `Tổng variants: ${data.total_variants}\n` +
+                  `Tạo mới: ${data.created_products} products, ${data.created_variants} variants\n` +
+                  `Cập nhật: ${data.updated_products} products, ${data.updated_variants} variants`);
+        } else {
+            alert('Sync thất bại: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Lỗi khi sync: ' + error.message);
+    })
+    .finally(() => {
+        // Re-enable button
+        btn.disabled = false;
+        text.classList.remove('hidden');
+        spinner.classList.add('hidden');
+    });
+}
+</script>
 {% endblock %}

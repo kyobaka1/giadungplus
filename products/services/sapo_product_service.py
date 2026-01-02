@@ -22,6 +22,7 @@ from products.services.metadata_helper import (
     get_variant_metadata,
     update_variant_metadata
 )
+from products.services.product_cache_service import ProductCacheService
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +46,15 @@ class SapoProductService:
         """
         self.sapo_client = sapo_client
         self.core_api = sapo_client.core
+        self.cache_service = ProductCacheService()
     
-    def get_product(self, product_id: int) -> Optional[ProductDTO]:
+    def get_product(self, product_id: int, use_cache: bool = True) -> Optional[ProductDTO]:
         """
-        Lấy product từ Sapo và parse GDP metadata.
+        Lấy product từ database cache hoặc Sapo API và parse GDP metadata.
         
         Args:
             product_id: Sapo product ID
+            use_cache: Nếu True, lấy từ database cache trước (default: True)
             
         Returns:
             ProductDTO với gdp_metadata đã được parse, hoặc None nếu không tìm thấy
@@ -65,7 +68,14 @@ class SapoProductService:
             '123'
         """
         try:
-            # Fetch product from Sapo
+            # Try cache first if enabled
+            if use_cache:
+                product_dto = self.cache_service.get_product(product_id)
+                if product_dto:
+                    logger.debug(f"Fetched product {product_id} from cache")
+                    return product_dto
+            
+            # Fallback to API if not in cache or cache disabled
             response = self.core_api.get_product_raw(product_id)
             product_data = response.get('product')
             
