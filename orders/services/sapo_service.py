@@ -109,20 +109,11 @@ class SapoCoreOrderService:
         """
         for attempt in range(max_retries):
             try:
-                debug_print(f"[Attempt {attempt + 1}/{max_retries}] Update fulfillment {fulfillment_id}")
-                
                 # Get current fulfillment
-                # User suggested endpoint: shipments/{fulfillment_id}.json
                 url_get = f"shipments/{fulfillment_id}.json"
-                debug_print(f"⬇️ Fetching fulfillment from {url_get}")
                 result = self._sapo.core.get(url_get)
                 
                 if not result or "fulfillment" not in result:
-                    debug_print(f"❌ Fulfillment not found in response")
-                    # Try checking if it returned 'shipment' instead
-                    if result and "shipment" in result:
-                         debug_print(f"⚠️ Response contains 'shipment' but not 'fulfillment'. Adjusting logic might be needed.")
-                    
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
@@ -132,7 +123,6 @@ class SapoCoreOrderService:
                 shipment = fulfillment.get("shipment")
                 
                 if not shipment:
-                    debug_print(f"⚠️ Shipment null, waiting...")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
@@ -142,48 +132,36 @@ class SapoCoreOrderService:
                 note_data = {}
                 if shipment.get("note") and "{" in shipment.get("note", ""):
                     note_data = mo_rong_gon(shipment["note"])
-                    debug_print(f"📖 Existing note: {note_data}")
                 
                 # XÓA shopee_id (spid) khỏi note_data - không gửi trường này nữa
                 if "shopee_id" in note_data:
                     del note_data["shopee_id"]
-                    debug_print(f"🗑️ Removed shopee_id from note_data")
                 
                 # Update packing_status (always)
                 note_data["packing_status"] = packing_status
-                debug_print(f"✏️ Set packing_status = {packing_status}")
                 
                 # Update dvvc: ưu tiên giá trị được truyền vào, nếu không có thì lấy từ shipment.service_name
                 # Luôn đảm bảo có dvvc nếu có thể
                 if dvvc and dvvc.strip():  # Nếu có giá trị và không rỗng
                     note_data["dvvc"] = dvvc.strip()
-                    debug_print(f"✏️ Set dvvc = {note_data['dvvc']}")
                 elif shipment.get("service_name") and shipment.get("service_name").strip():
                     # Auto-fill from shipment nếu không có giá trị được truyền vào
                     note_data["dvvc"] = shipment.get("service_name").strip()
-                    debug_print(f"✏️ Auto-set dvvc from shipment.service_name = {note_data['dvvc']}")
                 elif note_data.get("dvvc") and note_data.get("dvvc").strip():
                     # Giữ nguyên dvvc từ note cũ nếu có
-                    debug_print(f"📝 Keeping existing dvvc = {note_data['dvvc']}")
-                else:
-                    # Nếu vẫn chưa có dvvc, để rỗng nhưng log warning
-                    debug_print(f"⚠️ No dvvc available for order {order_id}, vc will be empty")
+                    pass
                 
                 # Update time_packing
                 if time_packing is not None:
                     note_data["time_packing"] = time_packing
-                    debug_print(f"✏️ Set time_packing = {time_packing}")
                 
                 # Update nguoi_goi
                 if nguoi_goi is not None and nguoi_goi.strip():
                     note_data["nguoi_goi"] = nguoi_goi.strip()
-                    debug_print(f"✏️ Set nguoi_goi = {note_data['nguoi_goi']}")
                 
                 # Compress and create JSON
                 compressed = gopnhan_gon(note_data)
                 new_note = json.dumps(compressed, ensure_ascii=False, separators=(',', ':'))
-                
-                debug_print(f"💾 New note: {new_note} ({len(new_note)} chars)")
                 
                 # FULL PAYLOAD
                 # Update note in the original fulfillment object
@@ -201,32 +179,22 @@ class SapoCoreOrderService:
                 )
                 
                 if update_result:
-                    debug_print(f"✅ Updated fulfillment successfully")
                     return True
                 else:
-                    debug_print(f"❌ PUT failed")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                     return False
                     
             except requests.exceptions.HTTPError as e:
-                debug_print(f"❌ HTTP Error: {e}")
-                if e.response is not None:
-                    debug_print(f"📜 Response Text: {e.response.text}")
-                    debug_print(f"🔑 Response Headers: {e.response.headers}")
-                
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                 else:
-                    debug_print(f"❌ All retries exhausted")
                     return False
                     
             except Exception as e:
-                debug_print(f"❌ Error: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                 else:
-                    debug_print(f"❌ All retries exhausted")
                     return False
         
         return False
