@@ -196,6 +196,103 @@ class ProductCacheService:
         except Exception as e:
             logger.error(f"Error fetching all variant images from cache: {e}", exc_info=True)
             return {}
+    
+    def list_products(self, status: Optional[str] = None) -> List[ProductDTO]:
+        """
+        Lấy danh sách tất cả products từ database cache.
+        
+        Args:
+            status: Filter theo status (optional, nếu None thì lấy tất cả)
+            
+        Returns:
+            List of ProductDTO
+        """
+        try:
+            # Query từ cache
+            queryset = SapoProductCache.objects.all()
+            
+            # Filter theo status nếu có (status được lưu trong data JSON)
+            if status:
+                # Note: Status filter sẽ được apply sau khi parse data
+                pass
+            
+            products = []
+            for cache in queryset:
+                try:
+                    product_data = cache.data
+                    
+                    # Filter theo status nếu có
+                    if status and product_data.get('status') != status:
+                        continue
+                    
+                    # Normalize data
+                    if 'variants' in product_data and product_data['variants']:
+                        for variant_data in product_data['variants']:
+                            if 'images' in variant_data and variant_data['images'] is None:
+                                variant_data['images'] = []
+                            if 'variant_prices' in variant_data and variant_data['variant_prices'] is None:
+                                variant_data['variant_prices'] = []
+                            if 'inventories' in variant_data and variant_data['inventories'] is None:
+                                variant_data['inventories'] = []
+                    
+                    if 'images' in product_data and product_data['images'] is None:
+                        product_data['images'] = []
+                    
+                    # Parse product DTO
+                    product_dto = ProductDTO.from_dict(product_data)
+                    
+                    # Extract GDP metadata
+                    metadata, _ = extract_gdp_metadata(product_dto.description)
+                    product_dto.gdp_metadata = metadata
+                    
+                    # Assign metadata to variants
+                    if metadata and metadata.variants:
+                        variant_meta_map = {vm.id: vm for vm in metadata.variants}
+                        for variant in product_dto.variants:
+                            variant.gdp_metadata = variant_meta_map.get(variant.id)
+                    
+                    products.append(product_dto)
+                except Exception as parse_error:
+                    logger.warning(f"Error parsing product {cache.product_id}: {parse_error}")
+                    continue
+            
+            logger.info(f"Fetched {len(products)} products from cache")
+            return products
+            
+        except Exception as e:
+            logger.error(f"Error listing products from cache: {e}", exc_info=True)
+            return []
+    
+    def list_products_raw(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Lấy danh sách products dưới dạng raw dict từ database cache.
+        Tương tự như list_products_raw từ API.
+        
+        Args:
+            status: Filter theo status (optional)
+            
+        Returns:
+            List of product dicts (raw JSON data)
+        """
+        try:
+            queryset = SapoProductCache.objects.all()
+            
+            products_data = []
+            for cache in queryset:
+                product_data = cache.data
+                
+                # Filter theo status nếu có
+                if status and product_data.get('status') != status:
+                    continue
+                
+                products_data.append(product_data)
+            
+            logger.debug(f"Fetched {len(products_data)} products (raw) from cache")
+            return products_data
+            
+        except Exception as e:
+            logger.error(f"Error listing products (raw) from cache: {e}", exc_info=True)
+            return []
 
 
 # ========================= EXPORTS =========================

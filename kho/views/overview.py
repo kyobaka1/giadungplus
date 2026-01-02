@@ -203,23 +203,23 @@ def _fetch_orders_multi_thread(
 
 def _load_category_map() -> Dict[int, str]:
     """
-    Load category mapping từ products.
+    Load category mapping từ products (từ database cache).
     
     Returns:
         Dict mapping product_id -> category_name
     """
     category_map = {}
     try:
-        sapo = get_sapo_client()
-        # Load 3 pages đầu (750 products) - đủ cho hầu hết trường hợp
-        for page in range(1, 4):
-            result = sapo.core.list_products_raw(page=page, limit=250)
-            products = result.get("products", [])
-            for product in products:
-                product_id = product.get("id")
-                category = product.get("category")
-                if product_id and category:
-                    category_map[product_id] = category
+        # Lấy từ database cache thay vì API
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        products_data = cache_service.list_products_raw()
+        
+        for product in products_data:
+            product_id = product.get("id")
+            category = product.get("category")
+            if product_id and category:
+                category_map[product_id] = category
     except Exception as e:
         logger.error(f"[Dashboard] Error loading category map: {e}", exc_info=True)
     

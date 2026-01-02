@@ -185,71 +185,36 @@ def product(request: HttpRequest):
         ]
         context["brands"] = sorted(enabled_brands, key=lambda x: x.get("name", ""))
         
-        # Lấy variants theo brand_id từ Sapo API (server-side filter)
+        # Lấy variants từ database cache (filter theo brand_id client-side)
+        logger.info(f"[kho:product] Starting to fetch variants from cache for brand_id={brand_id}")
+        
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        all_products_data = cache_service.list_products_raw()
+        
+        # Extract variants từ products và filter theo brand_id
         all_variants = []
-        page = 1
-        limit = 250  # Sapo API limit tối đa là 250
-        expected_total = None  # Sẽ được set từ metadata của page đầu tiên
+        for product_data in all_products_data:
+            product_brand_id = product_data.get("brand_id")
+            
+            # Filter theo brand_id
+            if product_brand_id != brand_id:
+                continue
+            
+            # Extract variants từ product (chỉ lấy variants không phải packsize)
+            variants = product_data.get("variants", [])
+            for variant_data in variants:
+                # Bỏ qua variant có packsize = true (combo)
+                packsize = variant_data.get("packsize", False)
+                if packsize is True:
+                    continue
+                
+                # Thêm product_id và brand_id vào variant_data để dùng sau
+                variant_data["_product_id"] = product_data.get("id")
+                variant_data["_brand_id"] = product_brand_id
+                all_variants.append(variant_data)
         
-        logger.info(f"[kho:product] Starting to fetch variants for brand_id={brand_id}")
-        
-        while True:
-            variants_response = core_repo.list_variants_raw(
-                page=page,
-                limit=limit,
-                brand_ids=brand_id,
-                # Không filter status để lấy cả active và inactive
-                composite=False,
-                packsize=False
-            )
-            
-            variants_data = variants_response.get("variants", [])
-            
-            # Lấy metadata từ page đầu tiên để biết tổng số
-            metadata = variants_response.get("metadata", {})
-            if page == 1:
-                expected_total = metadata.get("total", 0)
-                logger.info(f"[kho:product] Total variants expected: {expected_total}")
-            
-            # Nếu không còn variants nào, dừng
-            if not variants_data:
-                logger.info(f"[kho:product] No more variants at page {page}")
-                break
-            
-            all_variants.extend(variants_data)
-            logger.info(f"[kho:product] Fetched page {page}: {len(variants_data)} variants (total so far: {len(all_variants)}/{expected_total or 'unknown'})")
-            
-            # Kiểm tra nếu đã lấy đủ số lượng
-            if expected_total and expected_total > 0:
-                if len(all_variants) >= expected_total:
-                    logger.info(f"[kho:product] Fetched all {expected_total} variants")
-                    break
-            else:
-                # Nếu không có total trong metadata, tính total_pages
-                total_pages = metadata.get("total_pages")
-                if total_pages:
-                    if page >= total_pages:
-                        logger.info(f"[kho:product] Reached last page ({total_pages}), total variants: {len(all_variants)}")
-                        break
-                else:
-                    # Tính total_pages từ total và limit
-                    if expected_total and expected_total > 0:
-                        calculated_pages = (expected_total + limit - 1) // limit  # Ceiling division
-                        if page >= calculated_pages:
-                            logger.info(f"[kho:product] Reached calculated last page ({calculated_pages}), total variants: {len(all_variants)}")
-                            break
-            
-            # Nếu số variants trả về ít hơn limit, có nghĩa là đã hết
-            if len(variants_data) < limit:
-                logger.info(f"[kho:product] Received fewer variants than limit ({len(variants_data)} < {limit}), assuming last page")
-                break
-            
-            page += 1
-            
-            # Safety limit để tránh vòng lặp vô hạn
-            if page > 100:
-                logger.warning(f"[kho:product] Reached safety limit of 100 pages, stopping")
-                break
+        logger.info(f"[kho:product] Extracted {len(all_variants)} variants from cache for brand_id={brand_id}")
         
         # Lấy product metadata cho từng variant để có GDP metadata
         # Tạo map product_id -> product để tránh gọi API nhiều lần
@@ -378,17 +343,17 @@ def print_product_label(request: HttpRequest):
             return HttpResponse("Thiếu variant_id", status=400)
         
         sapo_client = get_sapo_client()
-        core_repo = sapo_client.core
         product_service = SapoProductService(sapo_client)
         
-        # Lấy variant
-        variant_response = core_repo.get_variant_raw(int(variant_id))
-        variant_raw = variant_response.get("variant", {})
+        # Lấy variant từ cache
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        variant_dto = cache_service.get_variant(int(variant_id))
         
-        if not variant_raw:
-            return HttpResponse(f"Variant {variant_id} không tồn tại", status=404)
+        if not variant_dto:
+            return HttpResponse(f"Variant {variant_id} không tồn tại trong cache", status=404)
         
-        product_id = variant_raw.get("product_id")
+        product_id = variant_dto.product_id
         product = product_service.get_product(product_id)
         
         if not product:
@@ -396,7 +361,7 @@ def print_product_label(request: HttpRequest):
         
         # Lấy brand info
         brand_name = product.brand or ""
-        brand_id = variant_raw.get("brand_id")
+        # brand_id không có trong variant_dto, có thể lấy từ product nếu cần
         
         # Lấy supplier info (NSX) - tạm thời để trống, có thể bổ sung sau
         nsx_name = ""
@@ -414,13 +379,13 @@ def print_product_label(request: HttpRequest):
                 variant_meta = v.gdp_metadata
                 break
         
-        # Chuẩn bị dữ liệu variant
-        sku = variant_raw.get("sku", "")
+        # Chuẩn bị dữ liệu variant từ variant_dto
+        sku = variant_dto.sku or ""
         skugon = sku[3:] if len(sku) > 3 else sku
-        barcode = variant_raw.get("barcode") or ""
-        opt1 = variant_raw.get("option1") or ""
-        opt2 = variant_raw.get("option2") or ""
-        opt3 = variant_raw.get("option3") or ""
+        barcode = variant_dto.barcode or ""
+        opt1 = variant_dto.opt1 or ""
+        opt2 = variant_dto.opt2 or ""
+        opt3 = variant_dto.opt3 or ""
         
         vari_list = []
         for i in range(quantity):
@@ -467,18 +432,18 @@ def print_product_barcode(request: HttpRequest):
             return HttpResponse("Thiếu variant_id", status=400)
         
         sapo_client = get_sapo_client()
-        core_repo = sapo_client.core
         product_service = SapoProductService(sapo_client)
         
-        # Lấy variant
-        variant_response = core_repo.get_variant_raw(int(variant_id))
-        variant_raw = variant_response.get("variant", {})
+        # Lấy variant từ cache
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        variant_dto = cache_service.get_variant(int(variant_id))
         
-        if not variant_raw:
-            return HttpResponse(f"Variant {variant_id} không tồn tại", status=404)
+        if not variant_dto:
+            return HttpResponse(f"Variant {variant_id} không tồn tại trong cache", status=404)
         
         # Lấy product để có đầy đủ thông tin variant (bao gồm opt1, opt2, opt3)
-        product_id = variant_raw.get("product_id")
+        product_id = variant_dto.product_id
         product = None
         variant_from_product = None
         
@@ -494,9 +459,9 @@ def print_product_barcode(request: HttpRequest):
             except Exception as e:
                 logger.warning(f"Không thể lấy product {product_id}: {e}")
         
-        # Chuẩn bị dữ liệu variant - ưu tiên lấy từ product variant, fallback về variant_raw
-        sku = variant_raw.get("sku", "")
-        barcode = variant_raw.get("barcode") or ""
+        # Chuẩn bị dữ liệu variant - ưu tiên lấy từ product variant, fallback về variant_dto
+        sku = variant_dto.sku or ""
+        barcode = variant_dto.barcode or ""
         
         # Lấy option1, option2, option3 - ưu tiên từ product variant
         if variant_from_product:
@@ -504,9 +469,9 @@ def print_product_barcode(request: HttpRequest):
             opt2 = variant_from_product.opt2 or ""
             opt3 = variant_from_product.opt3 or ""
         else:
-            opt1 = variant_raw.get("option1") or ""
-            opt2 = variant_raw.get("option2") or ""
-            opt3 = variant_raw.get("option3") or ""
+            opt1 = variant_dto.opt1 or ""
+            opt2 = variant_dto.opt2 or ""
+            opt3 = variant_dto.opt3 or ""
         
         # Xử lý SKU: bỏ 2 tiền tố và dấu "-" đầu tiên
         # Ví dụ: "CB-0630-DEN" -> "0630-DEN"

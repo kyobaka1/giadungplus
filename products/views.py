@@ -82,35 +82,9 @@ def product_list(request: HttpRequest):
         sapo_client = get_sapo_client()
         product_service = SapoProductService(sapo_client)
 
-        # Lấy TẤT CẢ products (loop qua nhiều pages) - KHÔNG CÓ FILTER GÌ HẾT
-        all_products = []
-        page = 1
-        limit = 250  # Lấy nhiều nhất có thể mỗi page
-        
-        while True:
-            # Chỉ lấy dữ liệu, không có filter gì
-            filters = {
-                "page": page,
-                "limit": limit,
-            }
-            
-            products = product_service.list_products(**filters)
-            
-            if not products:
-                break
-            
-            all_products.extend(products)
-            
-            # Nếu số lượng products < limit thì đã hết
-            if len(products) < limit:
-                break
-            
-            page += 1
-            
-            # Giới hạn tối đa 1000 pages để tránh vòng lặp vô hạn
-            if page > 1000:
-                logger.warning("Reached max pages limit (1000) in product_list")
-                break
+        # Lấy TẤT CẢ products từ cache (không cần pagination)
+        # Cache service sẽ trả về tất cả products
+        all_products = product_service.list_products(use_cache=True)
 
         # Reload settings để đảm bảo có dữ liệu mới nhất
         reload_settings()
@@ -284,6 +258,8 @@ def variant_list(request: HttpRequest):
         "selected_brand_id": brand_id,
         "brands": [],
         "error": None,  # Initialize error to avoid template lookup errors
+        "all_tags": {},  # Initialize to avoid template lookup errors
+        "all_tags_with_color": {},  # Initialize to avoid template lookup errors
     }
 
     try:
@@ -308,55 +284,22 @@ def variant_list(request: HttpRequest):
         ]
         context["brands"] = sorted(enabled_brands, key=lambda x: x.get("name", ""))
         
-        # Lấy products từ Sapo API (đã bao gồm variants và inventories)
-        # Thử filter theo brand_id nếu API hỗ trợ, nếu không thì filter ở client-side
-        all_products = []
-        page = 1
-        limit = 250  # Sapo API limit tối đa là 250
+        # Lấy products từ database cache (đã bao gồm variants và inventories)
+        logger.info(f"[variant_list] Starting to fetch products (with variants) from cache for brand_id={brand_id}")
         
-        logger.info(f"[variant_list] Starting to fetch products (with variants) for brand_id={brand_id}")
+        # Lấy tất cả products từ cache
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        all_products_data = cache_service.list_products_raw(status="active")
         
-        while True:
-            # Thử filter theo brand_id nếu API hỗ trợ
-            filters = {
-                "page": page,
-                "limit": limit,
-                "status": "active"  # Có thể bỏ nếu muốn lấy cả inactive
-            }
-            # Thử thêm brand_ids filter (có thể không hỗ trợ, nhưng thử xem)
-            try:
-                filters["brand_ids"] = brand_id
-            except:
-                pass
-            
-            products_response = core_repo.list_products_raw(**filters)
-            products_data = products_response.get("products", [])
-            
-            if not products_data:
-                logger.info(f"[variant_list] No more products at page {page}")
-                break
-            
-            all_products.extend(products_data)
-            logger.info(f"[variant_list] Fetched page {page}: {len(products_data)} products (total so far: {len(all_products)})")
-            
-            # Nếu số products trả về ít hơn limit, có nghĩa là đã hết
-            if len(products_data) < limit:
-                logger.info(f"[variant_list] Received fewer products than limit ({len(products_data)} < {limit}), assuming last page")
-                break
-            
-            page += 1
-            
-            # Safety limit để tránh vòng lặp vô hạn
-            if page > 100:
-                logger.warning(f"[variant_list] Reached safety limit of 100 pages, stopping")
-                break
+        logger.info(f"[variant_list] Fetched {len(all_products_data)} products from cache")
         
         # Parse products và extract variants
         # Tạo map product_id -> product để parse metadata
         product_map = {}
         all_variants_from_products = []
         
-        for product_data in all_products:
+        for product_data in all_products_data:
             product_id = product_data.get("id")
             if not product_id:
                 continue
@@ -393,7 +336,7 @@ def variant_list(request: HttpRequest):
                 variant_data["_product"] = product  # Lưu product object nếu có
                 all_variants_from_products.append(variant_data)
         
-        logger.info(f"[variant_list] Extracted {len(all_variants_from_products)} variants from {len(all_products)} products")
+        logger.info(f"[variant_list] Extracted {len(all_variants_from_products)} variants from {len(all_products_data)} products")
         
         # Parse variants và lấy metadata, filter theo brand_id
         variants_data = []
@@ -572,6 +515,13 @@ def variant_list(request: HttpRequest):
     except Exception as e:
         logger.error(f"Error in variant_list: {e}", exc_info=True)
         context["error"] = str(e)
+        # Đảm bảo all_tags_with_color luôn có trong context ngay cả khi có exception
+        if "all_tags_with_color" not in context:
+            context["all_tags_with_color"] = {}
+        if "all_tags" not in context:
+            context["all_tags"] = {}
+        if "statuses" not in context:
+            context["statuses"] = []
 
     return render(request, "products/variant_list.html", context)
 

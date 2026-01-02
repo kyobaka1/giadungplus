@@ -45,53 +45,31 @@ def export_products_excel(request: HttpRequest):
         # Reload settings
         reload_settings()
         
-        # Lấy variants theo brand_id từ Sapo API
-        all_variants = []
-        page = 1
-        limit = 250
-        expected_total = None
+        # Lấy variants từ database cache (filter theo brand_id client-side)
+        from products.services.product_cache_service import ProductCacheService
+        cache_service = ProductCacheService()
+        all_products_data = cache_service.list_products_raw()
         
-        while True:
-            variants_response = core_repo.list_variants_raw(
-                page=page,
-                limit=limit,
-                brand_ids=brand_id,
-                composite=False,
-                packsize=False
-            )
+        # Extract variants từ products và filter theo brand_id
+        all_variants = []
+        for product_data in all_products_data:
+            product_brand_id = product_data.get("brand_id")
             
-            variants_data = variants_response.get("variants", [])
+            # Filter theo brand_id
+            if product_brand_id != brand_id:
+                continue
             
-            metadata = variants_response.get("metadata", {})
-            if page == 1:
-                expected_total = metadata.get("total", 0)
-            
-            if not variants_data:
-                break
-            
-            all_variants.extend(variants_data)
-            
-            if expected_total and expected_total > 0:
-                if len(all_variants) >= expected_total:
-                    break
-            else:
-                total_pages = metadata.get("total_pages")
-                if total_pages:
-                    if page >= total_pages:
-                        break
-                else:
-                    if expected_total and expected_total > 0:
-                        calculated_pages = (expected_total + limit - 1) // limit
-                        if page >= calculated_pages:
-                            break
-            
-            if len(variants_data) < limit:
-                break
-            
-            page += 1
-            
-            if page > 100:
-                break
+            # Extract variants từ product (chỉ lấy variants không phải packsize)
+            variants = product_data.get("variants", [])
+            for variant_data in variants:
+                # Bỏ qua variant có packsize = true (combo)
+                packsize = variant_data.get("packsize", False)
+                if packsize is True:
+                    continue
+                
+                # Thêm product_id vào variant_data để dùng sau
+                variant_data["_product_id"] = product_data.get("id")
+                all_variants.append(variant_data)
         
         # Lấy product metadata cho từng variant
         product_map = {}
@@ -318,15 +296,17 @@ def import_products_excel(request: HttpRequest):
                     results["error_details"].append(f"Dòng {row_idx}: Không tìm thấy variant_id")
                     continue
                 
-                # Lấy product_id từ variant
-                variant_response = sapo_client.core.get_variant_raw(vari_id)
-                variant = variant_response.get("variant", {})
-                if not variant:
+                # Lấy product_id từ variant (từ cache)
+                from products.services.product_cache_service import ProductCacheService
+                cache_service = ProductCacheService()
+                variant_dto = cache_service.get_variant(vari_id)
+                
+                if not variant_dto:
                     results["errors"] += 1
-                    results["error_details"].append(f"Dòng {row_idx}: Variant {vari_id} không tồn tại")
+                    results["error_details"].append(f"Dòng {row_idx}: Variant {vari_id} không tồn tại trong cache")
                     continue
                 
-                product_id = variant.get("product_id")
+                product_id = variant_dto.product_id
                 if not product_id:
                     results["errors"] += 1
                     results["error_details"].append(f"Dòng {row_idx}: Variant {vari_id} không có product_id")

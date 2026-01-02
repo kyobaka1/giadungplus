@@ -276,19 +276,14 @@ def get_order(request):
                 if shipment.get('weight'):
                     shipment_weight = float(shipment.get('weight', 0)) / 1000.0  # Chuyển từ gram sang kg
         
-        # Helper function to get variant image from Sapo
+        # Helper function to get variant image from cache
         def get_variant_image(variant_id):
-            """Fetch variant image from Sapo API"""
+            """Fetch variant image from database cache"""
             try:
-                variant_url = f"variants/{variant_id}.json"
-                variant_response = sapo.core.get(variant_url)
-                
-                if variant_response and 'variant' in variant_response:
-                    variant_data = variant_response['variant']
-                    images = variant_data.get('images', [])
-                    if images and len(images) > 0:
-                        # Return the full_path of the first (default) image
-                        return images[0].get('full_path')
+                from products.services.product_cache_service import ProductCacheService
+                cache_service = ProductCacheService()
+                image_url = cache_service.get_variant_image(variant_id)
+                return image_url if image_url else None
             except Exception as e:
                 debug_print(f"[PackingAPI] Error fetching variant image for {variant_id}: {e}")
             

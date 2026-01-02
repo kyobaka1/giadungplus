@@ -359,16 +359,25 @@
                     <!-- Người mua -->
                     <div class="flex flex-col justify-center">
                         <p class="text-[13px] font-medium text-slate-800">
-                            {% if order.customer.user_name %}{{ order.customer.user_name }}{% else %}{{
-                            order.customer_name }}{% endif %}
+                            {% if order.customer and order.customer.user_name %}
+                                {{ order.customer.user_name }}
+                            {% else %}
+                                {{ order.customer_name|default:"" }}
+                            {% endif %}
                         </p>
                         <p class="text-[13px] font-medium text-slate-800">
-                            {{order.customer.addresses.0.address1 }}
+                            {% if order.shipping_address_line %}
+                                {{ order.shipping_address_line }}
+                            {% elif order.customer and order.customer.addresses and order.customer.addresses.0 and order.customer.addresses.0.address1 %}
+                                {{ order.customer.addresses.0.address1 }}
+                            {% elif order.customer and order.customer.address %}
+                                {{ order.customer.address }}
+                            {% endif %}
                         </p>
                         <p class="mt-1 text-xs text-slate-500">
-                            {% if order.customer.district or order.customer.city %}
-                            {{ order.customer.district }} - {{order.customer.city}}
-                            {%endif %}
+                            {% if order.customer and order.customer.district or order.customer and order.customer.city %}
+                                {% if order.customer.district %}{{ order.customer.district }}{% endif %}{% if order.customer.district and order.customer.city %} - {% endif %}{% if order.customer.city %}{{ order.customer.city }}{% endif %}
+                            {% endif %}
                         </p>
                     </div>
 

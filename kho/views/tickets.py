@@ -417,16 +417,14 @@ def ticket_detail(request, ticket_id):
             missing_ids = [vid for vid in variant_ids if vid not in image_map]
             
             if missing_ids:
-                from core.sapo_client import get_sapo_client
-                sapo = get_sapo_client()
-                core_api = sapo.core
+                from products.services.product_cache_service import ProductCacheService
+                cache_service = ProductCacheService()
                 for vid in missing_ids:
                     try:
-                        raw = core_api.get_variant_raw(vid)
-                        variant_data = raw.get('variant') or {}
-                        images = variant_data.get('images') or []
-                        if images:
-                            url = images[0].get('full_path')
+                        # Lấy variant từ cache
+                        variant_dto = cache_service.get_variant(vid)
+                        if variant_dto and variant_dto.images:
+                            url = variant_dto.images[0].full_path if variant_dto.images[0].full_path else variant_dto.images[0].path
                             if url:
                                 image_map[vid] = url
                                 VariantImageCache.objects.update_or_create(

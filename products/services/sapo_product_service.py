@@ -120,22 +120,45 @@ class SapoProductService:
             logger.error(f"Error fetching product {product_id}: {e}", exc_info=True)
             return None
     
-    def list_products(self, **filters) -> List[ProductDTO]:
+    def list_products(self, use_cache: bool = True, **filters) -> List[ProductDTO]:
         """
-        Lấy danh sách products từ Sapo.
+        Lấy danh sách products từ database cache hoặc Sapo API.
         
         Args:
+            use_cache: Nếu True, lấy từ database cache trước (default: True)
             **filters: Query parameters (page, limit, status, etc.)
+                - Note: Khi dùng cache, chỉ hỗ trợ filter 'status'
+                - Các filter khác (page, limit) sẽ bị bỏ qua khi dùng cache
             
         Returns:
             List of ProductDTO
             
         Example:
-            >>> products = service.list_products(page=1, limit=50, status='active')
+            >>> products = service.list_products(status='active')
             >>> len(products)
             50
         """
         try:
+            # Try cache first if enabled
+            if use_cache:
+                status = filters.get('status')
+                cached_products = self.cache_service.list_products(status=status)
+                
+                if cached_products:
+                    logger.debug(f"Fetched {len(cached_products)} products from cache")
+                    
+                    # Apply pagination if requested (client-side)
+                    page = filters.get('page', 1)
+                    limit = filters.get('limit')
+                    
+                    if limit:
+                        start = (page - 1) * limit
+                        end = start + limit
+                        return cached_products[start:end]
+                    
+                    return cached_products
+            
+            # Fallback to API if not in cache or cache disabled
             response = self.core_api.list_products_raw(**filters)
             products_data = response.get('products', [])
             
