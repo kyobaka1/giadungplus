@@ -221,19 +221,16 @@ def product(request: HttpRequest):
         product_map = {}
         product_ids = set(v.get("product_id") for v in all_variants if v.get("product_id"))
         
-        # Lấy products theo batch (mỗi lần 50 để tránh quá tải)
+        # Lấy products từ cache (không gọi API)
         product_ids_list = list(product_ids)
-        batch_size = 50
-        for i in range(0, len(product_ids_list), batch_size):
-            batch_ids = product_ids_list[i:i+batch_size]
-            for product_id in batch_ids:
-                try:
-                    product = product_service.get_product(product_id)
-                    if product:
-                        product_map[product_id] = product
-                except Exception as e:
-                    logger.warning(f"Failed to get product {product_id}: {e}")
-                    continue
+        for product_id in product_ids_list:
+            try:
+                product = cache_service.get_product(product_id)
+                if product:
+                    product_map[product_id] = product
+            except Exception as e:
+                logger.warning(f"Failed to get product {product_id} from cache: {e}")
+                continue
         
         # Parse variants và lấy metadata
         variants_data = []
@@ -282,6 +279,9 @@ def product(request: HttpRequest):
             total_inventory = sum(inv.get("on_hand", 0) for inv in inventories)
             total_available = sum(inv.get("available", 0) for inv in inventories)
             
+            # Lấy images từ variant_raw
+            images = variant_raw.get("images", [])
+            
             variants_data.append({
                 "id": variant_id,
                 "product_id": product_id,
@@ -300,6 +300,7 @@ def product(request: HttpRequest):
                 "total_available": total_available,
                 "weight_value": variant_raw.get("weight_value", 0) or 0,
                 "weight_unit": variant_raw.get("weight_unit", "g"),
+                "images": images,  # Thêm images
                 "gdp_metadata": variant_meta,
                 # Extract metadata fields
                 "price_tq": variant_meta.price_tq if variant_meta else None,

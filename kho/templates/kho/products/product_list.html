@@ -113,6 +113,7 @@
                 <table class="min-w-full divide-y divide-slate-200 text-xs">
                     <thead class="bg-slate-50">
                         <tr>
+                            <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Hình ảnh</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">SKU</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Tồn kho</th>
                             <th class="px-2 py-2 text-left text-[10px] font-semibold text-slate-700 uppercase tracking-wider">Trạng thái</th>
@@ -130,6 +131,29 @@
                                 data-brand="{{ variant.brand|default:'' }}"
                                 data-status="{{ variant.status|default:'' }}"
                                 data-variant-id="{{ variant.id }}">
+                                <!-- Hình ảnh -->
+                                <td class="px-2 py-2">
+                                    {% if variant.images and variant.images|length > 0 %}
+                                        {% with first_image=variant.images|first %}
+                                            {% if first_image.full_path %}
+                                                <img src="{{ first_image.full_path }}" 
+                                                     alt="{{ variant.sku }}" 
+                                                     class="w-12 h-12 object-cover rounded border border-slate-200"
+                                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27%3E%3Crect fill=%27%23f1f5f9%27 width=%2748%27 height=%2748%27/%3E%3Ctext x=%2724%27 y=%2724%27 text-anchor=%27middle%27 dominant-baseline=%27central%27 fill=%27%2394a3b8%27 font-size=%2710%27%3ENo img%3C/text%3E%3C/svg%3E'">
+                                            {% elif first_image.path %}
+                                                <img src="{{ first_image.path }}" 
+                                                     alt="{{ variant.sku }}" 
+                                                     class="w-12 h-12 object-cover rounded border border-slate-200"
+                                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27%3E%3Crect fill=%27%23f1f5f9%27 width=%2748%27 height=%2748%27/%3E%3Ctext x=%2724%27 y=%2724%27 text-anchor=%27middle%27 dominant-baseline=%27central%27 fill=%27%2394a3b8%27 font-size=%2710%27%3ENo img%3C/text%3E%3C/svg%3E'">
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% else %}
+                                        <div class="w-12 h-12 bg-slate-100 rounded border border-slate-200 flex items-center justify-center">
+                                            <span class="text-[8px] text-slate-400">No img</span>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                                
                                 <!-- SKU -->
                                 <td class="px-2 py-2">
                                     <a href="https://sisapsan.mysapogo.com/admin/products/{{ variant.product_id }}/variants/{{ variant.id }}" 
@@ -303,7 +327,7 @@
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="8" class="px-4 py-8 text-center text-xs text-slate-500">
+                                <td colspan="9" class="px-4 py-8 text-center text-xs text-slate-500">
                                     Chưa có phân loại nào
                                 </td>
                             </tr>

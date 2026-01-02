@@ -82,20 +82,21 @@
                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border-b">{{ customer.phone_number }}</td>
                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-b">{{ customer.email|default:"-" }}</td>
                         <td class="px-4 py-3 text-sm text-gray-700 border-b max-w-[300px]">
-                            {% for address in customer.addresses %}
-                            <div class="mb-1 truncate" title="{{ address.address1 }}">
-                                <span class="font-medium">{{ address.district }}</span>, 
-                                <span>{{ address.city }}</span>
-                                {% if address.address1 %}
-                                <br>
-                                <span class="text-xs text-gray-500 inline-block max-w-[300px] truncate">
-                                    {{ address.address1 }}
-                                </span>
-                                {% endif %}
-                            </div>
-                            {% empty %}
-                            <span class="text-gray-400">-</span>
-                            {% endfor %}
+                            {% if customer.addresses %}
+                                {% for address in customer.addresses %}
+                                <div class="mb-1 truncate" title="{{ address.address1|default:'' }}">
+                                    {% if address.district %}<span class="font-medium">{{ address.district }}</span>{% endif %}{% if address.district and address.city %}, {% endif %}{% if address.city %}<span>{{ address.city }}</span>{% endif %}
+                                    {% if address.address1 %}
+                                    <br>
+                                    <span class="text-xs text-gray-500 inline-block max-w-[300px] truncate">
+                                        {{ address.address1 }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-gray-400">-</span>
+                            {% endif %}
                         </td>
                         <td class="px-4 py-3 text-sm text-gray-700 border-b">
                             {% if customer.sale_order %}

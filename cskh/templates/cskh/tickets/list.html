@@ -175,26 +175,20 @@
                                     {# Mã vận đơn (tracking code) #}
                                     {% if ticket.order_data.fulfillments %}
                                         {% for f in ticket.order_data.fulfillments %}
-                                            {% if f.shipment and f.shipment.tracking_code %}{{ f.shipment.tracking_code }} {% endif %}
+                                            {% if f and f.shipment and f.shipment.tracking_code %}{{ f.shipment.tracking_code }} {% endif %}
                                         {% endfor %}
                                     {% endif %}
                                     {# Customer data #}
-                                    {% if ticket.order_data.customer %}
-                                        {% with customer=ticket.order_data.customer %}
-                                            {{ customer.code|default:"" }}
-                                            {{ customer.name|default:"" }}
-                                            {# user_name từ website (format: short_name/username hoặc chỉ username) #}
-                                            {{ customer.website|default:"" }}
-                                            {{ customer.phone_number|default:"" }}
-                                        {% endwith %}
-                                    {% elif ticket.order_data.customer_data %}
-                                        {% with customer=ticket.order_data.customer_data %}
-                                            {{ customer.code|default:"" }}
-                                            {{ customer.name|default:"" }}
-                                            {# user_name từ website (format: short_name/username hoặc chỉ username) #}
-                                            {{ customer.website|default:"" }}
-                                            {{ customer.phone_number|default:"" }}
-                                        {% endwith %}
+                                    {% if ticket.order_data %}
+                                        {% if ticket.order_data.customer_data %}
+                                            {% with customer=ticket.order_data.customer_data %}
+                                                {{ customer.code|default:"" }}
+                                                {{ customer.name|default:"" }}
+                                                {# user_name từ website (format: short_name/username hoặc chỉ username) #}
+                                                {{ customer.website|default:"" }}
+                                                {{ customer.phone_number|default:"" }}
+                                            {% endwith %}
+                                        {% endif %}
                                     {% endif %}
                                     {# Billing address phone number #}
                                     {% if ticket.order_data.billing_address and ticket.order_data.billing_address.phone_number %}
