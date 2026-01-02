@@ -151,7 +151,8 @@ def extract_customer_name_from_column(lines: List[str]) -> Optional[str]:
     # Strip shop prefixes (shouldn't be here but just in case)
     clean_name = raw_name
     for prefix in SHOP_PREFIXES:
-        clean_name = clean_name.replace(prefix, "")
+        if prefix in clean_name:
+            clean_name = clean_name.replace(prefix, "")
     
     clean_name = clean_name.strip()
     

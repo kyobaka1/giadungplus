@@ -231,14 +231,15 @@ class CustomerService:
         return self.update_customer_info(customer_id=customer_id, website=new_website)
     
     def update_from_pdf_data(self, customer_id: int, pdf_name: Optional[str] = None, 
-                            pdf_address: Optional[str] = None) -> CustomerDTO:
+                            pdf_address: Optional[str] = None, force_update: bool = False) -> CustomerDTO:
         """
-        Update customer name/address from PDF if current data is masked (*****).
+        Update customer name/address from PDF.
         
         Args:
             customer_id: Sapo customer ID
             pdf_name: Name extracted from PDF
             pdf_address: Address extracted from PDF (address1 only)
+            force_update: If True, update even if not masked. If False, only update if masked.
             
         Returns:
             Updated CustomerDTO (or unchanged if no updates needed)
@@ -246,24 +247,27 @@ class CustomerService:
         customer = self.get_customer(customer_id)
         updates = {}
         
-        # 1. Update name if masked
-        if pdf_name and '*****' in (customer.name or ''):
-            updates["name"] = pdf_name
-            logger.info(f"[CustomerService] Updating masked name for customer {customer_id}")
+        # 1. Update name if masked OR force_update
+        if pdf_name:
+            is_masked = '*****' in (customer.name or '')
+            if force_update or is_masked:
+                updates["name"] = pdf_name
+                logger.info(f"[CustomerService] Updating name for customer {customer_id} (force={force_update}, masked={is_masked})")
         
-        # 2. Update address if masked AND customer has primary address
+        # 2. Update address if masked OR force_update AND customer has primary address
         if pdf_address and customer.primary_address:
             addr = customer.primary_address
             # Check if address is masked (contains ***** or ****** pattern)
             address1 = addr.address1 or ''
             is_masked = '*****' in address1 or '******' in address1 or address1.startswith('****')
-            if is_masked:
-                logger.info(f"[CustomerService] Updating masked address for customer {customer_id} (current: {address1[:50]}...)")
+            
+            if force_update or is_masked:
+                logger.info(f"[CustomerService] Updating address for customer {customer_id} (force={force_update}, masked={is_masked}, current: {address1[:50]}...)")
                 try:
                     # Build full address payload with ALL existing fields
                     address_payload = {
                         "id": addr.id,
-                        "full_name": addr.full_name or customer.name,
+                        "full_name": pdf_name or addr.full_name or customer.name,
                         "phone_number": addr.phone_number or "",
                         "email": addr.email or "",
                         "zip_code": addr.zip_code or "",

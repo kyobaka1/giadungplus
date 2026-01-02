@@ -112,14 +112,15 @@ def update_customer_from_shopee_data(
         pdf_name = pdf_customer_info.get("name")
         pdf_address = pdf_customer_info.get("address")
         
-        # 3. Update name/address from PDF if masked
+        # 3. Update name/address from PDF (force update - always update if data available)
         if pdf_name or pdf_address:
             try:
-                logger.info(f"[CustomerUpdateHelper] Calling update_from_pdf_data with name={pdf_name}, address={pdf_address}...")
+                logger.info(f"[CustomerUpdateHelper] Calling update_from_pdf_data with name={pdf_name}, address={pdf_address} (force_update=True)...")
                 updated_customer = customer_service.update_from_pdf_data(
                     customer_id=customer_id,
                     pdf_name=pdf_name,
-                    pdf_address=pdf_address
+                    pdf_address=pdf_address,
+                    force_update=True  # ⭐ Always update, not just when masked
                 )
                 logger.info(f"[CustomerUpdateHelper] ✅ PDF data update completed! Customer name: {updated_customer.name}")
             except Exception as e:
@@ -170,14 +171,15 @@ def update_customer_from_pdf_only(
         pdf_name = pdf_customer_info.get("name")
         pdf_address = pdf_customer_info.get("address")
         
-        # Update name/address from PDF if available
+        # Update name/address from PDF (force update - always update if data available)
         if pdf_name or pdf_address:
             try:
-                logger.info(f"[CustomerUpdateHelper] Calling update_from_pdf_data with name={pdf_name}, address={pdf_address}...")
+                logger.info(f"[CustomerUpdateHelper] Calling update_from_pdf_data with name={pdf_name}, address={pdf_address} (force_update=True)...")
                 updated_customer = customer_service.update_from_pdf_data(
                     customer_id=customer_id,
                     pdf_name=pdf_name,
-                    pdf_address=pdf_address
+                    pdf_address=pdf_address,
+                    force_update=True  # ⭐ Always update, not just when masked
                 )
                 logger.info(f"[CustomerUpdateHelper] ✅ PDF data update completed! Customer name: {updated_customer.name}")
             except Exception as e:

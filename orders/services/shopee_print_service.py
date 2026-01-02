@@ -145,16 +145,7 @@ def _build_mvd_overlay_page(
         current_package: Current package dict with package_number
         total_packages: Total number of packages (DON_TACH_FLAG)
     """
-    # DEBUG: Xác nhận hàm được gọi
-    debug("=" * 60)
-    debug("DEBUG: _build_mvd_overlay_page được gọi")
-    debug(f"  channel_order_number: {channel_order_number}")
-    debug(f"  total_packages: {total_packages}")
-    debug(f"  client: {client is not None}")
-    debug(f"  shopee_order_id: {shopee_order_id}")
-    debug(f"  seller_shop_id: {seller_shop_id}")
-    debug(f"  connection_id: {connection_id}")
-    debug("=" * 60)
+    # DEBUG removed - chỉ giữ debug cho extract customer info
     
     # Use provided DTO or fetch new one
     if order_dto is None:
@@ -164,14 +155,14 @@ def _build_mvd_overlay_page(
             if order_dto is None:
                 raise RuntimeError(f"get_order_dto_from_shopee_sn returned None for {channel_order_number}")
         except Exception as e:
-            debug(f"[MVD] Lỗi get_order_dto_from_shopee_sn({channel_order_number}): {e}")
+            # Error getting order DTO
             raise
 
     # Kiểm tra order_dto không được None trước khi sử dụng
     if order_dto is None:
         raise RuntimeError(f"order_dto is None for {channel_order_number}")
 
-    debug("→ Build MVD overlay:", channel_order_number)
+    # Build MVD overlay
 
     # Đăng ký font (lý tưởng là làm 1 lần global, nhưng tạm giữ như mày)
     font_dir = os.path.join(settings.BASE_DIR, 'assets', 'font')
@@ -285,12 +276,7 @@ def _render_mvd_overlay(
     seller_shop_id: int | None = None,
     connection_id: int | None = None,
 ):
-    # DEBUG: Xác nhận hàm được gọi
-    debug("=" * 60)
-    debug("DEBUG: _render_mvd_overlay được gọi")
-    debug(f"  channel_order_number: {channel_order_number}")
-    debug(f"  total_packages: {total_packages}")
-    debug("=" * 60)
+    # Render MVD overlay
 
     sc = detect_carrier_type(shipping_carrier_name)
     """
@@ -343,18 +329,17 @@ def _render_mvd_overlay(
         # Đơn tách: chỉ in các sản phẩm trong package hiện tại
         package_number = current_package.get("package_number")
         if package_number:
-            debug(f"→ Processing split order, package: {package_number}")
+            # Processing split order package
             
             # Kiểm tra xem current_package đã có items chưa
             package_items = current_package.get("items", [])
             if not package_items:
                 # Nếu chưa có, mới gọi API
-                debug("→ current_package không có items, gọi API để lấy")
+                # Getting package items from API
                 package_items = _get_package_items_from_shopee(
                     client, shopee_order_id, seller_shop_id, package_number
                 )
-            else:
-                debug(f"→ Dùng items từ current_package: {len(package_items)} items")
+            # else: Using items from current_package
             
             # Lấy Sapo MP order để map item_id
             mp_order = _get_sapo_mp_order(connection_id, order.reference_number or channel_order_number)
@@ -530,28 +515,23 @@ def _get_package_items_from_shopee(
             }]
         }
         
-        debug("→ Getting package items from Shopee API")
         resp = client.session.post(url, params=params, json=payload)
         resp.raise_for_status()
         
         data = resp.json()
         package_list = data.get("data", {}).get("list", [])
         if not package_list:
-            debug("→ No packages found in response")
             return []
         
         # Tìm package có package_number trùng
         for pkg in package_list[0].get("package_list", []):
             if pkg.get("package_number") == package_number:
                 items = pkg.get("items", [])
-                debug(f"→ Found {len(items)} items in package {package_number}")
                 return items
         
-        debug(f"→ Package {package_number} not found")
         return []
         
     except Exception as e:
-        debug(f"→ Error getting package items: {e}")
         return []
 
 
@@ -573,7 +553,6 @@ def _get_sapo_mp_order(
         sapo = get_sapo_client()
         mp_service = SapoMarketplaceService()
         
-        debug(f"→ Getting Sapo MP order: {reference_number}")
         result = mp_service._mp_api.list_orders_raw(
             connection_ids=str(connection_id),
             account_id=319911,
@@ -584,14 +563,11 @@ def _get_sapo_mp_order(
         
         orders = result.get("orders", [])
         if orders:
-            debug(f"→ Found MP order with {len(orders[0].get('products', []))} products")
             return orders[0]
         
-        debug("→ MP order not found")
         return None
         
     except Exception as e:
-        debug(f"→ Error getting MP order: {e}")
         return None
 
 
@@ -785,7 +761,7 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
     - chứa "grab" / "instant" / "ahamove" / "bedelivery" -> hoatoc.pdf
     - còn lại                          -> khac.pdf
     """
-    debug("→ Resolve cover path:", shop_name, shipping_carrier)
+    # Resolve cover path
 
     base_dir = Path("settings") / "logs/print-cover" / shop_name
     sc = (shipping_carrier or "").lower()
@@ -807,7 +783,6 @@ def _resolve_cover_path(shop_name: str, shipping_carrier: str) -> Path:
         fname = "khac.pdf"
 
     path = base_dir / fname
-    debug("→ Cover file:", path)
     return path
 
 
@@ -833,20 +808,7 @@ def generate_label_pdf_for_channel_order(
     Args:
         order_dto: OrderDTO with gifts already applied (optional, will fetch if not provided)
     """
-    # DEBUG: Xác nhận hàm được gọi
-    debug("=" * 60)
-    debug("DEBUG: generate_label_pdf_for_channel_order được gọi")
-    debug(f"  connection_id: {connection_id}")
-    debug(f"  channel_order_number: {channel_order_number}")
-    debug(f"  DEBUG flag: {DEBUG}")
-    debug("=" * 60)
-
-    debug("===============================")
-    debug("=== GENERATE SHOPEE LABEL ===")
-    debug("connection_id:", connection_id)
-    debug("order:", channel_order_number)
-    debug("shipping_carrier (input):", shipping_carrier)
-    debug("===============================")
+    # Generate Shopee label PDF
 
     # ----------------------------------------------------------
     # 1. SHOP CONFIG
@@ -858,8 +820,6 @@ def generate_label_pdf_for_channel_order(
     # ----------------------------------------------------------
     shop_name = shop_cfg["name"]
     seller_shop_id = int(shop_cfg["seller_shop_id"])
-    debug("→ Shop name:", shop_name)
-    debug("→ seller_shop_id:", seller_shop_id)
     
     # ----------------------------------------------------------
     # 2. SHOPEE CLIENT & ORDER ID
@@ -869,9 +829,6 @@ def generate_label_pdf_for_channel_order(
     # Get Shopee order info (returns Dict with order_id, buyer_name, etc.)
     shopee_order_info = client.get_shopee_order_id(channel_order_number)
     SHOPEE_ID = shopee_order_info["order_id"]  # Extract order_id from Dict
-    
-    debug("→ Order ID:", SHOPEE_ID)
-    logger.info(f"[ShopeePrintService] Order ID: {SHOPEE_ID}")
     
     #  ----------------------------------------------------------
     # 3. GET PACKAGE INFO
@@ -898,16 +855,12 @@ def generate_label_pdf_for_channel_order(
 
         if carrier_name_from_file:
             resolved_carrier = carrier_name_from_file
-            debug("→ Resolved DVVC từ file kênh:", resolved_carrier)
         else:
             # fallback: lấy text ngay trong package
             resolved_carrier = (
                 first_pack.get("fulfillment_carrier_name")
                 or first_pack.get("checkout_carrier_name")
             )
-            debug("→ Fallback DVVC từ package:", resolved_carrier)
-
-    debug("→ shipping_carrier (final):", resolved_carrier)
 
     # ----------------------------------------------------------
     # COVER + MVD
@@ -919,11 +872,8 @@ def generate_label_pdf_for_channel_order(
         try:
             cover_reader = PyPDF2.PdfReader(str(cover_path))
             cover_page = cover_reader.pages[0]
-            debug("→ Cover loaded OK.")
         except Exception as e:
-            debug("→ Cover load error:", e)
-    else:
-        debug("→ NO COVER FOUND.")
+            pass
 
     # ----------------------------------------------------------
     # 5. LOOP PACKAGE → GET LABEL → MERGE
@@ -933,7 +883,6 @@ def generate_label_pdf_for_channel_order(
 
     for pack in package_list:
         package_number = pack["package_number"]
-        debug("----- PACKAGE:", package_number, "-----")
 
         create_job_url = "https://banhang.shopee.vn/api/v3/logistics/create_sd_jobs"
 
@@ -961,55 +910,67 @@ def generate_label_pdf_for_channel_order(
             ],
         }
 
-        debug("→ POST create_sd_jobs")
         resp = client.session.post(create_job_url, json=json_body)
-        debug("→ Status create_sd_jobs:", resp.status_code)
         resp.raise_for_status()
-
+        
         job_data = resp.json()
         try:
             # Kiểm tra cấu trúc response
             if "data" not in job_data:
-                debug("create_sd_jobs response không có 'data':", job_data)
                 raise RuntimeError(f"Response không có 'data': {job_data}")
             
             data = job_data["data"]
             if "list" not in data or not data["list"]:
-                debug("create_sd_jobs 'data.list' rỗng hoặc không tồn tại:", job_data)
                 raise RuntimeError(f"Response 'data.list' rỗng: {job_data}")
             
             job_id = data["list"][0]["job_id"]
             if not job_id:
-                debug("create_sd_jobs job_id rỗng:", job_data)
                 raise RuntimeError(f"job_id rỗng trong response: {job_data}")
         except (KeyError, IndexError, TypeError) as e:
-            debug("create_sd_jobs raw:", job_data)
-            debug("create_sd_jobs error:", str(e))
             raise RuntimeError(f"Không lấy được job_id từ response: {e}. Response: {job_data}")
-
-        debug("→ job_id:", job_id)
 
         # Download job
         dl_url = (
             "https://banhang.shopee.vn/api/v3/logistics/download_sd_job"
             f"?job_id={job_id}&is_first_time=1"
         )
-        debug("→ download:", dl_url)
 
         pdf_bytes = None
         for i in range(10):
             dl_resp = client.session.get(dl_url)
-            debug("→ dl status:", dl_resp.status_code, "len:", len(dl_resp.content))
             if dl_resp.status_code == 200 and len(dl_resp.content) > 1000:
                 pdf_bytes = dl_resp.content
                 break
-            debug("→ retry download...", i + 1)
             time.sleep(2)
 
         if not pdf_bytes:
             raise RuntimeError("Download SD job thất bại.")
 
-        debug("→ label size:", len(pdf_bytes))
+        # Extract customer info from PDF and update customer
+        try:
+            from orders.services.customer_update_helper import update_customer_from_shopee_data
+            
+            # Update customer info if we have order_dto with customer_id
+            if order_dto and order_dto.customer_id:
+                try:
+                    # Prepare shopee_order_info for update function
+                    shopee_order_info_for_update = {
+                        "order_id": SHOPEE_ID,
+                        "buyer_name": shopee_order_info.get("buyer_name"),
+                        "shop_name": shop_name,
+                        "connection_id": connection_id,
+                    }
+                    
+                    # Call update function (non-blocking, runs in background)
+                    update_customer_from_shopee_data(
+                        customer_id=order_dto.customer_id,
+                        shopee_order_info=shopee_order_info_for_update,
+                        pdf_bytes=pdf_bytes
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to trigger customer update: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to update customer from PDF: {e}")
 
         # Build MVD overlay cho package hiện tại (mỗi package có overlay riêng với parcel_no)
         mvd_page = _build_mvd_overlay_page(
@@ -1023,7 +984,7 @@ def generate_label_pdf_for_channel_order(
             seller_shop_id=seller_shop_id,  # Pass seller shop ID
             connection_id=connection_id,  # Pass connection ID
         )
-        debug(f"→ MVD overlay built for package {pack.get('package_number', '')}", channel_order_number, resolved_carrier)
+        # MVD overlay built
 
         # Merge cover + MVD
         base_reader = PyPDF2.PdfReader(BytesIO(pdf_bytes), strict=False)
@@ -1040,13 +1001,13 @@ def generate_label_pdf_for_channel_order(
     # ----------------------------------------------------------
     # 6. Xuất bytes PDF cuối
     # ----------------------------------------------------------
-    debug("→ Writing final PDF")
+    # Writing final PDF
 
     output = BytesIO()
     final_writer.write(output)
     output.seek(0)
 
-    debug("=== DONE generate_label_pdf_for_channel_order ===")
+    # Done generating label PDF
 
     return output.getvalue()
 
