@@ -368,6 +368,148 @@ class Feedback(models.Model):
         return bool(self.reply and self.status_reply)
     
     @property
+    def reply_datetime(self):
+        """Convert reply_time (timestamp) sang datetime object"""
+        # Thử lấy từ reply_time field trước
+        reply_time_value = self.reply_time
+        
+        # Nếu không có, thử extract từ reply field (cho dữ liệu cũ)
+        if not reply_time_value and self.reply:
+            reply_time_value = self._extract_reply_time_from_reply_field()
+        
+        if reply_time_value:
+            try:
+                from datetime import datetime
+                return datetime.fromtimestamp(reply_time_value, tz=timezone.get_current_timezone())
+            except (ValueError, OSError):
+                return None
+        return None
+    
+    def _extract_reply_time_from_reply_field(self):
+        """Extract ctime từ reply field nếu reply_time chưa được lưu riêng"""
+        if not self.reply:
+            return None
+        
+        reply_value = self.reply
+        
+        # Nếu là string, thử parse JSON hoặc dict string
+        if isinstance(reply_value, str):
+            if reply_value.strip().startswith("{") or reply_value.strip().startswith("'"):
+                try:
+                    import json
+                    parsed = json.loads(reply_value)
+                    if isinstance(parsed, dict):
+                        ctime = parsed.get("ctime")
+                        if ctime:
+                            try:
+                                return int(ctime)
+                            except (ValueError, TypeError):
+                                return None
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_value)
+                        if isinstance(parsed, dict):
+                            ctime = parsed.get("ctime")
+                            if ctime:
+                                try:
+                                    return int(ctime)
+                                except (ValueError, TypeError):
+                                    return None
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+        
+        # Nếu là dict (ít khi xảy ra)
+        if isinstance(reply_value, dict):
+            ctime = reply_value.get("ctime")
+            if ctime:
+                try:
+                    return int(ctime)
+                except (ValueError, TypeError):
+                    return None
+        
+        return None
+    
+    @property
+    def reply_duration(self):
+        """
+        Tính thời gian từ khi đánh giá (create_time) đến khi shop phản hồi (reply_time).
+        Trả về string format: "X ngày Y giờ" hoặc "X ngày" hoặc "Y giờ"
+        """
+        # Lấy reply_time (từ field hoặc extract từ reply field)
+        reply_time_value = self.reply_time
+        if not reply_time_value and self.reply:
+            reply_time_value = self._extract_reply_time_from_reply_field()
+        
+        if not reply_time_value or not self.create_time:
+            return None
+        
+        try:
+            from datetime import datetime, timedelta
+            create_dt = datetime.fromtimestamp(self.create_time, tz=timezone.get_current_timezone())
+            reply_dt = datetime.fromtimestamp(reply_time_value, tz=timezone.get_current_timezone())
+            
+            duration = reply_dt - create_dt
+            
+            if duration.total_seconds() < 0:
+                return None  # Reply trước khi đánh giá (không hợp lý)
+            
+            days = duration.days
+            hours = duration.seconds // 3600
+            
+            if days > 0:
+                if hours > 0:
+                    return f"{days} ngày {hours} giờ"
+                else:
+                    return f"{days} ngày"
+            else:
+                if hours > 0:
+                    return f"{hours} giờ"
+                else:
+                    minutes = duration.seconds // 60
+                    if minutes > 0:
+                        return f"{minutes} phút"
+                    else:
+                        return "Vừa xong"
+        except (ValueError, OSError, TypeError):
+            return None
+    
+    @property
+    def reply_comment(self):
+        """Extract comment từ reply field (có thể là dict string hoặc plain text)"""
+        if not self.reply:
+            return ""
+        
+        reply_value = self.reply
+        
+        # Nếu là string, thử parse JSON hoặc dict string
+        if isinstance(reply_value, str):
+            # Thử parse JSON string
+            if reply_value.strip().startswith("{") or reply_value.strip().startswith("'"):
+                try:
+                    import json
+                    parsed = json.loads(reply_value)
+                    if isinstance(parsed, dict):
+                        return parsed.get("comment", "") or ""
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    # Thử parse dict string (Python representation)
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_value)
+                        if isinstance(parsed, dict):
+                            return parsed.get("comment", "") or ""
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+            # Nếu không parse được, trả về string gốc
+            return reply_value
+        
+        # Nếu là dict (ít khi xảy ra vì TextField lưu string)
+        if isinstance(reply_value, dict):
+            return reply_value.get("comment", "") or ""
+        
+        return str(reply_value) if reply_value else ""
+    
+    @property
     def is_good_review(self) -> bool:
         """Đánh giá tốt (5 sao)"""
         return self.rating == 5
@@ -383,6 +525,19 @@ class Feedback(models.Model):
         from core.system_settings import get_shop_by_connection_id
         shop = get_shop_by_connection_id(self.connection_id)
         return shop.get('name', f'Shop {self.connection_id}') if shop else f'Shop {self.connection_id}'
+    
+    @property
+    def shop_logo(self) -> str:
+        """Lấy đường dẫn logo shop từ connection_id"""
+        shop_name = self.shop_name
+        shop_lower = shop_name.lower()
+        
+        if 'lteng' in shop_lower:
+            return '/static/logo-lteng.jpg'
+        elif 'phaledo' in shop_lower:
+            return '/static/logo-phaledo.jpg'
+        else:
+            return '/static/giaodiensang.png'
 
 
 class FeedbackLog(models.Model):

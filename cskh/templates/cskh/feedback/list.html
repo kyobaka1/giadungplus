@@ -161,26 +161,39 @@
                     </div>
                 </div>
                 
-                <!-- ID đơn hàng (có thể click và copy) -->
-                {% if feedback.channel_order_number %}
-                <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-600">ID đơn hàng</span>
-                    <div class="flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-300">
-                        <a href="{% if feedback.sapo_order_id %}https://sisapsan.mysapogo.com/admin/orders/{{ feedback.sapo_order_id }}{% else %}#{% endif %}" 
-                           target="_blank"
-                           class="font-mono text-xs text-blue-600 hover:underline">
-                            {{ feedback.channel_order_number }}
-                        </a>
-                        <button onclick="copyToClipboard('{{ feedback.channel_order_number }}')" 
-                                class="text-gray-400 hover:text-gray-600 transition cursor-pointer"
-                                title="Copy">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                            </svg>
-                        </button>
+                <!-- Shop logo + tên shop + ID đơn hàng -->
+                <div class="flex items-center gap-3">
+                    <!-- Shop logo và tên -->
+                    <div class="flex items-center gap-2">
+                        <img src="{{ feedback.shop_logo }}" 
+                             alt="{{ feedback.shop_name }}" 
+                             class="h-5 w-auto rounded-sm border border-slate-200 object-contain bg-white">
+                        <span class="px-2 py-0.5 text-[11px] font-medium rounded border bg-sky-50 border-sky-300 text-sky-700">
+                            {{ feedback.shop_name }}
+                        </span>
                     </div>
+                    
+                    <!-- ID đơn hàng (có thể click và copy) -->
+                    {% if feedback.channel_order_number %}
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-600">ID đơn hàng</span>
+                        <div class="flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-300">
+                            <a href="{% if feedback.sapo_order_id %}https://sisapsan.mysapogo.com/admin/orders/{{ feedback.sapo_order_id }}{% else %}#{% endif %}" 
+                               target="_blank"
+                               class="font-mono text-xs text-blue-600 hover:underline">
+                                {{ feedback.channel_order_number }}
+                            </a>
+                            <button onclick="copyToClipboard('{{ feedback.channel_order_number }}')" 
+                                    class="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                                    title="Copy">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-                {% endif %}
             </div>
             
             <!-- Content: 2 cột -->
@@ -226,24 +239,44 @@
                 <div class="col-span-12 md:col-span-7">
                     <!-- Số sao -->
                     <div class="flex items-center gap-2 mb-2">
-                        {% if feedback.rating == 5 %}
-                        <span class="text-yellow-500 text-lg">⭐⭐⭐⭐⭐</span>
-                        {% elif feedback.rating == 4 %}
-                        <span class="text-yellow-500 text-lg">⭐⭐⭐⭐</span>
-                        {% elif feedback.rating == 3 %}
-                        <span class="text-yellow-500 text-lg">⭐⭐⭐</span>
-                        {% elif feedback.rating == 2 %}
-                        <span class="text-yellow-500 text-lg">⭐⭐</span>
-                        {% elif feedback.rating == 1 %}
-                        <span class="text-yellow-500 text-lg">⭐</span>
-                        {% endif %}
-                        <span class="text-xs text-gray-500">{{ feedback.rating }} sao</span>
+                        <span class="flex items-center gap-0.5">
+                            {% for i in "12345" %}
+                                {% with star_num=i|add:0 %}
+                                    {% if feedback.rating|default:0 >= star_num %}
+                                        <svg class="w-5 h-5 text-yellow-500 fill-current" viewBox="0 0 24 24">
+                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                        </svg>
+                                    {% else %}
+                                        <svg class="w-5 h-5 text-gray-300 fill-current" viewBox="0 0 24 24">
+                                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                        </svg>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endfor %}
+                        </span>
+                        <span class="text-xs text-gray-500">{{ feedback.rating|default:0 }} sao</span>
                     </div>
                     
                     <!-- Nội dung đánh giá -->
                     <div class="text-sm text-gray-700 mb-3 break-words" style="text-indent: 0; padding-left: 0; margin-left: 0;">
                         {{ feedback.comment|default:"(Không có bình luận)"|striptags }}
                     </div>
+                    
+                    <!-- Phản hồi của shop (nếu có) -->
+                    {% if feedback.reply %}
+                    <div class="mt-3 mb-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="text-xs text-blue-700 font-semibold">
+                                💬 Phản hồi của shop
+                                {% if feedback.reply_duration %}
+                                <span class="text-gray-600 font-normal">(sau {{ feedback.reply_duration }})</span>
+                                {% endif %}
+                                :
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-700 break-words whitespace-pre-wrap">{{ feedback.reply_comment|striptags }}</div>
+                    </div>
+                    {% endif %}
                     
                     <!-- Hình ảnh đánh giá -->
                     {% if feedback.images %}
@@ -269,7 +302,7 @@
                 
                 <!-- Cột thao tác -->
                 <div class="col-span-12 md:col-span-1 flex flex-col items-start md:items-end gap-2">
-                    {% if feedback.reply and feedback.status_reply %}
+                    {% if feedback.is_replied or feedback.reply_comment %}
                     <div class="text-xs text-green-600 font-medium">✓ Đã trả lời</div>
                     {% else %}
                     <button onclick="replyFeedback({{ feedback.id }})" 
@@ -286,24 +319,6 @@
                     {% endif %}
                 </div>
             </div>
-            
-            <!-- Phản hồi (nếu có) -->
-            {% if feedback.reply and feedback.status_reply %}
-            <div class="px-4 py-3 border-t bg-gray-50">
-                <div class="text-sm">
-                    <div class="text-gray-700 font-medium mb-1">Phản hồi:</div>
-                    <div class="text-gray-600">{{ feedback.reply|linebreaks }}</div>
-                    {% if feedback.user_reply %}
-                    <div class="text-xs text-gray-500 mt-1">Bởi: {{ feedback.user_reply }}</div>
-                    {% endif %}
-                    {% if feedback.reply_time %}
-                    <div class="text-xs text-gray-400 mt-1">
-                        {{ feedback.reply_time|date:"d/m/Y H:i" }}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
         </div>
         {% empty %}
         <div class="bg-white border rounded-lg p-8 text-center text-gray-500">

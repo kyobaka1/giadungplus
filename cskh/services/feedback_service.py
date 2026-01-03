@@ -760,6 +760,133 @@ class FeedbackService:
             # Nếu lỗi, vẫn giữ index = {}, tránh None để không build lại liên tục
             self._shopee_variant_index = self._shopee_variant_index or {}
     
+    def _extract_reply_comment(self, reply_data: Any) -> str:
+        """
+        Extract comment từ reply object của Shopee API.
+        Reply có thể là:
+        - Dict: {"comment": "...", "ctime": 123, ...}
+        - JSON String: '{"comment": "...", "ctime": 123, ...}'
+        - String: "..." (trường hợp cũ - plain text)
+        - None: không có reply
+        """
+        if not reply_data:
+            return ""
+        
+        if isinstance(reply_data, dict):
+            return reply_data.get("comment", "") or ""
+        elif isinstance(reply_data, str):
+            # Thử parse JSON string nếu có
+            if reply_data.strip().startswith("{") or reply_data.strip().startswith("'"):
+                try:
+                    import json
+                    # Thử parse JSON string
+                    parsed = json.loads(reply_data)
+                    if isinstance(parsed, dict):
+                        return parsed.get("comment", "") or ""
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    # Nếu không parse được, có thể là string representation của dict
+                    # Thử eval (cẩn thận với security, nhưng đây là dữ liệu từ API)
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_data)
+                        if isinstance(parsed, dict):
+                            return parsed.get("comment", "") or ""
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+            # Nếu không phải JSON, trả về string gốc
+            return reply_data
+        else:
+            # Nếu là object khác, thử convert sang string và parse
+            reply_str = str(reply_data)
+            if reply_str.strip().startswith("{") or reply_str.strip().startswith("'"):
+                try:
+                    import json
+                    parsed = json.loads(reply_str)
+                    if isinstance(parsed, dict):
+                        return parsed.get("comment", "") or ""
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_str)
+                        if isinstance(parsed, dict):
+                            return parsed.get("comment", "") or ""
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+            return reply_str if reply_data else ""
+    
+    def _extract_reply_time(self, reply_data: Any) -> Optional[int]:
+        """
+        Extract ctime (timestamp) từ reply object của Shopee API.
+        Reply có thể là:
+        - Dict: {"comment": "...", "ctime": 123, ...}
+        - JSON String: '{"comment": "...", "ctime": 123, ...}'
+        - String hoặc None: không có timestamp
+        """
+        if not reply_data:
+            return None
+        
+        if isinstance(reply_data, dict):
+            ctime = reply_data.get("ctime")
+            if ctime:
+                try:
+                    return int(ctime)
+                except (ValueError, TypeError):
+                    return None
+        elif isinstance(reply_data, str):
+            # Thử parse JSON string nếu có
+            if reply_data.strip().startswith("{") or reply_data.strip().startswith("'"):
+                try:
+                    import json
+                    parsed = json.loads(reply_data)
+                    if isinstance(parsed, dict):
+                        ctime = parsed.get("ctime")
+                        if ctime:
+                            try:
+                                return int(ctime)
+                            except (ValueError, TypeError):
+                                return None
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_data)
+                        if isinstance(parsed, dict):
+                            ctime = parsed.get("ctime")
+                            if ctime:
+                                try:
+                                    return int(ctime)
+                                except (ValueError, TypeError):
+                                    return None
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+        else:
+            # Nếu là object khác, thử convert sang string và parse
+            reply_str = str(reply_data)
+            if reply_str.strip().startswith("{") or reply_str.strip().startswith("'"):
+                try:
+                    import json
+                    parsed = json.loads(reply_str)
+                    if isinstance(parsed, dict):
+                        ctime = parsed.get("ctime")
+                        if ctime:
+                            try:
+                                return int(ctime)
+                            except (ValueError, TypeError):
+                                return None
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(reply_str)
+                        if isinstance(parsed, dict):
+                            ctime = parsed.get("ctime")
+                            if ctime:
+                                try:
+                                    return int(ctime)
+                                except (ValueError, TypeError):
+                                    return None
+                    except (ValueError, SyntaxError, TypeError):
+                        pass
+        return None
+    
     def _normalize_media(self, media_data: Any) -> List[str]:
         """
         Normalize media data (images/videos) từ API response.
@@ -1581,8 +1708,9 @@ class FeedbackService:
                     "rating": feedback_data.get("rating_star", 0),
                     "comment": feedback_data.get("comment", ""),
                     "images": self._normalize_media(feedback_data.get("images", [])),
-                    # Reply info
-                    "reply": feedback_data.get("reply"),
+                    # Reply info - Parse reply object từ Shopee API
+                    "reply": self._extract_reply_comment(feedback_data.get("reply")),
+                    "reply_time": self._extract_reply_time(feedback_data.get("reply")),
                     # Additional fields from Shopee
                     "is_hidden": feedback_data.get("is_hidden", False),
                     "status": feedback_data.get("status"),
@@ -1613,8 +1741,15 @@ class FeedbackService:
             if feedback.comment != feedback_data.get("comment", ""):
                 feedback.comment = feedback_data.get("comment", "")
                 updated = True
-            if feedback.reply != feedback_data.get("reply"):
-                feedback.reply = feedback_data.get("reply")
+            # Update reply và reply_time từ reply object
+            reply_comment = self._extract_reply_comment(feedback_data.get("reply"))
+            reply_time = self._extract_reply_time(feedback_data.get("reply"))
+            
+            if feedback.reply != reply_comment:
+                feedback.reply = reply_comment
+                updated = True
+            if feedback.reply_time != reply_time:
+                feedback.reply_time = reply_time
                 updated = True
             if feedback.user_portrait != user_portrait:
                 feedback.user_portrait = user_portrait
