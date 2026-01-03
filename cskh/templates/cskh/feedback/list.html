@@ -4,15 +4,23 @@
 {% block title %}Feedback Center – Danh sách Reviews{% endblock %}
 
 {% block overview %}
-<section class="flex items-center justify-between">
-    <div>
-        <h1 class="text-xl md:text-lg font-semibold text-slate-800">Feedback Center – Danh sách Reviews</h1>
-        <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} reviews</p>
+<section class="px-4 mb-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl md:text-lg font-semibold text-slate-800">Feedback Center – Danh sách Reviews</h1>
+            <p class="text-sm md:text-xs text-gray-500 mt-1">Tổng số: {{ total_count }} reviews</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'cskh:feedback_sync_status' %}" 
+               class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm font-semibold">
+                📊 Sync Status
+            </a>
+            <button onclick="syncFeedbacksFromShopee()" 
+                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold">
+                🛍️ Sync từ Shopee API
+            </button>
+        </div>
     </div>
-    <button onclick="syncFeedbacks()" 
-        class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold">
-        🔄 Sync từ Sapo MP
-    </button>
 </section>
 {% endblock %}
 
@@ -117,165 +125,209 @@
     </div>
 
     <!-- Feedback List -->
-    <div class="bg-white border rounded-xl shadow-sm overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm table-fixed" style="table-layout: fixed;">
-                <thead class="bg-slate-50 border-b sticky top-0 z-10">
-                    <tr>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Ngày đánh giá</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Đơn hàng</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 120px;">Khách hàng</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 100px;">Sản phẩm</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 80px;">Đánh giá</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 250px;">Nội dung (Hình ảnh)</th>
-                        <th class="px-3 py-2 text-left text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 150px;">Phản hồi</th>
-                        <th class="px-3 py-2 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap" style="width: 100px;">Thao tác</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                    {% for feedback in feedbacks %}
-                    <tr class="hover:bg-slate-50 {% if feedback.is_bad_review %}bg-red-50{% elif feedback.is_good_review %}bg-green-50{% endif %}">
-                        <!-- Ngày đánh giá -->
-                        <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
+    <div class="space-y-4">
+        {% for feedback in feedbacks %}
+        <div class="bg-white border rounded-lg shadow-sm overflow-hidden {% if feedback.rating <= 2 %}border-red-200 bg-red-50{% elif feedback.rating >= 4 %}border-green-200 bg-green-50{% endif %}">
+            <!-- Header: Avatar - Tên user - ID đơn hàng -->
+            <div class="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <!-- Avatar -->
+                    {% if feedback.user_portrait %}
+                        {% if feedback.user_portrait|slice:":4" == "http" %}
+                            {# Đã có full URL #}
+                            <img src="{{ feedback.user_portrait }}" 
+                                 alt="Avatar" 
+                                 class="w-10 h-10 rounded-full object-cover border border-gray-200">
+                        {% else %}
+                            {# Chỉ có ID, cần thêm prefix #}
+                            <img src="https://cf.shopee.vn/file/{{ feedback.user_portrait }}" 
+                                 alt="Avatar" 
+                                 class="w-10 h-10 rounded-full object-cover border border-gray-200">
+                        {% endif %}
+                    {% else %}
+                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-semibold">
+                        {{ feedback.buyer_user_name|first|upper|default:"?" }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Tên user -->
+                    <div class="flex-1">
+                        <div class="font-semibold text-gray-900 text-sm">{{ feedback.buyer_user_name|default:"Khách hàng" }}</div>
+                        <div class="text-xs text-gray-500">
                             <script>
                                 document.write(new Date({{ feedback.create_time }} * 1000).toLocaleString('vi-VN', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'}));
                             </script>
-                        </td>
-
-                        <!-- Đơn hàng -->
-                        <td class="px-3 py-2">
-                            {% if feedback.channel_order_number %}
-                            <div class="font-mono text-xs text-sky-700">{{ feedback.channel_order_number }}</div>
-                            {% if feedback.sapo_order_id %}
-                            <a href="https://sisapsan.mysapogo.com/admin/orders/{{ feedback.sapo_order_id }}" 
-                               target="_blank" 
-                               class="text-xs text-sky-600 hover:underline">Xem đơn</a>
-                            {% endif %}
-                            {% else %}
-                            <span class="text-gray-400 text-xs">-</span>
-                            {% endif %}
-                        </td>
-
-                        <!-- Khách hàng -->
-                        <td class="px-3 py-2">
-                            <div class="font-medium text-gray-900 text-xs">{{ feedback.buyer_user_name|default:"-" }}</div>
-                            <div class="text-xs text-gray-500">{{ feedback.shop_name }}</div>
-                        </td>
-
-                        <!-- Sản phẩm (chỉ hiển thị SKU) -->
-                        <td class="px-3 py-2">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ID đơn hàng (có thể click và copy) -->
+                {% if feedback.channel_order_number %}
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-600">ID đơn hàng</span>
+                    <div class="flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-300">
+                        <a href="{% if feedback.sapo_order_id %}https://sisapsan.mysapogo.com/admin/orders/{{ feedback.sapo_order_id }}{% else %}#{% endif %}" 
+                           target="_blank"
+                           class="font-mono text-xs text-blue-600 hover:underline">
+                            {{ feedback.channel_order_number }}
+                        </a>
+                        <button onclick="copyToClipboard('{{ feedback.channel_order_number }}')" 
+                                class="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                                title="Copy">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Content: 2 cột -->
+            <div class="px-4 py-4 grid grid-cols-12 gap-4">
+                <!-- Cột 1: Ảnh sản phẩm / Tên sản phẩm / Phân loại -->
+                <div class="col-span-12 md:col-span-4">
+                    <div class="flex gap-3">
+                        <!-- Ảnh sản phẩm -->
+                        {% if feedback.product_image %}
+                        <img src="{{ feedback.product_image }}" 
+                             alt="Product" 
+                             class="w-20 h-20 object-cover rounded border border-gray-200 flex-shrink-0">
+                        {% else %}
+                        <div class="w-20 h-20 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-400 text-xs flex-shrink-0">
+                            No Image
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Tên sản phẩm và phân loại -->
+                        <div class="flex-1 min-w-0 max-w-xs">
+                            <div class="font-medium text-gray-900 text-sm line-clamp-2 mb-1 break-words">
+                                {{ feedback.product_name|default:"Sản phẩm" }}
+                            </div>
+                            <!-- SKU -->
                             {% if feedback.variant_sku %}
-                            <div class="font-mono text-xs text-gray-900">{{ feedback.variant_sku }}</div>
-                            {% else %}
-                            <span class="text-gray-400 text-xs">-</span>
+                            <div class="text-xs text-gray-600 font-mono mb-1">SKU: {{ feedback.variant_sku }}</div>
                             {% endif %}
-                        </td>
-
-                        <!-- Đánh giá -->
-                        <td class="px-3 py-2">
-                            <div class="flex items-center gap-1">
-                                {% if feedback.rating == 5 %}
-                                <span class="text-yellow-500 text-base">⭐⭐⭐⭐⭐</span>
-                                {% elif feedback.rating == 4 %}
-                                <span class="text-yellow-500 text-base">⭐⭐⭐⭐</span>
-                                {% elif feedback.rating == 3 %}
-                                <span class="text-yellow-500 text-base">⭐⭐⭐</span>
-                                {% elif feedback.rating == 2 %}
-                                <span class="text-yellow-500 text-base">⭐⭐</span>
-                                {% elif feedback.rating == 1 %}
-                                <span class="text-yellow-500 text-base">⭐</span>
-                                {% endif %}
+                            <!-- Phân loại (opt1) -->
+                            {% if feedback.variant_opt1 %}
+                            <div class="text-xs text-gray-500 line-clamp-2">
+                                {{ feedback.variant_opt1 }}
                             </div>
-                        </td>
-
-                        <!-- Nội dung (Hình ảnh) -->
-                        <td class="px-3 py-2 max-w-xs">
-                            <div class="text-xs text-gray-700 line-clamp-2 mb-1">{{ feedback.comment|default:"(Không có bình luận)"|truncatewords:15 }}</div>
-                            {% if feedback.images %}
-                            <div class="flex gap-1 flex-wrap mt-1">
-                                {% for img_url in feedback.images|slice:":2" %}
-                                <img src="{{ img_url }}" alt="Review image" 
-                                     class="w-8 h-8 object-cover rounded cursor-pointer hover:opacity-75"
+                            {% elif feedback.model_name %}
+                            <div class="text-xs text-gray-500 line-clamp-2" title="{{ feedback.model_name }}">
+                                {{ feedback.model_name|truncatewords:10 }}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Cột 2: Số sao / Nội dung đánh giá / Hình ảnh đánh giá -->
+                <div class="col-span-12 md:col-span-7">
+                    <!-- Số sao -->
+                    <div class="flex items-center gap-2 mb-2">
+                        {% if feedback.rating == 5 %}
+                        <span class="text-yellow-500 text-lg">⭐⭐⭐⭐⭐</span>
+                        {% elif feedback.rating == 4 %}
+                        <span class="text-yellow-500 text-lg">⭐⭐⭐⭐</span>
+                        {% elif feedback.rating == 3 %}
+                        <span class="text-yellow-500 text-lg">⭐⭐⭐</span>
+                        {% elif feedback.rating == 2 %}
+                        <span class="text-yellow-500 text-lg">⭐⭐</span>
+                        {% elif feedback.rating == 1 %}
+                        <span class="text-yellow-500 text-lg">⭐</span>
+                        {% endif %}
+                        <span class="text-xs text-gray-500">{{ feedback.rating }} sao</span>
+                    </div>
+                    
+                    <!-- Nội dung đánh giá -->
+                    <div class="text-sm text-gray-700 mb-3 break-words" style="text-indent: 0; padding-left: 0; margin-left: 0;">
+                        {{ feedback.comment|default:"(Không có bình luận)"|striptags }}
+                    </div>
+                    
+                    <!-- Hình ảnh đánh giá -->
+                    {% if feedback.images %}
+                    <div class="flex gap-2 flex-wrap">
+                        {% for img_url in feedback.images %}
+                            {% if img_url|slice:":4" == "http" %}
+                                {# Đã có full URL #}
+                                <img src="{{ img_url }}" 
+                                     alt="Review image" 
+                                     class="w-20 h-20 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-75 transition"
                                      onclick="openImageModal('{{ img_url }}')">
-                                {% endfor %}
-                                {% with img_count=feedback.images|length %}
-                                    {% if img_count > 2 %}
-                                    <div class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-xs text-gray-600 cursor-pointer"
-                                         onclick="openImageModal('{{ feedback.images.0 }}')"
-                                         title="Xem thêm {{ img_count|add:'-2' }} ảnh">
-                                        +{{ img_count|add:"-2" }}
-                                    </div>
-                                    {% endif %}
-                                {% endwith %}
-                            </div>
-                            {% endif %}
-                        </td>
-
-                        <!-- Phản hồi -->
-                        <td class="px-3 py-2">
-                            {% if feedback.reply and feedback.status_reply %}
-                            <div class="text-xs">
-                                <div class="text-green-700 font-medium">✓ Đã phản hồi</div>
-                                <div class="text-gray-600 mt-1 line-clamp-2">{{ feedback.reply|truncatewords:8 }}</div>
-                                {% if feedback.user_reply %}
-                                <div class="text-gray-500 text-[10px] mt-1">Bởi: {{ feedback.user_reply }}</div>
-                                {% endif %}
-                                {% if feedback.reply_time %}
-                                <div class="text-gray-400 text-[10px] mt-0.5">
-                                    {{ feedback.reply_time|date:"d/m/Y H:i" }}
-                                </div>
-                                {% endif %}
-                            </div>
                             {% else %}
-                            <span class="text-orange-600 text-xs">⏳ Chưa phản hồi</span>
+                                {# Chỉ có ID, thêm prefix #}
+                                <img src="https://cf.shopee.vn/file/{{ img_url }}" 
+                                     alt="Review image" 
+                                     class="w-20 h-20 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-75 transition"
+                                     onclick="openImageModal('https://cf.shopee.vn/file/{{ img_url }}')">
                             {% endif %}
-                        </td>
-
-                        <!-- Thao tác -->
-                        <td class="px-3 py-2 whitespace-nowrap text-right">
-                            <div class="flex items-center gap-1 justify-end">
-                                {% if feedback.is_good_review %}
-                                <button onclick="replyFeedback({{ feedback.id }})" 
-                                    class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 transition">
-                                    💬
-                                </button>
-                                {% elif feedback.is_bad_review %}
-                                <button onclick="createTicketFromFeedback({{ feedback.id }})" 
-                                    class="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition">
-                                    🎫
-                                </button>
-                                <button onclick="replyFeedback({{ feedback.id }})" 
-                                    class="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition">
-                                    💬
-                                </button>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="8" class="px-4 py-8 text-center text-gray-500">
-                            Không có feedback nào.
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Cột thao tác -->
+                <div class="col-span-12 md:col-span-1 flex flex-col items-start md:items-end gap-2">
+                    {% if feedback.reply and feedback.status_reply %}
+                    <div class="text-xs text-green-600 font-medium">✓ Đã trả lời</div>
+                    {% else %}
+                    <button onclick="replyFeedback({{ feedback.id }})" 
+                            class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium whitespace-nowrap">
+                        Trả lời
+                    </button>
+                    {% endif %}
+                    
+                    {% if feedback.rating <= 2 %}
+                    <button onclick="createTicketFromFeedback({{ feedback.id }})" 
+                            class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition text-xs font-medium whitespace-nowrap">
+                        Tạo Ticket
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Phản hồi (nếu có) -->
+            {% if feedback.reply and feedback.status_reply %}
+            <div class="px-4 py-3 border-t bg-gray-50">
+                <div class="text-sm">
+                    <div class="text-gray-700 font-medium mb-1">Phản hồi:</div>
+                    <div class="text-gray-600">{{ feedback.reply|linebreaks }}</div>
+                    {% if feedback.user_reply %}
+                    <div class="text-xs text-gray-500 mt-1">Bởi: {{ feedback.user_reply }}</div>
+                    {% endif %}
+                    {% if feedback.reply_time %}
+                    <div class="text-xs text-gray-400 mt-1">
+                        {{ feedback.reply_time|date:"d/m/Y H:i" }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
+        {% empty %}
+        <div class="bg-white border rounded-lg p-8 text-center text-gray-500">
+            Không có feedback nào.
+        </div>
+        {% endfor %}
+    </div>
 
         <!-- Pagination -->
         {% if feedbacks.has_other_pages %}
         <div class="px-4 py-3 border-t bg-slate-50 flex items-center justify-between">
             <div class="text-xs text-gray-600">
                 Trang {{ feedbacks.number }} / {{ feedbacks.paginator.num_pages }}
+                {% if sapo_total_customers %}
+                <span class="text-gray-400 ml-2">(Từ {{ sapo_total_customers }} khách hàng có tag COMMENT_SHOPEE)</span>
+                {% endif %}
             </div>
             <div class="flex gap-2">
                 {% if feedbacks.has_previous %}
-                <a href="?page={{ feedbacks.previous_page_number }}{% if current_shop %}&shop={{ current_shop }}{% endif %}{% if current_rating %}&rating={{ current_rating }}{% endif %}{% if current_replied %}&replied={{ current_replied }}{% endif %}" 
+                <a href="?page={{ feedbacks.previous_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% for r in current_ratings %}{% if r != 'all' %}&rating={{ r }}{% endif %}{% endfor %}{% if current_search %}&search={{ current_search }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}" 
                    class="px-3 py-1 text-xs border rounded hover:bg-white transition">← Trước</a>
                 {% endif %}
                 {% if feedbacks.has_next %}
-                <a href="?page={{ feedbacks.next_page_number }}{% if current_shop %}&shop={{ current_shop }}{% endif %}{% if current_rating %}&rating={{ current_rating }}{% endif %}{% if current_replied %}&replied={{ current_replied }}{% endif %}" 
+                <a href="?page={{ feedbacks.next_page_number }}{% if current_status %}&status={{ current_status }}{% endif %}{% for r in current_ratings %}{% if r != 'all' %}&rating={{ r }}{% endif %}{% endfor %}{% if current_search %}&search={{ current_search }}{% endif %}{% if current_date_from %}&date_from={{ current_date_from }}{% endif %}{% if current_date_to %}&date_to={{ current_date_to }}{% endif %}" 
                    class="px-3 py-1 text-xs border rounded hover:bg-white transition">Sau →</a>
                 {% endif %}
             </div>
@@ -347,7 +399,7 @@
 let currentFeedbackId = null;
 
 async function syncFeedbacks() {
-    if (!confirm('Bạn có chắc muốn sync feedbacks từ Shopee API? Quá trình này có thể mất vài phút.\n\nHệ thống sẽ lấy các đánh giá trong 3 ngày gần nhất cho tất cả shop.')) {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ customer notes trên Sapo? Quá trình này có thể mất vài phút.\n\nHệ thống sẽ lấy tất cả đánh giá từ customers có tag COMMENT_SHOPEE.')) {
         return;
     }
     
@@ -360,7 +412,7 @@ async function syncFeedbacks() {
     const progressModal = document.getElementById('syncProgressModal');
     const progressLogs = document.getElementById('progressLogs');
     progressModal.classList.remove('hidden');
-    progressLogs.innerHTML = '<div class="text-sm text-gray-600">Đang khởi động sync...</div>';
+    progressLogs.innerHTML = '<div class="text-sm text-gray-600">Đang khởi động sync từ customer notes...</div>';
     
     try {
         const response = await fetch('/cskh/api/feedback/sync/', {
@@ -370,10 +422,9 @@ async function syncFeedbacks() {
                 'X-CSRFToken': getCookie('csrftoken')
             },
             body: JSON.stringify({
-                // Dùng Shopee API mặc định (không cần tenant_id)
-                use_shopee_api: true,
-                days: 3,       // Lấy 3 ngày gần nhất
-                page_size: 50  // Mỗi lần gọi 50 feedbacks
+                // Sync từ customer notes trên Sapo API
+                use_customer_notes: true,
+                num_threads: 10  // Số thread để xử lý nhanh hơn
             })
         });
         
@@ -451,6 +502,92 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+async function syncFeedbacksFromShopee() {
+    if (!confirm('Bạn có chắc muốn sync feedbacks từ Shopee API? Quá trình này sẽ lấy 100 đánh giá mỗi shop trong 30 ngày gần nhất.\n\nQuá trình này có thể mất vài phút.')) {
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '🔄 Đang sync...';
+    
+    // Show progress modal
+    const progressModal = document.getElementById('syncProgressModal');
+    const progressLogs = document.getElementById('progressLogs');
+    progressModal.classList.remove('hidden');
+    progressLogs.innerHTML = '<div class="text-sm text-gray-600">Đang khởi động sync từ Shopee API...</div>';
+    
+    try {
+        const response = await fetch('/cskh/api/feedback/sync/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                // Sync từ Shopee API
+                use_shopee_api: true,
+                days: 30,  // 30 ngày gần nhất
+                page_size: 50  // Maximum page size
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Hiển thị logs nếu có
+        if (data.logs && Array.isArray(data.logs) && data.logs.length > 0) {
+            progressLogs.innerHTML = data.logs.map(log => 
+                `<div class="text-sm text-gray-700 py-1 border-b">${escapeHtml(log)}</div>`
+            ).join('');
+            progressLogs.scrollTop = progressLogs.scrollHeight;
+        } else {
+            // Nếu không có logs, hiển thị thông tin từ response
+            progressLogs.innerHTML = `<div class="text-sm text-yellow-700 py-2">Không có logs chi tiết. Kết quả: ${JSON.stringify(data)}</div>`;
+        }
+        
+        if (data.success) {
+            const message = `Sync từ Shopee API thành công!\n` +
+                `- Tổng số đánh giá: ${data.total_feedbacks}\n` +
+                `- Đã xử lý: ${data.synced}\n` +
+                `- Đã cập nhật: ${data.updated}` +
+                (data.errors && data.errors.length > 0 ? `\n- Lỗi: ${data.errors.length}` : '');
+            
+            // Add final message to logs
+            progressLogs.innerHTML += `<div class="text-sm text-green-700 font-semibold py-2 mt-2">${message.replace(/\n/g, '<br>')}</div>`;
+            
+            setTimeout(() => {
+                progressModal.classList.add('hidden');
+                alert(message);
+                // Reload page để hiển thị data mới
+                window.location.reload();
+            }, 2000);
+        } else {
+            const errorMsg = data.error || 'Lỗi không xác định';
+            progressLogs.innerHTML += `<div class="text-sm text-red-700 font-semibold py-2 mt-2">Lỗi: ${errorMsg}</div>`;
+            if (data.errors && data.errors.length > 0) {
+                progressLogs.innerHTML += data.errors.slice(0, 10).map(err => 
+                    `<div class="text-xs text-red-600 py-1">- ${err}</div>`
+                ).join('');
+            }
+            
+            setTimeout(() => {
+                progressModal.classList.add('hidden');
+                alert(`Lỗi: ${errorMsg}`);
+            }, 3000);
+        }
+    } catch (error) {
+        progressLogs.innerHTML += `<div class="text-sm text-red-700 font-semibold py-2 mt-2">Lỗi khi sync: ${error.message}</div>`;
+        setTimeout(() => {
+            progressModal.classList.add('hidden');
+            alert('Lỗi khi sync: ' + error.message);
+        }, 2000);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
 }
 
 function replyFeedback(feedbackId) {
@@ -597,6 +734,20 @@ function toggleRatingFilter(rating, checkbox) {
             allCheckbox.checked = true;
         }
     }
+}
+
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show temporary success message
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+        }, 1000);
+    }).catch(function(err) {
+        console.error('Failed to copy: ', err);
+    });
 }
 
 function setQuickDate(option) {

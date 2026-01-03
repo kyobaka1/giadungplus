@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from datetime import timedelta
+from typing import Optional
 import json
 
 
@@ -278,22 +280,21 @@ class Feedback(models.Model):
     """
     
     # IDs từ Shopee API
-    comment_id = models.BigIntegerField(unique=True, db_index=True)  # Comment ID từ Shopee (duy nhất)
+    feedback_id = models.BigIntegerField(unique=True, db_index=True)  # Feedback ID = comment_id từ Shopee (key chính, duy nhất)
     connection_id = models.IntegerField(db_index=True)  # Shop connection ID
     
     # Legacy fields (giữ lại để tương thích với code cũ)
-    feedback_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Legacy: id từ Sapo MP (có thể null)
-    tenant_id = models.IntegerField(null=True, blank=True, db_index=True)  # Legacy: tenant_id từ Sapo MP
-    cmt_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Legacy: cmt_id (giữ lại để tương thích)
+    comment_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Comment ID từ Shopee (giữ lại để tương thích, không unique)
+    tenant_id = models.IntegerField(null=True, blank=True, db_index=True)  # Legacy: tenant_id từ Sapo MP (không có từ Shopee API)
     item_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product item_id trên Shopee
     product_id = models.BigIntegerField(null=True, blank=True, db_index=True)  # Product ID từ Shopee
     
     # Product info
-    product_name = models.CharField(max_length=500, blank=True)
+    product_name = models.CharField(max_length=1000, blank=True)  # Tăng từ 500 lên 1000
     product_image = models.URLField(max_length=500, blank=True)
     product_cover = models.CharField(max_length=200, blank=True)  # Product cover ID từ Shopee
     model_id = models.BigIntegerField(null=True, blank=True)  # Model ID từ Shopee
-    model_name = models.CharField(max_length=500, blank=True)  # Model name từ Shopee
+    model_name = models.TextField(blank=True)  # Model name từ Shopee - dùng TextField vì có thể rất dài
     
     # Order info
     channel_order_number = models.CharField(max_length=100, blank=True, db_index=True)  # order_sn từ Shopee
@@ -354,12 +355,12 @@ class Feedback(models.Model):
             models.Index(fields=['status_reply', '-create_time']),
             models.Index(fields=['buyer_user_name']),
             models.Index(fields=['channel_order_number']),
-            models.Index(fields=['comment_id']),  # Unique index cho comment_id
+            models.Index(fields=['feedback_id']),  # Unique index cho feedback_id (key chính)
         ]
     
     def __str__(self):
-        comment_id_str = str(self.comment_id) if self.comment_id else "N/A"
-        return f"Feedback {comment_id_str} - {self.buyer_user_name} - {self.rating}*"
+        feedback_id_str = str(self.feedback_id) if self.feedback_id else "N/A"
+        return f"Feedback {feedback_id_str} - {self.buyer_user_name} - {self.rating}*"
     
     @property
     def is_replied(self) -> bool:
@@ -418,6 +419,91 @@ class FeedbackLog(models.Model):
     
     def __str__(self):
         return f"FeedbackLog {self.action_type} for Feedback {self.feedback.feedback_id} by {self.user_name or 'System'}"
+
+
+class FeedbackSyncJob(models.Model):
+    """
+    Lưu trạng thái và tiến trình của sync job.
+    Dùng để track progress của full sync và incremental sync.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Chờ xử lý'),
+        ('running', 'Đang chạy'),
+        ('completed', 'Hoàn thành'),
+        ('failed', 'Thất bại'),
+        ('paused', 'Tạm dừng'),
+    ]
+    
+    SYNC_TYPE_CHOICES = [
+        ('full', 'Full Sync - Sync toàn bộ'),
+        ('incremental', 'Incremental Sync - Cập nhật mới'),
+    ]
+    
+    # Basic info
+    sync_type = models.CharField(max_length=20, choices=SYNC_TYPE_CHOICES, db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
+    
+    # Progress tracking
+    total_shops = models.IntegerField(default=0)
+    current_shop_index = models.IntegerField(default=0)
+    current_shop_name = models.CharField(max_length=200, blank=True)
+    
+    total_feedbacks = models.IntegerField(default=0)  # Tổng số feedbacks cần sync
+    processed_feedbacks = models.IntegerField(default=0)  # Đã xử lý
+    synced_feedbacks = models.IntegerField(default=0)  # Đã sync thành công
+    updated_feedbacks = models.IntegerField(default=0)  # Đã update
+    error_count = models.IntegerField(default=0)
+    
+    # Shop progress (JSON): {shop_name: {processed, synced, updated, errors}}
+    shop_progress = models.JSONField(default=dict, blank=True)
+    
+    # Current position để resume
+    current_connection_id = models.IntegerField(null=True, blank=True)
+    current_page = models.IntegerField(default=1)
+    current_cursor = models.BigIntegerField(null=True, blank=True)
+    last_processed_feedback_id = models.BigIntegerField(null=True, blank=True)
+    
+    # Time tracking
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_updated_at = models.DateTimeField(auto_now=True)
+    
+    # Error logs
+    errors = models.JSONField(default=list, blank=True)  # List of error messages
+    logs = models.JSONField(default=list, blank=True)  # List of log messages (last 1000)
+    
+    # Settings
+    days = models.IntegerField(default=30)  # Số ngày gần nhất
+    page_size = models.IntegerField(default=50)
+    max_feedbacks_per_shop = models.IntegerField(null=True, blank=True)  # None = không giới hạn
+    
+    # Incremental sync specific
+    batch_size = models.IntegerField(default=50)  # Số feedbacks mỗi batch cho incremental
+    
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['status', '-started_at']),
+            models.Index(fields=['sync_type', '-started_at']),
+        ]
+    
+    def __str__(self):
+        return f"FeedbackSyncJob {self.id} - {self.get_sync_type_display()} - {self.get_status_display()}"
+    
+    @property
+    def progress_percentage(self) -> float:
+        """Tính phần trăm hoàn thành"""
+        if self.total_feedbacks == 0:
+            return 0.0
+        return (self.processed_feedbacks / self.total_feedbacks) * 100
+    
+    @property
+    def duration(self) -> Optional[timedelta]:
+        """Tính thời gian đã chạy"""
+        if not self.started_at:
+            return None
+        end_time = self.completed_at or timezone.now()
+        return end_time - self.started_at
 
 
 class TrainingDocument(models.Model):

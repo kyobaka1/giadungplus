@@ -73,7 +73,8 @@ def extract_gdp_metadata(description: Optional[str]) -> Tuple[Optional[ProductMe
     try:
         json_data = json.loads(json_str)
         metadata = ProductMetadataDTO.from_dict(json_data)
-        logger.debug(f"Extracted GDP metadata: {len(metadata.variants)} variants")
+        # Chỉ log khi có nhiều variants hoặc khi cần debug (không log cho mỗi product khi load list)
+        # logger.debug(f"Extracted GDP metadata: {len(metadata.variants)} variants")
         return metadata, original_desc
     except json.JSONDecodeError as e:
         logger.warning(f"Invalid GDP_META JSON: {e}")

@@ -1145,7 +1145,10 @@ def api_delete_ticket(request, ticket_id):
         })
         
     except Exception as e:
-        logger.error(f"Error deleting ticket {ticket_id}: {e}", exc_info=True)
+        try:
+            logger.error(f"Error deleting ticket {ticket_id}: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error deleting ticket {ticket_id}: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -1248,74 +1251,48 @@ def api_save_ticket(request, ticket_id):
 def api_sync_feedbacks(request):
     """
     API: Sync feedbacks từ Shopee API vào database.
-    Lấy đánh giá 7 ngày gần nhất của tất cả các shop.
     
     POST /cskh/api/feedback/sync/
     Body: {
-        "days": 7 (optional, default: 7),
-        "page_size": 50 (optional, default: 50)
-    }
-    
-    Hoặc để tương thích với code cũ, vẫn hỗ trợ:
-    {
-        "tenant_id": 1262,
-        "connection_ids": "10925,134366,..." (optional),
-        "rating": "1,2,3,4,5" (optional)
+        "days": 30 (optional, default: 30) - Số ngày gần nhất cần lấy,
+        "page_size": 50 (optional, default: 50) - Số items mỗi trang,
+        "max_feedbacks_per_shop": 100 (optional, default: 100) - Số đánh giá tối đa mỗi shop
     }
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from .services.feedback_service import FeedbackService
         from core.sapo_client import get_sapo_client
         
-        data = json.loads(request.body)
+        data = json.loads(request.body) if request.body else {}
         
-        # Kiểm tra xem có dùng Shopee API hay Sapo MP (tương thích ngược)
-        use_shopee_api = data.get("use_shopee_api", True)  # Mặc định dùng Shopee API
-        tenant_id = data.get("tenant_id")
+        # Sync từ Shopee API
+        days = data.get("days", 30)  # 30 ngày gần nhất
+        page_size = data.get("page_size", 50)  # Maximum page size
+        max_feedbacks_per_shop = data.get("max_feedbacks_per_shop", 100)  # 100 đánh giá mỗi shop
         
-        if use_shopee_api and not tenant_id:
-            # Dùng Shopee API mới
-            days = data.get("days", 3)  # Mặc định 3 ngày
-            page_size = data.get("page_size", 50)  # Mặc định 50 items/page
-            
-            # Initialize service
-            sapo_client = get_sapo_client()
-            feedback_service = FeedbackService(sapo_client)
-            
-            # Sync feedbacks từ Shopee API
-            result = feedback_service.sync_feedbacks_from_shopee(
-                days=days,
-                page_size=page_size
-            )
-            
-            return JsonResponse(result)
-        else:
-            # Dùng Sapo MP (tương thích ngược)
-            if not tenant_id:
-                return JsonResponse({
-                    "success": False,
-                    "error": "tenant_id is required for Sapo MP sync"
-                }, status=400)
-            
-            connection_ids = data.get("connection_ids")
-            rating = data.get("rating", "1,2,3,4,5")
-            max_feedbacks = data.get("max_feedbacks", 5000)
-            num_threads = data.get("num_threads", 25)
-            
-            # Initialize service
-            sapo_client = get_sapo_client()
-            feedback_service = FeedbackService(sapo_client)
-            
-            # Sync feedbacks với multi-threading
-            result = feedback_service.sync_feedbacks(
-                tenant_id=tenant_id,
-                connection_ids=connection_ids,
-                rating=rating,
-                max_feedbacks=max_feedbacks,
-                num_threads=num_threads
-            )
-            
-            return JsonResponse(result)
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        logger.info(f"[api_sync_feedbacks] Starting sync: days={days}, page_size={page_size}, max_feedbacks_per_shop={max_feedbacks_per_shop}")
+        
+        result = feedback_service.sync_feedbacks_from_shopee(
+            days=days,
+            page_size=page_size,
+            max_feedbacks_per_shop=max_feedbacks_per_shop
+        )
+        
+        logger.info(f"[api_sync_feedbacks] Sync completed: success={result.get('success')}, synced={result.get('synced')}, total_feedbacks={result.get('total_feedbacks')}")
+        logger.info(f"[api_sync_feedbacks] Returning response with {len(result.get('logs', []))} log entries")
+        print(f"[api_sync_feedbacks] Sync completed, returning JsonResponse")
+        
+        response = JsonResponse(result)
+        logger.info(f"[api_sync_feedbacks] JsonResponse created, status_code will be 200")
+        print(f"[api_sync_feedbacks] JsonResponse created")
+        
+        return response
         
     except json.JSONDecodeError:
         return JsonResponse({
@@ -1323,9 +1300,123 @@ def api_sync_feedbacks(request):
             "error": "Invalid JSON in request body"
         }, status=400)
     except Exception as e:
+        try:
+            logger.error(f"Error in api_sync_feedbacks: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_sync_feedbacks: {str(e).encode('ascii', 'ignore').decode('ascii')}")
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_reply_feedback(request, feedback_id):
+    """
+    API: Gửi phản hồi cho feedback.
+    
+    POST /cskh/api/feedback/<feedback_id>/reply/
+    Body: {
+        "reply_content": "...",
+        "tenant_id": 1262
+    }
+    """
+    try:
+        from .services.feedback_service import FeedbackService
+        from core.sapo_client import get_sapo_client
+        
+        feedback = get_object_or_404(Feedback, id=feedback_id)
+        
+        data = json.loads(request.body)
+        reply_content = data.get("reply_content", "").strip()
+        tenant_id = data.get("tenant_id")
+        
+        if not reply_content:
+            return JsonResponse({
+                "success": False,
+                "error": "reply_content is required"
+            }, status=400)
+        
+        if not tenant_id:
+            return JsonResponse({
+                "success": False,
+                "error": "tenant_id is required"
+            }, status=400)
+        
+        # Initialize service
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        # Reply feedback
+        result = feedback_service.reply_feedback(
+            feedback_id=feedback_id,
+            reply_content=reply_content,
+            tenant_id=tenant_id,
+            user=request.user
+        )
+        
+        return JsonResponse(result)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "success": False,
+            "error": "Invalid JSON in request body"
+        }, status=400)
+    except Exception as e:
+        try:
+            logger.error(f"Error in api_reply_feedback: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_reply_feedback: {str(e).encode('ascii', 'ignore').decode('ascii')}")
+        return JsonResponse({
+            "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["POST"])
+def api_create_ticket_from_feedback(request, feedback_id):
+    """
+    API: Tạo ticket từ bad review.
+    
+    POST /cskh/api/feedback/<feedback_id>/create-ticket/
+    """
+    try:
+        from .services.feedback_service import FeedbackService
+        from core.sapo_client import get_sapo_client
+        
+        feedback = get_object_or_404(Feedback, id=feedback_id)
+        
+        if feedback.ticket:
+            return JsonResponse({
+                "success": False,
+                "error": "Feedback đã có ticket rồi",
+                "ticket_id": feedback.ticket.id,
+                "ticket_number": feedback.ticket.ticket_number
+            }, status=400)
+        
+        # Initialize service
+        sapo_client = get_sapo_client()
+        feedback_service = FeedbackService(sapo_client)
+        
+        # Create ticket
+        result = feedback_service.create_ticket_from_bad_review(
+            feedback_id=feedback_id,
+            user=request.user
+        )
+        
+        return JsonResponse(result)
+        
+    except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in api_sync_feedbacks: {e}", exc_info=True)
+        try:
+            logger.error(f"Error in api_create_ticket_from_feedback: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_create_ticket_from_feedback: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         return JsonResponse({
             "success": False,
             "error": str(e)
@@ -1389,7 +1480,10 @@ def api_reply_feedback(request, feedback_id):
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in api_reply_feedback: {e}", exc_info=True)
+        try:
+            logger.error(f"Error in api_reply_feedback: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_reply_feedback: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         return JsonResponse({
             "success": False,
             "error": str(e)
@@ -1434,7 +1528,10 @@ def api_create_ticket_from_feedback(request, feedback_id):
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in api_create_ticket_from_feedback: {e}", exc_info=True)
+        try:
+            logger.error(f"Error in api_create_ticket_from_feedback: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_create_ticket_from_feedback: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         return JsonResponse({
             "success": False,
             "error": str(e)
@@ -1497,9 +1594,35 @@ def api_ai_suggest_reply(request, feedback_id):
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Error in api_ai_suggest_reply: {e}", exc_info=True)
+        try:
+            logger.error(f"Error in api_ai_suggest_reply: {e}", exc_info=True)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            logger.error(f"Error in api_ai_suggest_reply: {str(e).encode('ascii', 'ignore').decode('ascii')}")
         return JsonResponse({
             "success": False,
+            "error": str(e)
+        }, status=500)
+
+
+@group_required("CSKHManager", "CSKHStaff")
+@require_http_methods(["GET"])
+def api_feedback_sync_status(request, job_id):
+    """
+    API để lấy status của sync job (AJAX polling).
+    
+    GET /cskh/api/feedback/sync/status/<job_id>/
+    """
+    try:
+        from cskh.services.feedback_sync_service import FeedbackSyncService
+        from core.sapo_client import get_sapo_client
+        
+        sync_service = FeedbackSyncService(get_sapo_client())
+        status = sync_service.get_job_status(job_id)
+        return JsonResponse(status)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in api_feedback_sync_status: {e}", exc_info=True)
+        return JsonResponse({
             "error": str(e)
         }, status=500)
 

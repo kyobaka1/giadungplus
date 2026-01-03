@@ -57,6 +57,7 @@ pywebpush
 
 # Development/Testing (có thể bỏ trong production)
 django-sslserver  # Chỉ dùng cho dev, production dùng nginx
+django-debug-toolbar  # Debug toolbar cho development
 
 # Production server
 gunicorn

@@ -241,7 +241,7 @@ class ProductCacheService:
                     # Parse product DTO
                     product_dto = ProductDTO.from_dict(product_data)
                     
-                    # Extract GDP metadata
+                    # Extract GDP metadata (silent - không log cho từng product)
                     metadata, _ = extract_gdp_metadata(product_dto.description)
                     product_dto.gdp_metadata = metadata
                     
@@ -256,7 +256,10 @@ class ProductCacheService:
                     logger.warning(f"Error parsing product {cache.product_id}: {parse_error}")
                     continue
             
-            logger.info(f"Fetched {len(products)} products from cache")
+            # Log tổng hợp thay vì log từng product
+            total_variants = sum(len(p.variants) for p in products)
+            products_with_metadata = sum(1 for p in products if p.gdp_metadata)
+            logger.info(f"Fetched {len(products)} products ({total_variants} variants) from cache, {products_with_metadata} products have GDP metadata")
             return products
             
         except Exception as e:

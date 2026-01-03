@@ -45,9 +45,11 @@ urlpatterns = [
     # Feedback Center URLs
     path('feedback/', views.feedback_overview, name='feedback_overview'),
     path('feedback/list/', views.feedback_list, name='feedback_list'),
+    path('feedback/sync-status/', views.feedback_sync_status, name='feedback_sync_status'),
     
     # Feedback API URLs
     path('api/feedback/sync/', views_api.api_sync_feedbacks, name='api_sync_feedbacks'),
+    path('api/feedback/sync/status/<int:job_id>/', views_api.api_feedback_sync_status, name='api_feedback_sync_status'),
     path('api/feedback/<int:feedback_id>/reply/', views_api.api_reply_feedback, name='api_reply_feedback'),
     path('api/feedback/<int:feedback_id>/create-ticket/', views_api.api_create_ticket_from_feedback, name='api_create_ticket_from_feedback'),
     path('api/feedback/<int:feedback_id>/ai-suggest/', views_api.api_ai_suggest_reply, name='api_ai_suggest_reply'),

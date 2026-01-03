@@ -1568,11 +1568,10 @@ def feedback_overview(request):
 @group_required("CSKHManager", "CSKHStaff")
 def feedback_list(request):
     """
-    Danh sách feedbacks với filters: status, rating, search, time range.
-    Pagination: 100 items/page.
+    Danh sách feedbacks từ database (Feedback model).
+    Lấy trực tiếp từ database thay vì từ Sapo API.
     """
-    from core.system_settings import load_shopee_shops_detail
-    from datetime import datetime, timedelta
+    from datetime import datetime
     from zoneinfo import ZoneInfo
     
     # Get filters from request
@@ -1581,21 +1580,21 @@ def feedback_list(request):
     search_query = request.GET.get('search', '').strip()
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
-    page_num = request.GET.get('page', 1)
     
-    # Base queryset
-    base_queryset = Feedback.objects.all()
+    # Query feedbacks từ database
+    feedbacks_query = Feedback.objects.all()
     
-    # Apply search filter
+    # Apply filters
+    # Search filter
     if search_query:
-        base_queryset = base_queryset.filter(
-            Q(product_name__icontains=search_query) |
+        feedbacks_query = feedbacks_query.filter(
             Q(channel_order_number__icontains=search_query) |
             Q(buyer_user_name__icontains=search_query) |
-            Q(comment__icontains=search_query)
+            Q(comment__icontains=search_query) |
+            Q(product_name__icontains=search_query)
         )
     
-    # Apply time filter
+    # Time filter
     if date_from and date_to:
         try:
             tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -1603,67 +1602,121 @@ def feedback_list(request):
             end_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=tz_vn)
             start_timestamp = int(start_dt.timestamp())
             end_timestamp = int(end_dt.timestamp())
-            base_queryset = base_queryset.filter(create_time__gte=start_timestamp, create_time__lte=end_timestamp)
+            feedbacks_query = feedbacks_query.filter(
+                create_time__gte=start_timestamp,
+                create_time__lte=end_timestamp
+            )
         except ValueError:
             pass
     
-    # Apply status filter
-    filtered_queryset = base_queryset
+    # Status filter
     if status_filter == 'pending':
-        filtered_queryset = filtered_queryset.filter(Q(reply__isnull=True) | Q(reply=""))
+        feedbacks_query = feedbacks_query.filter(Q(reply__isnull=True) | Q(reply=""))
     elif status_filter == 'replied':
-        filtered_queryset = filtered_queryset.exclude(Q(reply__isnull=True) | Q(reply=""))
+        feedbacks_query = feedbacks_query.exclude(Q(reply__isnull=True) | Q(reply=""))
     
-    # Apply rating filters (multiple can be selected)
+    # Rating filter
     if rating_filters and 'all' not in rating_filters:
         try:
             ratings = [int(r) for r in rating_filters if r.isdigit()]
             if ratings:
-                filtered_queryset = filtered_queryset.filter(rating__in=ratings)
+                feedbacks_query = feedbacks_query.filter(rating__in=ratings)
         except ValueError:
             pass
     
-    # Calculate counts for filters (before applying rating filter for display)
-    all_count = base_queryset.count()
-    pending_count = base_queryset.filter(Q(reply__isnull=True) | Q(reply="")).count()
-    replied_count = base_queryset.exclude(Q(reply__isnull=True) | Q(reply="")).count()
+    # Sort by create_time desc
+    feedbacks_query = feedbacks_query.order_by('-create_time')
+    
+    # Get base query for counts (before pagination)
+    base_query = Feedback.objects.all()
+    if search_query:
+        base_query = base_query.filter(
+            Q(channel_order_number__icontains=search_query) |
+            Q(buyer_user_name__icontains=search_query) |
+            Q(comment__icontains=search_query) |
+            Q(product_name__icontains=search_query)
+        )
+    if date_from and date_to:
+        try:
+            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+            start_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=tz_vn)
+            end_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=tz_vn)
+            start_timestamp = int(start_dt.timestamp())
+            end_timestamp = int(end_dt.timestamp())
+            base_query = base_query.filter(
+                create_time__gte=start_timestamp,
+                create_time__lte=end_timestamp
+            )
+        except ValueError:
+            pass
+    
+    # Calculate counts for filters
+    all_count = base_query.count()
+    pending_count = base_query.filter(Q(reply__isnull=True) | Q(reply="")).count()
+    replied_count = base_query.exclude(Q(reply__isnull=True) | Q(reply="")).count()
     
     rating_counts = {}
     for rating in [5, 4, 3, 2, 1]:
-        rating_counts[rating] = base_queryset.filter(rating=rating).count()
+        rating_counts[rating] = base_query.filter(rating=rating).count()
     
-    # Order by create_time desc
-    filtered_queryset = filtered_queryset.order_by('-create_time')
-    
-    # Pagination - giảm số items/page để hiển thị trong 1 màn hình
-    paginator = Paginator(filtered_queryset, 20)  # Giảm từ 100 xuống 20
+    # Pagination (50 feedbacks/page)
+    DISPLAY_PER_PAGE = 50
+    paginator = Paginator(feedbacks_query, DISPLAY_PER_PAGE)
     try:
-        page = paginator.get_page(page_num)
+        feedbacks_page = paginator.get_page(request.GET.get('page', 1))
     except:
-        page = paginator.get_page(1)
+        feedbacks_page = paginator.get_page(1)
     
-    # Lấy SKU từ variant cho mỗi feedback và gán vào feedback object
-    from core.sapo_client import get_sapo_client
-    sapo_client = get_sapo_client()
+    # Lấy SKU từ variant cho mỗi feedback - Load từ database cache một lần
+    # Thu thập tất cả variant_ids cần thiết
+    variant_ids = set()
+    for feedback in feedbacks_page:
+        variant_id = feedback.sapo_variant_id
+        if variant_id:
+            variant_ids.add(variant_id)
     
-    for feedback in page:
-        feedback.variant_sku = ''
-        if feedback.sapo_variant_id:
+    # Load tất cả variants một lần từ database cache
+    variant_cache = {}  # variant_id -> {"sku": "...", "name": "..."}
+    if variant_ids:
+        logger.debug(f"Loading {len(variant_ids)} variants from database cache for feedbacks")
+        
+        # Load từ database cache (SapoVariantCache)
+        from products.models import SapoVariantCache
+        cached_variants = SapoVariantCache.objects.filter(variant_id__in=variant_ids)
+        
+        for cache in cached_variants:
             try:
-                variant_data = sapo_client.core.get_variant_raw(feedback.sapo_variant_id)
-                if variant_data and variant_data.get('variant'):
-                    feedback.variant_sku = variant_data['variant'].get('sku', '')
+                variant_data = cache.data  # JSON field chứa variant data
+                if variant_data:
+                    variant_cache[cache.variant_id] = {
+                        "sku": variant_data.get("sku", ""),
+                        "name": variant_data.get("name", ""),
+                        "opt1": variant_data.get("opt1", ""),
+                    }
             except Exception as e:
-                logger.debug(f"Error getting variant SKU for feedback {feedback.id}: {e}")
+                logger.debug(f"Error parsing variant cache {cache.variant_id}: {e}")
+        
+        logger.debug(f"Loaded {len(variant_cache)} variants from database cache")
+    
+    # Gắn SKU và opt1 vào feedbacks từ cache (sử dụng property hoặc annotation)
+    for feedback in feedbacks_page:
+        variant_id = feedback.sapo_variant_id
+        if variant_id and variant_id in variant_cache:
+            # Thêm variant_sku và variant_opt1 vào feedback object (temporary attribute)
+            feedback.variant_sku = variant_cache[variant_id].get("sku", "")
+            feedback.variant_opt1 = variant_cache[variant_id].get("opt1", "")
+        else:
+            feedback.variant_sku = ""
+            feedback.variant_opt1 = ""
     
     context = {
-        'feedbacks': page,
+        'feedbacks': feedbacks_page,  # Sử dụng trực tiếp Feedback objects
         'current_status': status_filter or 'all',
         'current_ratings': rating_filters if rating_filters else ['all'],
         'current_search': search_query,
         'current_date_from': date_from,
         'current_date_to': date_to,
-        'total_count': paginator.count,
+        'total_count': feedbacks_query.count(),
         'filter_counts': {
             'all': all_count,
             'pending': pending_count,
@@ -1672,6 +1725,33 @@ def feedback_list(request):
         },
     }
     return render(request, 'cskh/feedback/list.html', context)
+
+
+@group_required("CSKHManager", "CSKHStaff")
+def feedback_sync_status(request):
+    """
+    Hiển thị trạng thái sync jobs.
+    """
+    from cskh.models import FeedbackSyncJob
+    
+    # Lấy các jobs gần nhất
+    jobs = FeedbackSyncJob.objects.all()[:20]  # 20 jobs gần nhất
+    
+    # Thống kê
+    stats = {
+        'total_jobs': FeedbackSyncJob.objects.count(),
+        'running_jobs': FeedbackSyncJob.objects.filter(status='running').count(),
+        'completed_jobs': FeedbackSyncJob.objects.filter(status='completed').count(),
+        'failed_jobs': FeedbackSyncJob.objects.filter(status='failed').count(),
+        'pending_jobs': FeedbackSyncJob.objects.filter(status='pending').count(),
+    }
+    
+    context = {
+        'jobs': jobs,
+        'stats': stats,
+    }
+    
+    return render(request, 'cskh/feedback/sync_status.html', context)
 
 
 # =======================

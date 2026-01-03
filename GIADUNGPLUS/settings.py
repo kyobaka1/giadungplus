@@ -12,6 +12,19 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 
 from pathlib import Path
 import os
+import sys
+
+# Set environment variable for UTF-8 encoding to handle Vietnamese Unicode characters
+os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
+
+# Setup Unicode-safe streams early (before logging is configured)
+try:
+    from GIADUNGPLUS.logging_handlers import setup_unicode_safe_streams
+    setup_unicode_safe_streams()
+except Exception:
+    # If setup fails, continue without it
+    pass
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -79,7 +92,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'GIADUNGPLUS.middleware.port_redirect.PortRedirectMiddleware',
     'core.middleware.selenium_login_middleware.SeleniumLoginMiddleware',  # Catch Selenium login exceptions
-    'kho.middleware.KhoSwitcherMiddleware'
+    'kho.middleware.KhoSwitcherMiddleware',
 ]
 
 INSTALLED_APPS += ["whitenoise.runserver_nostatic"]
@@ -197,21 +210,125 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"   # Dashboard homepage sau khi login
 LOGOUT_REDIRECT_URL = "/login/"  # Redirect về trang login sau khi logout
 
+import sys
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'file': {
-            'level': 'DEBUG', # Mức độ ghi log: DEBUG, INFO, WARNING, ERROR, CRITICAL
-            'class': 'logging.FileHandler', # Sử dụng FileHandler
-            'filename': 'debug.log', # Tên file log
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': 'debug.log',
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'GIADUNGPLUS.logging_handlers.SafeUnicodeStreamHandler',
+            'stream': sys.stdout,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+            'errors': 'replace',
+        },
+        'console_safe': {
+            'level': 'DEBUG',
+            'class': 'GIADUNGPLUS.logging_handlers.SafeUnicodeStreamHandler',
+            'stream': sys.stderr,
+            'formatter': 'simple',
+            'encoding': 'utf-8',
+            'errors': 'replace',
         },
     },
     'loggers': {
-        'django': { # Logger cho toàn bộ Django
-            'handlers': ['file'],
+        # Django framework - đặt INFO để ẩn các log "200 OK" liên tục
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Django request/response - đặt WARNING để chỉ thấy warnings và errors
+        'django.request': {
+            'handlers': ['file', 'console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Django server - đặt INFO để giảm log
+        'django.server': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # SQL queries - đặt INFO để giảm SQL debug logs
+        'django.db.backends': {
+            'handlers': ['file', 'console_safe'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.db.backends.utils': {
+            'handlers': ['file', 'console_safe'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # App của bạn - giữ DEBUG để thấy log do bạn tự viết
+        'cskh': {
+            'handlers': ['file', 'console'],
             'level': 'DEBUG',
-            'propagate': True,
-        }
+            'propagate': False,
+        },
+        'kho': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'orders': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'products': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'core': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'marketing': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'customers': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'settings': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'service': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['file', 'console'],
+        'level': 'INFO',
     },
 }
