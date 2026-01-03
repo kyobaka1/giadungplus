@@ -245,7 +245,11 @@ class FeedbackSyncService:
             # Resume từ shop hiện tại nếu có
             shop_list = list(shops_detail.items())
             # Fix: Check current_shop_index thay vì status (vì status có thể đã bị đổi thành 'pending')
-            start_index = job.current_shop_index if (job.current_shop_index and job.current_shop_index > 0) else 0
+            # Cho phép resume từ shop index 0 nếu có page > 1
+            if job.current_shop_index is not None and job.current_shop_index >= 0:
+                start_index = job.current_shop_index
+            else:
+                start_index = 0
             
             # Process từng shop
             for shop_idx in range(start_index, len(shop_list)):
@@ -263,10 +267,11 @@ class FeedbackSyncService:
                 resume_page = None
                 resume_cursor = None
                 
-                # Nếu đang resume shop này (shop đầu tiên trong resume), dùng page/cursor đã lưu
+                # Nếu đang resume shop này (shop tại start_index), dùng page/cursor đã lưu
                 # Check: shop_index match HOẶC connection_id match (linh hoạt hơn)
+                # Cho phép resume từ shop đầu tiên (index 0) nếu có page > 1
                 is_resume_shop = (
-                    shop_idx == start_index and start_index > 0 and
+                    shop_idx == start_index and
                     (job.current_shop_name == shop_name or job.current_connection_id == connection_id) and
                     job.current_page and job.current_page > 1
                 )

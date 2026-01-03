@@ -55,15 +55,20 @@ class Command(BaseCommand):
         if resume_job_id:
             try:
                 job = FeedbackSyncJob.objects.get(id=resume_job_id)
-                if job.status not in ['pending', 'paused', 'failed']:
+                if job.status not in ['pending', 'paused', 'failed', 'completed']:
                     self.stdout.write(
                         self.style.ERROR(f'Job {resume_job_id} không thể resume (status: {job.status})')
                     )
                     return
+                # Cho phép resume từ completed nếu có page/cursor
+                if job.status == 'completed' and (job.current_page and job.current_page > 1):
+                    self.stdout.write(
+                        self.style.WARNING(f'Job {resume_job_id} có status=completed, nhưng có page/cursor -> cho phép resume')
+                    )
                 job.status = 'pending'
                 job.save()
                 self.stdout.write(
-                    self.style.SUCCESS(f'Resuming job {resume_job_id}')
+                    self.style.SUCCESS(f'Resuming job {resume_job_id} (previous status: {job.status})')
                 )
             except FeedbackSyncJob.DoesNotExist:
                 self.stdout.write(

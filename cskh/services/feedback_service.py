@@ -1334,9 +1334,9 @@ class FeedbackService:
                 log_progress(f"🔍 Đã filter: {len(shops_detail)} shop(s) theo connection_ids")
             
             # TEST MODE: Chỉ test với shop giadungplus_official (connection_id: 10925)
-            # Chỉ bật nếu không có connection_ids filter
+            # Chỉ bật nếu không có connection_ids filter (để không ảnh hưởng đến resume)
             if not connection_ids:
-                TEST_MODE = True
+                TEST_MODE = False  # Tắt TEST_MODE để không override resume
                 TEST_SHOP_CONNECTION_ID = 10925  # giadungplus_official
                 TEST_SHOP_NAME = "giadungplus_official"
                 
