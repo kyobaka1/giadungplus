@@ -268,12 +268,29 @@ class FeedbackSyncService:
                     job.current_shop_name == shop_name and 
                     job.current_connection_id == connection_id and
                     job.current_page and job.current_page > 1):
-                    resume_page = job.current_page
-                    resume_cursor = job.current_cursor
-                    self.update_job_progress(
-                        job,
-                        log_message=f"🔄 Resume shop {shop_name} từ page {resume_page}, cursor {resume_cursor or 0}"
-                    )
+                    
+                    # Kiểm tra feedback cuối cùng đã xử lý để đảm bảo không bỏ sót
+                    from cskh.models import Feedback
+                    latest_feedback = Feedback.objects.filter(
+                        connection_id=connection_id
+                    ).order_by('-create_time').first()
+                    
+                    if latest_feedback:
+                        # Có feedback trong DB, dùng page/cursor đã lưu
+                        resume_page = job.current_page
+                        resume_cursor = job.current_cursor
+                        self.update_job_progress(
+                            job,
+                            log_message=f"🔄 Resume shop {shop_name} từ page {resume_page}, cursor {resume_cursor or 0} (feedback cuối: {latest_feedback.feedback_id})"
+                        )
+                    else:
+                        # Chưa có feedback nào, reset về đầu
+                        resume_page = None
+                        resume_cursor = None
+                        self.update_job_progress(
+                            job,
+                            log_message=f"🔄 Resume shop {shop_name}: chưa có feedback nào, bắt đầu từ đầu"
+                        )
                 
                 # Update current shop
                 job.current_connection_id = connection_id

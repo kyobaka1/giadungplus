@@ -1501,11 +1501,24 @@ class FeedbackService:
                             if remaining_in_batch > 0:
                                 batch_ratings.extend(page_data[:remaining_in_batch])
                             
-                            # Update cursor và page
+                            # Update cursor và page TRƯỚC KHI xử lý batch
+                            # Để nếu dừng giữa chừng, có thể resume từ đúng vị trí
                             if page_data:
                                 cursor = page_data[-1].get("comment_id", cursor)
                             page += 1
                             from_page = page - 1
+                            
+                            # Lưu cursor/page sau mỗi page fetch (để có thể resume chính xác)
+                            shop_prog['cursor'] = cursor
+                            shop_prog['page'] = page
+                            shop_prog['from_page'] = from_page
+                            
+                            # Gọi callback để lưu vào job ngay sau mỗi page fetch
+                            if progress_update_callback:
+                                try:
+                                    progress_update_callback(shop_name, page, cursor)
+                                except Exception as e:
+                                    logger.warning(f"Error in progress_update_callback: {e}")
                             
                             time.sleep(0.1)  # Delay giữa các request
                         

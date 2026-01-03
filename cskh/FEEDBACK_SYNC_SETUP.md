@@ -147,18 +147,40 @@ python manage.py update_job_resume_position --job-id 1 --method from_feedback_id
 python manage.py update_job_resume_position --job-id 1 --method from_feedback_id --feedback-id 54755172163
 ```
 
-#### Method 2: Parse từ Logs
+#### Method 2: Parse từ Debug Log (Khuyến nghị khi có log)
 
 ```bash
-# Tìm page/cursor từ logs (tìm dòng "Page X | Cursor Y")
+# Parse trực tiếp từ debug log URL (lấy dòng log cuối cùng)
+# Ví dụ từ log: page_number=69&cursor=79118132818
+python manage.py update_job_resume_position --job-id 1 --method from_debug_log --parse-debug-log "page_number=69&cursor=79118132818"
+```
+
+**Cách lấy log:**
+1. Tìm dòng DEBUG cuối cùng trong console log có format: `page_number=X&cursor=Y`
+2. Copy phần query string: `page_number=69&cursor=79118132818`
+3. Chạy command với `--parse-debug-log "..."`
+
+#### Method 3: Parse từ Logs trong job
+
+```bash
+# Tìm page/cursor từ logs (tìm dòng "Page X | Cursor Y" trong job.logs)
 python manage.py update_job_resume_position --job-id 1 --method from_logs
 ```
 
-#### Method 3: Manual set (nếu đã biết page/cursor)
+#### Method 4: Manual set (nếu đã biết page/cursor)
 
 ```bash
 # Set trực tiếp page và cursor
-python manage.py update_job_resume_position --job-id 1 --method manual --page 100 --cursor 54755172163
+python manage.py update_job_resume_position --job-id 1 --method manual --page 70 --cursor 79118132818
+```
+
+**Lưu ý:** Nếu job có status `completed`, cần set lại status `paused` trước khi resume:
+```bash
+python manage.py shell
+>>> from cskh.models import FeedbackSyncJob
+>>> job = FeedbackSyncJob.objects.get(id=1)
+>>> job.status = 'paused'
+>>> job.save()
 ```
 
 #### Kiểm tra resume position hiện tại

@@ -26,9 +26,9 @@ class Command(BaseCommand):
         parser.add_argument(
             '--method',
             type=str,
-            choices=['from_feedback_id', 'from_logs', 'manual'],
+            choices=['from_feedback_id', 'from_logs', 'manual', 'from_debug_log'],
             default='from_feedback_id',
-            help='Method để tìm page/cursor: from_feedback_id, from_logs, manual'
+            help='Method để tìm page/cursor: from_feedback_id, from_logs, manual, from_debug_log'
         )
         parser.add_argument(
             '--page',
@@ -44,6 +44,11 @@ class Command(BaseCommand):
             '--feedback-id',
             type=int,
             help='Feedback ID cuối cùng đã xử lý (dùng với method=from_feedback_id)'
+        )
+        parser.add_argument(
+            '--parse-debug-log',
+            type=str,
+            help='Parse từ debug log URL (ví dụ: page_number=69&cursor=79118132818)'
         )
     
     def handle(self, *args, **options):
@@ -81,6 +86,44 @@ class Command(BaseCommand):
             
             self.stdout.write(
                 self.style.SUCCESS(f'✅ Đã update job {job_id}: page={page}, cursor={cursor}')
+            )
+        
+        elif method == 'from_debug_log':
+            # Parse trực tiếp từ debug log URL
+            parse_log = options.get('parse_debug_log')
+            if not parse_log:
+                self.stdout.write(
+                    self.style.ERROR('Với method=from_debug_log, cần --parse-debug-log')
+                )
+                return
+            
+            # Parse từ URL: page_number=69&cursor=79118132818
+            page_match = re.search(r'page_number=(\d+)', parse_log)
+            cursor_match = re.search(r'cursor=(\d+)', parse_log)
+            
+            if not page_match or not cursor_match:
+                self.stdout.write(
+                    self.style.ERROR('Không parse được page_number và cursor từ log. Format: page_number=69&cursor=79118132818')
+                )
+                return
+            
+            page = int(page_match.group(1))
+            cursor = int(cursor_match.group(1))
+            
+            # Nếu log có page_number=69, nghĩa là đang fetch page 69
+            # Để resume, tiếp tục từ page 70 với cursor từ page 69
+            resume_page = page + 1
+            resume_cursor = cursor
+            
+            self.stdout.write(f'  Parse từ debug log: page={page}, cursor={cursor}')
+            self.stdout.write(f'  Resume từ: page={resume_page}, cursor={resume_cursor}')
+            
+            job.current_page = resume_page
+            job.current_cursor = resume_cursor
+            job.save()
+            
+            self.stdout.write(
+                self.style.SUCCESS(f'✅ Đã update job {job_id}: page={resume_page}, cursor={resume_cursor}')
             )
         
         elif method == 'from_feedback_id':
@@ -129,41 +172,63 @@ class Command(BaseCommand):
                 )
         
         elif method == 'from_logs':
-            # Parse từ logs (tìm dòng "Page X | Cursor Y")
-            if not job.logs:
-                self.stdout.write(
-                    self.style.ERROR('Job không có logs')
-                )
-                return
-            
-            # Tìm dòng log cuối cùng có "Page" và "Cursor"
+            # Parse từ logs
             page = None
             cursor = None
             
-            for log in reversed(job.logs):
-                # Tìm pattern: "Page {number} | Cursor {number}"
-                match = re.search(r'Page\s+(\d+)\s*\|\s*Cursor\s+(\d+)', log)
-                if match:
-                    page = int(match.group(1))
-                    cursor = int(match.group(2))
-                    self.stdout.write(f'  Tìm thấy trong log: "{log}"')
-                    break
+            # Method 1: Parse từ --parse-debug-log (URL string)
+            parse_log = options.get('parse_debug_log')
+            if parse_log:
+                # Parse từ URL: page_number=69&cursor=79118132818
+                page_match = re.search(r'page_number=(\d+)', parse_log)
+                cursor_match = re.search(r'cursor=(\d+)', parse_log)
+                if page_match and cursor_match:
+                    page = int(page_match.group(1))
+                    cursor = int(cursor_match.group(1))
+                    self.stdout.write(f'  Parse từ debug log: page={page}, cursor={cursor}')
+                    # Cursor từ page N là để fetch page N+1, nên giữ nguyên
+                    # Nhưng nếu muốn resume page N, dùng cursor từ page N-1
+                    # Hoặc nếu muốn tiếp tục từ page N+1, giữ nguyên cursor này
             
-            if page and cursor:
-                # Tăng page lên 1 vì đã xử lý xong page đó
-                page += 1
-                self.stdout.write(f'  Update: page={page}, cursor={cursor}')
-                job.current_page = page
-                job.current_cursor = cursor
-                job.save()
-                
+            # Method 2: Tìm trong job.logs (format: "Page X | Cursor Y")
+            if not page or not cursor:
+                if job.logs:
+                    for log in reversed(job.logs):
+                        # Tìm pattern: "Page {number} | Cursor {number}"
+                        match = re.search(r'Page\s+(\d+)\s*\|\s*Cursor\s+(\d+)', log)
+                        if match:
+                            page = int(match.group(1))
+                            cursor = int(match.group(2))
+                            self.stdout.write(f'  Tìm thấy trong job.logs: "{log}"')
+                            break
+            
+            if not page or not cursor:
                 self.stdout.write(
-                    self.style.SUCCESS(f'✅ Đã update job {job_id}: page={page}, cursor={cursor}')
+                    self.style.WARNING(
+                        'Không tìm thấy Page/Cursor.\n'
+                        'Sử dụng: --parse-debug-log "page_number=69&cursor=79118132818"\n'
+                        'Hoặc thử method=from_feedback_id'
+                    )
                 )
-            else:
-                self.stdout.write(
-                    self.style.WARNING('Không tìm thấy Page/Cursor trong logs. Thử method=from_feedback_id')
-                )
+                return
+            
+            # Logic: Nếu đã fetch xong page N với cursor C, thì để resume page N+1 cần:
+            # - page = N+1
+            # - cursor = C (cursor từ page N)
+            # Nhưng từ log, cursor trong URL là cursor để fetch page đó, không phải cursor sau khi fetch
+            # Vậy nếu log có page_number=69&cursor=79118132818, nghĩa là đang fetch page 69 với cursor này
+            # Để resume, nên dùng page=70 và cursor=79118132818 (giữ nguyên cursor)
+            resume_page = page + 1  # Page tiếp theo
+            resume_cursor = cursor   # Giữ nguyên cursor để tiếp tục
+            
+            self.stdout.write(f'  Update để resume: page={resume_page}, cursor={resume_cursor}')
+            job.current_page = resume_page
+            job.current_cursor = resume_cursor
+            job.save()
+            
+            self.stdout.write(
+                self.style.SUCCESS(f'✅ Đã update job {job_id}: page={resume_page}, cursor={resume_cursor}')
+            )
     
     def _find_page_cursor_from_feedback_id(self, job: FeedbackSyncJob, feedback_id: int):
         """
