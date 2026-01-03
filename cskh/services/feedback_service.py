@@ -1244,7 +1244,10 @@ class FeedbackService:
         page_size: int = 50,
         max_feedbacks_per_shop: Optional[int] = 100,
         connection_ids: Optional[List[int]] = None,
-        progress_callback: Optional[Callable[[str], None]] = None
+        progress_callback: Optional[Callable[[str], None]] = None,
+        resume_page: Optional[int] = None,
+        resume_cursor: Optional[int] = None,
+        progress_update_callback: Optional[Callable[[str, int, int], None]] = None
     ) -> Dict[str, Any]:
         """
         Đồng bộ feedbacks từ Shopee API cho tất cả các shop.
@@ -1254,6 +1257,11 @@ class FeedbackService:
             days: Số ngày gần nhất cần lấy (default: 30)
             page_size: Số items mỗi trang (default: 50, max: 50)
             max_feedbacks_per_shop: Số đánh giá tối đa mỗi shop (default: 100)
+            connection_ids: Danh sách connection_ids cần sync (None = tất cả)
+            progress_callback: Callback để log progress
+            resume_page: Page để resume (None = bắt đầu từ đầu)
+            resume_cursor: Cursor để resume (None = bắt đầu từ đầu)
+            progress_update_callback: Callback(shop_name, page, cursor) để lưu progress sau mỗi batch
             
         Returns:
             {
@@ -1367,6 +1375,18 @@ class FeedbackService:
                 if not connection_id:
                     continue
                 
+                # Nếu có resume_page/cursor cho shop này, dùng nó
+                initial_cursor = 0
+                initial_page = 1
+                initial_from_page = 1
+                
+                if resume_cursor is not None and resume_page and resume_page > 1:
+                    # Resume từ page/cursor đã lưu
+                    initial_cursor = resume_cursor
+                    initial_page = resume_page
+                    initial_from_page = resume_page - 1
+                    log_progress(f"🔄 Shop {shop_name}: Resume từ page {initial_page}, cursor {initial_cursor}")
+                
                 # Probe để lấy total
                 try:
                     shopee_client = ShopeeClient(shop_key=connection_id)
@@ -1374,10 +1394,10 @@ class FeedbackService:
                         rating_star=base_url_params["rating_star"],
                         time_start=time_start,
                         time_end=time_end,
-                        page_number=1,
+                        page_number=initial_page,
                         page_size=page_size,
-                        cursor=0,
-                        from_page_number=1,
+                        cursor=initial_cursor,
+                        from_page_number=initial_from_page,
                         language="vi"
                     )
                     
@@ -1386,16 +1406,29 @@ class FeedbackService:
                         total = int(page_info.get("total", 0) or 0)
                         if total > 0:
                             max_items = total if max_feedbacks_per_shop is None else min(total, max_feedbacks_per_shop)
+                            
+                            # Ước tính số đã fetch nếu resume (để tránh fetch quá nhiều)
+                            estimated_fetched = 0
+                            if initial_page > 1:
+                                # Ước tính: đã fetch khoảng (page - 1) * page_size items
+                                estimated_fetched = (initial_page - 1) * page_size
+                                if max_feedbacks_per_shop:
+                                    # Nếu có giới hạn, chỉ fetch phần còn lại
+                                    max_items = min(max_items, max_feedbacks_per_shop - estimated_fetched)
+                            
                             shop_progress[shop_name] = {
                                 'connection_id': connection_id,
                                 'total': max_items,
-                                'fetched': 0,
-                                'cursor': 0,
-                                'page': 1,
-                                'from_page': 1,
+                                'fetched': estimated_fetched,  # Ước tính số đã fetch khi resume
+                                'cursor': initial_cursor,  # Dùng resume cursor
+                                'page': initial_page,  # Dùng resume page
+                                'from_page': initial_from_page,
                                 'done': False
                             }
-                            log_progress(f"📊 Shop {shop_name}: Tổng {total} đánh giá (sẽ fetch {max_items})")
+                            if initial_page > 1:
+                                log_progress(f"📊 Shop {shop_name}: Tổng {total} đánh giá, đã fetch ~{estimated_fetched}, còn lại ~{max_items}")
+                            else:
+                                log_progress(f"📊 Shop {shop_name}: Tổng {total} đánh giá (sẽ fetch {max_items})")
                 except Exception as e:
                     logger.warning(f"Error probing shop {shop_name}: {e}")
                     continue
@@ -1532,6 +1565,13 @@ class FeedbackService:
                         shop_prog['cursor'] = cursor
                         shop_prog['page'] = page
                         shop_prog['from_page'] = from_page
+                        
+                        # Gọi callback để lưu page/cursor vào job sau mỗi batch
+                        if progress_update_callback:
+                            try:
+                                progress_update_callback(shop_name, page, cursor)
+                            except Exception as e:
+                                logger.warning(f"Error in progress_update_callback: {e}")
                         
                         if shop_prog['fetched'] >= shop_prog['total']:
                             shop_prog['done'] = True

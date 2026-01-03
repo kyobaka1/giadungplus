@@ -508,12 +508,55 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // So sánh cả query string để các link có filter (vd: Warranty, Return Center) vẫn active đúng
-            const currentURL = window.location.pathname + window.location.search;
+            const currentPathname = window.location.pathname;
+            const currentSearch = window.location.search;
             const links = document.querySelectorAll('.sidebar-link');
 
             links.forEach(link => {
-                if (link.getAttribute('href') === currentURL) {
+                const href = link.getAttribute('href');
+                if (!href) return;
+                
+                // Parse href để lấy pathname và search
+                const url = new URL(href, window.location.origin);
+                const linkPathname = url.pathname;
+                const linkSearch = url.search;
+                
+                // So sánh pathname trước
+                let isActive = false;
+                
+                if (linkPathname === currentPathname) {
+                    // Nếu link có query params, so sánh cả query params
+                    if (linkSearch) {
+                        // Normalize query params: sort và compare
+                        const normalizeQuery = (search) => {
+                            if (!search) return '';
+                            const params = new URLSearchParams(search);
+                            const sorted = Array.from(params.entries())
+                                .filter(([key, value]) => value !== '' && value !== null) // Bỏ qua params rỗng
+                                .sort(([a], [b]) => a.localeCompare(b));
+                            return new URLSearchParams(sorted).toString();
+                        };
+                        
+                        const normalizedLinkSearch = normalizeQuery(linkSearch);
+                        const normalizedCurrentSearch = normalizeQuery(currentSearch);
+                        
+                        // Nếu link có query params cụ thể, phải match chính xác
+                        if (normalizedLinkSearch && normalizedCurrentSearch) {
+                            isActive = normalizedLinkSearch === normalizedCurrentSearch;
+                        } else if (normalizedLinkSearch && !normalizedCurrentSearch) {
+                            // Link có query nhưng current không có -> không active
+                            isActive = false;
+                        } else {
+                            // Link không có query -> active nếu pathname match
+                            isActive = true;
+                        }
+                    } else {
+                        // Link không có query params -> active nếu pathname match (bất kể query params hiện tại)
+                        isActive = true;
+                    }
+                }
+                
+                if (isActive) {
                     link.classList.add("bg-brandlight", "text-brand", "font-semibold");
 
                     let parent = link.closest("ul");

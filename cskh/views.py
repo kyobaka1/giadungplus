@@ -1573,6 +1573,7 @@ def feedback_list(request):
     """
     from datetime import datetime
     from zoneinfo import ZoneInfo
+    from core.system_settings import load_shopee_shops_detail
     
     # Get filters from request
     status_filter = request.GET.get('status', '')  # 'all', 'pending', 'replied'
@@ -1580,14 +1581,50 @@ def feedback_list(request):
     search_query = request.GET.get('search', '').strip()
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
+    shop_filter = request.GET.get('shop', '')  # connection_id hoặc shop name
+    
+    # Load shops để hiển thị trong filter
+    shops_detail = load_shopee_shops_detail()
+    shops_list = []
+    if shops_detail:
+        for shop_name, shop_info in shops_detail.items():
+            connection_id = shop_info.get("shop_connect")
+            if connection_id:
+                shops_list.append({
+                    'name': shop_name,
+                    'connection_id': connection_id,
+                    'display_name': shop_info.get('name', shop_name)
+                })
     
     # Query feedbacks từ database
     feedbacks_query = Feedback.objects.all()
+    base_query = Feedback.objects.all()
     
     # Apply filters
+    # Shop filter
+    if shop_filter:
+        try:
+            # Thử parse như connection_id (int)
+            connection_id = int(shop_filter)
+            feedbacks_query = feedbacks_query.filter(connection_id=connection_id)
+            base_query = base_query.filter(connection_id=connection_id)
+        except (ValueError, TypeError):
+            # Nếu không phải int, có thể là shop name - tìm connection_id
+            for shop in shops_list:
+                if shop['name'] == shop_filter:
+                    feedbacks_query = feedbacks_query.filter(connection_id=shop['connection_id'])
+                    base_query = base_query.filter(connection_id=shop['connection_id'])
+                    break
+    
     # Search filter
     if search_query:
         feedbacks_query = feedbacks_query.filter(
+            Q(channel_order_number__icontains=search_query) |
+            Q(buyer_user_name__icontains=search_query) |
+            Q(comment__icontains=search_query) |
+            Q(product_name__icontains=search_query)
+        )
+        base_query = base_query.filter(
             Q(channel_order_number__icontains=search_query) |
             Q(buyer_user_name__icontains=search_query) |
             Q(comment__icontains=search_query) |
@@ -1603,6 +1640,10 @@ def feedback_list(request):
             start_timestamp = int(start_dt.timestamp())
             end_timestamp = int(end_dt.timestamp())
             feedbacks_query = feedbacks_query.filter(
+                create_time__gte=start_timestamp,
+                create_time__lte=end_timestamp
+            )
+            base_query = base_query.filter(
                 create_time__gte=start_timestamp,
                 create_time__lte=end_timestamp
             )
@@ -1627,30 +1668,7 @@ def feedback_list(request):
     # Sort by create_time desc
     feedbacks_query = feedbacks_query.order_by('-create_time')
     
-    # Get base query for counts (before pagination)
-    base_query = Feedback.objects.all()
-    if search_query:
-        base_query = base_query.filter(
-            Q(channel_order_number__icontains=search_query) |
-            Q(buyer_user_name__icontains=search_query) |
-            Q(comment__icontains=search_query) |
-            Q(product_name__icontains=search_query)
-        )
-    if date_from and date_to:
-        try:
-            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
-            start_dt = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=tz_vn)
-            end_dt = datetime.strptime(date_to, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=tz_vn)
-            start_timestamp = int(start_dt.timestamp())
-            end_timestamp = int(end_dt.timestamp())
-            base_query = base_query.filter(
-                create_time__gte=start_timestamp,
-                create_time__lte=end_timestamp
-            )
-        except ValueError:
-            pass
-    
-    # Calculate counts for filters
+    # Calculate counts for filters (apply shop filter to base_query)
     all_count = base_query.count()
     pending_count = base_query.filter(Q(reply__isnull=True) | Q(reply="")).count()
     replied_count = base_query.exclude(Q(reply__isnull=True) | Q(reply="")).count()
@@ -1658,6 +1676,16 @@ def feedback_list(request):
     rating_counts = {}
     for rating in [5, 4, 3, 2, 1]:
         rating_counts[rating] = base_query.filter(rating=rating).count()
+    
+    # Shop counts - pass as list of dicts for easier template access
+    shop_counts_list = []
+    for shop in shops_list:
+        shop_base = base_query.filter(connection_id=shop['connection_id'])
+        count = shop_base.count()
+        shop_counts_list.append({
+            'connection_id': shop['connection_id'],
+            'count': count
+        })
     
     # Pagination (50 feedbacks/page)
     DISPLAY_PER_PAGE = 50
@@ -1716,12 +1744,15 @@ def feedback_list(request):
         'current_search': search_query,
         'current_date_from': date_from,
         'current_date_to': date_to,
+        'current_shop': shop_filter,
+        'shops_list': shops_list,
         'total_count': feedbacks_query.count(),
         'filter_counts': {
             'all': all_count,
             'pending': pending_count,
             'replied': replied_count,
             'ratings': rating_counts,
+            'shops': shop_counts_list,
         },
     }
     return render(request, 'cskh/feedback/list.html', context)

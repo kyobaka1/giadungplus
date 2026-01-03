@@ -244,7 +244,8 @@ class FeedbackSyncService:
             
             # Resume từ shop hiện tại nếu có
             shop_list = list(shops_detail.items())
-            start_index = job.current_shop_index if job.status == 'paused' else 0
+            # Fix: Check current_shop_index thay vì status (vì status có thể đã bị đổi thành 'pending')
+            start_index = job.current_shop_index if (job.current_shop_index and job.current_shop_index > 0) else 0
             
             # Process từng shop
             for shop_idx in range(start_index, len(shop_list)):
@@ -257,6 +258,22 @@ class FeedbackSyncService:
                         log_message=f"⚠️ Shop {shop_name} không có connection_id, bỏ qua"
                     )
                     continue
+                
+                # Kiểm tra xem có page/cursor để resume không (TRƯỚC KHI update job)
+                resume_page = None
+                resume_cursor = None
+                
+                # Nếu đang resume shop này (shop đầu tiên trong resume), dùng page/cursor đã lưu
+                if (shop_idx == start_index and start_index > 0 and
+                    job.current_shop_name == shop_name and 
+                    job.current_connection_id == connection_id and
+                    job.current_page and job.current_page > 1):
+                    resume_page = job.current_page
+                    resume_cursor = job.current_cursor
+                    self.update_job_progress(
+                        job,
+                        log_message=f"🔄 Resume shop {shop_name} từ page {resume_page}, cursor {resume_cursor or 0}"
+                    )
                 
                 # Update current shop
                 job.current_connection_id = connection_id
@@ -271,6 +288,15 @@ class FeedbackSyncService:
                     log_message=f"🛍️ Đang xử lý shop: {shop_name} (connection_id: {connection_id})"
                 )
                 
+                # Callback để lưu page/cursor vào job sau mỗi batch
+                def update_page_cursor_callback(shop_name_inner: str, page: int, cursor: int):
+                    """Callback để lưu page/cursor vào job sau mỗi batch"""
+                    job.refresh_from_db()
+                    if job.current_shop_name == shop_name_inner and job.current_connection_id == connection_id:
+                        job.current_page = page
+                        job.current_cursor = cursor
+                        job.save()
+                
                 try:
                     # Gọi feedback_service để sync shop này
                     shop_result = self.feedback_service.sync_feedbacks_from_shopee(
@@ -278,7 +304,10 @@ class FeedbackSyncService:
                         page_size=job.page_size,
                         max_feedbacks_per_shop=job.max_feedbacks_per_shop,
                         connection_ids=[connection_id],  # Chỉ sync shop này
-                        progress_callback=lambda msg: self.update_job_progress(job, log_message=msg)
+                        progress_callback=lambda msg: self.update_job_progress(job, log_message=msg),
+                        resume_page=resume_page,  # Thêm resume page
+                        resume_cursor=resume_cursor,  # Thêm resume cursor
+                        progress_update_callback=update_page_cursor_callback  # Callback để lưu page/cursor
                     )
                     
                     # Update total_feedbacks nếu chưa có

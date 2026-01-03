@@ -435,9 +435,14 @@ class Feedback(models.Model):
         """
         Tính thời gian từ khi đánh giá (create_time) đến khi shop phản hồi (reply_time).
         Trả về string format: "X ngày Y giờ" hoặc "X ngày" hoặc "Y giờ"
+        
+        Sau khi migrate, reply_time đã được lưu riêng, không cần extract từ reply field nữa.
+        Nhưng vẫn giữ logic extract để tương thích với dữ liệu cũ chưa migrate.
         """
-        # Lấy reply_time (từ field hoặc extract từ reply field)
+        # Ưu tiên dùng reply_time field trước (dữ liệu mới)
         reply_time_value = self.reply_time
+        
+        # Nếu chưa có reply_time, thử extract từ reply field (dữ liệu cũ)
         if not reply_time_value and self.reply:
             reply_time_value = self._extract_reply_time_from_reply_field()
         
@@ -476,30 +481,38 @@ class Feedback(models.Model):
     
     @property
     def reply_comment(self):
-        """Extract comment từ reply field (có thể là dict string hoặc plain text)"""
+        """
+        Extract comment từ reply field.
+        Sau khi migrate, reply field chỉ chứa text (comment), không còn JSON/dict nữa.
+        Nhưng vẫn giữ logic extract để tương thích với dữ liệu cũ chưa migrate.
+        """
         if not self.reply:
             return ""
         
         reply_value = self.reply
         
-        # Nếu là string, thử parse JSON hoặc dict string
+        # Nếu là string, kiểm tra xem có phải là JSON/dict string không
         if isinstance(reply_value, str):
-            # Thử parse JSON string
-            if reply_value.strip().startswith("{") or reply_value.strip().startswith("'"):
+            # Nếu không bắt đầu bằng { hoặc ', có thể đã là text thuần (dữ liệu mới)
+            if not (reply_value.strip().startswith("{") or reply_value.strip().startswith("'") or reply_value.strip().startswith('"')):
+                # Dữ liệu mới: reply đã là text thuần
+                return reply_value
+            
+            # Dữ liệu cũ: thử parse JSON hoặc dict string
+            try:
+                import json
+                parsed = json.loads(reply_value)
+                if isinstance(parsed, dict):
+                    return parsed.get("comment", "") or ""
+            except (json.JSONDecodeError, ValueError, TypeError):
+                # Thử parse dict string (Python representation)
                 try:
-                    import json
-                    parsed = json.loads(reply_value)
+                    import ast
+                    parsed = ast.literal_eval(reply_value)
                     if isinstance(parsed, dict):
                         return parsed.get("comment", "") or ""
-                except (json.JSONDecodeError, ValueError, TypeError):
-                    # Thử parse dict string (Python representation)
-                    try:
-                        import ast
-                        parsed = ast.literal_eval(reply_value)
-                        if isinstance(parsed, dict):
-                            return parsed.get("comment", "") or ""
-                    except (ValueError, SyntaxError, TypeError):
-                        pass
+                except (ValueError, SyntaxError, TypeError):
+                    pass
             # Nếu không parse được, trả về string gốc
             return reply_value
         
