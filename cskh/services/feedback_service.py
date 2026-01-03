@@ -1380,11 +1380,22 @@ class FeedbackService:
                 initial_page = 1
                 initial_from_page = 1
                 
-                if resume_cursor is not None and resume_page and resume_page > 1:
+                # Debug log
+                if resume_page or resume_cursor:
+                    log_progress(f"🔍 Resume params: resume_page={resume_page}, resume_cursor={resume_cursor}")
+                
+                # Check resume condition: page > 1 và cursor không None (có thể là 0)
+                if resume_page and resume_page > 1:
                     # Resume từ page/cursor đã lưu
-                    initial_cursor = resume_cursor
+                    initial_cursor = resume_cursor if resume_cursor is not None else 0
                     initial_page = resume_page
                     initial_from_page = resume_page - 1
+                    log_progress(f"🔄 Shop {shop_name}: Resume từ page {initial_page}, cursor {initial_cursor}")
+                elif resume_page == 1 and resume_cursor:
+                    # Trường hợp đặc biệt: resume từ page 1 nhưng có cursor
+                    initial_cursor = resume_cursor
+                    initial_page = 1
+                    initial_from_page = 1
                     log_progress(f"🔄 Shop {shop_name}: Resume từ page {initial_page}, cursor {initial_cursor}")
                 
                 # Probe để lấy total

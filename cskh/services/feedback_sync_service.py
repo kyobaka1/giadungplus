@@ -264,10 +264,21 @@ class FeedbackSyncService:
                 resume_cursor = None
                 
                 # Nếu đang resume shop này (shop đầu tiên trong resume), dùng page/cursor đã lưu
-                if (shop_idx == start_index and start_index > 0 and
-                    job.current_shop_name == shop_name and 
-                    job.current_connection_id == connection_id and
-                    job.current_page and job.current_page > 1):
+                # Check: shop_index match HOẶC connection_id match (linh hoạt hơn)
+                is_resume_shop = (
+                    shop_idx == start_index and start_index > 0 and
+                    (job.current_shop_name == shop_name or job.current_connection_id == connection_id) and
+                    job.current_page and job.current_page > 1
+                )
+                
+                if is_resume_shop:
+                    self.update_job_progress(
+                        job,
+                        log_message=f"🔍 Check resume: shop_idx={shop_idx}, start_index={start_index}, "
+                                   f"job.shop={job.current_shop_name}, current.shop={shop_name}, "
+                                   f"job.conn={job.current_connection_id}, current.conn={connection_id}, "
+                                   f"job.page={job.current_page}, job.cursor={job.current_cursor}"
+                    )
                     
                     # Kiểm tra feedback cuối cùng đã xử lý để đảm bảo không bỏ sót
                     from cskh.models import Feedback
@@ -284,13 +295,22 @@ class FeedbackSyncService:
                             log_message=f"🔄 Resume shop {shop_name} từ page {resume_page}, cursor {resume_cursor or 0} (feedback cuối: {latest_feedback.feedback_id})"
                         )
                     else:
-                        # Chưa có feedback nào, reset về đầu
-                        resume_page = None
-                        resume_cursor = None
-                        self.update_job_progress(
-                            job,
-                            log_message=f"🔄 Resume shop {shop_name}: chưa có feedback nào, bắt đầu từ đầu"
-                        )
+                        # Chưa có feedback nào, nhưng vẫn dùng page/cursor đã lưu (có thể đang sync shop khác)
+                        if job.current_connection_id == connection_id:
+                            resume_page = job.current_page
+                            resume_cursor = job.current_cursor
+                            self.update_job_progress(
+                                job,
+                                log_message=f"🔄 Resume shop {shop_name} từ page {resume_page}, cursor {resume_cursor or 0} (chưa có feedback trong DB)"
+                            )
+                        else:
+                            # Connection ID khác, reset về đầu
+                            resume_page = None
+                            resume_cursor = None
+                            self.update_job_progress(
+                                job,
+                                log_message=f"🔄 Resume shop {shop_name}: connection_id khác, bắt đầu từ đầu"
+                            )
                 
                 # Update current shop
                 job.current_connection_id = connection_id
