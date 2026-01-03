@@ -20,3 +20,4 @@ settings/firebase/
 
 # Temporary files
 output-command.log
+debug.log
