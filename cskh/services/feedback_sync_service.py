@@ -32,7 +32,7 @@ class FeedbackSyncService:
     
     def create_full_sync_job(
         self,
-        days: int = 365,
+        days: Optional[int] = None,
         page_size: int = 50,
         max_feedbacks_per_shop: Optional[int] = None
     ) -> FeedbackSyncJob:
@@ -40,7 +40,7 @@ class FeedbackSyncService:
         Tạo full sync job.
         
         Args:
-            days: Số ngày gần nhất cần sync
+            days: Số ngày gần nhất cần sync (None = không giới hạn, lấy tất cả feedbacks)
             page_size: Số items mỗi trang
             max_feedbacks_per_shop: Số feedbacks tối đa mỗi shop (None = không giới hạn)
             
@@ -212,16 +212,24 @@ class FeedbackSyncService:
             
             self.update_job_progress(job, log_message="🚀 Bắt đầu full sync")
             
-            # Tính toán time range
-            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
-            now_vn = datetime.now(tz_vn)
-            time_end = int(now_vn.timestamp())
-            time_start = int((now_vn - timedelta(days=job.days)).timestamp())
+            # Tính toán time range (chỉ nếu có days)
+            time_start = None
+            time_end = None
             
-            self.update_job_progress(
-                job,
-                log_message=f"📅 Time range: {time_start} -> {time_end} ({job.days} ngày)"
-            )
+            if job.days:
+                tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+                now_vn = datetime.now(tz_vn)
+                time_end = int(now_vn.timestamp())
+                time_start = int((now_vn - timedelta(days=job.days)).timestamp())
+                self.update_job_progress(
+                    job,
+                    log_message=f"📅 Time range: {time_start} -> {time_end} ({job.days} ngày)"
+                )
+            else:
+                self.update_job_progress(
+                    job,
+                    log_message=f"📅 Time range: Không giới hạn (lấy tất cả feedbacks)"
+                )
             
             # Lấy danh sách shops
             shops_detail = load_shopee_shops_detail()
@@ -440,10 +448,11 @@ class FeedbackSyncService:
     def run_incremental_sync(self, job: FeedbackSyncJob) -> Dict[str, Any]:
         """
         Chạy incremental sync:
-        - Quét từ mới nhất (time_end = now)
-        - Mỗi batch 50 feedbacks
-        - Nếu gặp feedback đã có trong DB -> dừng (đã hết mới)
-        - Nếu chưa có -> tiếp tục quét
+        - Time range: 7 ngày gần nhất (cố định)
+        - Bắt đầu từ page 1, cursor 0, page_size 50
+        - Xử lý page 1 (50 feedbacks)
+        - Nếu có feedback trùng trong page 1 -> tiếp tục page 2
+        - Nếu page 2 cũng có feedback trùng -> dừng shop này, chuyển sang shop tiếp theo
         
         Args:
             job: FeedbackSyncJob instance
@@ -468,27 +477,16 @@ class FeedbackSyncService:
             
             self.update_job_progress(job, log_message="🚀 Bắt đầu incremental sync")
             
-            # Lấy feedback mới nhất từ DB để biết điểm bắt đầu
-            latest_feedback = Feedback.objects.order_by('-create_time').first()
+            # Time range: 7 ngày gần nhất (cố định)
+            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+            now_vn = datetime.now(tz_vn)
+            time_end = int(now_vn.timestamp())
+            time_start = int((now_vn - timedelta(days=7)).timestamp())
             
-            if latest_feedback:
-                # create_time là BigInteger (timestamp), set time_start = latest_feedback.create_time - buffer (1 giờ)
-                time_start = latest_feedback.create_time - 3600
-                self.update_job_progress(
-                    job,
-                    log_message=f"📅 Lấy feedbacks mới hơn feedback ID {latest_feedback.feedback_id} (create_time: {latest_feedback.create_time})"
-                )
-            else:
-                # Nếu chưa có feedback nào, sync 7 ngày gần nhất
-                tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
-                now_vn = datetime.now(tz_vn)
-                time_start = int((now_vn - timedelta(days=7)).timestamp())
-                self.update_job_progress(
-                    job,
-                    log_message="📅 Chưa có feedback nào, sync 7 ngày gần nhất"
-                )
-            
-            time_end = int(datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
+            self.update_job_progress(
+                job,
+                log_message=f"📅 Time range: 7 ngày gần nhất ({time_start} -> {time_end})"
+            )
             
             # Lấy danh sách shops
             shops_detail = load_shopee_shops_detail()
@@ -516,23 +514,120 @@ class FeedbackSyncService:
                 )
                 
                 try:
-                    # Quét từng batch
-                    batch_synced = 0
+                    # Logic mới: 
+                    # 1. Bắt đầu từ page 1, cursor 0, page_size 50
+                    # 2. Xử lý page 1 (50 feedbacks)
+                    # 3. Nếu có feedback trùng -> tiếp tục page 2
+                    # 4. Nếu page 2 cũng có feedback trùng -> dừng shop này
+                    
+                    page_size = job.batch_size  # 50
                     page = 1
                     cursor = 0
-                    found_existing = False
+                    total_synced = 0
+                    found_existing_in_page1 = False
+                    found_existing_in_page2 = False
                     
-                    while True:
-                        # Tạo ShopeeClient
-                        shopee_client = ShopeeClient(shop_key=connection_id)
+                    # Tạo ShopeeClient
+                    shopee_client = ShopeeClient(shop_key=connection_id)
+                    
+                    # === PAGE 1 ===
+                    self.update_job_progress(
+                        job,
+                        log_message=f"📄 Shop {shop_name}: Fetching page 1 (cursor=0, page_size={page_size})"
+                    )
+                    
+                    response = shopee_client.repo.get_shop_ratings_raw(
+                        rating_star="5,4,3,2,1",
+                        time_start=time_start,
+                        time_end=time_end,
+                        page_number=page,
+                        page_size=page_size,
+                        cursor=cursor,
+                        from_page_number=1,
+                        language="vi"
+                    )
+                    
+                    if response.get("code") != 0:
+                        self.update_job_progress(
+                            job,
+                            error_message=f"Shopee API error (page 1): {response.get('message')}"
+                        )
+                        continue
+                    
+                    feedbacks_page1 = response.get("data", {}).get("list", [])
+                    if not feedbacks_page1:
+                        # Không có feedback nào trong page 1, chuyển sang shop tiếp theo
+                        self.update_job_progress(
+                            job,
+                            log_message=f"ℹ️ Shop {shop_name}: Không có feedback nào trong page 1"
+                        )
+                        continue
+                    
+                    # Xử lý page 1
+                    page1_synced = 0
+                    for feedback_data in feedbacks_page1:
+                        comment_id = feedback_data.get("comment_id")
+                        if not comment_id:
+                            continue
                         
-                        # Fetch batch
+                        # Check xem đã có trong DB chưa
+                        if Feedback.objects.filter(feedback_id=comment_id).exists():
+                            found_existing_in_page1 = True
+                            self.update_job_progress(
+                                job,
+                                log_message=f"⚠️ Shop {shop_name}: Page 1 có feedback trùng (ID: {comment_id})"
+                            )
+                            break
+                        
+                        # Chưa có -> sync (tạo mới)
+                        try:
+                            feedback_data["connection_id"] = connection_id
+                            self.feedback_service._process_feedback_from_shopee(feedback_data)
+                            
+                            page1_synced += 1
+                            total_synced += 1
+                            result["synced"] += 1
+                            self.update_job_progress(
+                                job,
+                                processed=1,
+                                synced=1,
+                                updated=0
+                            )
+                            
+                        except Exception as e:
+                            error_msg = f"Error processing feedback {comment_id}: {str(e)}"
+                            logger.error(error_msg, exc_info=True)
+                            self.update_job_progress(
+                                job,
+                                errors=1,
+                                error_message=error_msg
+                            )
+                            result["errors"].append(error_msg)
+                    
+                    self.update_job_progress(
+                        job,
+                        log_message=f"📄 Shop {shop_name}: Page 1 - {page1_synced} synced, found_existing={found_existing_in_page1}"
+                    )
+                    
+                    # Nếu page 1 có feedback trùng -> tiếp tục page 2
+                    if found_existing_in_page1:
+                        # Update cursor từ page 1
+                        if feedbacks_page1:
+                            cursor = feedbacks_page1[-1].get("comment_id", cursor)
+                        
+                        # === PAGE 2 ===
+                        page = 2
+                        self.update_job_progress(
+                            job,
+                            log_message=f"📄 Shop {shop_name}: Fetching page 2 (cursor={cursor}, page_size={page_size})"
+                        )
+                        
                         response = shopee_client.repo.get_shop_ratings_raw(
                             rating_star="5,4,3,2,1",
                             time_start=time_start,
                             time_end=time_end,
                             page_number=page,
-                            page_size=job.batch_size,
+                            page_size=page_size,
                             cursor=cursor,
                             from_page_number=1,
                             language="vi"
@@ -541,39 +636,43 @@ class FeedbackSyncService:
                         if response.get("code") != 0:
                             self.update_job_progress(
                                 job,
-                                error_message=f"Shopee API error: {response.get('message')}"
+                                error_message=f"Shopee API error (page 2): {response.get('message')}"
                             )
-                            break
+                            continue
                         
-                        feedbacks = response.get("data", {}).get("list", [])
-                        if not feedbacks:
-                            # Hết dữ liệu
-                            break
+                        feedbacks_page2 = response.get("data", {}).get("list", [])
+                        if not feedbacks_page2:
+                            # Không có feedback nào trong page 2
+                            self.update_job_progress(
+                                job,
+                                log_message=f"ℹ️ Shop {shop_name}: Không có feedback nào trong page 2"
+                            )
+                            continue
                         
-                        # Process từng feedback trong batch
-                        for feedback_data in feedbacks:
+                        # Xử lý page 2
+                        page2_synced = 0
+                        for feedback_data in feedbacks_page2:
                             comment_id = feedback_data.get("comment_id")
                             if not comment_id:
                                 continue
                             
                             # Check xem đã có trong DB chưa
                             if Feedback.objects.filter(feedback_id=comment_id).exists():
-                                # Đã có -> dừng
-                                found_existing = True
+                                found_existing_in_page2 = True
                                 result["stopped_at_existing"] = True
                                 self.update_job_progress(
                                     job,
-                                    log_message=f"⏹️ Gặp feedback đã có (ID: {comment_id}), dừng incremental sync cho shop {shop_name}"
+                                    log_message=f"⏹️ Shop {shop_name}: Page 2 có feedback trùng (ID: {comment_id}), dừng"
                                 )
                                 break
                             
                             # Chưa có -> sync (tạo mới)
                             try:
                                 feedback_data["connection_id"] = connection_id
-                                # _process_feedback_from_shopee sẽ tạo mới vì ta đã check không tồn tại ở trên
                                 self.feedback_service._process_feedback_from_shopee(feedback_data)
                                 
-                                batch_synced += 1
+                                page2_synced += 1
+                                total_synced += 1
                                 result["synced"] += 1
                                 self.update_job_progress(
                                     job,
@@ -592,31 +691,21 @@ class FeedbackSyncService:
                                 )
                                 result["errors"].append(error_msg)
                         
-                        # Nếu gặp feedback đã có, dừng
-                        if found_existing:
-                            break
-                        
-                        # Nếu batch có ít hơn batch_size, đã hết
-                        if len(feedbacks) < job.batch_size:
-                            break
-                        
-                        # Update cursor và page cho batch tiếp theo
-                        if feedbacks:
-                            cursor = feedbacks[-1].get("comment_id", cursor)
-                        page += 1
-                        
-                        # Giới hạn số batch để tránh chạy quá lâu
-                        if page > 100:
-                            self.update_job_progress(
-                                job,
-                                log_message=f"⚠️ Đã quét 100 batches cho shop {shop_name}, dừng"
-                            )
-                            break
-                    
-                    if batch_synced > 0:
                         self.update_job_progress(
                             job,
-                            log_message=f"✅ Shop {shop_name}: {batch_synced} feedbacks mới"
+                            log_message=f"📄 Shop {shop_name}: Page 2 - {page2_synced} synced, found_existing={found_existing_in_page2}"
+                        )
+                    else:
+                        # Page 1 không có feedback trùng -> dừng shop này
+                        self.update_job_progress(
+                            job,
+                            log_message=f"✅ Shop {shop_name}: Page 1 không có feedback trùng, dừng"
+                        )
+                    
+                    if total_synced > 0:
+                        self.update_job_progress(
+                            job,
+                            log_message=f"✅ Shop {shop_name}: Tổng {total_synced} feedbacks mới"
                         )
                     
                 except Exception as e:

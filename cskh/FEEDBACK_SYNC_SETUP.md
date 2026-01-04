@@ -100,14 +100,17 @@ Response:
 
 ## Logic Incremental Sync
 
-1. Lấy feedback mới nhất từ DB (theo `create_time`)
-2. Set `time_end = now`, `time_start = last_feedback.create_time - 1 giờ`
-3. Quét từ page 1, mỗi batch 50 feedbacks
-4. Với mỗi feedback:
-   - Nếu đã có trong DB (check `feedback_id`) -> **DỪNG** (đã hết mới)
-   - Nếu chưa có -> sync vào DB
-5. Nếu batch có ít hơn 50 feedbacks -> dừng (đã hết)
-6. Nếu batch đầy 50 và không có feedback trùng -> tiếp tục quét
+1. **Time range**: 7 ngày gần nhất (cố định)
+2. **Bắt đầu**: page_number=1, cursor=0, page_size=50
+3. **Xử lý Page 1**:
+   - Fetch và xử lý 50 feedbacks đầu tiên
+   - Nếu có feedback trùng (đã có trong DB) -> tiếp tục Page 2
+   - Nếu không có feedback trùng -> dừng shop này, chuyển sang shop tiếp theo
+4. **Xử lý Page 2** (chỉ khi Page 1 có feedback trùng):
+   - Fetch và xử lý 50 feedbacks tiếp theo
+   - Nếu có feedback trùng -> dừng shop này, chuyển sang shop tiếp theo
+   - Nếu không có feedback trùng -> tiếp tục xử lý hết page 2
+5. **Quét sang shop tiếp theo** sau khi hoàn thành shop hiện tại
 
 ## Error Handling
 

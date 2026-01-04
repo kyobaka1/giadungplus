@@ -1240,7 +1240,7 @@ class FeedbackService:
     
     def sync_feedbacks_from_shopee(
         self,
-        days: int = 30,
+        days: Optional[int] = None,
         page_size: int = 50,
         max_feedbacks_per_shop: Optional[int] = 100,
         connection_ids: Optional[List[int]] = None,
@@ -1251,12 +1251,11 @@ class FeedbackService:
     ) -> Dict[str, Any]:
         """
         Đồng bộ feedbacks từ Shopee API cho tất cả các shop.
-        Lấy đánh giá của N ngày gần nhất (mặc định 30 ngày).
         
         Args:
-            days: Số ngày gần nhất cần lấy (default: 30)
+            days: Số ngày gần nhất cần lấy (None = không giới hạn, lấy tất cả feedbacks)
             page_size: Số items mỗi trang (default: 50, max: 50)
-            max_feedbacks_per_shop: Số đánh giá tối đa mỗi shop (default: 100)
+            max_feedbacks_per_shop: Số đánh giá tối đa mỗi shop (None = không giới hạn)
             connection_ids: Danh sách connection_ids cần sync (None = tất cả)
             progress_callback: Callback để log progress
             resume_page: Page để resume (None = bắt đầu từ đầu)
@@ -1305,13 +1304,19 @@ class FeedbackService:
                     logger.warning(f"Error in progress_callback: {e}")
         
         try:
-            # Tính toán time_start và time_end (N ngày gần nhất)
-            tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
-            now_vn = datetime.now(tz_vn)
-            time_end = int(now_vn.timestamp())
-            time_start = int((now_vn - timedelta(days=days)).timestamp())
+            # Tính toán time_start và time_end (chỉ nếu có days)
+            time_start = None
+            time_end = None
             
-            log_progress(f"🚀 Bắt đầu sync feedbacks từ Shopee API ({days} ngày gần nhất: {time_start} -> {time_end})")
+            if days:
+                tz_vn = ZoneInfo("Asia/Ho_Chi_Minh")
+                now_vn = datetime.now(tz_vn)
+                time_end = int(now_vn.timestamp())
+                time_start = int((now_vn - timedelta(days=days)).timestamp())
+                log_progress(f"🚀 Bắt đầu sync feedbacks từ Shopee API ({days} ngày gần nhất: {time_start} -> {time_end})")
+            else:
+                log_progress(f"🚀 Bắt đầu sync feedbacks từ Shopee API (không giới hạn thời gian - lấy tất cả feedbacks)")
+            
             log_progress(f"📊 Giới hạn: {max_feedbacks_per_shop} đánh giá mỗi shop")
             
             # Lấy danh sách tất cả shops
@@ -1354,13 +1359,15 @@ class FeedbackService:
                         return result
                     log_progress(f"✅ Đã filter: {len(shops_detail)} shop(s) cho test")
             
-            # Base URL params
+            # Base URL params (chỉ thêm time_start/time_end nếu có)
             base_url_params = {
                 "rating_star": "5,4,3,2,1",  # Lấy tất cả ratings
-                "time_start": time_start,
-                "time_end": time_end,
                 "language": "vi"
             }
+            if time_start is not None:
+                base_url_params["time_start"] = time_start
+            if time_end is not None:
+                base_url_params["time_end"] = time_end
             
             # Batch processing: mỗi batch 1000 items, xử lý ngay, luân phiên giữa các shops
             BATCH_SIZE = 1000  # Số feedbacks mỗi batch
@@ -1403,8 +1410,8 @@ class FeedbackService:
                     shopee_client = ShopeeClient(shop_key=connection_id)
                     probe_response = shopee_client.repo.get_shop_ratings_raw(
                         rating_star=base_url_params["rating_star"],
-                        time_start=time_start,
-                        time_end=time_end,
+                        time_start=time_start,  # None nếu không có days
+                        time_end=time_end,  # None nếu không có days
                         page_number=initial_page,
                         page_size=page_size,
                         cursor=initial_cursor,
@@ -1489,8 +1496,8 @@ class FeedbackService:
                             
                             response = shopee_client.repo.get_shop_ratings_raw(
                                 rating_star=base_url_params["rating_star"],
-                                time_start=time_start,
-                                time_end=time_end,
+                                time_start=time_start,  # None nếu không có days
+                                time_end=time_end,  # None nếu không có days
                                 page_number=page,
                                 page_size=page_size,
                                 cursor=cursor,

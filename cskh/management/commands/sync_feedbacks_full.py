@@ -20,8 +20,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--days',
             type=int,
-            default=365,
-            help='Số ngày gần nhất cần sync (default: 365)'
+            default=None,
+            help='Số ngày gần nhất cần sync (None = không giới hạn, lấy tất cả feedbacks)'
         )
         parser.add_argument(
             '--page-size',
