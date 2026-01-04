@@ -6,12 +6,90 @@ Convert raw JSON responses sang CustomerDTO.
 
 from typing import List, Dict, Any, Optional
 import logging
+import json
 
 from core.sapo_client.client import SapoClient
 from .dto import CustomerDTO, CustomerNoteDTO
 from .customer_builder import CustomerDTOFactory
 
 logger = logging.getLogger(__name__)
+
+
+# ===================================================================
+# HELPER FUNCTIONS: Description JSON Management
+# ===================================================================
+
+def parse_customer_description(description: Optional[str]) -> Dict[str, Any]:
+    """
+    Parse customer.description từ JSON string thành dict.
+    
+    Args:
+        description: JSON string hoặc None
+        
+    Returns:
+        Dict chứa các fields: short_name, user_name, user_portrait, ...
+        Nếu description rỗng/invalid, trả về dict rỗng.
+    """
+    if not description:
+        return {}
+    
+    # Strip whitespace
+    description = description.strip()
+    if not description:
+        return {}
+    
+    # Nếu là "{}" hoặc empty JSON, trả về dict rỗng
+    if description == "{}":
+        return {}
+    
+    try:
+        # Try parse as JSON
+        data = json.loads(description)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except (json.JSONDecodeError, TypeError) as e:
+        # Nếu không phải JSON hợp lệ, log warning và trả về dict rỗng
+        logger.warning(f"[parse_customer_description] Invalid JSON: {description[:100]}, error: {e}")
+        return {}
+
+
+def merge_customer_description(
+    current_description: Optional[str],
+    short_name: Optional[str] = None,
+    user_name: Optional[str] = None,
+    user_portrait: Optional[str] = None,
+    **other_fields
+) -> str:
+    """
+    Merge data mới vào customer.description (JSON format).
+    
+    Args:
+        current_description: Description hiện tại (JSON string hoặc None)
+        short_name: Tên rút gọn
+        user_name: Username (Shopee username)
+        user_portrait: Avatar ID từ Shopee (buyer_image)
+        **other_fields: Các fields khác cần lưu
+        
+    Returns:
+        JSON string mới để lưu vào description
+    """
+    # Parse description hiện tại
+    data = parse_customer_description(current_description)
+    
+    # Update các fields mới (chỉ update nếu có giá trị)
+    if short_name is not None:
+        data["short_name"] = short_name
+    if user_name is not None:
+        data["user_name"] = user_name
+    if user_portrait is not None:
+        data["user_portrait"] = user_portrait
+    
+    # Merge other fields
+    data.update(other_fields)
+    
+    # Convert về JSON string
+    return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
 
 
 class CustomerService:
@@ -140,6 +218,61 @@ class CustomerService:
             logger.error(f"[CustomerService] Error listing customers: {e}")
             raise
     
+    def update_customer_description(
+        self,
+        customer_id: int,
+        short_name: Optional[str] = None,
+        user_name: Optional[str] = None,
+        user_portrait: Optional[str] = None,
+        **other_fields
+    ) -> CustomerDTO:
+        """
+        Update customer.description với JSON data (short_name, user_name, user_portrait).
+        
+        Args:
+            customer_id: Sapo customer ID
+            short_name: Tên rút gọn
+            user_name: Username (Shopee username)
+            user_portrait: Avatar ID từ Shopee (buyer_image)
+            **other_fields: Các fields khác cần lưu vào description
+            
+        Returns:
+            Updated CustomerDTO
+        """
+        logger.info(f"[CustomerService] Updating description for customer {customer_id}")
+        
+        # Get current customer để lấy description hiện tại
+        current_customer = self.get_customer(customer_id)
+        current_description = current_customer.description
+        
+        # Merge data mới vào description
+        new_description = merge_customer_description(
+            current_description=current_description,
+            short_name=short_name,
+            user_name=user_name,
+            user_portrait=user_portrait,
+            **other_fields
+        )
+        
+        # Update description
+        return self.update_customer_info(
+            customer_id=customer_id,
+            description=new_description
+        )
+    
+    def get_customer_description_data(self, customer_id: int) -> Dict[str, Any]:
+        """
+        Lấy data từ customer.description (JSON format).
+        
+        Args:
+            customer_id: Sapo customer ID
+            
+        Returns:
+            Dict chứa các fields: short_name, user_name, user_portrait, ...
+        """
+        customer = self.get_customer(customer_id)
+        return parse_customer_description(customer.description)
+    
     def update_customer_info(
         self, 
         customer_id: int,
@@ -149,6 +282,7 @@ class CustomerService:
         sex: Optional[str] = None,
         phone_number: Optional[str] = None,
         processing_status: Optional[str] = None,
+        description: Optional[str] = None,
         **other_fields
     ) -> CustomerDTO:
         """
@@ -194,6 +328,11 @@ class CustomerService:
             update_data["tax_number"] = processing_status
             logger.debug(f"Mapping processing_status → tax_number: {processing_status}")
         
+        # Handle description field
+        if description is not None:
+            update_data["description"] = description
+        # ⭐ Nếu không truyền description, preserve description hiện tại (đã có trong to_sapo_update_dict)
+        
         # Merge other fields (website can be passed directly)
         update_data.update(other_fields)
         
@@ -201,12 +340,20 @@ class CustomerService:
         update_data["id"] = customer_id
         
         logger.debug(f"Update payload keys: {list(update_data.keys())}")
+        if "description" in update_data:
+            logger.debug(f"Update payload description: {update_data['description'][:100]}...")
         
         try:
             raw_data = self._sapo.core.update_customer(customer_id, update_data)
             customer = self._factory.from_sapo_json(raw_data)
             
-            logger.info(f"[CustomerService] Customer {customer_id} updated successfully")
+            # ⭐ VERIFY: Kiểm tra description trong response
+            response_description = customer.description if customer else None
+            if response_description:
+                logger.info(f"[CustomerService] Customer {customer_id} updated successfully - Description in response: {response_description[:100]}...")
+            else:
+                logger.warning(f"[CustomerService] Customer {customer_id} updated but description is empty in response!")
+            
             return customer
             
         except Exception as e:

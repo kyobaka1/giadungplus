@@ -296,5 +296,8 @@ class CustomerDTO(BaseDTO):
             update_data["tags"] = self.tags
         if self.apply_incentives:
             update_data["apply_incentives"] = self.apply_incentives
+        # ⭐ PRESERVE DESCRIPTION - rất quan trọng để không mất data
+        if self.description:
+            update_data["description"] = self.description
             
         return update_data

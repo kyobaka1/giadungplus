@@ -954,9 +954,11 @@ def generate_label_pdf_for_channel_order(
             if order_dto and order_dto.customer_id:
                 try:
                     # Prepare shopee_order_info for update function
+                    # ⭐ Lấy buyer_image từ shopee_order_info
                     shopee_order_info_for_update = {
                         "order_id": SHOPEE_ID,
                         "buyer_name": shopee_order_info.get("buyer_name"),
+                        "buyer_image": shopee_order_info.get("buyer_image", ""),  # ⭐ Thêm buyer_image
                         "shop_name": shop_name,
                         "connection_id": connection_id,
                     }
