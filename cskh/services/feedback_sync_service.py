@@ -267,16 +267,44 @@ class FeedbackSyncService:
                 resume_page = None
                 resume_cursor = None
                 
+                # Auto-resume từ DB: Nếu không có page/cursor trong job nhưng có feedbacks trong DB
+                if not job.current_page or job.current_page <= 1:
+                    from cskh.models import Feedback
+                    import math
+                    feedback_count = Feedback.objects.filter(connection_id=connection_id).count()
+                    if feedback_count > 0:
+                        # Tính page/cursor từ số feedbacks trong DB
+                        estimated_page = math.ceil(feedback_count / job.page_size) + 1
+                        latest_feedback = Feedback.objects.filter(
+                            connection_id=connection_id
+                        ).order_by('-create_time').first()
+                        if latest_feedback:
+                            resume_page = estimated_page
+                            resume_cursor = latest_feedback.feedback_id
+                            self.update_job_progress(
+                                job,
+                                log_message=f"🔄 Auto-resume từ DB: shop {shop_name} có {feedback_count} feedbacks, "
+                                           f"estimate page {resume_page}, cursor {resume_cursor}"
+                            )
+                
                 # Nếu đang resume shop này (shop tại start_index), dùng page/cursor đã lưu
                 # Check: shop_index match HOẶC connection_id match (linh hoạt hơn)
                 # Cho phép resume từ shop đầu tiên (index 0) nếu có page > 1
-                is_resume_shop = (
+                if not resume_page and (
                     shop_idx == start_index and
                     (job.current_shop_name == shop_name or job.current_connection_id == connection_id) and
                     job.current_page and job.current_page > 1
-                )
+                ):
+                    is_resume_shop = True
+                else:
+                    is_resume_shop = False
                 
-                if is_resume_shop:
+                # Nếu có resume_page từ auto-resume DB hoặc từ job, xử lý resume
+                if resume_page:
+                    # Đã có resume_page từ auto-resume DB, không cần làm gì thêm
+                    pass
+                elif is_resume_shop:
+                    # Resume từ job đã lưu
                     self.update_job_progress(
                         job,
                         log_message=f"🔍 Check resume: shop_idx={shop_idx}, start_index={start_index}, "
