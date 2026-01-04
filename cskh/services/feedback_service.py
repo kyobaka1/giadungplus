@@ -1434,9 +1434,14 @@ class FeedbackService:
                                     # Nếu có giới hạn, chỉ fetch phần còn lại
                                     max_items = min(max_items, max_feedbacks_per_shop - estimated_fetched)
                             
+                            # Tính số pages tối đa cần fetch dựa vào total
+                            max_pages = math.ceil(max_items / page_size) if max_items > 0 else 0
+                            
                             shop_progress[shop_name] = {
                                 'connection_id': connection_id,
-                                'total': max_items,
+                                'total': max_items,  # Tổng số items cần fetch
+                                'total_from_api': total,  # Tổng số items từ API (để reference)
+                                'max_pages': max_pages,  # Số pages tối đa cần fetch
                                 'fetched': estimated_fetched,  # Ước tính số đã fetch khi resume
                                 'cursor': initial_cursor,  # Dùng resume cursor
                                 'page': initial_page,  # Dùng resume page
@@ -1490,8 +1495,17 @@ class FeedbackService:
                         page = shop_prog['page']
                         from_page = shop_prog['from_page']
                         
+                        # Kiểm tra xem có vượt quá max_pages không
+                        current_max_page = shop_prog.get('max_pages', 0)
+                        
                         for _ in range(pages_needed):
                             if len(batch_ratings) >= batch_size:
+                                break
+                            
+                            # Kiểm tra page có vượt quá max_pages không (dựa vào total từ API)
+                            if current_max_page > 0 and page > current_max_page:
+                                log_progress(f"✅ Shop {shop_name}: Đã đến page cuối cùng ({current_max_page} / total={shop_prog.get('total_from_api', 0)}), dừng")
+                                shop_prog['done'] = True
                                 break
                             
                             response = shopee_client.repo.get_shop_ratings_raw(
@@ -1508,6 +1522,22 @@ class FeedbackService:
                             if response.get("code") != 0:
                                 log_progress(f"⚠️ Shop {shop_name}: API error: {response.get('message')}")
                                 break
+                            
+                            # Cập nhật total từ API response nếu có (có thể thay đổi theo thời gian)
+                            page_info = response.get("data", {}).get("page_info", {})
+                            if page_info:
+                                api_total = int(page_info.get("total", 0) or 0)
+                                if api_total > 0:
+                                    # Lưu total từ API (có thể khác với probe ban đầu)
+                                    old_total = shop_prog.get('total_from_api', 0)
+                                    if api_total != old_total:
+                                        shop_prog['total_from_api'] = api_total
+                                        # Tính lại max_items và max_pages
+                                        max_items_updated = api_total if max_feedbacks_per_shop is None else min(api_total, max_feedbacks_per_shop)
+                                        shop_prog['total'] = max_items_updated
+                                        shop_prog['max_pages'] = math.ceil(max_items_updated / page_size) if max_items_updated > 0 else 0
+                                        current_max_page = shop_prog['max_pages']
+                                        log_progress(f"📊 Shop {shop_name}: Cập nhật total từ API: {old_total} → {api_total}, max_pages: {current_max_page}")
                             
                             page_data = response.get("data", {}).get("list", [])
                             if not page_data:
