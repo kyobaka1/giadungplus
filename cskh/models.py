@@ -641,7 +641,7 @@ class FeedbackSyncJob(models.Model):
     logs = models.JSONField(default=list, blank=True)  # List of log messages (last 1000)
     
     # Settings
-    days = models.IntegerField(default=30)  # Số ngày gần nhất
+    days = models.IntegerField(null=True, blank=True, default=None)  # Số ngày gần nhất (None = không giới hạn)
     page_size = models.IntegerField(default=50)
     max_feedbacks_per_shop = models.IntegerField(null=True, blank=True)  # None = không giới hạn
     
